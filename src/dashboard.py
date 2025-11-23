@@ -285,13 +285,13 @@ def main():
 
         1. **Set up your environment**
            ```bash
-           pip install -r requirements.txt
+           uv sync
            export OPENROUTER_API_KEY="your-key-here"
            ```
 
         2. **Run the Cortex** (orchestration engine)
            ```bash
-           python src/cortex.py
+           uv run python src/cortex.py
            ```
 
         3. **Create a new project**

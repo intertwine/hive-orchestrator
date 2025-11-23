@@ -41,7 +41,7 @@
     }
   },
 
-  "postCreateCommand": "pip install -r requirements.txt",
+  "postCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh && uv sync",
 
   "remoteEnv": {
     "HIVE_BASE_PATH": "${containerWorkspaceFolder}"

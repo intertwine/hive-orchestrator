@@ -19,19 +19,19 @@ classifiers = [
 ]
 
 dependencies = [
-    "openai>=1.12.0",
-    "requests>=2.31.0",
-    "streamlit>=1.31.0",
-    "python-frontmatter>=1.0.0",
-    "pyyaml>=6.0.1",
-    "python-dotenv>=1.0.0",
+    "openai>=2.8.1,<3.0.0",
+    "requests>=2.32.5,<3.0.0",
+    "streamlit>=1.51.0,<2.0.0",
+    "python-frontmatter>=1.1.0,<2.0.0",
+    "pyyaml>=6.0.3,<7.0.0",
+    "python-dotenv>=1.2.1,<2.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "black>=24.0.0",
-    "pylint>=3.0.0",
-    "pytest>=8.0.0",
+    "black>=25.11.0,<26.0.0",
+    "pylint>=4.0.3,<5.0.0",
+    "pytest>=9.0.1,<10.0.0",
 ]
 
 [project.urls]

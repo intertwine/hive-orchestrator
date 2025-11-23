@@ -1,4 +1,4 @@
-.PHONY: help install run dashboard cortex session clean test lint format
+.PHONY: help install install-dev run dashboard cortex session clean test lint format sync
 
 # Default target
 help:
@@ -7,7 +7,9 @@ help:
 	@echo "╚════════════════════════════════════════════════════════╝"
 	@echo ""
 	@echo "Setup Commands:"
-	@echo "  make install        Install Python dependencies"
+	@echo "  make install        Install Python dependencies with uv"
+	@echo "  make install-dev    Install dev dependencies (black, pylint, pytest)"
+	@echo "  make sync           Sync dependencies from pyproject.toml"
 	@echo "  make setup-env      Create .env file template"
 	@echo ""
 	@echo "Runtime Commands:"
@@ -29,9 +31,23 @@ help:
 
 # Install dependencies
 install:
-	@echo "📦 Installing dependencies..."
-	pip install -r requirements.txt
+	@echo "📦 Installing dependencies with uv..."
+	@command -v uv >/dev/null 2>&1 || { echo "❌ Error: uv not found. Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
+	uv sync
 	@echo "✅ Installation complete!"
+
+# Install dev dependencies
+install-dev:
+	@echo "📦 Installing dev dependencies with uv..."
+	@command -v uv >/dev/null 2>&1 || { echo "❌ Error: uv not found. Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
+	uv sync --extra dev
+	@echo "✅ Dev dependencies installed!"
+
+# Sync dependencies
+sync:
+	@echo "🔄 Syncing dependencies..."
+	uv sync
+	@echo "✅ Sync complete!"
 
 # Create .env template
 setup-env:
@@ -50,12 +66,12 @@ dashboard:
 	@echo "🚀 Launching Agent Hive Dashboard..."
 	@echo "   Open http://localhost:8501 in your browser"
 	@echo ""
-	streamlit run src/dashboard.py
+	uv run streamlit run src/dashboard.py
 
 # Run Cortex orchestration
 cortex:
 	@echo "🧠 Running Cortex orchestration engine..."
-	python src/cortex.py
+	uv run python src/cortex.py
 
 # Start a Deep Work session
 session:
@@ -69,18 +85,18 @@ session:
 # Run linting
 lint:
 	@echo "🔍 Running pylint..."
-	@pylint src/ || true
+	@uv run pylint src/ || true
 
 # Format code
 format:
 	@echo "🎨 Formatting code with black..."
-	@black src/ || echo "⚠️  black not installed. Run: pip install black"
+	@uv run black src/ || echo "⚠️  black not installed. Run: make install-dev"
 
 # Run tests
 test:
 	@echo "🧪 Running tests..."
 	@if [ -d "tests" ]; then \
-		python -m pytest tests/ -v; \
+		uv run pytest tests/ -v; \
 	else \
 		echo "⚠️  No tests directory found"; \
 	fi

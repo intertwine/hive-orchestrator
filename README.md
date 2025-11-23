@@ -33,16 +33,20 @@ Instead of building vendor-specific workflows, Agent Hive uses a simple but powe
 ### Prerequisites
 
 - Python 3.11+
+- [uv](https://github.com/astral-sh/uv) - Fast Python package installer
 - OpenRouter API key ([Get one here](https://openrouter.ai/))
 
 ### Installation
 
 ```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # Clone the repository
 git clone https://github.com/your-org/agent-hive.git
 cd agent-hive
 
-# Install dependencies
+# Install dependencies with uv
 make install
 
 # Create .env file
@@ -97,7 +101,7 @@ agent-hive/
 │   └── dashboard.py            # Streamlit UI
 ├── GLOBAL.md                   # Root system state
 ├── Makefile                    # Convenience commands
-├── requirements.txt            # Python dependencies
+├── pyproject.toml              # Python project configuration & dependencies
 └── README.md                   # This file
 ```
 
@@ -383,7 +387,10 @@ Make sure you have at least one `AGENCY.md` file in a subdirectory of `projects/
 
 ```bash
 # Reinstall dependencies
-pip install -r requirements.txt
+make install
+
+# Or sync dependencies
+make sync
 
 # Check for port conflicts
 lsof -i :8501

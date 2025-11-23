@@ -1,0 +1,24 @@
+{
+  "name": "Agent Hive Orchestrator",
+  "url": "https://github.com/agent-hive/orchestrator",
+  "hook_attributes": {
+    "url": "https://agent-hive.example.com/webhooks"
+  },
+  "redirect_url": "https://agent-hive.example.com/auth/callback",
+  "description": "Vendor-agnostic AI agent orchestration system that coordinates autonomous agents across different LLM providers using shared memory in AGENCY.md files.",
+  "public": true,
+  "default_permissions": {
+    "contents": "write",
+    "workflows": "write",
+    "metadata": "read",
+    "pull_requests": "write",
+    "issues": "write"
+  },
+  "default_events": [
+    "push",
+    "workflow_dispatch",
+    "pull_request",
+    "issues",
+    "issue_comment"
+  ]
+}

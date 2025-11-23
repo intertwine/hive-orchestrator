@@ -1,0 +1,78 @@
+name: Cortex Heartbeat
+
+on:
+  schedule:
+    # Run every 4 hours
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+    # Allow manual triggering from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  cortex-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Cortex
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          python src/cortex.py
+
+      - name: Validate changes before commit
+        run: |
+          # Only add AGENCY.md and GLOBAL.md files for safety
+          git add GLOBAL.md projects/**/AGENCY.md 2>/dev/null || true
+
+          # Check which files are staged
+          if git diff --staged --name-only | grep -qvE '^(GLOBAL\.md|projects/.*/AGENCY\.md)$'; then
+            echo "⚠️ WARNING: Unexpected files modified. Only AGENCY.md and GLOBAL.md should be changed."
+            echo "Modified files:"
+            git diff --staged --name-only
+            echo "Aborting commit for safety."
+            exit 1
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "Agent Hive Cortex"
+          git config user.email "cortex@agent-hive.dev"
+
+      - name: Commit and push changes
+        run: |
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            echo "Committing validated state updates..."
+            git commit -m "🧠 Cortex auto-update [$(date -u +%Y-%m-%d\ %H:%M\ UTC)]"
+            git push
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-logs-${{ github.run_number }}
+          path: |
+            *.log
+            **/*.log
+          retention-days: 7

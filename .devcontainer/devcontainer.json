@@ -1,0 +1,56 @@
+{
+  "name": "Agent Hive Development",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "github.copilot",
+        "tamasfe.even-better-toml",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.formatting.provider": "black",
+        "editor.formatOnSave": true,
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/*.pyc": true
+        }
+      }
+    }
+  },
+
+  "forwardPorts": [8501],
+  "portsAttributes": {
+    "8501": {
+      "label": "Streamlit Dashboard",
+      "onAutoForward": "notify"
+    }
+  },
+
+  "postCreateCommand": "pip install -r requirements.txt",
+
+  "remoteEnv": {
+    "HIVE_BASE_PATH": "${containerWorkspaceFolder}"
+  },
+
+  "mounts": [
+    "source=${localEnv:HOME}/.openrouter,target=/home/vscode/.openrouter,type=bind,consistency=cached"
+  ]
+
+  // Note: Create a .env file from .env.example before using the DevContainer
+  // The file should contain: OPENROUTER_API_KEY=your-key-here
+}

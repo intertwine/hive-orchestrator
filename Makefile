@@ -1,0 +1,112 @@
+.PHONY: help install run dashboard cortex session clean test lint format
+
+# Default target
+help:
+	@echo "╔════════════════════════════════════════════════════════╗"
+	@echo "║            AGENT HIVE - MAKEFILE COMMANDS              ║"
+	@echo "╚════════════════════════════════════════════════════════╝"
+	@echo ""
+	@echo "Setup Commands:"
+	@echo "  make install        Install Python dependencies"
+	@echo "  make setup-env      Create .env file template"
+	@echo ""
+	@echo "Runtime Commands:"
+	@echo "  make dashboard      Launch Streamlit dashboard (UI)"
+	@echo "  make cortex         Run Cortex orchestration engine"
+	@echo "  make session        Start a Deep Work session (requires PROJECT=...)"
+	@echo ""
+	@echo "Development Commands:"
+	@echo "  make lint           Run code linting (pylint)"
+	@echo "  make format         Format code with black"
+	@echo "  make test           Run tests (if available)"
+	@echo "  make clean          Clean up generated files"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make dashboard"
+	@echo "  make cortex"
+	@echo "  make session PROJECT=projects/demo"
+	@echo ""
+
+# Install dependencies
+install:
+	@echo "📦 Installing dependencies..."
+	pip install -r requirements.txt
+	@echo "✅ Installation complete!"
+
+# Create .env template
+setup-env:
+	@if [ ! -f .env ]; then \
+		echo "Creating .env template..."; \
+		echo "OPENROUTER_API_KEY=your-api-key-here" > .env; \
+		echo "OPENROUTER_MODEL=anthropic/claude-3.5-haiku" >> .env; \
+		echo "HIVE_BASE_PATH=$(shell pwd)" >> .env; \
+		echo "✅ .env file created. Please edit it and add your API key."; \
+	else \
+		echo "⚠️  .env file already exists. Not overwriting."; \
+	fi
+
+# Launch Streamlit dashboard
+dashboard:
+	@echo "🚀 Launching Agent Hive Dashboard..."
+	@echo "   Open http://localhost:8501 in your browser"
+	@echo ""
+	streamlit run src/dashboard.py
+
+# Run Cortex orchestration
+cortex:
+	@echo "🧠 Running Cortex orchestration engine..."
+	python src/cortex.py
+
+# Start a Deep Work session
+session:
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "❌ Error: PROJECT variable not set"; \
+		echo "Usage: make session PROJECT=projects/demo"; \
+		exit 1; \
+	fi
+	@./scripts/start_session.sh $(PROJECT)
+
+# Run linting
+lint:
+	@echo "🔍 Running pylint..."
+	@pylint src/ || true
+
+# Format code
+format:
+	@echo "🎨 Formatting code with black..."
+	@black src/ || echo "⚠️  black not installed. Run: pip install black"
+
+# Run tests
+test:
+	@echo "🧪 Running tests..."
+	@if [ -d "tests" ]; then \
+		python -m pytest tests/ -v; \
+	else \
+		echo "⚠️  No tests directory found"; \
+	fi
+
+# Clean up
+clean:
+	@echo "🧹 Cleaning up..."
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	find . -type f -name "*.pyo" -delete 2>/dev/null || true
+	find . -type f -name ".DS_Store" -delete 2>/dev/null || true
+	find . -type f -name "SESSION_CONTEXT.md" -delete 2>/dev/null || true
+	@echo "✅ Cleanup complete!"
+
+# Quick start (install + setup env + show help)
+quickstart: install setup-env
+	@echo ""
+	@echo "╔════════════════════════════════════════════════════════╗"
+	@echo "║              AGENT HIVE QUICK START                    ║"
+	@echo "╚════════════════════════════════════════════════════════╝"
+	@echo ""
+	@echo "✅ Dependencies installed"
+	@echo "✅ .env template created"
+	@echo ""
+	@echo "Next steps:"
+	@echo "1. Edit .env and add your OPENROUTER_API_KEY"
+	@echo "2. Run: make dashboard"
+	@echo "3. Or run: make cortex"
+	@echo ""

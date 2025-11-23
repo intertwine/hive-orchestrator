@@ -7,7 +7,6 @@ Provides human oversight and control over the Agent Hive orchestration system.
 
 import os
 import glob
-import subprocess
 from pathlib import Path
 from datetime import datetime
 import streamlit as st
@@ -68,6 +67,7 @@ def generate_file_tree(directory: Path, prefix: str = "", max_depth: int = 3, cu
                 tree += generate_file_tree(item, prefix + extension, max_depth, current_depth + 1)
 
     except PermissionError:
+        # Ignore directories/files that cannot be accessed due to permissions
         pass
 
     return tree
@@ -210,7 +210,8 @@ def main():
                     try:
                         last_run = datetime.fromisoformat(last_run.replace('Z', '+00:00'))
                         last_run = last_run.strftime('%Y-%m-%d %H:%M UTC')
-                    except:
+                    except ValueError:
+                        # If the date string is malformed, keep the original value
                         pass
                 st.metric("Last Cortex Run", last_run)
                 st.metric("Total Projects", len(projects))

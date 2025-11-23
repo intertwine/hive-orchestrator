@@ -43,6 +43,12 @@ fi
 # Get project ID from AGENCY.md
 PROJECT_ID=$(grep "project_id:" "$AGENCY_FILE" | head -1 | sed 's/project_id: *//' | tr -d '\r')
 
+# Validate that PROJECT_ID was found
+if [ -z "$PROJECT_ID" ]; then
+    echo -e "${RED}Error: 'project_id:' field not found in $AGENCY_FILE${NC}"
+    exit 1
+fi
+
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║       AGENT HIVE - DEEP WORK SESSION BOOTSTRAP        ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"

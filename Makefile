@@ -88,7 +88,7 @@ test:
 # Clean up
 clean:
 	@echo "🧹 Cleaning up..."
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name "__pycache__" -prune -exec rm -r {} \; 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	find . -type f -name "*.pyo" -delete 2>/dev/null || true
 	find . -type f -name ".DS_Store" -delete 2>/dev/null || true

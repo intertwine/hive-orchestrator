@@ -49,10 +49,8 @@
 
   "mounts": [
     "source=${localEnv:HOME}/.openrouter,target=/home/vscode/.openrouter,type=bind,consistency=cached"
-  ],
-
-  "runArgs": [
-    "--env-file",
-    ".env"
   ]
+
+  // Note: Create a .env file from .env.example before using the DevContainer
+  // The file should contain: OPENROUTER_API_KEY=your-key-here
 }

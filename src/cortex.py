@@ -212,7 +212,19 @@ Return ONLY valid JSON, no markdown formatting or additional text.
             response.raise_for_status()
 
             result = response.json()
-            llm_response = result['choices'][0]['message']['content']
+
+            # Defensive checks for response structure
+            choices = result.get('choices')
+            if not choices or not isinstance(choices, list) or len(choices) == 0:
+                print(f"❌ ERROR: Unexpected API response structure (missing or empty 'choices'): {result}")
+                return None
+
+            message = choices[0].get('message') if isinstance(choices[0], dict) else None
+            if not message or 'content' not in message:
+                print(f"❌ ERROR: Unexpected API response structure (missing 'message' or 'content'): {result}")
+                return None
+
+            llm_response = message['content']
 
             # Try to parse as JSON
             # Remove markdown code blocks if present
@@ -249,9 +261,21 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 if not file_path.is_absolute():
                     file_path = self.base_path / file_path
 
-                if not file_path.exists():
-                    print(f"⚠️  WARNING: File not found: {file_path}")
+                # Resolve both paths to absolute, canonical form
+                resolved_file_path = file_path.resolve()
+                resolved_base_path = self.base_path.resolve()
+
+                # Check that the file is within the base path (prevent path traversal)
+                if not str(resolved_file_path).startswith(str(resolved_base_path)):
+                    print(f"⚠️  WARNING: File path outside project directory: {resolved_file_path}")
                     continue
+
+                if not resolved_file_path.exists():
+                    print(f"⚠️  WARNING: File not found: {resolved_file_path}")
+                    continue
+
+                # Use the resolved path for all operations
+                file_path = resolved_file_path
 
                 # Read the file
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -263,7 +287,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 post.metadata[field] = value
 
                 # Also update last_updated
-                post.metadata['last_updated'] = datetime.utcnow().isoformat()
+                post.metadata['last_updated'] = datetime.utcnow().isoformat() + 'Z'
 
                 # Write back
                 with open(file_path, 'w', encoding='utf-8') as f:
@@ -364,7 +388,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         try:
             with open(self.global_file, 'r', encoding='utf-8') as f:
                 post = frontmatter.load(f)
-            post.metadata['last_cortex_run'] = datetime.utcnow().isoformat()
+            post.metadata['last_cortex_run'] = datetime.utcnow().isoformat() + 'Z'
             with open(self.global_file, 'w', encoding='utf-8') as f:
                 f.write(frontmatter.dumps(post))
             print(f"\n✅ Updated GLOBAL.md last_cortex_run timestamp")

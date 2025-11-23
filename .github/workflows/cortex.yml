@@ -38,6 +38,20 @@ jobs:
         run: |
           python src/cortex.py
 
+      - name: Validate changes before commit
+        run: |
+          # Only add AGENCY.md and GLOBAL.md files for safety
+          git add GLOBAL.md projects/**/AGENCY.md 2>/dev/null || true
+
+          # Check which files are staged
+          if git diff --staged --name-only | grep -qvE '^(GLOBAL\.md|projects/.*/AGENCY\.md)$'; then
+            echo "⚠️ WARNING: Unexpected files modified. Only AGENCY.md and GLOBAL.md should be changed."
+            echo "Modified files:"
+            git diff --staged --name-only
+            echo "Aborting commit for safety."
+            exit 1
+          fi
+
       - name: Configure Git
         run: |
           git config user.name "Agent Hive Cortex"
@@ -45,10 +59,10 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          git add -A
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
+            echo "Committing validated state updates..."
             git commit -m "🧠 Cortex auto-update [$(date -u +%Y-%m-%d\ %H:%M\ UTC)]"
             git push
           fi

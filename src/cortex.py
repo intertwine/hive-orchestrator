@@ -24,7 +24,6 @@ load_dotenv()
 
 class CortexError(Exception):
     """Base exception for Cortex-related errors."""
-    pass
 
 
 class Cortex:
@@ -321,7 +320,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         global_ctx = self.read_global_context()
         if not global_ctx:
             return False
-        print(f"   ✓ Loaded global context")
+        print("   ✓ Loaded global context")
 
         # Discover projects
         print("\n🔍 Discovering projects...")
@@ -391,7 +390,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
             post.metadata['last_cortex_run'] = datetime.utcnow().isoformat() + 'Z'
             with open(self.global_file, 'w', encoding='utf-8') as f:
                 f.write(frontmatter.dumps(post))
-            print(f"\n✅ Updated GLOBAL.md last_cortex_run timestamp")
+            print("\n✅ Updated GLOBAL.md last_cortex_run timestamp")
         except Exception as e:
             print(f"\n⚠️  WARNING: Could not update GLOBAL.md timestamp: {e}")
 

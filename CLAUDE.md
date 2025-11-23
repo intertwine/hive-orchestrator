@@ -301,28 +301,88 @@ Agents coordinate through AGENCY.md updates:
 
 ## Testing
 
+**CRITICAL: All code changes must include tests and all tests must pass before committing.**
+
+### Test Coverage
+
+The project has comprehensive test coverage for all major functionality:
+
+- **tests/test_cortex.py**: Tests for the Cortex orchestration engine
+  - Initialization and configuration
+  - Environment validation
+  - Reading and parsing GLOBAL.md and AGENCY.md files
+  - Project discovery
+  - LLM API calls and response handling
+  - State updates and file modifications
+  - Full end-to-end Cortex runs
+
+- **tests/test_dashboard.py**: Tests for the Dashboard UI
+  - Loading and parsing project files
+  - Project discovery and sorting
+  - File tree generation
+  - Deep Work context generation
+  - Integration workflows
+
+- **tests/conftest.py**: Shared test fixtures and utilities
+  - Temporary test directory structures
+  - Mock environment variables
+  - Sample API responses
+
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (REQUIRED before committing)
 make test
 
-# Or with uv directly
+# Run with verbose output
 uv run pytest tests/ -v
+
+# Run specific test file
+uv run pytest tests/test_cortex.py -v
+
+# Run specific test class or function
+uv run pytest tests/test_cortex.py::TestCortexInitialization -v
 ```
 
 ### Writing Tests
 
-Place tests in `tests/` directory:
+**All new functionality must have corresponding tests.**
+
+Place tests in `tests/` directory following pytest conventions:
 
 ```python
 # tests/test_cortex.py
 import pytest
 from src.cortex import Cortex
 
-def test_cortex_initialization():
-    cortex = Cortex("/path/to/hive")
-    assert cortex.base_path == "/path/to/hive"
+class TestCortexInitialization:
+    """Test Cortex initialization."""
+
+    def test_cortex_initialization(self, temp_hive_dir):
+        """Test that Cortex initializes correctly."""
+        cortex = Cortex(temp_hive_dir)
+        assert cortex.base_path == temp_hive_dir
+```
+
+**Test Requirements:**
+- Use descriptive test names that explain what is being tested
+- Organize tests into classes by functionality
+- Use fixtures from `conftest.py` for common setup
+- Test both success and failure cases
+- Mock external dependencies (API calls, file I/O when appropriate)
+- Ensure tests are isolated and don't depend on each other
+
+### Running Linter
+
+```bash
+# Run pylint on all code (REQUIRED before committing)
+make lint
+
+# Run on specific directory
+uv run pylint src/ --max-line-length=100
+uv run pylint tests/ --max-line-length=100
+
+# Target score: >9.0/10
 ```
 
 ## Deployment
@@ -438,12 +498,22 @@ uv run streamlit run src/dashboard.py --server.port 8502
 
 ### Code Changes
 
+**IMPORTANT: All code must pass both linting and testing before committing.**
+
 1. Fork the repository
 2. Create a feature branch
 3. Make changes with tests
 4. Format code: `make format`
-5. Run tests: `make test`
-6. Submit pull request
+5. **Run linter and ensure it passes**: `make lint` (must achieve >9.0/10 rating)
+6. **Run tests and ensure they all pass**: `make test` (all tests must pass)
+7. Submit pull request
+
+**Pre-commit Checklist:**
+- [ ] Code is formatted with `black` (`make format`)
+- [ ] All tests pass (`make test`)
+- [ ] Pylint score is >9.0/10 (`make lint`)
+- [ ] New functionality has corresponding tests
+- [ ] Documentation is updated if needed
 
 ### Documentation
 
@@ -462,8 +532,9 @@ When working on this codebase:
 4. **Be transparent** - Add detailed notes about your work
 5. **Set blocked status** - Don't hide issues, flag them
 6. **Follow handoff protocol** - Clean up state before finishing
-7. **Test changes** - Run tests before committing
+7. **Test and lint before committing** - ALL code must pass `make test` and `make lint` (>9.0/10)
 8. **Use uv commands** - Don't use pip directly
+9. **Write tests for new code** - Every new feature needs corresponding tests
 
 ### Example Work Session
 

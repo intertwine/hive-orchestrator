@@ -4,6 +4,7 @@
 import sys
 import os
 import json
+import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch
 import frontmatter
@@ -118,7 +119,6 @@ class TestDiscoverProjects:
     def test_discover_no_projects_dir(self, temp_hive_dir):
         """Test discovering projects when directory doesn't exist."""
         # Remove projects directory
-        import shutil
         projects_dir = Path(temp_hive_dir) / "projects"
         shutil.rmtree(projects_dir)
 

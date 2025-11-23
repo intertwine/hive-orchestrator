@@ -3,6 +3,9 @@
 
 import sys
 import os
+import re
+import shutil
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -40,7 +43,7 @@ class TestLoadProject:
 
     def test_load_project_malformed(self, temp_hive_dir):
         """Test loading a malformed AGENCY.md."""
-        # Create malformed file
+        # Create malformed file (frontmatter is lenient and will parse this)
         project_dir = Path(temp_hive_dir) / "projects" / "malformed"
         project_dir.mkdir(parents=True)
         agency_file = project_dir / "AGENCY.md"
@@ -48,8 +51,8 @@ class TestLoadProject:
 
         with patch('streamlit.error'):
             project_data = load_project(str(agency_file))
-            # Should handle gracefully
-            assert project_data is not None or project_data is None  # Either is acceptable
+            # frontmatter library is lenient - files without --- delimiters parse successfully
+            assert project_data is not None
 
     def test_load_project_contains_raw_content(self, temp_project):
         """Test that loaded project contains raw frontmatter."""
@@ -101,7 +104,6 @@ class TestDiscoverProjects:
         """Test discovering projects when directory doesn't exist."""
         base_path = Path(temp_hive_dir)
         # Remove projects directory
-        import shutil
         projects_dir = base_path / "projects"
         shutil.rmtree(projects_dir)
 
@@ -256,8 +258,9 @@ class TestGenerateDeepWorkContext:
         context = generate_deep_work_context(temp_project, base_path)
 
         assert "Generated:" in context
-        # Check for ISO timestamp format
-        assert "2025" in context or "2024" in context
+        # Check for ISO timestamp format (YYYY-MM-DDTHH:MM:SS)
+        iso_pattern = r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        assert re.search(iso_pattern, context), "Should contain ISO format timestamp"
 
     def test_generate_context_nonexistent_project(self, temp_hive_dir):
         """Test generating context for non-existent project."""

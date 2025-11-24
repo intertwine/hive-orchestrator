@@ -157,7 +157,7 @@ date,customer_id,product_id,amount,currency
 
 ---
 
-### Agent A - Extractor (Suggested: `anthropic/claude-3.5-haiku`)
+### Agent A - Extractor (Suggested: `anthropic/claude-haiku-4.5`)
 
 1. Set `owner` to your model name
 2. Create `data/` directory
@@ -170,7 +170,7 @@ date,customer_id,product_id,amount,currency
 
 ---
 
-### Agent B - Validator (Suggested: `anthropic/claude-3.5-haiku`)
+### Agent B - Validator (Suggested: `anthropic/claude-haiku-4.5`)
 
 **Wait for Agent A to complete!**
 
@@ -215,7 +215,7 @@ date,customer_id,product_id,amount,currency
 
 ---
 
-### Agent E - Loader (Suggested: `anthropic/claude-3.5-haiku`)
+### Agent E - Loader (Suggested: `anthropic/claude-haiku-4.5`)
 
 **Wait for Agent D to complete!**
 
@@ -230,7 +230,7 @@ date,customer_id,product_id,amount,currency
 
 ---
 
-### Agent F - Verifier (Suggested: `anthropic/claude-3.5-haiku`)
+### Agent F - Verifier (Suggested: `anthropic/claude-haiku-4.5`)
 
 **Wait for Agent E to complete!**
 

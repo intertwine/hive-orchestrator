@@ -121,7 +121,7 @@ This project is blocked.
 def mock_env_vars(monkeypatch):
     """Mock environment variables for testing."""
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-api-key-12345")
-    monkeypatch.setenv("OPENROUTER_MODEL", "anthropic/claude-3.5-haiku")
+    monkeypatch.setenv("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5")
 
 
 @pytest.fixture

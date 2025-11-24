@@ -46,7 +46,7 @@ class Cortex:
         # OpenRouter configuration
         self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.model = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-haiku")
+        self.model = os.getenv("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5")
 
     def validate_environment(self) -> bool:
         """Validate that required environment variables are set."""

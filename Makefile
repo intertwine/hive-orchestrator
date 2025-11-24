@@ -54,7 +54,7 @@ setup-env:
 	@if [ ! -f .env ]; then \
 		echo "Creating .env template..."; \
 		echo "OPENROUTER_API_KEY=your-api-key-here" > .env; \
-		echo "OPENROUTER_MODEL=anthropic/claude-3.5-haiku" >> .env; \
+		echo "OPENROUTER_MODEL=anthropic/claude-haiku-4.5" >> .env; \
 		echo "HIVE_BASE_PATH=$(shell pwd)" >> .env; \
 		echo "✅ .env file created. Please edit it and add your API key."; \
 	else \

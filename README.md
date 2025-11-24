@@ -60,7 +60,7 @@ nano .env
 
 ```bash
 OPENROUTER_API_KEY=your-api-key-here
-OPENROUTER_MODEL=anthropic/claude-3.5-haiku
+OPENROUTER_MODEL=anthropic/claude-haiku-4.5
 HIVE_BASE_PATH=/path/to/agent-hive
 ```
 
@@ -207,7 +207,7 @@ Edit `.env` to change the model:
 
 ```bash
 # Fast and cheap (default)
-OPENROUTER_MODEL=anthropic/claude-3.5-haiku
+OPENROUTER_MODEL=anthropic/claude-haiku-4.5
 
 # More capable
 OPENROUTER_MODEL=anthropic/claude-3.5-sonnet

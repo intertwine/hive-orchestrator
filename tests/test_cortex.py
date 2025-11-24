@@ -36,7 +36,7 @@ class TestCortexInitialization:
         """Test that API configuration is set from environment."""
         cortex = Cortex()
         assert cortex.api_key == "test-api-key-12345"
-        assert cortex.model == "anthropic/claude-3.5-haiku"
+        assert cortex.model == "anthropic/claude-haiku-4.5"
         assert cortex.api_url == "https://openrouter.ai/api/v1/chat/completions"
 
 

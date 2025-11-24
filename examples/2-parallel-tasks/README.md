@@ -48,7 +48,7 @@ Launch 4 separate AI agent sessions simultaneously:
 make session PROJECT=examples/2-parallel-tasks
 
 # In your AI interface:
-# - Use Claude Haiku or similar
+# - Use Claude Haiku 4.5 or similar
 # - Claim Task A in your notes
 # - Build src/validators.py
 # - Mark Task A complete
@@ -178,7 +178,7 @@ Status: completed  ← All done!
 - **Speedup**: 4x faster! 🚀
 
 ### Cost Efficiency
-- Use cheaper models (Haiku) for simple tasks (A, B, D)
+- Use cheaper models (Haiku 4.5) for simple tasks (A, B, D)
 - Use powerful model (Sonnet) only where needed (C)
 - Total cost optimized vs. using Sonnet for everything
 
@@ -201,8 +201,8 @@ Status: completed  ← All done!
 - **Documentation pages**: Each agent writes different doc section
 
 ### Mixed Models
-- **All Haiku**: Simple, fast, cheap
-- **Mixed**: Haiku for simple, Sonnet for complex (this example)
+- **All Haiku 4.5**: Simple, fast, cheap
+- **Mixed**: Haiku 4.5 for simple, Sonnet for complex (this example)
 - **Multi-vendor**: Claude + GPT-4 + Gemini + Grok all working together
 
 ## Handling Dependencies

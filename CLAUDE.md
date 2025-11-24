@@ -424,7 +424,7 @@ Agent Hive uses [OpenRouter](https://openrouter.ai/) to access multiple LLM prov
 
 **Supported Models:**
 - `anthropic/claude-3.5-sonnet` - Most capable
-- `anthropic/claude-3.5-haiku` - Fast and cheap (default)
+- `anthropic/claude-haiku-4.5` - Fast and cheap (default)
 - `google/gemini-pro` - Google's model
 - `x-ai/grok-beta` - X.AI's Grok
 
@@ -433,7 +433,7 @@ Agent Hive uses [OpenRouter](https://openrouter.ai/) to access multiple LLM prov
 Set in `.env`:
 ```bash
 OPENROUTER_API_KEY=sk-or-v1-xxxxx
-OPENROUTER_MODEL=anthropic/claude-3.5-haiku
+OPENROUTER_MODEL=anthropic/claude-haiku-4.5
 ```
 
 **Usage in Code:**
@@ -448,7 +448,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model=os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-haiku"),
+    model=os.getenv("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5"),
     messages=[{"role": "user", "content": "Hello"}]
 )
 ```

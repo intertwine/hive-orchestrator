@@ -48,8 +48,8 @@ Demonstrate concurrent execution where multiple agents work on independent tasks
 
 | Task | File | Agent | Model Suggestion |
 |------|------|-------|------------------|
-| A | `src/validators.py` | Agent A | `anthropic/claude-3.5-haiku` |
-| B | `src/formatters.py` | Agent B | `anthropic/claude-3.5-haiku` |
+| A | `src/validators.py` | Agent A | `anthropic/claude-haiku-4.5` |
+| B | `src/formatters.py` | Agent B | `anthropic/claude-haiku-4.5` |
 | C | `src/parsers.py` | Agent C | `anthropic/claude-3.5-sonnet` |
 | D | `src/strings.py` | Agent D | `google/gemini-pro` |
 

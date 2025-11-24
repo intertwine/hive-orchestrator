@@ -447,7 +447,7 @@ python -c "import frontmatter; frontmatter.load('examples/1-simple-sequential/AG
 
 **Fix**:
 - Start with Example 1 or 2 (simpler)
-- Use faster models (Haiku)
+- Use faster models (Haiku 4.5)
 - Reduce scope (fewer tasks)
 
 ## 📈 Success Metrics

@@ -64,6 +64,9 @@ nano .env
 OPENROUTER_API_KEY=your-api-key-here
 OPENROUTER_MODEL=anthropic/claude-haiku-4.5
 HIVE_BASE_PATH=/path/to/agent-hive
+
+# Optional: Real-time coordination server
+COORDINATOR_URL=http://localhost:8080
 ```
 
 ### Run the Dashboard
@@ -102,12 +105,14 @@ agent-hive/
 │   └── start_session.sh        # Deep Work session bootstrap
 ├── src/
 │   ├── cortex.py               # Orchestration logic
+│   ├── coordinator.py          # Real-time coordination server (optional)
+│   ├── coordinator_client.py   # Coordinator client library
 │   ├── dashboard.py            # Streamlit UI
 │   └── hive_mcp/               # MCP server for AI agents
 │       ├── __init__.py
 │       ├── __main__.py
 │       └── server.py           # MCP tool implementations
-├── tests/                      # Test suite (111+ tests)
+├── tests/                      # Test suite (150+ tests)
 ├── GLOBAL.md                   # Root system state
 ├── Makefile                    # Convenience commands
 ├── pyproject.toml              # Python project configuration & dependencies
@@ -219,6 +224,10 @@ The `hive-mcp` server enables AI agents like Claude to interact with Agent Hive 
 | `add_note` | Append to agent notes section |
 | `get_dependencies` | Get dependency info for a project |
 | `get_dependency_graph` | Get full dependency graph |
+| `coordinator_status` | Check if coordination server is available |
+| `coordinator_claim` | Claim project via coordination server |
+| `coordinator_release` | Release project via coordination server |
+| `coordinator_reservations` | Get all active reservations |
 
 **Claude Desktop Configuration:**
 
@@ -243,6 +252,77 @@ Add to your `claude_desktop_config.json`:
 ```bash
 uv run python -m hive_mcp
 ```
+
+### 5. Coordinator Server - Real-time Conflict Prevention (Optional)
+
+The Coordinator Server provides an optional real-time coordination layer for scenarios where multiple agents need to work concurrently without git conflicts.
+
+> **Note**: This is fully optional. Agent Hive works perfectly with git-only coordination. The Coordinator is for teams wanting faster real-time conflict resolution.
+
+**Start the server:**
+
+```bash
+# Default: localhost:8080
+uv run python -m src.coordinator
+
+# Custom host/port
+COORDINATOR_HOST=0.0.0.0 COORDINATOR_PORT=9000 uv run python -m src.coordinator
+```
+
+**Configure clients:**
+
+```bash
+# Add to .env
+COORDINATOR_URL=http://localhost:8080
+```
+
+**API Endpoints:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check with active claim count |
+| `/claim` | POST | Claim a project (returns 409 if already claimed) |
+| `/release/{project_id}` | DELETE | Release a project claim |
+| `/status/{project_id}` | GET | Check claim status of a project |
+| `/reservations` | GET | List all active reservations |
+| `/extend/{project_id}` | POST | Extend claim TTL |
+
+**Claim Request Example:**
+
+```bash
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "my-project", "agent_name": "claude-opus", "ttl_seconds": 3600}'
+```
+
+**Response (Success - 200):**
+```json
+{
+  "success": true,
+  "claim_id": "uuid-here",
+  "project_id": "my-project",
+  "agent_name": "claude-opus",
+  "expires_at": "2025-01-01T12:00:00Z"
+}
+```
+
+**Response (Conflict - 409):**
+```json
+{
+  "success": false,
+  "error": "Project already claimed",
+  "current_owner": "grok-beta",
+  "claimed_at": "2025-01-01T10:00:00Z",
+  "expires_at": "2025-01-01T11:00:00Z"
+}
+```
+
+**Features:**
+- Automatic claim expiration (configurable TTL, default 1 hour)
+- Force-claim option for admin override (`?force=true`)
+- Background cleanup of expired claims
+- Graceful degradation (clients fall back to git-only when unavailable)
+- OpenAPI documentation at `/docs`
 
 ## 🎓 Usage Patterns
 
@@ -508,14 +588,15 @@ lsof -i :8501
 - [x] MCP server for AI agent integration
 - [x] JSON output mode for programmatic access
 - [x] Dashboard dependency visualization
+- [x] Real-time agent coordination layer (HTTP API)
 
 **Planned:**
-- [ ] Real-time agent coordination layer (HTTP API)
 - [ ] Web-based Dashboard (hosted version)
 - [ ] Multi-repository support
 - [ ] Slack/Discord integration
 - [ ] Agent performance metrics
 - [ ] Visual workflow builder
+- [ ] Docker deployment for coordinator
 
 ## 📞 Support
 

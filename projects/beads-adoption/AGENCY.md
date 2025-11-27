@@ -8,10 +8,10 @@ blocking_reason: null
 priority: high
 tags: [enhancement, architecture, multi-agent]
 dependencies:
-  blocks: []
+  blocks: [agent-coordination]
   blocked_by: []
   parent: null
-  related: []
+  related: [hive-mcp]
 ---
 
 # Beads Pattern Adoption for Hive Orchestrator
@@ -125,9 +125,9 @@ add_note(project_id: str, agent: str, note: str) -> NoteResult
 - [x] `ready_work()` returns correct projects in <100ms
 - [x] Dependency graph correctly identifies blocked projects (basic blocked_by support)
 - [ ] MCP server integrates with Claude Desktop
-- [x] All existing tests continue to pass (74 tests)
-- [x] New functionality has >90% test coverage (18 new tests for ready_work)
-- [ ] Documentation updated for new features
+- [x] All existing tests continue to pass (111 tests total)
+- [x] New functionality has >90% test coverage (55 new tests total)
+- [x] Documentation updated for new features (README.md, examples)
 
 ## Reference Material
 
@@ -174,10 +174,17 @@ add_note(project_id: str, agent: str, note: str) -> NoteResult
 - Perfect pylint score 10.00/10
 - See projects/hive-mcp/AGENCY.md for full details
 
+**2025-11-27 - Claude (Opus)**: Completed documentation updates:
+- Updated README.md with new features (ready work, dependencies, MCP server)
+- Added beads project credit in README introduction
+- Updated examples/README.md with new CLI commands and MCP instructions
+- Created Phase 4 project (agent-coordination) for future real-time coordination layer
+- Updated dependency graph to link beads-adoption -> agent-coordination
+
 ---
 
 ## Next Steps
 
-1. Phase 4: Optional real-time coordination layer (Agent Mail style)
-2. Documentation updates for README.md
+1. ~~Phase 4: Optional real-time coordination layer~~ - See [agent-coordination project](../agent-coordination/AGENCY.md)
+2. ~~Documentation updates for README.md~~ - Completed
 3. Test with Claude Desktop in real environment

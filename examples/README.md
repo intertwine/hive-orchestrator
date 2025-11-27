@@ -243,7 +243,15 @@ Phase B: Implementation
 - [ ] Task 2 (depends on Phase A output)
 ```
 
-**Coordination**: `owner` field + task completion
+**Coordination**: `owner` field + task completion + `dependencies.blocked_by`
+
+**Using Dependencies:** Add explicit dependency tracking in frontmatter:
+
+```yaml
+dependencies:
+  blocked_by: [research-project]  # Wait for this to complete
+  blocks: [deployment-project]    # These wait on us
+```
 
 **Examples**: 1, 3, 5, 6, 7
 
@@ -306,7 +314,26 @@ make session PROJECT=examples/1-simple-sequential
 # Repeat for each agent
 ```
 
-### Option 2: Automated with Cortex
+### Option 2: Find Ready Work (Fast)
+
+```bash
+# Find projects ready for work (no LLM, instant)
+make ready
+
+# Get JSON output for scripting
+make ready-json
+
+# View dependency graph
+make deps
+```
+
+Ready work detection finds projects that are:
+- `status: active`
+- `blocked: false`
+- `owner: null`
+- No incomplete `blocked_by` dependencies
+
+### Option 3: Automated with Cortex
 
 ```bash
 # Cortex orchestrates agents automatically
@@ -317,7 +344,7 @@ uv run python src/cortex.py
 # Updates files and commits changes
 ```
 
-### Option 3: Dashboard
+### Option 4: Dashboard
 
 ```bash
 # Start web UI
@@ -327,6 +354,19 @@ make dashboard
 # View all examples
 # Generate contexts
 # Monitor progress
+# See dependency graphs
+```
+
+### Option 5: MCP Server (AI Agents)
+
+```bash
+# Run MCP server for Claude Desktop integration
+uv run python -m hive_mcp
+
+# Claude can then use tools like:
+# - get_ready_work()
+# - claim_project("example-1")
+# - add_note("example-1", "agent", "Started work")
 ```
 
 ## 📊 Comparison Matrix

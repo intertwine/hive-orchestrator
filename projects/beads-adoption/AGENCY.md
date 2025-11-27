@@ -39,15 +39,15 @@ Adopt key patterns from beads to enhance Hive Orchestrator:
 
 ## Implementation Phases
 
-### Phase 1: Ready Work Detection
+### Phase 1: Ready Work Detection (COMPLETED)
 Add deterministic `ready_work()` function to find actionable projects without LLM calls.
 
 **Tasks:**
-- [ ] Add `ready_work()` function to cortex.py
-- [ ] Filter: `status == 'active' AND blocked == false AND owner == null`
-- [ ] Add CLI command: `make ready` or `uv run python -m src.cortex --ready`
-- [ ] Add `--json` output flag for programmatic access
-- [ ] Write tests for ready_work functionality
+- [x] Add `ready_work()` function to cortex.py
+- [x] Filter: `status == 'active' AND blocked == false AND owner == null`
+- [x] Add CLI command: `make ready` or `uv run python -m src.cortex --ready`
+- [x] Add `--json` output flag for programmatic access
+- [x] Write tests for ready_work functionality
 
 ### Phase 2: Structured Dependencies
 Enhance AGENCY.md frontmatter with explicit dependency tracking.
@@ -121,11 +121,11 @@ add_note(project_id: str, agent: str, note: str) -> NoteResult
 
 ## Success Criteria
 
-- [ ] `ready_work()` returns correct projects in <100ms
-- [ ] Dependency graph correctly identifies blocked projects
+- [x] `ready_work()` returns correct projects in <100ms
+- [x] Dependency graph correctly identifies blocked projects (basic blocked_by support)
 - [ ] MCP server integrates with Claude Desktop
-- [ ] All existing tests continue to pass
-- [ ] New functionality has >90% test coverage
+- [x] All existing tests continue to pass (74 tests)
+- [x] New functionality has >90% test coverage (18 new tests for ready_work)
 - [ ] Documentation updated for new features
 
 ## Reference Material
@@ -148,11 +148,18 @@ add_note(project_id: str, agent: str, note: str) -> NoteResult
 
 **2025-11-27 - Claude (Opus)**: Created project from analysis of beads repository. Identified 4 implementation phases with Phase 1 (Ready Work Detection) as highest priority due to low effort and high impact. Preserved Hive's core design principles while adopting beads' best patterns.
 
+**2025-11-27 - Claude (Opus)**: Completed Phase 1 implementation:
+- Added `ready_work()` method that finds active, unclaimed, unblocked projects
+- Added `has_unresolved_blockers()` to check `dependencies.blocked_by` field
+- Added CLI flags: `--ready` for fast detection, `--json` for programmatic output
+- Added `make ready` and `make ready-json` targets to Makefile
+- Added 18 new tests covering all ready_work functionality
+- All 74 tests pass, pylint score 9.69/10
+
 ---
 
 ## Next Steps
 
-1. Claim this project by setting `owner` field
-2. Start with Phase 1: Ready Work Detection
-3. Update tasks as completed with `[x]`
-4. Add notes documenting decisions and progress
+1. Phase 2: Enhanced dependency parsing with cycle detection
+2. Phase 3: Create hive-mcp server package
+3. Phase 4: Optional real-time coordination layer

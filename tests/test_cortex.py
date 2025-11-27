@@ -504,3 +504,246 @@ class TestCortexRun:
 
             result = cortex.run()
             assert result is False
+
+
+class TestHasUnresolvedBlockers:
+    """Test the has_unresolved_blockers method."""
+
+    def test_no_dependencies_means_no_blockers(self, temp_hive_dir, temp_project):
+        """Test project without dependencies has no blockers."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        assert len(projects) == 1
+        result = cortex.has_unresolved_blockers(projects[0], projects)
+        assert result is False
+
+    def test_dependency_on_completed_project(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project
+    ):
+        """Test that dependency on completed project is resolved."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        # Find the dependent project
+        dependent = next(p for p in projects if p['project_id'] == 'dependent-project')
+
+        result = cortex.has_unresolved_blockers(dependent, projects)
+        assert result is False
+
+    def test_dependency_on_incomplete_project(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project_incomplete
+    ):
+        """Test that dependency on incomplete project is unresolved."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        # Find the dependent project
+        dependent = next(p for p in projects if p['project_id'] == 'dependent-project')
+
+        result = cortex.has_unresolved_blockers(dependent, projects)
+        assert result is True
+
+    def test_dependency_on_unknown_project(self, temp_hive_dir, temp_project_with_dependency):
+        """Test that dependency on unknown project is unresolved (conservative)."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        # Only the dependent project exists, prereq doesn't
+        assert len(projects) == 1
+        dependent = projects[0]
+
+        result = cortex.has_unresolved_blockers(dependent, projects)
+        assert result is True
+
+
+class TestReadyWork:
+    """Test the ready_work method."""
+
+    def test_ready_work_finds_active_unclaimed_unblocked(self, temp_hive_dir, temp_project):
+        """Test that ready_work finds active, unclaimed, unblocked projects."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        assert len(ready) == 1
+        assert ready[0]['project_id'] == 'test-project'
+
+    def test_ready_work_excludes_blocked_projects(
+        self, temp_hive_dir, temp_project, temp_blocked_project
+    ):
+        """Test that ready_work excludes blocked projects."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        # Should only find test-project, not blocked-project
+        assert len(ready) == 1
+        assert ready[0]['project_id'] == 'test-project'
+
+    def test_ready_work_excludes_claimed_projects(
+        self, temp_hive_dir, temp_project, temp_claimed_project
+    ):
+        """Test that ready_work excludes projects with an owner."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        # Should only find test-project, not claimed-project
+        assert len(ready) == 1
+        assert ready[0]['project_id'] == 'test-project'
+
+    def test_ready_work_excludes_projects_with_unresolved_deps(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project_incomplete
+    ):
+        """Test that ready_work excludes projects with unresolved dependencies."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        project_ids = [p['project_id'] for p in ready]
+        # prereq-project is active but unclaimed, so it should be ready
+        # dependent-project has unresolved dep, so should not be ready
+        assert 'prereq-project' in project_ids
+        assert 'dependent-project' not in project_ids
+
+    def test_ready_work_includes_projects_with_resolved_deps(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project
+    ):
+        """Test that ready_work includes projects with resolved dependencies."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        project_ids = [p['project_id'] for p in ready]
+        # prereq-project is completed, so not ready (status != active)
+        # dependent-project has resolved dep and is active, so should be ready
+        assert 'dependent-project' in project_ids
+        assert 'prereq-project' not in project_ids
+
+    def test_ready_work_returns_empty_when_all_blocked(
+        self, temp_hive_dir, temp_blocked_project
+    ):
+        """Test ready_work returns empty list when all projects blocked."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        assert len(ready) == 0
+
+    def test_ready_work_with_provided_projects(self, temp_hive_dir, temp_project):
+        """Test ready_work with pre-provided project list."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        ready = cortex.ready_work(projects)
+
+        assert len(ready) == 1
+        assert ready[0]['project_id'] == 'test-project'
+
+
+class TestReadyWorkFormatters:
+    """Test the ready work output formatters."""
+
+    def test_format_ready_work_json_structure(self, temp_hive_dir, temp_project):
+        """Test JSON output has correct structure."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        json_output = cortex.format_ready_work_json(ready)
+        data = json.loads(json_output)
+
+        assert 'timestamp' in data
+        assert 'count' in data
+        assert 'projects' in data
+        assert data['count'] == 1
+        assert len(data['projects']) == 1
+        assert data['projects'][0]['project_id'] == 'test-project'
+        assert 'priority' in data['projects'][0]
+        assert 'tags' in data['projects'][0]
+        assert 'path' in data['projects'][0]
+
+    def test_format_ready_work_json_empty(self, temp_hive_dir):
+        """Test JSON output with no ready projects."""
+        cortex = Cortex(temp_hive_dir)
+
+        json_output = cortex.format_ready_work_json([])
+        data = json.loads(json_output)
+
+        assert data['count'] == 0
+        assert len(data['projects']) == 0
+
+    def test_format_ready_work_text_structure(self, temp_hive_dir, temp_project):
+        """Test text output has correct structure."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        text_output = cortex.format_ready_work_text(ready)
+
+        assert 'READY WORK' in text_output
+        assert 'test-project' in text_output
+        assert 'Priority: high' in text_output
+        assert 'Tags: test, backend' in text_output
+
+    def test_format_ready_work_text_empty(self, temp_hive_dir):
+        """Test text output with no ready projects."""
+        cortex = Cortex(temp_hive_dir)
+
+        text_output = cortex.format_ready_work_text([])
+
+        assert 'Found 0 project(s)' in text_output
+        assert 'No projects ready' in text_output
+
+    def test_format_ready_work_text_sorts_by_priority(
+        self, temp_hive_dir, temp_project, temp_blocked_project
+    ):
+        """Test that text output sorts projects by priority."""
+        # Create a low-priority ready project
+        from pathlib import Path as PathLib
+        project_dir = PathLib(temp_hive_dir) / "projects" / "low-prio"
+        project_dir.mkdir(parents=True)
+
+        agency_content = frontmatter.Post(
+            "# Low Priority",
+            project_id="low-prio",
+            status="active",
+            owner=None,
+            blocked=False,
+            priority="low",
+            tags=[]
+        )
+
+        agency_file = project_dir / "AGENCY.md"
+        with open(agency_file, 'w', encoding='utf-8') as f:
+            f.write(frontmatter.dumps(agency_content))
+
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        text_output = cortex.format_ready_work_text(ready)
+
+        # High priority should appear before low priority
+        high_pos = text_output.find('test-project')
+        low_pos = text_output.find('low-prio')
+        assert high_pos < low_pos
+
+
+class TestRunReady:
+    """Test the run_ready method."""
+
+    def test_run_ready_text_output(self, temp_hive_dir, temp_project, capsys):
+        """Test run_ready with text output."""
+        cortex = Cortex(temp_hive_dir)
+
+        result = cortex.run_ready(output_json=False)
+
+        assert result is True
+        captured = capsys.readouterr()
+        assert 'READY WORK' in captured.out
+        assert 'test-project' in captured.out
+
+    def test_run_ready_json_output(self, temp_hive_dir, temp_project, capsys):
+        """Test run_ready with JSON output."""
+        cortex = Cortex(temp_hive_dir)
+
+        result = cortex.run_ready(output_json=True)
+
+        assert result is True
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data['count'] == 1
+        assert data['projects'][0]['project_id'] == 'test-project'

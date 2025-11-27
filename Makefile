@@ -1,4 +1,4 @@
-.PHONY: help install install-dev run dashboard cortex session clean test lint format sync
+.PHONY: help install install-dev run dashboard cortex ready ready-json session clean test lint format sync
 
 # Default target
 help:
@@ -15,6 +15,8 @@ help:
 	@echo "Runtime Commands:"
 	@echo "  make dashboard      Launch Streamlit dashboard (UI)"
 	@echo "  make cortex         Run Cortex orchestration engine"
+	@echo "  make ready          Find ready work (fast, no LLM)"
+	@echo "  make ready-json     Find ready work as JSON"
 	@echo "  make session        Start a Deep Work session (requires PROJECT=...)"
 	@echo ""
 	@echo "Development Commands:"
@@ -72,6 +74,14 @@ dashboard:
 cortex:
 	@echo "🧠 Running Cortex orchestration engine..."
 	uv run python src/cortex.py
+
+# Find ready work (fast, no LLM)
+ready:
+	@uv run python src/cortex.py --ready
+
+# Find ready work as JSON (for programmatic use)
+ready-json:
+	@uv run python src/cortex.py --ready --json
 
 # Start a Deep Work session
 session:

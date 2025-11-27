@@ -7,6 +7,7 @@ reading project state from AGENCY.md files and coordinating
 AI agents across different vendors.
 """
 
+import argparse
 import os
 import sys
 import json
@@ -98,6 +99,172 @@ class Cortex:
                 print(f"⚠️  WARNING: Could not parse {agency_file}: {e}")
 
         return projects
+
+    def has_unresolved_blockers(self, project: Dict[str, Any],
+                                 all_projects: List[Dict[str, Any]]) -> bool:
+        """
+        Check if a project has unresolved blocking dependencies.
+
+        Examines the 'dependencies.blocked_by' field and checks if any
+        of those projects are still incomplete (not status='completed').
+
+        Args:
+            project: The project to check
+            all_projects: All discovered projects for dependency resolution
+
+        Returns:
+            True if there are unresolved blockers, False otherwise
+        """
+        metadata = project.get('metadata', {})
+        dependencies = metadata.get('dependencies', {})
+        blocked_by = dependencies.get('blocked_by', [])
+
+        if not blocked_by:
+            return False
+
+        # Build a lookup of project statuses
+        project_statuses = {
+            p['project_id']: p['metadata'].get('status', 'unknown')
+            for p in all_projects
+        }
+
+        # Check if any blocking project is not completed
+        for blocker_id in blocked_by:
+            blocker_status = project_statuses.get(blocker_id)
+            if blocker_status is None:
+                # Unknown blocker - treat as unresolved (conservative)
+                return True
+            if blocker_status != 'completed':
+                return True
+
+        return False
+
+    def ready_work(self, projects: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Find projects that are ready for work (no LLM required).
+
+        A project is ready if:
+        - status == 'active'
+        - blocked == False
+        - owner == None (unclaimed)
+        - No unresolved blocking dependencies
+
+        Args:
+            projects: Optional list of projects. If None, discovers them.
+
+        Returns:
+            List of projects ready for an agent to claim
+        """
+        if projects is None:
+            projects = self.discover_projects()
+
+        ready = []
+        for project in projects:
+            metadata = project.get('metadata', {})
+
+            # Check basic readiness criteria
+            status = metadata.get('status', '')
+            blocked = metadata.get('blocked', False)
+            owner = metadata.get('owner')
+
+            if status != 'active':
+                continue
+            if blocked:
+                continue
+            if owner is not None:
+                continue
+
+            # Check dependency-based blocking
+            if self.has_unresolved_blockers(project, projects):
+                continue
+
+            ready.append(project)
+
+        return ready
+
+    def format_ready_work_json(self, ready_projects: List[Dict[str, Any]]) -> str:
+        """Format ready work as JSON for programmatic consumption."""
+        output = {
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'count': len(ready_projects),
+            'projects': [
+                {
+                    'project_id': p['project_id'],
+                    'path': p['path'],
+                    'priority': p['metadata'].get('priority', 'medium'),
+                    'tags': p['metadata'].get('tags', []),
+                }
+                for p in ready_projects
+            ]
+        }
+        return json.dumps(output, indent=2)
+
+    def format_ready_work_text(self, ready_projects: List[Dict[str, Any]]) -> str:
+        """Format ready work as human-readable text."""
+        lines = []
+        lines.append("=" * 60)
+        lines.append("READY WORK")
+        lines.append("=" * 60)
+        lines.append(f"Timestamp: {datetime.utcnow().isoformat()}")
+        lines.append(f"Found {len(ready_projects)} project(s) ready for work")
+        lines.append("")
+
+        if not ready_projects:
+            lines.append("No projects ready. All are either:")
+            lines.append("  - Not active (status != 'active')")
+            lines.append("  - Blocked (blocked == true)")
+            lines.append("  - Already claimed (owner != null)")
+            lines.append("  - Waiting on dependencies")
+        else:
+            # Sort by priority
+            priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+            sorted_projects = sorted(
+                ready_projects,
+                key=lambda p: priority_order.get(
+                    p['metadata'].get('priority', 'medium'), 2
+                )
+            )
+
+            for project in sorted_projects:
+                meta = project['metadata']
+                priority = meta.get('priority', 'medium')
+                tags = ', '.join(meta.get('tags', []))
+                priority_icon = {
+                    'critical': '!!!',
+                    'high': '!! ',
+                    'medium': '!  ',
+                    'low': '   '
+                }.get(priority, '   ')
+
+                lines.append(f"{priority_icon} {project['project_id']}")
+                lines.append(f"    Priority: {priority}")
+                if tags:
+                    lines.append(f"    Tags: {tags}")
+                lines.append(f"    Path: {project['path']}")
+                lines.append("")
+
+        lines.append("=" * 60)
+        return '\n'.join(lines)
+
+    def run_ready(self, output_json: bool = False) -> bool:
+        """
+        Run ready work detection (no LLM, fast).
+
+        Args:
+            output_json: If True, output JSON format; otherwise human-readable
+
+        Returns:
+            True on success
+        """
+        projects = self.discover_projects()
+        ready_projects = self.ready_work(projects)
+
+        if output_json:
+            print(self.format_ready_work_json(ready_projects))
+        else:
+            print(self.format_ready_work_text(ready_projects))
+
+        return True
 
     def build_analysis_prompt(self, global_ctx: Dict, projects: List[Dict]) -> str:
         """Build the prompt for the LLM to analyze system state."""
@@ -215,12 +382,14 @@ Return ONLY valid JSON, no markdown formatting or additional text.
             # Defensive checks for response structure
             choices = result.get('choices')
             if not choices or not isinstance(choices, list) or len(choices) == 0:
-                print(f"❌ ERROR: Unexpected API response structure (missing or empty 'choices'): {result}")
+                print("❌ ERROR: Unexpected API response structure "
+                      f"(missing or empty 'choices'): {result}")
                 return None
 
             message = choices[0].get('message') if isinstance(choices[0], dict) else None
             if not message or 'content' not in message:
-                print(f"❌ ERROR: Unexpected API response structure (missing 'message' or 'content'): {result}")
+                print("❌ ERROR: Unexpected API response structure "
+                      f"(missing 'message' or 'content'): {result}")
                 return None
 
             llm_response = message['content']
@@ -401,10 +570,66 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         return True
 
 
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Agent Hive Cortex - The Orchestration Operating System',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run full LLM-based analysis (default)
+  python -m src.cortex
+
+  # Find ready work (fast, no LLM)
+  python -m src.cortex --ready
+
+  # Output as JSON for programmatic use
+  python -m src.cortex --ready --json
+
+  # Specify custom base path
+  python -m src.cortex --path /path/to/hive
+        """
+    )
+
+    parser.add_argument(
+        '--ready', '-r',
+        action='store_true',
+        help='Find ready work (fast, no LLM required)'
+    )
+
+    parser.add_argument(
+        '--json', '-j',
+        action='store_true',
+        help='Output in JSON format for programmatic consumption'
+    )
+
+    parser.add_argument(
+        '--path', '-p',
+        type=str,
+        default=None,
+        help='Base path for the hive (default: current directory)'
+    )
+
+    return parser.parse_args()
+
+
 def main():
     """CLI entry point for Cortex."""
-    cortex = Cortex()
-    success = cortex.run()
+    args = parse_args()
+
+    cortex = Cortex(base_path=args.path)
+
+    if args.ready:
+        # Fast path: no LLM required
+        success = cortex.run_ready(output_json=args.json)
+    else:
+        # Full LLM-based analysis
+        if args.json:
+            print('{"error": "JSON output only supported with --ready flag"}',
+                  file=sys.stderr)
+            sys.exit(1)
+        success = cortex.run()
+
     sys.exit(0 if success else 1)
 
 

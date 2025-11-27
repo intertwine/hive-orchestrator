@@ -49,29 +49,30 @@ Add deterministic `ready_work()` function to find actionable projects without LL
 - [x] Add `--json` output flag for programmatic access
 - [x] Write tests for ready_work functionality
 
-### Phase 2: Structured Dependencies
+### Phase 2: Structured Dependencies (COMPLETED)
 Enhance AGENCY.md frontmatter with explicit dependency tracking.
 
 **Tasks:**
-- [ ] Define dependency schema in AGENCY.md format
-- [ ] Update cortex.py to parse `dependencies` field
-- [ ] Implement `is_blocked()` that checks dependency graph
-- [ ] Add cycle detection for blocking dependencies
-- [ ] Update dashboard.py to visualize dependencies
-- [ ] Write tests for dependency resolution
+- [x] Define dependency schema in AGENCY.md format
+- [x] Update cortex.py to parse `dependencies` field
+- [x] Implement `is_blocked()` that checks dependency graph
+- [x] Add cycle detection for blocking dependencies
+- [x] Update dashboard.py to visualize dependencies
+- [x] Write tests for dependency resolution
+- [x] Add `--deps` CLI flag and `make deps` target
 
-### Phase 3: MCP Server (hive-mcp)
+### Phase 3: MCP Server (hive-mcp) (COMPLETED)
 Create Model Context Protocol server for agent integration.
 
 **Tasks:**
-- [ ] Create `src/hive_mcp/` package structure
-- [ ] Implement `list_projects()` tool
-- [ ] Implement `get_ready_work()` tool
-- [ ] Implement `claim_project(project_id, agent_name)` tool
-- [ ] Implement `update_status(project_id, status)` tool
-- [ ] Implement `add_note(project_id, note)` tool
-- [ ] Add MCP server configuration docs
-- [ ] Write tests for MCP tools
+- [x] Create `src/hive_mcp/` package structure
+- [x] Implement `list_projects()` tool
+- [x] Implement `get_ready_work()` tool
+- [x] Implement `claim_project(project_id, agent_name)` tool
+- [x] Implement `update_status(project_id, status)` tool
+- [x] Implement `add_note(project_id, note)` tool
+- [x] Add MCP server configuration docs
+- [x] Write tests for MCP tools (21 tests)
 
 ### Phase 4: Agent Coordination Layer (Optional)
 Add lightweight HTTP coordination for real-time conflict prevention.
@@ -156,10 +157,27 @@ add_note(project_id: str, agent: str, note: str) -> NoteResult
 - Added 18 new tests covering all ready_work functionality
 - All 74 tests pass, pylint score 9.69/10
 
+**2025-11-27 - Claude (Opus)**: Completed Phase 2 implementation:
+- Added `build_dependency_graph()` for full graph construction
+- Added `detect_cycles()` using DFS algorithm
+- Added `is_blocked()` with transitive dependency resolution
+- Added `get_dependency_summary()` for visualization
+- Added `--deps` CLI flag and `make deps`/`make deps-json` targets
+- Updated dashboard with dependency visualization in sidebar
+- Added 16 new tests for dependency features
+- All 111 tests pass, pylint score 9.67/10
+
+**2025-11-27 - Claude (Sonnet 4.5)**: Completed Phase 3 implementation (via subagent):
+- Created `src/hive_mcp/` package with 9 MCP tools
+- Tools: list_projects, get_ready_work, get_project, claim_project, release_project, update_status, add_note, get_dependencies, get_dependency_graph
+- Added 21 tests for MCP functionality
+- Perfect pylint score 10.00/10
+- See projects/hive-mcp/AGENCY.md for full details
+
 ---
 
 ## Next Steps
 
-1. Phase 2: Enhanced dependency parsing with cycle detection
-2. Phase 3: Create hive-mcp server package
-3. Phase 4: Optional real-time coordination layer
+1. Phase 4: Optional real-time coordination layer (Agent Mail style)
+2. Documentation updates for README.md
+3. Test with Claude Desktop in real environment

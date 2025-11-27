@@ -216,6 +216,33 @@ def main():
                 st.metric("Last Cortex Run", last_run)
                 st.metric("Total Projects", len(projects))
 
+        st.divider()
+
+        # Dependency Overview
+        st.header("🔗 Dependencies")
+        sidebar_cortex = Cortex(str(base_path))
+        dep_summary = sidebar_cortex.get_dependency_summary()
+
+        if dep_summary['has_cycles']:
+            st.error(f"⚠️ {len(dep_summary['cycles'])} cycle(s) detected!")
+
+        blocked_count = sum(
+            1 for p in dep_summary['projects'] if p['effectively_blocked']
+        )
+        ready_count = sum(
+            1 for p in dep_summary['projects']
+            if not p['effectively_blocked'] and p['status'] == 'active'
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Blocked", blocked_count)
+        with col2:
+            st.metric("Ready", ready_count)
+
+    # Create cortex instance for dependency analysis
+    cortex = Cortex(str(base_path))
+
     # Main area: Project details
     if selected_project_path:
         project_data = load_project(selected_project_path)
@@ -243,6 +270,49 @@ def main():
             # Metadata display
             with st.expander("📋 Metadata", expanded=False):
                 st.json(metadata)
+
+            # Dependencies section
+            deps = metadata.get('dependencies', {})
+            if deps:
+                with st.expander("🔗 Dependencies", expanded=False):
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        blocked_by = deps.get('blocked_by', [])
+                        if blocked_by:
+                            st.markdown("**Blocked By:**")
+                            for dep in blocked_by:
+                                st.markdown(f"- `{dep}`")
+                        else:
+                            st.markdown("**Blocked By:** None")
+
+                        parent = deps.get('parent')
+                        if parent:
+                            st.markdown(f"**Parent:** `{parent}`")
+
+                    with col2:
+                        blocks = deps.get('blocks', [])
+                        if blocks:
+                            st.markdown("**Blocks:**")
+                            for dep in blocks:
+                                st.markdown(f"- `{dep}`")
+                        else:
+                            st.markdown("**Blocks:** None")
+
+                        related = deps.get('related', [])
+                        if related:
+                            st.markdown("**Related:**")
+                            for dep in related:
+                                st.markdown(f"- `{dep}`")
+
+                    # Check blocking status
+                    blocking_info = cortex.is_blocked(
+                        metadata.get('project_id', 'unknown')
+                    )
+                    if blocking_info['is_blocked']:
+                        st.warning("⚠️ This project is effectively blocked")
+                        for reason in blocking_info['reasons']:
+                            st.markdown(f"- {reason}")
 
             # Main content
             st.divider()

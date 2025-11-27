@@ -155,3 +155,137 @@ def sample_api_response(sample_llm_response):  # pylint: disable=redefined-outer
             }
         ]
     }
+
+
+@pytest.fixture
+def temp_project_with_dependency(temp_hive_dir):  # pylint: disable=redefined-outer-name
+    """Create a project that depends on another project."""
+    project_dir = Path(temp_hive_dir) / "projects" / "dependent-project"
+    project_dir.mkdir(parents=True)
+
+    agency_content = frontmatter.Post(
+        """# Dependent Project
+
+## Objective
+This project depends on another.
+
+## Tasks
+- [ ] Task that needs prereq
+""",
+        project_id="dependent-project",
+        status="active",
+        owner=None,
+        last_updated="2025-01-15T10:30:00Z",
+        blocked=False,
+        blocking_reason=None,
+        priority="medium",
+        tags=["test"],
+        dependencies={
+            "blocked_by": ["prereq-project"],
+            "blocks": [],
+            "parent": None,
+            "related": []
+        }
+    )
+
+    agency_file = project_dir / "AGENCY.md"
+    with open(agency_file, 'w', encoding='utf-8') as f:
+        f.write(frontmatter.dumps(agency_content))
+
+    return str(agency_file)
+
+
+@pytest.fixture
+def temp_prereq_project(temp_hive_dir):  # pylint: disable=redefined-outer-name
+    """Create a prerequisite project (completed)."""
+    project_dir = Path(temp_hive_dir) / "projects" / "prereq-project"
+    project_dir.mkdir(parents=True)
+
+    agency_content = frontmatter.Post(
+        """# Prerequisite Project
+
+## Objective
+This is a prerequisite project.
+
+## Tasks
+- [x] Done
+""",
+        project_id="prereq-project",
+        status="completed",
+        owner=None,
+        last_updated="2025-01-15T10:30:00Z",
+        blocked=False,
+        blocking_reason=None,
+        priority="high",
+        tags=["test"]
+    )
+
+    agency_file = project_dir / "AGENCY.md"
+    with open(agency_file, 'w', encoding='utf-8') as f:
+        f.write(frontmatter.dumps(agency_content))
+
+    return str(agency_file)
+
+
+@pytest.fixture
+def temp_prereq_project_incomplete(temp_hive_dir):  # pylint: disable=redefined-outer-name
+    """Create an incomplete prerequisite project."""
+    project_dir = Path(temp_hive_dir) / "projects" / "prereq-project"
+    project_dir.mkdir(parents=True)
+
+    agency_content = frontmatter.Post(
+        """# Prerequisite Project
+
+## Objective
+This is a prerequisite project that is not done.
+
+## Tasks
+- [ ] Not done yet
+""",
+        project_id="prereq-project",
+        status="active",
+        owner=None,
+        last_updated="2025-01-15T10:30:00Z",
+        blocked=False,
+        blocking_reason=None,
+        priority="high",
+        tags=["test"]
+    )
+
+    agency_file = project_dir / "AGENCY.md"
+    with open(agency_file, 'w', encoding='utf-8') as f:
+        f.write(frontmatter.dumps(agency_content))
+
+    return str(agency_file)
+
+
+@pytest.fixture
+def temp_claimed_project(temp_hive_dir):  # pylint: disable=redefined-outer-name
+    """Create a project that is already claimed by an agent."""
+    project_dir = Path(temp_hive_dir) / "projects" / "claimed-project"
+    project_dir.mkdir(parents=True)
+
+    agency_content = frontmatter.Post(
+        """# Claimed Project
+
+## Objective
+This project is being worked on.
+
+## Tasks
+- [ ] In progress task
+""",
+        project_id="claimed-project",
+        status="active",
+        owner="claude-3.5-sonnet",
+        last_updated="2025-01-15T10:30:00Z",
+        blocked=False,
+        blocking_reason=None,
+        priority="high",
+        tags=["test"]
+    )
+
+    agency_file = project_dir / "AGENCY.md"
+    with open(agency_file, 'w', encoding='utf-8') as f:
+        f.write(frontmatter.dumps(agency_content))
+
+    return str(agency_file)

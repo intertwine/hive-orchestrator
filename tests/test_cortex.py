@@ -504,3 +504,470 @@ class TestCortexRun:
 
             result = cortex.run()
             assert result is False
+
+
+class TestHasUnresolvedBlockers:
+    """Test the has_unresolved_blockers method."""
+
+    def test_no_dependencies_means_no_blockers(self, temp_hive_dir, temp_project):
+        """Test project without dependencies has no blockers."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        assert len(projects) == 1
+        result = cortex.has_unresolved_blockers(projects[0], projects)
+        assert result is False
+
+    def test_dependency_on_completed_project(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project
+    ):
+        """Test that dependency on completed project is resolved."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        # Find the dependent project
+        dependent = next(p for p in projects if p['project_id'] == 'dependent-project')
+
+        result = cortex.has_unresolved_blockers(dependent, projects)
+        assert result is False
+
+    def test_dependency_on_incomplete_project(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project_incomplete
+    ):
+        """Test that dependency on incomplete project is unresolved."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        # Find the dependent project
+        dependent = next(p for p in projects if p['project_id'] == 'dependent-project')
+
+        result = cortex.has_unresolved_blockers(dependent, projects)
+        assert result is True
+
+    def test_dependency_on_unknown_project(self, temp_hive_dir, temp_project_with_dependency):
+        """Test that dependency on unknown project is unresolved (conservative)."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        # Only the dependent project exists, prereq doesn't
+        assert len(projects) == 1
+        dependent = projects[0]
+
+        result = cortex.has_unresolved_blockers(dependent, projects)
+        assert result is True
+
+
+class TestReadyWork:
+    """Test the ready_work method."""
+
+    def test_ready_work_finds_active_unclaimed_unblocked(self, temp_hive_dir, temp_project):
+        """Test that ready_work finds active, unclaimed, unblocked projects."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        assert len(ready) == 1
+        assert ready[0]['project_id'] == 'test-project'
+
+    def test_ready_work_excludes_blocked_projects(
+        self, temp_hive_dir, temp_project, temp_blocked_project
+    ):
+        """Test that ready_work excludes blocked projects."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        # Should only find test-project, not blocked-project
+        assert len(ready) == 1
+        assert ready[0]['project_id'] == 'test-project'
+
+    def test_ready_work_excludes_claimed_projects(
+        self, temp_hive_dir, temp_project, temp_claimed_project
+    ):
+        """Test that ready_work excludes projects with an owner."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        # Should only find test-project, not claimed-project
+        assert len(ready) == 1
+        assert ready[0]['project_id'] == 'test-project'
+
+    def test_ready_work_excludes_projects_with_unresolved_deps(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project_incomplete
+    ):
+        """Test that ready_work excludes projects with unresolved dependencies."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        project_ids = [p['project_id'] for p in ready]
+        # prereq-project is active but unclaimed, so it should be ready
+        # dependent-project has unresolved dep, so should not be ready
+        assert 'prereq-project' in project_ids
+        assert 'dependent-project' not in project_ids
+
+    def test_ready_work_includes_projects_with_resolved_deps(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project
+    ):
+        """Test that ready_work includes projects with resolved dependencies."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        project_ids = [p['project_id'] for p in ready]
+        # prereq-project is completed, so not ready (status != active)
+        # dependent-project has resolved dep and is active, so should be ready
+        assert 'dependent-project' in project_ids
+        assert 'prereq-project' not in project_ids
+
+    def test_ready_work_returns_empty_when_all_blocked(
+        self, temp_hive_dir, temp_blocked_project
+    ):
+        """Test ready_work returns empty list when all projects blocked."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        assert len(ready) == 0
+
+    def test_ready_work_with_provided_projects(self, temp_hive_dir, temp_project):
+        """Test ready_work with pre-provided project list."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        ready = cortex.ready_work(projects)
+
+        assert len(ready) == 1
+        assert ready[0]['project_id'] == 'test-project'
+
+
+class TestReadyWorkFormatters:
+    """Test the ready work output formatters."""
+
+    def test_format_ready_work_json_structure(self, temp_hive_dir, temp_project):
+        """Test JSON output has correct structure."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        json_output = cortex.format_ready_work_json(ready)
+        data = json.loads(json_output)
+
+        assert 'timestamp' in data
+        assert 'count' in data
+        assert 'projects' in data
+        assert data['count'] == 1
+        assert len(data['projects']) == 1
+        assert data['projects'][0]['project_id'] == 'test-project'
+        assert 'priority' in data['projects'][0]
+        assert 'tags' in data['projects'][0]
+        assert 'path' in data['projects'][0]
+
+    def test_format_ready_work_json_empty(self, temp_hive_dir):
+        """Test JSON output with no ready projects."""
+        cortex = Cortex(temp_hive_dir)
+
+        json_output = cortex.format_ready_work_json([])
+        data = json.loads(json_output)
+
+        assert data['count'] == 0
+        assert len(data['projects']) == 0
+
+    def test_format_ready_work_text_structure(self, temp_hive_dir, temp_project):
+        """Test text output has correct structure."""
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        text_output = cortex.format_ready_work_text(ready)
+
+        assert 'READY WORK' in text_output
+        assert 'test-project' in text_output
+        assert 'Priority: high' in text_output
+        assert 'Tags: test, backend' in text_output
+
+    def test_format_ready_work_text_empty(self, temp_hive_dir):
+        """Test text output with no ready projects."""
+        cortex = Cortex(temp_hive_dir)
+
+        text_output = cortex.format_ready_work_text([])
+
+        assert 'Found 0 project(s)' in text_output
+        assert 'No projects ready' in text_output
+
+    def test_format_ready_work_text_sorts_by_priority(
+        self, temp_hive_dir, temp_project, temp_blocked_project
+    ):
+        """Test that text output sorts projects by priority."""
+        # Create a low-priority ready project
+        from pathlib import Path as PathLib
+        project_dir = PathLib(temp_hive_dir) / "projects" / "low-prio"
+        project_dir.mkdir(parents=True)
+
+        agency_content = frontmatter.Post(
+            "# Low Priority",
+            project_id="low-prio",
+            status="active",
+            owner=None,
+            blocked=False,
+            priority="low",
+            tags=[]
+        )
+
+        agency_file = project_dir / "AGENCY.md"
+        with open(agency_file, 'w', encoding='utf-8') as f:
+            f.write(frontmatter.dumps(agency_content))
+
+        cortex = Cortex(temp_hive_dir)
+        ready = cortex.ready_work()
+
+        text_output = cortex.format_ready_work_text(ready)
+
+        # High priority should appear before low priority
+        high_pos = text_output.find('test-project')
+        low_pos = text_output.find('low-prio')
+        assert high_pos < low_pos
+
+
+class TestRunReady:
+    """Test the run_ready method."""
+
+    def test_run_ready_text_output(self, temp_hive_dir, temp_project, capsys):
+        """Test run_ready with text output."""
+        cortex = Cortex(temp_hive_dir)
+
+        result = cortex.run_ready(output_json=False)
+
+        assert result is True
+        captured = capsys.readouterr()
+        assert 'READY WORK' in captured.out
+        assert 'test-project' in captured.out
+
+    def test_run_ready_json_output(self, temp_hive_dir, temp_project, capsys):
+        """Test run_ready with JSON output."""
+        cortex = Cortex(temp_hive_dir)
+
+        result = cortex.run_ready(output_json=True)
+
+        assert result is True
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data['count'] == 1
+        assert data['projects'][0]['project_id'] == 'test-project'
+
+
+class TestBuildDependencyGraph:
+    """Test the build_dependency_graph method."""
+
+    def test_build_graph_single_project(self, temp_hive_dir, temp_project):
+        """Test building graph with single project."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+        graph = cortex.build_dependency_graph(projects)
+
+        assert 'nodes' in graph
+        assert 'edges' in graph
+        assert 'reverse_edges' in graph
+        assert 'test-project' in graph['nodes']
+        assert graph['edges']['test-project'] == []
+        assert graph['reverse_edges']['test-project'] == []
+
+    def test_build_graph_with_dependencies(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project
+    ):
+        """Test building graph with dependencies."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+        graph = cortex.build_dependency_graph(projects)
+
+        # prereq-project blocks dependent-project
+        assert 'dependent-project' in graph['edges']['prereq-project']
+        # dependent-project is blocked by prereq-project
+        assert 'prereq-project' in graph['reverse_edges']['dependent-project']
+
+
+class TestDetectCycles:
+    """Test the detect_cycles method."""
+
+    def test_no_cycles_in_simple_graph(self, temp_hive_dir, temp_project):
+        """Test no cycles detected in simple graph."""
+        cortex = Cortex(temp_hive_dir)
+        cycles = cortex.detect_cycles()
+        assert len(cycles) == 0
+
+    def test_no_cycles_with_linear_deps(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project
+    ):
+        """Test no cycles in linear dependency chain."""
+        cortex = Cortex(temp_hive_dir)
+        cycles = cortex.detect_cycles()
+        assert len(cycles) == 0
+
+    def test_detect_cycle(self, temp_hive_dir):
+        """Test cycle detection with circular dependencies."""
+        # Create two projects that depend on each other
+        from pathlib import Path as PathLib
+
+        project_a_dir = PathLib(temp_hive_dir) / "projects" / "project-a"
+        project_a_dir.mkdir(parents=True)
+        agency_a = frontmatter.Post(
+            "# Project A",
+            project_id="project-a",
+            status="active",
+            owner=None,
+            blocked=False,
+            priority="high",
+            tags=[],
+            dependencies={"blocked_by": ["project-b"], "blocks": []}
+        )
+        with open(project_a_dir / "AGENCY.md", 'w', encoding='utf-8') as f:
+            f.write(frontmatter.dumps(agency_a))
+
+        project_b_dir = PathLib(temp_hive_dir) / "projects" / "project-b"
+        project_b_dir.mkdir(parents=True)
+        agency_b = frontmatter.Post(
+            "# Project B",
+            project_id="project-b",
+            status="active",
+            owner=None,
+            blocked=False,
+            priority="high",
+            tags=[],
+            dependencies={"blocked_by": ["project-a"], "blocks": []}
+        )
+        with open(project_b_dir / "AGENCY.md", 'w', encoding='utf-8') as f:
+            f.write(frontmatter.dumps(agency_b))
+
+        cortex = Cortex(temp_hive_dir)
+        cycles = cortex.detect_cycles()
+
+        assert len(cycles) > 0
+        # The cycle should contain both projects
+        cycle_projects = set()
+        for cycle in cycles:
+            cycle_projects.update(cycle)
+        assert 'project-a' in cycle_projects or 'project-b' in cycle_projects
+
+
+class TestIsBlocked:
+    """Test the is_blocked method."""
+
+    def test_unblocked_project(self, temp_hive_dir, temp_project):
+        """Test is_blocked for unblocked project."""
+        cortex = Cortex(temp_hive_dir)
+        result = cortex.is_blocked('test-project')
+
+        assert result['is_blocked'] is False
+        assert result['reasons'] == []
+        assert result['blocking_projects'] == []
+        assert result['in_cycle'] is False
+
+    def test_blocked_by_flag(self, temp_hive_dir, temp_blocked_project):
+        """Test is_blocked for explicitly blocked project."""
+        cortex = Cortex(temp_hive_dir)
+        result = cortex.is_blocked('blocked-project')
+
+        assert result['is_blocked'] is True
+        assert 'Explicitly marked as blocked' in result['reasons']
+
+    def test_blocked_by_dependency(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project_incomplete
+    ):
+        """Test is_blocked for project with unresolved dependency."""
+        cortex = Cortex(temp_hive_dir)
+        result = cortex.is_blocked('dependent-project')
+
+        assert result['is_blocked'] is True
+        assert 'prereq-project' in result['blocking_projects']
+
+    def test_not_blocked_with_resolved_dependency(
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project
+    ):
+        """Test is_blocked for project with resolved dependency."""
+        cortex = Cortex(temp_hive_dir)
+        result = cortex.is_blocked('dependent-project')
+
+        assert result['is_blocked'] is False
+
+    def test_unknown_project(self, temp_hive_dir, temp_project):
+        """Test is_blocked for unknown project."""
+        cortex = Cortex(temp_hive_dir)
+        result = cortex.is_blocked('nonexistent-project')
+
+        assert result['is_blocked'] is True
+        assert any('not found' in r for r in result['reasons'])
+
+
+class TestGetDependencySummary:
+    """Test the get_dependency_summary method."""
+
+    def test_summary_structure(self, temp_hive_dir, temp_project):
+        """Test summary has correct structure."""
+        cortex = Cortex(temp_hive_dir)
+        summary = cortex.get_dependency_summary()
+
+        assert 'total_projects' in summary
+        assert 'projects' in summary
+        assert 'has_cycles' in summary
+        assert 'cycles' in summary
+        assert summary['total_projects'] == 1
+        assert len(summary['projects']) == 1
+
+    def test_summary_project_details(self, temp_hive_dir, temp_project):
+        """Test summary includes project details."""
+        cortex = Cortex(temp_hive_dir)
+        summary = cortex.get_dependency_summary()
+
+        proj = summary['projects'][0]
+        assert proj['project_id'] == 'test-project'
+        assert proj['status'] == 'active'
+        assert proj['priority'] == 'high'
+        assert 'blocks' in proj
+        assert 'blocked_by' in proj
+        assert 'effectively_blocked' in proj
+        assert 'blocking_reasons' in proj
+        assert 'in_cycle' in proj
+
+
+class TestDependencyFormatters:
+    """Test dependency output formatters."""
+
+    def test_format_deps_json(self, temp_hive_dir, temp_project):
+        """Test JSON dependency output."""
+        cortex = Cortex(temp_hive_dir)
+        summary = cortex.get_dependency_summary()
+        output = cortex.format_deps_json(summary)
+
+        data = json.loads(output)
+        assert 'timestamp' in data
+        assert 'total_projects' in data
+        assert 'has_cycles' in data
+        assert 'projects' in data
+
+    def test_format_deps_text(self, temp_hive_dir, temp_project):
+        """Test text dependency output."""
+        cortex = Cortex(temp_hive_dir)
+        summary = cortex.get_dependency_summary()
+        output = cortex.format_deps_text(summary)
+
+        assert 'DEPENDENCY GRAPH' in output
+        assert 'test-project' in output
+        assert 'Legend:' in output
+
+
+class TestRunDeps:
+    """Test the run_deps method."""
+
+    def test_run_deps_text(self, temp_hive_dir, temp_project, capsys):
+        """Test run_deps text output."""
+        cortex = Cortex(temp_hive_dir)
+        result = cortex.run_deps(output_json=False)
+
+        assert result is True
+        captured = capsys.readouterr()
+        assert 'DEPENDENCY GRAPH' in captured.out
+        assert 'test-project' in captured.out
+
+    def test_run_deps_json(self, temp_hive_dir, temp_project, capsys):
+        """Test run_deps JSON output."""
+        cortex = Cortex(temp_hive_dir)
+        result = cortex.run_deps(output_json=True)
+
+        assert result is True
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data['total_projects'] == 1
+        assert len(data['projects']) == 1

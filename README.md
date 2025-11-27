@@ -2,6 +2,8 @@
 
 **Agent Hive** is a production-ready orchestration operating system for autonomous AI agents. It enables seamless coordination across different LLM providers (Claude, Grok, Gemini, etc.) using shared memory stored in Markdown files.
 
+> **Inspiration**: Some patterns in Agent Hive were inspired by [beads](https://github.com/steveyegge/beads), particularly the ready work detection, dependency tracking, and MCP integration concepts. We've adapted these ideas for our Markdown-first, vendor-agnostic approach.
+
 ## 🎯 Core Concept
 
 Instead of building vendor-specific workflows, Agent Hive uses a simple but powerful primitive: **AGENCY.md** - a Markdown file with YAML frontmatter that serves as shared memory between AI agents, humans, and automation.
@@ -91,14 +93,21 @@ agent-hive/
 │       └── cortex.yml          # Automated 4-hour heartbeat
 ├── config/
 │   └── app-manifest.json       # GitHub App definition (for SaaS)
+├── examples/
+│   └── */                      # Example workflows (7 patterns)
 ├── projects/
-│   └── demo/
-│       └── AGENCY.md           # Example project
+│   └── */                      # Your project workspaces
+│       └── AGENCY.md           # Project shared memory
 ├── scripts/
 │   └── start_session.sh        # Deep Work session bootstrap
 ├── src/
 │   ├── cortex.py               # Orchestration logic
-│   └── dashboard.py            # Streamlit UI
+│   ├── dashboard.py            # Streamlit UI
+│   └── hive_mcp/               # MCP server for AI agents
+│       ├── __init__.py
+│       ├── __main__.py
+│       └── server.py           # MCP tool implementations
+├── tests/                      # Test suite (111+ tests)
 ├── GLOBAL.md                   # Root system state
 ├── Makefile                    # Convenience commands
 ├── pyproject.toml              # Python project configuration & dependencies
@@ -121,6 +130,11 @@ blocked: false
 blocking_reason: null
 priority: high
 tags: [feature, backend]
+dependencies:
+  blocked_by: [other-project]  # This project waits for these
+  blocks: [downstream-project]  # These projects wait for us
+  parent: epic-project          # Part of a larger epic (optional)
+  related: [context-project]    # Related but non-blocking (optional)
 ---
 
 # Project Title
@@ -137,6 +151,18 @@ What this project aims to achieve.
 - **2025-01-15 10:30 - Claude**: Started work on Task 1
 ```
 
+**Key Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `project_id` | Unique identifier for the project |
+| `status` | `active`, `pending`, `blocked`, or `completed` |
+| `owner` | Agent currently working (or `null` if unclaimed) |
+| `blocked` | `true` if blocked on external dependency |
+| `priority` | `low`, `medium`, `high`, or `critical` |
+| `dependencies.blocked_by` | Projects that must complete before this one |
+| `dependencies.blocks` | Projects waiting on this one |
+
 ### 2. Cortex - The Orchestration Engine
 
 `cortex.py` reads all AGENCY.md files, calls an LLM to analyze the state, and updates files accordingly. It:
@@ -146,6 +172,24 @@ What this project aims to achieve.
 - ✅ Identifies blocked tasks
 - ✅ Suggests new project creation
 - ✅ Runs every 4 hours via GitHub Actions
+- ✅ **Ready Work Detection** - Find actionable projects without LLM calls
+- ✅ **Dependency Tracking** - Build and analyze dependency graphs
+- ✅ **Cycle Detection** - Prevent deadlocks from circular dependencies
+
+**CLI Commands:**
+
+```bash
+# Full orchestration run (uses LLM)
+make cortex
+
+# Fast ready work detection (no LLM, instant)
+make ready              # Human-readable output
+make ready-json         # JSON for programmatic use
+
+# Dependency analysis (no LLM, instant)
+make deps               # Human-readable dependency graph
+make deps-json          # JSON for programmatic use
+```
 
 ### 3. Dashboard - The UI
 
@@ -155,6 +199,50 @@ What this project aims to achieve.
 - 🚀 Generates "Deep Work" contexts
 - 🧠 Triggers Cortex manually
 - 📋 Displays task lists and metadata
+- 🔗 Shows dependency graphs and blocking status
+- ⚠️ Alerts on dependency cycles
+
+### 4. Hive MCP Server - AI Agent Integration
+
+The `hive-mcp` server enables AI agents like Claude to interact with Agent Hive programmatically via the [Model Context Protocol](https://modelcontextprotocol.io/).
+
+**Available Tools:**
+
+| Tool | Description |
+|------|-------------|
+| `list_projects` | List all discovered projects with metadata |
+| `get_ready_work` | Get projects ready for an agent to claim |
+| `get_project` | Get full details of a specific project |
+| `claim_project` | Set owner field to claim work |
+| `release_project` | Set owner to null |
+| `update_status` | Change project status |
+| `add_note` | Append to agent notes section |
+| `get_dependencies` | Get dependency info for a project |
+| `get_dependency_graph` | Get full dependency graph |
+
+**Claude Desktop Configuration:**
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "hive": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "hive_mcp"],
+      "env": {
+        "HIVE_BASE_PATH": "/path/to/your/agent-hive"
+      }
+    }
+  }
+}
+```
+
+**Run Standalone:**
+
+```bash
+uv run python -m hive_mcp
+```
 
 ## 🎓 Usage Patterns
 
@@ -336,13 +424,29 @@ make dashboard
 
 ## 🧪 Advanced: MCP Integration
 
-The DevContainer includes Model Context Protocol (MCP) filesystem server. This allows agents like Claude to:
+Agent Hive provides two levels of MCP integration:
 
-- Read/write files safely
-- Execute within sandboxed environment
-- Access project context directly
+### Hive MCP Server (Recommended)
 
-When using Cursor/Claude Code in the DevContainer, agents automatically have filesystem access via MCP.
+The built-in `hive-mcp` server gives AI agents direct access to Agent Hive operations:
+
+```bash
+# Install and run
+uv run python -m hive_mcp
+```
+
+This enables agents to:
+- 📋 List and query projects programmatically
+- 🎯 Find ready work without scanning files
+- 🔒 Claim/release projects atomically
+- 📝 Update status and add notes
+- 🔗 Navigate dependency graphs
+
+See [Hive MCP Server](#4-hive-mcp-server---ai-agent-integration) for configuration.
+
+### DevContainer Filesystem MCP
+
+The DevContainer also includes a generic filesystem MCP server for lower-level file operations. When using Cursor/Claude Code in the DevContainer, agents have filesystem access for reading/writing files directly.
 
 ## 📚 Philosophy
 
@@ -398,11 +502,19 @@ lsof -i :8501
 
 ## 🎯 Roadmap
 
+**Completed:**
+- [x] Ready work detection (fast, no LLM required)
+- [x] Dependency tracking with cycle detection
+- [x] MCP server for AI agent integration
+- [x] JSON output mode for programmatic access
+- [x] Dashboard dependency visualization
+
+**Planned:**
+- [ ] Real-time agent coordination layer (HTTP API)
 - [ ] Web-based Dashboard (hosted version)
 - [ ] Multi-repository support
 - [ ] Slack/Discord integration
 - [ ] Agent performance metrics
-- [ ] Custom LLM provider support
 - [ ] Visual workflow builder
 
 ## 📞 Support

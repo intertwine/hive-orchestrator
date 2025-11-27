@@ -7,6 +7,7 @@ reading project state from AGENCY.md files and coordinating
 AI agents across different vendors.
 """
 
+import argparse
 import os
 import sys
 import json
@@ -98,6 +99,547 @@ class Cortex:
                 print(f"⚠️  WARNING: Could not parse {agency_file}: {e}")
 
         return projects
+
+    def build_dependency_graph(self, projects: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Build a dependency graph from all projects.
+
+        Returns a graph structure with:
+        - nodes: dict mapping project_id -> project metadata
+        - edges: dict mapping project_id -> list of project_ids it blocks
+        - reverse_edges: dict mapping project_id -> list of project_ids blocking it
+
+        Args:
+            projects: List of discovered projects
+
+        Returns:
+            Dictionary containing the dependency graph structure
+        """
+        nodes = {}
+        edges = {}  # project_id -> [projects it blocks]
+        reverse_edges = {}  # project_id -> [projects that block it]
+
+        # Build nodes
+        for project in projects:
+            project_id = project['project_id']
+            nodes[project_id] = {
+                'status': project['metadata'].get('status', 'unknown'),
+                'priority': project['metadata'].get('priority', 'medium'),
+                'owner': project['metadata'].get('owner'),
+                'blocked': project['metadata'].get('blocked', False),
+                'path': project['path'],
+                'dependencies': project['metadata'].get('dependencies', {})
+            }
+            edges[project_id] = []
+            reverse_edges[project_id] = []
+
+        # Build edges from dependencies
+        for project in projects:
+            project_id = project['project_id']
+            deps = project['metadata'].get('dependencies', {})
+
+            # blocked_by: these projects must complete before this one
+            blocked_by = deps.get('blocked_by', [])
+            for blocker_id in blocked_by:
+                if blocker_id in nodes:
+                    edges[blocker_id].append(project_id)
+                    reverse_edges[project_id].append(blocker_id)
+
+            # blocks: this project blocks these projects
+            blocks = deps.get('blocks', [])
+            for blocked_id in blocks:
+                if blocked_id in nodes:
+                    edges[project_id].append(blocked_id)
+                    if project_id not in reverse_edges.get(blocked_id, []):
+                        reverse_edges[blocked_id].append(project_id)
+
+        return {
+            'nodes': nodes,
+            'edges': edges,
+            'reverse_edges': reverse_edges
+        }
+
+    def detect_cycles(self, projects: List[Dict[str, Any]] = None) -> List[List[str]]:
+        """
+        Detect cycles in the dependency graph using DFS.
+
+        A cycle means circular dependencies that can never be resolved.
+
+        Args:
+            projects: Optional list of projects. If None, discovers them.
+
+        Returns:
+            List of cycles, where each cycle is a list of project_ids
+        """
+        if projects is None:
+            projects = self.discover_projects()
+
+        graph = self.build_dependency_graph(projects)
+        edges = graph['edges']
+        nodes = set(graph['nodes'].keys())
+
+        cycles = []
+        visited = set()
+        rec_stack = set()
+        path = []
+
+        def dfs(node: str) -> bool:
+            """DFS to detect cycles, returns True if cycle found."""
+            visited.add(node)
+            rec_stack.add(node)
+            path.append(node)
+
+            for neighbor in edges.get(node, []):
+                if neighbor not in visited:
+                    if dfs(neighbor):
+                        return True
+                elif neighbor in rec_stack:
+                    # Found a cycle - extract it from path
+                    cycle_start = path.index(neighbor)
+                    cycle = path[cycle_start:] + [neighbor]
+                    cycles.append(cycle)
+                    return True
+
+            path.pop()
+            rec_stack.remove(node)
+            return False
+
+        for node in nodes:
+            if node not in visited:
+                dfs(node)
+
+        return cycles
+
+    def is_blocked(self, project_id: str,
+                   projects: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Check if a project is blocked and provide detailed blocking info.
+
+        This performs full graph traversal to find all blocking reasons:
+        - Direct blocking via `blocked` field
+        - Blocked by uncompleted dependencies (transitive)
+        - Part of a dependency cycle
+
+        Args:
+            project_id: The project to check
+            projects: Optional list of projects. If None, discovers them.
+
+        Returns:
+            Dictionary with blocking status and details:
+            {
+                'is_blocked': bool,
+                'reasons': [list of blocking reasons],
+                'blocking_projects': [project_ids that block this],
+                'in_cycle': bool,
+                'cycle': [project_ids in cycle] if in_cycle
+            }
+        """
+        if projects is None:
+            projects = self.discover_projects()
+
+        graph = self.build_dependency_graph(projects)
+        result = {
+            'is_blocked': False,
+            'reasons': [],
+            'blocking_projects': [],
+            'in_cycle': False,
+            'cycle': []
+        }
+
+        # Check if project exists
+        if project_id not in graph['nodes']:
+            result['is_blocked'] = True
+            result['reasons'].append(f"Project '{project_id}' not found")
+            return result
+
+        node = graph['nodes'][project_id]
+
+        # Check 1: Direct blocked flag
+        if node.get('blocked', False):
+            result['is_blocked'] = True
+            result['reasons'].append("Explicitly marked as blocked")
+
+        # Check 2: Uncompleted dependencies (transitive)
+        visited = set()
+        to_check = list(graph['reverse_edges'].get(project_id, []))
+
+        while to_check:
+            dep_id = to_check.pop(0)
+            if dep_id in visited:
+                continue
+            visited.add(dep_id)
+
+            if dep_id not in graph['nodes']:
+                result['is_blocked'] = True
+                result['reasons'].append(f"Unknown dependency: {dep_id}")
+                result['blocking_projects'].append(dep_id)
+                continue
+
+            dep_node = graph['nodes'][dep_id]
+            if dep_node['status'] != 'completed':
+                result['is_blocked'] = True
+                result['blocking_projects'].append(dep_id)
+                # Also check transitive dependencies
+                to_check.extend(graph['reverse_edges'].get(dep_id, []))
+
+        if result['blocking_projects']:
+            result['reasons'].append(
+                f"Blocked by uncompleted: {', '.join(result['blocking_projects'])}"
+            )
+
+        # Check 3: Cycle detection
+        cycles = self.detect_cycles(projects)
+        for cycle in cycles:
+            if project_id in cycle:
+                result['is_blocked'] = True
+                result['in_cycle'] = True
+                result['cycle'] = cycle
+                result['reasons'].append(
+                    f"Part of dependency cycle: {' -> '.join(cycle)}"
+                )
+                break
+
+        return result
+
+    def get_dependency_summary(self,
+                               projects: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Get a summary of the dependency graph for visualization.
+
+        Args:
+            projects: Optional list of projects. If None, discovers them.
+
+        Returns:
+            Dictionary with dependency summary suitable for visualization
+        """
+        if projects is None:
+            projects = self.discover_projects()
+
+        graph = self.build_dependency_graph(projects)
+        cycles = self.detect_cycles(projects)
+
+        summary = {
+            'total_projects': len(graph['nodes']),
+            'projects': [],
+            'has_cycles': len(cycles) > 0,
+            'cycles': cycles
+        }
+
+        for project_id, node in graph['nodes'].items():
+            blocks = graph['edges'].get(project_id, [])
+            blocked_by = graph['reverse_edges'].get(project_id, [])
+
+            # Determine effective status
+            blocking_info = self.is_blocked(project_id, projects)
+
+            summary['projects'].append({
+                'project_id': project_id,
+                'status': node['status'],
+                'priority': node['priority'],
+                'owner': node['owner'],
+                'blocked': node['blocked'],
+                'blocks': blocks,
+                'blocked_by': blocked_by,
+                'effectively_blocked': blocking_info['is_blocked'],
+                'blocking_reasons': blocking_info['reasons'],
+                'in_cycle': blocking_info['in_cycle']
+            })
+
+        return summary
+
+    def has_unresolved_blockers(self, project: Dict[str, Any],
+                                 all_projects: List[Dict[str, Any]]) -> bool:
+        """
+        Check if a project has unresolved blocking dependencies.
+
+        Examines the 'dependencies.blocked_by' field and checks if any
+        of those projects are still incomplete (not status='completed').
+
+        Args:
+            project: The project to check
+            all_projects: All discovered projects for dependency resolution
+
+        Returns:
+            True if there are unresolved blockers, False otherwise
+        """
+        metadata = project.get('metadata', {})
+        dependencies = metadata.get('dependencies', {})
+        blocked_by = dependencies.get('blocked_by', [])
+
+        if not blocked_by:
+            return False
+
+        # Build a lookup of project statuses
+        project_statuses = {
+            p['project_id']: p['metadata'].get('status', 'unknown')
+            for p in all_projects
+        }
+
+        # Check if any blocking project is not completed
+        for blocker_id in blocked_by:
+            blocker_status = project_statuses.get(blocker_id)
+            if blocker_status is None:
+                # Unknown blocker - treat as unresolved (conservative)
+                return True
+            if blocker_status != 'completed':
+                return True
+
+        return False
+
+    def ready_work(self, projects: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Find projects that are ready for work (no LLM required).
+
+        A project is ready if:
+        - status == 'active'
+        - blocked == False
+        - owner == None (unclaimed)
+        - No unresolved blocking dependencies
+
+        Args:
+            projects: Optional list of projects. If None, discovers them.
+
+        Returns:
+            List of projects ready for an agent to claim
+        """
+        if projects is None:
+            projects = self.discover_projects()
+
+        ready = []
+        for project in projects:
+            metadata = project.get('metadata', {})
+
+            # Check basic readiness criteria
+            status = metadata.get('status', '')
+            blocked = metadata.get('blocked', False)
+            owner = metadata.get('owner')
+
+            if status != 'active':
+                continue
+            if blocked:
+                continue
+            if owner is not None:
+                continue
+
+            # Check dependency-based blocking
+            if self.has_unresolved_blockers(project, projects):
+                continue
+
+            ready.append(project)
+
+        return ready
+
+    def format_ready_work_json(self, ready_projects: List[Dict[str, Any]]) -> str:
+        """Format ready work as JSON for programmatic consumption."""
+        output = {
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'count': len(ready_projects),
+            'projects': [
+                {
+                    'project_id': p['project_id'],
+                    'path': p['path'],
+                    'priority': p['metadata'].get('priority', 'medium'),
+                    'tags': p['metadata'].get('tags', []),
+                }
+                for p in ready_projects
+            ]
+        }
+        return json.dumps(output, indent=2)
+
+    def format_ready_work_text(self, ready_projects: List[Dict[str, Any]]) -> str:
+        """Format ready work as human-readable text."""
+        lines = []
+        lines.append("=" * 60)
+        lines.append("READY WORK")
+        lines.append("=" * 60)
+        lines.append(f"Timestamp: {datetime.utcnow().isoformat()}")
+        lines.append(f"Found {len(ready_projects)} project(s) ready for work")
+        lines.append("")
+
+        if not ready_projects:
+            lines.append("No projects ready. All are either:")
+            lines.append("  - Not active (status != 'active')")
+            lines.append("  - Blocked (blocked == true)")
+            lines.append("  - Already claimed (owner != null)")
+            lines.append("  - Waiting on dependencies")
+        else:
+            # Sort by priority
+            priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+            sorted_projects = sorted(
+                ready_projects,
+                key=lambda p: priority_order.get(
+                    p['metadata'].get('priority', 'medium'), 2
+                )
+            )
+
+            for project in sorted_projects:
+                meta = project['metadata']
+                priority = meta.get('priority', 'medium')
+                tags = ', '.join(meta.get('tags', []))
+                priority_icon = {
+                    'critical': '!!!',
+                    'high': '!! ',
+                    'medium': '!  ',
+                    'low': '   '
+                }.get(priority, '   ')
+
+                lines.append(f"{priority_icon} {project['project_id']}")
+                lines.append(f"    Priority: {priority}")
+                if tags:
+                    lines.append(f"    Tags: {tags}")
+                lines.append(f"    Path: {project['path']}")
+                lines.append("")
+
+        lines.append("=" * 60)
+        return '\n'.join(lines)
+
+    def run_ready(self, output_json: bool = False) -> bool:
+        """
+        Run ready work detection (no LLM, fast).
+
+        Args:
+            output_json: If True, output JSON format; otherwise human-readable
+
+        Returns:
+            True on success
+        """
+        projects = self.discover_projects()
+        ready_projects = self.ready_work(projects)
+
+        if output_json:
+            print(self.format_ready_work_json(ready_projects))
+        else:
+            print(self.format_ready_work_text(ready_projects))
+
+        return True
+
+    def format_deps_json(self, summary: Dict[str, Any]) -> str:
+        """Format dependency summary as JSON."""
+        output = {
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'total_projects': summary['total_projects'],
+            'has_cycles': summary['has_cycles'],
+            'cycles': summary['cycles'],
+            'projects': summary['projects']
+        }
+        return json.dumps(output, indent=2)
+
+    def format_deps_text(self, summary: Dict[str, Any]) -> str:
+        """Format dependency summary as human-readable text."""
+        lines = []
+        lines.append("=" * 60)
+        lines.append("DEPENDENCY GRAPH")
+        lines.append("=" * 60)
+        lines.append(f"Timestamp: {datetime.utcnow().isoformat()}")
+        lines.append(f"Total Projects: {summary['total_projects']}")
+        lines.append("")
+
+        # Cycle warning
+        if summary['has_cycles']:
+            lines.append("!!! CYCLES DETECTED !!!")
+            for cycle in summary['cycles']:
+                lines.append(f"    {' -> '.join(cycle)}")
+            lines.append("")
+
+        # Sort projects: blocked first, then by priority
+        priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+        sorted_projects = sorted(
+            summary['projects'],
+            key=lambda p: (
+                0 if p['effectively_blocked'] else 1,
+                priority_order.get(p['priority'], 2)
+            )
+        )
+
+        # Group by status
+        blocked_projects = [p for p in sorted_projects if p['effectively_blocked']]
+        ready_projects = [p for p in sorted_projects if not p['effectively_blocked']]
+
+        if blocked_projects:
+            lines.append("BLOCKED PROJECTS:")
+            lines.append("-" * 40)
+            for proj in blocked_projects:
+                status_icon = "!!!" if proj['in_cycle'] else "***"
+                lines.append(f"{status_icon} {proj['project_id']}")
+                lines.append(f"    Status: {proj['status']}")
+                if proj['blocked_by']:
+                    lines.append(f"    Blocked by: {', '.join(proj['blocked_by'])}")
+                if proj['blocking_reasons']:
+                    for reason in proj['blocking_reasons']:
+                        lines.append(f"    Reason: {reason}")
+                lines.append("")
+
+        if ready_projects:
+            lines.append("UNBLOCKED PROJECTS:")
+            lines.append("-" * 40)
+            for proj in ready_projects:
+                owner_str = f" (owner: {proj['owner']})" if proj['owner'] else ""
+                lines.append(f"    {proj['project_id']} [{proj['status']}]{owner_str}")
+                if proj['blocks']:
+                    lines.append(f"      Blocks: {', '.join(proj['blocks'])}")
+            lines.append("")
+
+        # Dependency visualization
+        lines.append("DEPENDENCY TREE:")
+        lines.append("-" * 40)
+
+        # Find root projects (not blocked by anything)
+        roots = [p for p in summary['projects'] if not p['blocked_by']]
+        visited = set()
+
+        def print_tree(project_id: str, indent: int = 0):
+            """Recursively print dependency tree."""
+            if project_id in visited:
+                lines.append("  " * indent + f"[{project_id}] (circular ref)")
+                return
+            visited.add(project_id)
+
+            proj = next((p for p in summary['projects']
+                        if p['project_id'] == project_id), None)
+            if not proj:
+                lines.append("  " * indent + f"[{project_id}] (unknown)")
+                return
+
+            status_char = {
+                'completed': '+',
+                'active': '*',
+                'blocked': '!',
+                'pending': '-'
+            }.get(proj['status'], '?')
+
+            lines.append("  " * indent + f"[{status_char}] {project_id}")
+
+            for blocked_id in proj['blocks']:
+                print_tree(blocked_id, indent + 1)
+
+        for root in roots:
+            print_tree(root['project_id'])
+
+        lines.append("")
+        lines.append("Legend: [+] completed  [*] active  [!] blocked  [-] pending")
+        lines.append("=" * 60)
+
+        return '\n'.join(lines)
+
+    def run_deps(self, output_json: bool = False) -> bool:
+        """
+        Display dependency graph (no LLM, fast).
+
+        Args:
+            output_json: If True, output JSON format; otherwise human-readable
+
+        Returns:
+            True on success
+        """
+        projects = self.discover_projects()
+        summary = self.get_dependency_summary(projects)
+
+        if output_json:
+            print(self.format_deps_json(summary))
+        else:
+            print(self.format_deps_text(summary))
+
+        return True
 
     def build_analysis_prompt(self, global_ctx: Dict, projects: List[Dict]) -> str:
         """Build the prompt for the LLM to analyze system state."""
@@ -215,12 +757,14 @@ Return ONLY valid JSON, no markdown formatting or additional text.
             # Defensive checks for response structure
             choices = result.get('choices')
             if not choices or not isinstance(choices, list) or len(choices) == 0:
-                print(f"❌ ERROR: Unexpected API response structure (missing or empty 'choices'): {result}")
+                print("❌ ERROR: Unexpected API response structure "
+                      f"(missing or empty 'choices'): {result}")
                 return None
 
             message = choices[0].get('message') if isinstance(choices[0], dict) else None
             if not message or 'content' not in message:
-                print(f"❌ ERROR: Unexpected API response structure (missing 'message' or 'content'): {result}")
+                print("❌ ERROR: Unexpected API response structure "
+                      f"(missing 'message' or 'content'): {result}")
                 return None
 
             llm_response = message['content']
@@ -401,10 +945,79 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         return True
 
 
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Agent Hive Cortex - The Orchestration Operating System',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run full LLM-based analysis (default)
+  python -m src.cortex
+
+  # Find ready work (fast, no LLM)
+  python -m src.cortex --ready
+
+  # Show dependency graph
+  python -m src.cortex --deps
+
+  # Output as JSON for programmatic use
+  python -m src.cortex --ready --json
+  python -m src.cortex --deps --json
+
+  # Specify custom base path
+  python -m src.cortex --path /path/to/hive
+        """
+    )
+
+    parser.add_argument(
+        '--ready', '-r',
+        action='store_true',
+        help='Find ready work (fast, no LLM required)'
+    )
+
+    parser.add_argument(
+        '--deps', '-d',
+        action='store_true',
+        help='Show dependency graph (fast, no LLM required)'
+    )
+
+    parser.add_argument(
+        '--json', '-j',
+        action='store_true',
+        help='Output in JSON format for programmatic consumption'
+    )
+
+    parser.add_argument(
+        '--path', '-p',
+        type=str,
+        default=None,
+        help='Base path for the hive (default: current directory)'
+    )
+
+    return parser.parse_args()
+
+
 def main():
     """CLI entry point for Cortex."""
-    cortex = Cortex()
-    success = cortex.run()
+    args = parse_args()
+
+    cortex = Cortex(base_path=args.path)
+
+    if args.ready:
+        # Fast path: no LLM required
+        success = cortex.run_ready(output_json=args.json)
+    elif args.deps:
+        # Dependency graph: no LLM required
+        success = cortex.run_deps(output_json=args.json)
+    else:
+        # Full LLM-based analysis
+        if args.json:
+            print('{"error": "JSON output only supported with --ready or --deps"}',
+                  file=sys.stderr)
+            sys.exit(1)
+        success = cortex.run()
+
     sys.exit(0 if success else 1)
 
 

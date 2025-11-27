@@ -1,6 +1,5 @@
 """Tests for the Agent Hive Coordinator server and client."""
 
-import time
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 import pytest
@@ -10,16 +9,12 @@ from src.coordinator import (
     app,
     store,
     Claim,
-    ReservationStore,
-    DEFAULT_TTL_SECONDS,
-    MAX_TTL_SECONDS
+    ReservationStore
 )
 from src.coordinator_client import (
     CoordinatorClient,
     CoordinatorUnavailable,
     ClaimConflict,
-    ClaimResult,
-    ClaimStatus,
     get_coordinator_client
 )
 
@@ -579,7 +574,7 @@ class TestIntegration:
             "agent_name": "test-agent"
         })
         assert claim_response.status_code == 200
-        claim_id = claim_response.json()["claim_id"]
+        assert "claim_id" in claim_response.json()
 
         # 2. Verify status
         status_response = client.get("/status/integration-test")

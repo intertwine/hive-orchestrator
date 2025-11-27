@@ -11,7 +11,7 @@ import sys
 import json
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any
 import frontmatter
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -182,7 +182,7 @@ app = Server("hive-mcp")
 
 
 @app.list_tools()
-async def list_tools() -> List[Tool]:
+async def list_tools() -> list[Tool]:
     """List all available MCP tools."""
     return [
         Tool(

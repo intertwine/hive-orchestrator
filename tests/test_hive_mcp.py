@@ -1,7 +1,5 @@
 """Tests for Hive MCP Server."""
 
-import json
-import pytest
 import frontmatter
 from pathlib import Path
 from src.hive_mcp.server import (

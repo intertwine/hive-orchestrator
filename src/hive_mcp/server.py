@@ -21,6 +21,10 @@ from mcp.types import Tool, TextContent
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from cortex import Cortex  # pylint: disable=wrong-import-position
+from coordinator_client import (  # pylint: disable=wrong-import-position
+    CoordinatorUnavailable,
+    get_coordinator_client
+)
 
 
 def get_base_path() -> str:
@@ -312,6 +316,59 @@ async def list_tools() -> list[Tool]:
                 "properties": {}
             }
         ),
+        Tool(
+            name="coordinator_status",
+            description="Check if the coordination server is available and get its status",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
+        Tool(
+            name="coordinator_claim",
+            description="Claim a project via the coordination server for conflict prevention",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The project ID to claim"
+                    },
+                    "agent_name": {
+                        "type": "string",
+                        "description": "The agent name claiming the project"
+                    },
+                    "ttl_seconds": {
+                        "type": "integer",
+                        "description": "Time-to-live for the claim in seconds (default: 3600)",
+                        "default": 3600
+                    }
+                },
+                "required": ["project_id", "agent_name"]
+            }
+        ),
+        Tool(
+            name="coordinator_release",
+            description="Release a project claim via the coordination server",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The project ID to release"
+                    }
+                },
+                "required": ["project_id"]
+            }
+        ),
+        Tool(
+            name="coordinator_reservations",
+            description="Get all active reservations from the coordination server",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
     ]
 
 
@@ -539,6 +596,135 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             projects = cortex.discover_projects()
             summary = cortex.get_dependency_summary(projects)
             result = format_response(success=True, data=summary)
+
+        elif name == "coordinator_status":
+            coordinator = get_coordinator_client()
+            if not coordinator:
+                result = format_response(
+                    success=True,
+                    data={
+                        "available": False,
+                        "reason": "COORDINATOR_URL not configured"
+                    }
+                )
+            else:
+                try:
+                    if coordinator.is_available():
+                        reservations = coordinator.get_all_reservations()
+                        result = format_response(
+                            success=True,
+                            data={
+                                "available": True,
+                                "url": coordinator.base_url,
+                                "active_claims": reservations.get("count", 0)
+                            }
+                        )
+                    else:
+                        result = format_response(
+                            success=True,
+                            data={
+                                "available": False,
+                                "url": coordinator.base_url,
+                                "reason": "Server not responding"
+                            }
+                        )
+                except CoordinatorUnavailable as e:
+                    result = format_response(
+                        success=True,
+                        data={
+                            "available": False,
+                            "url": coordinator.base_url,
+                            "reason": str(e)
+                        }
+                    )
+
+        elif name == "coordinator_claim":
+            project_id = arguments.get("project_id")
+            agent_name = arguments.get("agent_name")
+            ttl_seconds = arguments.get("ttl_seconds", 3600)
+
+            if not project_id or not agent_name:
+                result = format_response(
+                    success=False,
+                    error="project_id and agent_name are required"
+                )
+            else:
+                coordinator = get_coordinator_client()
+                if not coordinator:
+                    result = format_response(
+                        success=False,
+                        error="Coordinator not configured (COORDINATOR_URL not set)"
+                    )
+                else:
+                    try:
+                        claim_result = coordinator.try_claim(
+                            project_id=project_id,
+                            agent_name=agent_name,
+                            ttl_seconds=ttl_seconds
+                        )
+                        if claim_result.success:
+                            result = format_response(
+                                success=True,
+                                data={
+                                    "claim_id": claim_result.claim_id,
+                                    "project_id": claim_result.project_id,
+                                    "agent_name": claim_result.agent_name,
+                                    "expires_at": claim_result.expires_at
+                                }
+                            )
+                        else:
+                            result = format_response(
+                                success=False,
+                                error=claim_result.error,
+                                data={"current_owner": claim_result.current_owner}
+                            )
+                    except CoordinatorUnavailable as e:
+                        result = format_response(
+                            success=False,
+                            error=f"Coordinator unavailable: {e}"
+                        )
+
+        elif name == "coordinator_release":
+            project_id = arguments.get("project_id")
+
+            if not project_id:
+                result = format_response(success=False, error="project_id is required")
+            else:
+                coordinator = get_coordinator_client()
+                if not coordinator:
+                    result = format_response(
+                        success=False,
+                        error="Coordinator not configured (COORDINATOR_URL not set)"
+                    )
+                else:
+                    try:
+                        released = coordinator.release(project_id)
+                        result = format_response(
+                            success=True,
+                            data={"project_id": project_id, "released": released}
+                        )
+                    except CoordinatorUnavailable as e:
+                        result = format_response(
+                            success=False,
+                            error=f"Coordinator unavailable: {e}"
+                        )
+
+        elif name == "coordinator_reservations":
+            coordinator = get_coordinator_client()
+            if not coordinator:
+                result = format_response(
+                    success=False,
+                    error="Coordinator not configured (COORDINATOR_URL not set)"
+                )
+            else:
+                try:
+                    reservations = coordinator.get_all_reservations()
+                    result = format_response(success=True, data=reservations)
+                except CoordinatorUnavailable as e:
+                    result = format_response(
+                        success=False,
+                        error=f"Coordinator unavailable: {e}"
+                    )
 
         else:
             result = format_response(success=False, error=f"Unknown tool: {name}")

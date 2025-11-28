@@ -1,8 +1,9 @@
 ---
-status: active
-last_cortex_run: null
-version: "1.0.0"
+last_cortex_run: '2025-11-28T16:22:10.557121Z'
+last_updated: '2025-11-28T16:22:10.556809Z'
 orchestrator: agent-hive
+status: active
+version: 1.0.0
 ---
 
 # Agent Hive - Global Context

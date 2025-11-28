@@ -4,6 +4,11 @@
 
 ---
 
+![Hero: Why Dependencies Matter](images/04-hero-dependencies.png)
+*One project needs no tracking. Five you can manage. Fifty? Implicit dependencies become a liability. Agent Hive makes relationships explicit and queryable.*
+
+---
+
 ## Why Dependencies Matter
 
 When you have one project, you don't need dependency tracking. You just work on it until it's done.
@@ -80,6 +85,9 @@ dependencies:
 ```
 
 When working on api-v2, an agent might benefit from reading the related projects for context—but they're not required to wait for anything.
+
+![The Four Dependency Types](images/04-dependency-types.png)
+*Four dependency types for different relationships: blocked_by (must wait), blocks (others waiting), parent (hierarchy), related (context only).*
 
 ## Viewing the Dependency Graph
 
@@ -213,6 +221,9 @@ A project is "ready" when:
 
 This query runs without any LLM calls—it's pure graph traversal.
 
+![Ready Work Detection](images/04-ready-work.png)
+*Finding ready work requires no LLM calls—just pure graph traversal. Projects with all blockers cleared light up as claimable.*
+
 ## Cycle Detection
 
 Circular dependencies create deadlocks that can never be resolved:
@@ -244,6 +255,9 @@ uv run python -m src.cortex --deps
 ```
 
 The dashboard shows cycle warnings prominently. Resolving cycles requires human intervention to restructure the dependencies.
+
+![Cycle Detection](images/04-cycle-detection.png)
+*Circular dependencies are deadlocks that can never resolve. Each project waits for something that's waiting for it. Cortex detects these cycles automatically.*
 
 ## Real-World Examples
 
@@ -291,6 +305,9 @@ dependencies:
 ```
 
 Query result: Only `implement-auth` shows as ready work.
+
+![Feature Development Pipeline](images/04-feature-pipeline.png)
+*A typical feature pipeline: research → design → implement → test → deploy. Each stage blocked by the previous, creating orderly progression.*
 
 ### Example 2: Platform Migration
 
@@ -347,6 +364,9 @@ dependencies:
 ```
 
 The three migration projects can run in parallel once planning completes. Integration testing waits for all three.
+
+![Platform Migration Diagram](images/04-platform-migration.png)
+*Platform migration: planning unlocks three parallel workstreams, integration testing waits for all three, then cutover can proceed. Complex coordination made visible.*
 
 ### Example 3: Epic with Sub-Projects
 
@@ -410,6 +430,9 @@ Dependencies work best when projects are similarly sized. A tiny bug fix dependi
 
 Downstream projects remain blocked until the blocker is marked `completed`. Don't leave completed work in `active` status.
 
+![Dependency Best Practices](images/04-best-practices.png)
+*Dependency management rules: be explicit, minimize dependencies, use related for context, watch for cycles, keep consistent granularity, update status promptly.*
+
 ## Programmatic Access
 
 For tools and automation, all dependency information is available via the Cortex API:
@@ -442,6 +465,9 @@ graph = cortex.build_dependency_graph(cortex.discover_projects())
 # Detect cycles
 cycles = cortex.detect_cycles()
 ```
+
+![The Full Dependency Graph View](images/04-full-graph.png)
+*The full dependency graph: every project, every relationship, every status—visible and queryable. Complexity becomes clarity.*
 
 ## Conclusion
 

@@ -4,6 +4,11 @@
 
 ---
 
+![Hero: The Promise vs Reality](images/03-hero-promise-vs-reality.png)
+*The promise: agents working in parallel, completing in hours what takes days. The reality without coordination: chaos, conflicts, and corrupted work.*
+
+---
+
 ## The Promise and the Problem
 
 The vision is compelling: multiple AI agents working in parallel, each contributing their strengths, completing in hours what would take days with a single agent. Claude researches the architecture. GPT-4 drafts the documentation. Grok implements the edge cases. A symphony of artificial intelligence.
@@ -33,6 +38,9 @@ Agent A finishes "phase 1" and marks the project complete. Agent B, seeing the c
 ### 4. Communication Breakdown
 
 Agent A makes an important architectural decision and documents it... somewhere. Agent B never sees it. Agent B makes a conflicting decision. The codebase becomes internally inconsistent.
+
+![The Four Coordination Problems](images/03-coordination-problems.png)
+*Four ways multi-agent coordination fails: race conditions, dependency violations, premature victory declarations, and communication breakdowns.*
 
 ## Agent Hive's Coordination Layers
 
@@ -118,6 +126,9 @@ Claims have a TTL (time-to-live) and automatically expire. This prevents abandon
 
 **Best for**: Parallel agent sessions, real-time conflict prevention, high-throughput scenarios.
 
+![The Three Coordination Layers](images/03-coordination-layers.png)
+*Agent Hive provides three complementary coordination layers: git for foundation, Cortex for oversight, real-time coordinator for speed.*
+
 ## The Ownership Protocol
 
 Regardless of which coordination layer you use, Agent Hive enforces a consistent ownership protocol:
@@ -168,6 +179,9 @@ blocked: true
 blocking_reason: "Need database credentials from DevOps"
 ```
 
+![The Ownership Protocol](images/03-ownership-protocol.png)
+*The ownership protocol: explicitly claim before working, one owner at a time, release when done. Sacred rules that prevent coordination chaos.*
+
 ## Multi-Agent Patterns
 
 ### Pattern 1: Sequential Handoff
@@ -186,6 +200,9 @@ The protocol:
 
 **Key success factor**: Thorough documentation in Agent Notes. Each agent must leave enough context for the next.
 
+![Sequential Handoff Pattern](images/03-sequential-handoff.png)
+*Sequential handoff: Claude researches, GPT-4 designs, Grok implements. Each leaves thorough notes for the next runner.*
+
 ### Pattern 2: Parallel Independence
 
 Multiple agents work on completely independent projects simultaneously:
@@ -202,6 +219,9 @@ The protocol:
 3. Use the coordinator to prevent accidental overlap
 
 **Key success factor**: Clear project boundaries. If projects aren't truly independent, use dependency tracking.
+
+![Parallel Independence Pattern](images/03-parallel-independence.png)
+*Parallel independence: multiple agents working simultaneously on separate projects, with coordination preventing accidental overlap.*
 
 ### Pattern 3: Dependency Chain
 
@@ -275,6 +295,9 @@ Since agents can't directly message each other, Agent Notes serve as the communi
 - **DECISION** - Records important choices for future agents
 - **TODO** - Items the current agent is leaving for the next
 
+![Communication Through Agent Notes](images/03-agent-notes.png)
+*Since agents can't directly message each other, Agent Notes become the communication channel—timestamped, attributed, persistent.*
+
 ## Conflict Resolution
 
 Despite best efforts, conflicts happen. Agent Hive provides mechanisms for resolution:
@@ -334,6 +357,9 @@ Agent Hive's multi-agent coordination isn't meant to enable fully autonomous age
 - **Intervening** when coordination fails
 
 The goal is to enable agents to do more useful work in parallel while keeping humans informed and in control. Transparency—through readable AGENCY.md files and git history—makes this possible.
+
+![Human in the Loop](images/03-human-in-loop.png)
+*Multi-agent coordination isn't about autonomous swarms. Humans define boundaries, review work, break deadlocks, and intervene when needed. Transparency makes this possible.*
 
 ---
 

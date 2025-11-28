@@ -4,6 +4,11 @@
 
 ---
 
+![Hero: The Cambrian Explosion of Frameworks](images/07-hero-cambrian-explosion.png)
+*2024-2025: A Cambrian explosion of agent frameworks. Each optimizes for different scenarios, embodies different philosophies. No single winner—an evolving ecosystem.*
+
+---
+
 ## The Cambrian Explosion of Agent Frameworks
 
 2024-2025 has seen an explosion of AI agent frameworks. LangGraph brings graph-based state machines. CrewAI offers role-based teams. Microsoft's AutoGen enables conversational multi-agent systems. OpenAI's Agents SDK provides lightweight handoffs. HuggingFace's smolagents takes a code-first approach.
@@ -130,6 +135,9 @@ This isn't a limitation we're working around. It's a design choice reflecting ho
 - Different agents (or humans) may continue the work
 - State needs to survive across days, not just minutes
 
+![Philosophy Comparison: Session vs Continuous](images/07-philosophy-comparison.png)
+*Different operating philosophies: most frameworks assume continuous operation with in-memory state. Agent Hive assumes discrete sessions with durable file-based state.*
+
 ### Architecture: External Orchestration vs. Self-Direction
 
 In LangGraph, CrewAI, and AutoGen, agents largely self-direct. The framework provides structure, but agents decide what to do next based on their goals and the current state.
@@ -189,6 +197,9 @@ The tradeoff is query performance. LangGraph's SQLite checkpointer is faster tha
 
 But for most real-world orchestration scenarios—dozens to hundreds of projects—human readability outweighs millisecond query times.
 
+![State Storage Comparison](images/07-state-comparison.png)
+*State storage philosophies: databases, vectors, in-memory objects, external requirements—or simple Markdown files anyone can read with a text editor.*
+
 ### Multi-Agent Coordination: Protocols vs. Conversations
 
 AutoGen coordinates agents through natural language conversations. Agents literally talk to each other:
@@ -210,6 +221,9 @@ Agent Hive coordinates through **explicit protocols** and **shared state**:
 ```
 
 Conversations are flexible but can loop indefinitely. Protocols are rigid but predictable. For production orchestration where you need auditability, protocols win.
+
+![Multi-Agent Coordination Approaches](images/07-coordination-approaches.png)
+*How frameworks coordinate agents: graph edges (LangGraph), team roles (CrewAI), conversations (AutoGen), or explicit protocols (Agent Hive). Different tools for different problems.*
 
 ### Vendor Lock-In: Agnostic by Design
 
@@ -244,6 +258,9 @@ This matters for teams that want to use the best model for each task, or who don
 | **Long-Horizon** | Checkpointing | Limited | Limited | External | Limited | Native |
 | **Human Oversight** | Interrupt points | Limited | Limited | Guardrails | Limited | Core design |
 | **Query Performance** | High | High | Medium | N/A | Medium | Low |
+
+![The Tradeoff Matrix Visualization](images/07-tradeoff-matrix.png)
+*No framework wins everywhere. Each has strengths: LangGraph for power, CrewAI for intuition, AutoGen for enterprise, Agent Hive for transparency and long-horizon work.*
 
 ## When to Use What
 
@@ -285,6 +302,9 @@ This matters for teams that want to use the best model for each task, or who don
 - You want git-based version control of all orchestration state
 - Multiple agents (or humans) will work on the same projects
 
+![When to Use What Decision Guide](images/07-decision-guide.png)
+*Choosing the right framework depends on your needs. Complex workflows? LangGraph. Enterprise? AutoGen. Long-horizon with oversight? Agent Hive. All valid choices.*
+
 ## Complementary, Not Competitive
 
 Here's the key insight: **Agent Hive can work alongside other frameworks**.
@@ -315,6 +335,9 @@ A LangGraph agent could:
 
 The frameworks handle **intra-session execution**. Agent Hive handles **inter-session coordination**.
 
+![Complementary Architecture](images/07-complementary-architecture.png)
+*Complementary, not competitive: Agent Hive orchestrates between projects and across sessions. LangGraph, CrewAI, or smolagents can handle intra-session execution.*
+
 ## The Deeper Question
 
 The proliferation of agent frameworks reflects a deeper question the industry is wrestling with: **What's the right abstraction for AI agent systems?**
@@ -337,6 +360,9 @@ Agent Hive bets that for **long-horizon, human-supervised orchestration**, the r
 5. **Vendor agnosticism** (any LLM, not one provider)
 
 These bets may be wrong. The ecosystem may converge on different patterns. But we believe the problems Agent Hive addresses—session boundaries, human oversight, long-horizon coordination—are real and underserved by existing frameworks.
+
+![The Right Abstraction Question](images/07-right-abstraction.png)
+*What's the right abstraction for agent systems? Graphs, teams, conversations, handoffs, code, or files? The field is too young for consensus—room for many approaches.*
 
 ## Conclusion
 

@@ -4,6 +4,11 @@
 
 ---
 
+![Hero: From Zero to Orchestration](images/06-hero-getting-started.png)
+*From zero to orchestration: with a few prerequisites and simple setup, you're ready to launch your first Agent Hive project.*
+
+---
+
 ## From Zero to Orchestration
 
 You've read about the theory. You understand why agent memory matters, how dependencies work, and what protocols to follow. Now let's build something.
@@ -72,6 +77,9 @@ cat projects/demo/AGENCY.md
 
 This shows the AGENCY.md format in action.
 
+![Project Structure Overview](images/06-project-structure.png)
+*The Agent Hive structure: projects in folders with AGENCY.md files, source code for engine and dashboard, skills for agent guidance, GLOBAL.md for system state.*
+
 ## Step 3: Run the Dashboard
 
 Launch the web interface:
@@ -88,6 +96,9 @@ Open http://localhost:8501 in your browser. You'll see:
 - **Deep Work context generator** for agent sessions
 
 Explore the demo project to see how information is displayed.
+
+![The Dashboard Interface](images/06-dashboard.png)
+*The Dashboard: view all projects, check statuses, generate Deep Work context for agents, and monitor system health—all from a friendly web interface.*
 
 ## Step 4: Create Your First Project
 
@@ -159,6 +170,9 @@ uv run python -m src.cortex --ready
 
 You should see your new project listed as ready work.
 
+![Creating Your First AGENCY.md](images/06-creating-agency-md.png)
+*Creating your first project: craft an AGENCY.md file with YAML frontmatter for metadata and Markdown content for objectives, tasks, and notes.*
+
 ## Step 5: Generate Deep Work Context
 
 In the dashboard:
@@ -229,6 +243,9 @@ Cortex will:
 
 This is what runs automatically every 4 hours via GitHub Actions.
 
+![The Workflow in Action](images/06-workflow.png)
+*The workflow cycle: create projects, generate context, work and update, handoff cleanly, let Cortex orchestrate. Repeat for continuous progress.*
+
 ## Step 8: Add Dependencies
 
 Let's say your config system will be used by an API project. Create the dependency:
@@ -298,6 +315,9 @@ UNBLOCKED PROJECTS:
 ```
 
 The api-server won't appear in ready work until config-system is completed.
+
+![Adding Dependencies](images/06-adding-dependencies.png)
+*Adding dependencies: declare that API-SERVER is blocked by CONFIG-SYSTEM. When CONFIG-SYSTEM completes, API-SERVER unlocks and becomes ready.*
 
 ## Step 9: Complete and Hand Off
 
@@ -442,6 +462,9 @@ uv run python -m src.coordinator
 # Start MCP server (for agents)
 uv run python -m hive_mcp
 ```
+
+![Quick Reference Poster](images/06-quick-reference.png)
+*Quick reference: the essential commands for daily Agent Hive operation. Install, dashboard, find work, view dependencies, run Cortex.*
 
 ---
 

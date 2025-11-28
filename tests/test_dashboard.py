@@ -1,4 +1,5 @@
 """Tests for the Dashboard UI functions."""
+
 # pylint: disable=unused-argument,unused-import,import-error,wrong-import-position
 
 import sys
@@ -10,13 +11,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from dashboard import (
     load_project,
     discover_projects,
     generate_file_tree,
-    generate_deep_work_context
+    generate_deep_work_context,
 )
 
 
@@ -28,16 +29,16 @@ class TestLoadProject:
         project_data = load_project(temp_project)
 
         assert project_data is not None
-        assert 'path' in project_data
-        assert 'metadata' in project_data
-        assert 'content' in project_data
-        assert 'raw' in project_data
-        assert project_data['metadata']['project_id'] == 'test-project'
-        assert project_data['metadata']['status'] == 'active'
+        assert "path" in project_data
+        assert "metadata" in project_data
+        assert "content" in project_data
+        assert "raw" in project_data
+        assert project_data["metadata"]["project_id"] == "test-project"
+        assert project_data["metadata"]["status"] == "active"
 
     def test_load_project_nonexistent(self):
         """Test loading a non-existent project."""
-        with patch('streamlit.error'):
+        with patch("streamlit.error"):
             project_data = load_project("/nonexistent/path/AGENCY.md")
             assert project_data is None
 
@@ -49,7 +50,7 @@ class TestLoadProject:
         agency_file = project_dir / "AGENCY.md"
         agency_file.write_text("This is not valid frontmatter")
 
-        with patch('streamlit.error'):
+        with patch("streamlit.error"):
             project_data = load_project(str(agency_file))
             # frontmatter library is lenient - files without --- delimiters parse successfully
             assert project_data is not None
@@ -59,8 +60,8 @@ class TestLoadProject:
         project_data = load_project(temp_project)
 
         assert project_data is not None
-        assert '---' in project_data['raw']
-        assert 'project_id: test-project' in project_data['raw']
+        assert "---" in project_data["raw"]
+        assert "project_id: test-project" in project_data["raw"]
 
 
 class TestDiscoverProjects:
@@ -70,35 +71,35 @@ class TestDiscoverProjects:
         """Test discovering a single project."""
         base_path = Path(temp_hive_dir)
 
-        with patch('streamlit.error'):
+        with patch("streamlit.error"):
             projects = discover_projects(base_path)
 
             assert len(projects) == 1
-            assert projects[0]['metadata']['project_id'] == 'test-project'
+            assert projects[0]["metadata"]["project_id"] == "test-project"
 
     def test_discover_multiple_projects(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test discovering multiple projects."""
         base_path = Path(temp_hive_dir)
 
-        with patch('streamlit.error'):
+        with patch("streamlit.error"):
             projects = discover_projects(base_path)
 
             assert len(projects) == 2
-            project_ids = [p['metadata']['project_id'] for p in projects]
-            assert 'test-project' in project_ids
-            assert 'blocked-project' in project_ids
+            project_ids = [p["metadata"]["project_id"] for p in projects]
+            assert "test-project" in project_ids
+            assert "blocked-project" in project_ids
 
     def test_discover_projects_sorted(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test that projects are sorted by project_id."""
         base_path = Path(temp_hive_dir)
 
-        with patch('streamlit.error'):
+        with patch("streamlit.error"):
             projects = discover_projects(base_path)
 
             assert len(projects) == 2
             # Should be sorted: blocked-project comes before test-project
-            assert projects[0]['metadata']['project_id'] == 'blocked-project'
-            assert projects[1]['metadata']['project_id'] == 'test-project'
+            assert projects[0]["metadata"]["project_id"] == "blocked-project"
+            assert projects[1]["metadata"]["project_id"] == "test-project"
 
     def test_discover_no_projects_dir(self, temp_hive_dir):
         """Test discovering projects when directory doesn't exist."""
@@ -107,7 +108,7 @@ class TestDiscoverProjects:
         projects_dir = base_path / "projects"
         shutil.rmtree(projects_dir)
 
-        with patch('streamlit.error'):
+        with patch("streamlit.error"):
             projects = discover_projects(base_path)
 
             assert len(projects) == 0
@@ -116,7 +117,7 @@ class TestDiscoverProjects:
         """Test discovering projects in an empty directory."""
         base_path = Path(temp_hive_dir)
 
-        with patch('streamlit.error'):
+        with patch("streamlit.error"):
             projects = discover_projects(base_path)
 
             # No projects created yet
@@ -259,17 +260,16 @@ class TestGenerateDeepWorkContext:
 
         assert "Generated:" in context
         # Check for ISO timestamp format (YYYY-MM-DDTHH:MM:SS)
-        iso_pattern = r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        iso_pattern = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
         assert re.search(iso_pattern, context), "Should contain ISO format timestamp"
 
     def test_generate_context_nonexistent_project(self, temp_hive_dir):
         """Test generating context for non-existent project."""
         base_path = Path(temp_hive_dir)
 
-        with patch('streamlit.error'):
+        with patch("streamlit.error"):
             context = generate_deep_work_context(
-                str(base_path / "nonexistent" / "AGENCY.md"),
-                base_path
+                str(base_path / "nonexistent" / "AGENCY.md"), base_path
             )
 
             assert context is None
@@ -294,13 +294,13 @@ class TestDashboardIntegration:
         """Test complete workflow: discover -> load -> generate context."""
         base_path = Path(temp_hive_dir)
 
-        with patch('streamlit.error'):
+        with patch("streamlit.error"):
             # 1. Discover projects
             projects = discover_projects(base_path)
             assert len(projects) == 1
 
             # 2. Load the project
-            project_path = projects[0]['path']
+            project_path = projects[0]["path"]
             project_data = load_project(project_path)
             assert project_data is not None
 
@@ -309,19 +309,17 @@ class TestDashboardIntegration:
             assert context is not None
             assert "test-project" in context
 
-    def test_multiple_projects_workflow(
-        self, temp_hive_dir, temp_project, temp_blocked_project
-    ):
+    def test_multiple_projects_workflow(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test workflow with multiple projects."""
         base_path = Path(temp_hive_dir)
 
-        with patch('streamlit.error'):
+        with patch("streamlit.error"):
             # Discover all projects
             projects = discover_projects(base_path)
             assert len(projects) == 2
 
             # Generate context for each
             for project in projects:
-                context = generate_deep_work_context(project['path'], base_path)
+                context = generate_deep_work_context(project["path"], base_path)
                 assert context is not None
-                assert project['metadata']['project_id'] in context
+                assert project["metadata"]["project_id"] in context

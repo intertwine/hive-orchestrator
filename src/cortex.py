@@ -13,11 +13,23 @@ import sys
 import json
 import glob
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 import frontmatter
 import requests
 from dotenv import load_dotenv
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+
+    def default(self, o):
+        if isinstance(o, datetime):
+            return o.isoformat()
+        if isinstance(o, date):
+            return o.isoformat()
+        return super().default(o)
+
 
 # Load environment variables
 load_dotenv()
@@ -64,12 +76,12 @@ class Cortex:
             return None
 
         try:
-            with open(self.global_file, 'r', encoding='utf-8') as f:
+            with open(self.global_file, "r", encoding="utf-8") as f:
                 post = frontmatter.load(f)
                 return {
-                    'metadata': post.metadata,
-                    'content': post.content,
-                    'path': str(self.global_file)
+                    "metadata": post.metadata,
+                    "content": post.content,
+                    "path": str(self.global_file),
                 }
         except Exception as e:
             print(f"❌ ERROR reading GLOBAL.md: {e}")
@@ -87,14 +99,16 @@ class Cortex:
 
         for agency_file in agency_files:
             try:
-                with open(agency_file, 'r', encoding='utf-8') as f:
+                with open(agency_file, "r", encoding="utf-8") as f:
                     post = frontmatter.load(f)
-                    projects.append({
-                        'path': agency_file,
-                        'project_id': post.metadata.get('project_id', 'unknown'),
-                        'metadata': post.metadata,
-                        'content': post.content
-                    })
+                    projects.append(
+                        {
+                            "path": agency_file,
+                            "project_id": post.metadata.get("project_id", "unknown"),
+                            "metadata": post.metadata,
+                            "content": post.content,
+                        }
+                    )
             except Exception as e:
                 print(f"⚠️  WARNING: Could not parse {agency_file}: {e}")
 
@@ -121,43 +135,39 @@ class Cortex:
 
         # Build nodes
         for project in projects:
-            project_id = project['project_id']
+            project_id = project["project_id"]
             nodes[project_id] = {
-                'status': project['metadata'].get('status', 'unknown'),
-                'priority': project['metadata'].get('priority', 'medium'),
-                'owner': project['metadata'].get('owner'),
-                'blocked': project['metadata'].get('blocked', False),
-                'path': project['path'],
-                'dependencies': project['metadata'].get('dependencies', {})
+                "status": project["metadata"].get("status", "unknown"),
+                "priority": project["metadata"].get("priority", "medium"),
+                "owner": project["metadata"].get("owner"),
+                "blocked": project["metadata"].get("blocked", False),
+                "path": project["path"],
+                "dependencies": project["metadata"].get("dependencies", {}),
             }
             edges[project_id] = []
             reverse_edges[project_id] = []
 
         # Build edges from dependencies
         for project in projects:
-            project_id = project['project_id']
-            deps = project['metadata'].get('dependencies', {})
+            project_id = project["project_id"]
+            deps = project["metadata"].get("dependencies", {})
 
             # blocked_by: these projects must complete before this one
-            blocked_by = deps.get('blocked_by', [])
+            blocked_by = deps.get("blocked_by", [])
             for blocker_id in blocked_by:
                 if blocker_id in nodes:
                     edges[blocker_id].append(project_id)
                     reverse_edges[project_id].append(blocker_id)
 
             # blocks: this project blocks these projects
-            blocks = deps.get('blocks', [])
+            blocks = deps.get("blocks", [])
             for blocked_id in blocks:
                 if blocked_id in nodes:
                     edges[project_id].append(blocked_id)
                     if project_id not in reverse_edges.get(blocked_id, []):
                         reverse_edges[blocked_id].append(project_id)
 
-        return {
-            'nodes': nodes,
-            'edges': edges,
-            'reverse_edges': reverse_edges
-        }
+        return {"nodes": nodes, "edges": edges, "reverse_edges": reverse_edges}
 
     def detect_cycles(self, projects: List[Dict[str, Any]] = None) -> List[List[str]]:
         """
@@ -175,8 +185,8 @@ class Cortex:
             projects = self.discover_projects()
 
         graph = self.build_dependency_graph(projects)
-        edges = graph['edges']
-        nodes = set(graph['nodes'].keys())
+        edges = graph["edges"]
+        nodes = set(graph["nodes"].keys())
 
         cycles = []
         visited = set()
@@ -210,8 +220,7 @@ class Cortex:
 
         return cycles
 
-    def is_blocked(self, project_id: str,
-                   projects: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def is_blocked(self, project_id: str, projects: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Check if a project is blocked and provide detailed blocking info.
 
@@ -239,29 +248,29 @@ class Cortex:
 
         graph = self.build_dependency_graph(projects)
         result = {
-            'is_blocked': False,
-            'reasons': [],
-            'blocking_projects': [],
-            'in_cycle': False,
-            'cycle': []
+            "is_blocked": False,
+            "reasons": [],
+            "blocking_projects": [],
+            "in_cycle": False,
+            "cycle": [],
         }
 
         # Check if project exists
-        if project_id not in graph['nodes']:
-            result['is_blocked'] = True
-            result['reasons'].append(f"Project '{project_id}' not found")
+        if project_id not in graph["nodes"]:
+            result["is_blocked"] = True
+            result["reasons"].append(f"Project '{project_id}' not found")
             return result
 
-        node = graph['nodes'][project_id]
+        node = graph["nodes"][project_id]
 
         # Check 1: Direct blocked flag
-        if node.get('blocked', False):
-            result['is_blocked'] = True
-            result['reasons'].append("Explicitly marked as blocked")
+        if node.get("blocked", False):
+            result["is_blocked"] = True
+            result["reasons"].append("Explicitly marked as blocked")
 
         # Check 2: Uncompleted dependencies (transitive)
         visited = set()
-        to_check = list(graph['reverse_edges'].get(project_id, []))
+        to_check = list(graph["reverse_edges"].get(project_id, []))
 
         while to_check:
             dep_id = to_check.pop(0)
@@ -269,21 +278,21 @@ class Cortex:
                 continue
             visited.add(dep_id)
 
-            if dep_id not in graph['nodes']:
-                result['is_blocked'] = True
-                result['reasons'].append(f"Unknown dependency: {dep_id}")
-                result['blocking_projects'].append(dep_id)
+            if dep_id not in graph["nodes"]:
+                result["is_blocked"] = True
+                result["reasons"].append(f"Unknown dependency: {dep_id}")
+                result["blocking_projects"].append(dep_id)
                 continue
 
-            dep_node = graph['nodes'][dep_id]
-            if dep_node['status'] != 'completed':
-                result['is_blocked'] = True
-                result['blocking_projects'].append(dep_id)
+            dep_node = graph["nodes"][dep_id]
+            if dep_node["status"] != "completed":
+                result["is_blocked"] = True
+                result["blocking_projects"].append(dep_id)
                 # Also check transitive dependencies
-                to_check.extend(graph['reverse_edges'].get(dep_id, []))
+                to_check.extend(graph["reverse_edges"].get(dep_id, []))
 
-        if result['blocking_projects']:
-            result['reasons'].append(
+        if result["blocking_projects"]:
+            result["reasons"].append(
                 f"Blocked by uncompleted: {', '.join(result['blocking_projects'])}"
             )
 
@@ -291,18 +300,15 @@ class Cortex:
         cycles = self.detect_cycles(projects)
         for cycle in cycles:
             if project_id in cycle:
-                result['is_blocked'] = True
-                result['in_cycle'] = True
-                result['cycle'] = cycle
-                result['reasons'].append(
-                    f"Part of dependency cycle: {' -> '.join(cycle)}"
-                )
+                result["is_blocked"] = True
+                result["in_cycle"] = True
+                result["cycle"] = cycle
+                result["reasons"].append(f"Part of dependency cycle: {' -> '.join(cycle)}")
                 break
 
         return result
 
-    def get_dependency_summary(self,
-                               projects: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def get_dependency_summary(self, projects: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Get a summary of the dependency graph for visualization.
 
@@ -319,36 +325,39 @@ class Cortex:
         cycles = self.detect_cycles(projects)
 
         summary = {
-            'total_projects': len(graph['nodes']),
-            'projects': [],
-            'has_cycles': len(cycles) > 0,
-            'cycles': cycles
+            "total_projects": len(graph["nodes"]),
+            "projects": [],
+            "has_cycles": len(cycles) > 0,
+            "cycles": cycles,
         }
 
-        for project_id, node in graph['nodes'].items():
-            blocks = graph['edges'].get(project_id, [])
-            blocked_by = graph['reverse_edges'].get(project_id, [])
+        for project_id, node in graph["nodes"].items():
+            blocks = graph["edges"].get(project_id, [])
+            blocked_by = graph["reverse_edges"].get(project_id, [])
 
             # Determine effective status
             blocking_info = self.is_blocked(project_id, projects)
 
-            summary['projects'].append({
-                'project_id': project_id,
-                'status': node['status'],
-                'priority': node['priority'],
-                'owner': node['owner'],
-                'blocked': node['blocked'],
-                'blocks': blocks,
-                'blocked_by': blocked_by,
-                'effectively_blocked': blocking_info['is_blocked'],
-                'blocking_reasons': blocking_info['reasons'],
-                'in_cycle': blocking_info['in_cycle']
-            })
+            summary["projects"].append(
+                {
+                    "project_id": project_id,
+                    "status": node["status"],
+                    "priority": node["priority"],
+                    "owner": node["owner"],
+                    "blocked": node["blocked"],
+                    "blocks": blocks,
+                    "blocked_by": blocked_by,
+                    "effectively_blocked": blocking_info["is_blocked"],
+                    "blocking_reasons": blocking_info["reasons"],
+                    "in_cycle": blocking_info["in_cycle"],
+                }
+            )
 
         return summary
 
-    def has_unresolved_blockers(self, project: Dict[str, Any],
-                                 all_projects: List[Dict[str, Any]]) -> bool:
+    def has_unresolved_blockers(
+        self, project: Dict[str, Any], all_projects: List[Dict[str, Any]]
+    ) -> bool:
         """
         Check if a project has unresolved blocking dependencies.
 
@@ -362,17 +371,16 @@ class Cortex:
         Returns:
             True if there are unresolved blockers, False otherwise
         """
-        metadata = project.get('metadata', {})
-        dependencies = metadata.get('dependencies', {})
-        blocked_by = dependencies.get('blocked_by', [])
+        metadata = project.get("metadata", {})
+        dependencies = metadata.get("dependencies", {})
+        blocked_by = dependencies.get("blocked_by", [])
 
         if not blocked_by:
             return False
 
         # Build a lookup of project statuses
         project_statuses = {
-            p['project_id']: p['metadata'].get('status', 'unknown')
-            for p in all_projects
+            p["project_id"]: p["metadata"].get("status", "unknown") for p in all_projects
         }
 
         # Check if any blocking project is not completed
@@ -381,7 +389,7 @@ class Cortex:
             if blocker_status is None:
                 # Unknown blocker - treat as unresolved (conservative)
                 return True
-            if blocker_status != 'completed':
+            if blocker_status != "completed":
                 return True
 
         return False
@@ -407,14 +415,14 @@ class Cortex:
 
         ready = []
         for project in projects:
-            metadata = project.get('metadata', {})
+            metadata = project.get("metadata", {})
 
             # Check basic readiness criteria
-            status = metadata.get('status', '')
-            blocked = metadata.get('blocked', False)
-            owner = metadata.get('owner')
+            status = metadata.get("status", "")
+            blocked = metadata.get("blocked", False)
+            owner = metadata.get("owner")
 
-            if status != 'active':
+            if status != "active":
                 continue
             if blocked:
                 continue
@@ -432,19 +440,19 @@ class Cortex:
     def format_ready_work_json(self, ready_projects: List[Dict[str, Any]]) -> str:
         """Format ready work as JSON for programmatic consumption."""
         output = {
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
-            'count': len(ready_projects),
-            'projects': [
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "count": len(ready_projects),
+            "projects": [
                 {
-                    'project_id': p['project_id'],
-                    'path': p['path'],
-                    'priority': p['metadata'].get('priority', 'medium'),
-                    'tags': p['metadata'].get('tags', []),
+                    "project_id": p["project_id"],
+                    "path": p["path"],
+                    "priority": p["metadata"].get("priority", "medium"),
+                    "tags": p["metadata"].get("tags", []),
                 }
                 for p in ready_projects
-            ]
+            ],
         }
-        return json.dumps(output, indent=2)
+        return json.dumps(output, indent=2, cls=DateTimeEncoder)
 
     def format_ready_work_text(self, ready_projects: List[Dict[str, Any]]) -> str:
         """Format ready work as human-readable text."""
@@ -464,24 +472,22 @@ class Cortex:
             lines.append("  - Waiting on dependencies")
         else:
             # Sort by priority
-            priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+            priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
             sorted_projects = sorted(
                 ready_projects,
-                key=lambda p: priority_order.get(
-                    p['metadata'].get('priority', 'medium'), 2
-                )
+                key=lambda p: priority_order.get(p["metadata"].get("priority", "medium"), 2),
             )
 
             for project in sorted_projects:
-                meta = project['metadata']
-                priority = meta.get('priority', 'medium')
-                tags = ', '.join(meta.get('tags', []))
+                meta = project["metadata"]
+                priority = meta.get("priority", "medium")
+                tags = ", ".join(meta.get("tags", []))
                 priority_icon = {
-                    'critical': '!!!',
-                    'high': '!! ',
-                    'medium': '!  ',
-                    'low': '   '
-                }.get(priority, '   ')
+                    "critical": "!!!",
+                    "high": "!! ",
+                    "medium": "!  ",
+                    "low": "   ",
+                }.get(priority, "   ")
 
                 lines.append(f"{priority_icon} {project['project_id']}")
                 lines.append(f"    Priority: {priority}")
@@ -491,7 +497,7 @@ class Cortex:
                 lines.append("")
 
         lines.append("=" * 60)
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def run_ready(self, output_json: bool = False) -> bool:
         """
@@ -516,13 +522,13 @@ class Cortex:
     def format_deps_json(self, summary: Dict[str, Any]) -> str:
         """Format dependency summary as JSON."""
         output = {
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
-            'total_projects': summary['total_projects'],
-            'has_cycles': summary['has_cycles'],
-            'cycles': summary['cycles'],
-            'projects': summary['projects']
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "total_projects": summary["total_projects"],
+            "has_cycles": summary["has_cycles"],
+            "cycles": summary["cycles"],
+            "projects": summary["projects"],
         }
-        return json.dumps(output, indent=2)
+        return json.dumps(output, indent=2, cls=DateTimeEncoder)
 
     def format_deps_text(self, summary: Dict[str, Any]) -> str:
         """Format dependency summary as human-readable text."""
@@ -535,37 +541,37 @@ class Cortex:
         lines.append("")
 
         # Cycle warning
-        if summary['has_cycles']:
+        if summary["has_cycles"]:
             lines.append("!!! CYCLES DETECTED !!!")
-            for cycle in summary['cycles']:
+            for cycle in summary["cycles"]:
                 lines.append(f"    {' -> '.join(cycle)}")
             lines.append("")
 
         # Sort projects: blocked first, then by priority
-        priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+        priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         sorted_projects = sorted(
-            summary['projects'],
+            summary["projects"],
             key=lambda p: (
-                0 if p['effectively_blocked'] else 1,
-                priority_order.get(p['priority'], 2)
-            )
+                0 if p["effectively_blocked"] else 1,
+                priority_order.get(p["priority"], 2),
+            ),
         )
 
         # Group by status
-        blocked_projects = [p for p in sorted_projects if p['effectively_blocked']]
-        ready_projects = [p for p in sorted_projects if not p['effectively_blocked']]
+        blocked_projects = [p for p in sorted_projects if p["effectively_blocked"]]
+        ready_projects = [p for p in sorted_projects if not p["effectively_blocked"]]
 
         if blocked_projects:
             lines.append("BLOCKED PROJECTS:")
             lines.append("-" * 40)
             for proj in blocked_projects:
-                status_icon = "!!!" if proj['in_cycle'] else "***"
+                status_icon = "!!!" if proj["in_cycle"] else "***"
                 lines.append(f"{status_icon} {proj['project_id']}")
                 lines.append(f"    Status: {proj['status']}")
-                if proj['blocked_by']:
+                if proj["blocked_by"]:
                     lines.append(f"    Blocked by: {', '.join(proj['blocked_by'])}")
-                if proj['blocking_reasons']:
-                    for reason in proj['blocking_reasons']:
+                if proj["blocking_reasons"]:
+                    for reason in proj["blocking_reasons"]:
                         lines.append(f"    Reason: {reason}")
                 lines.append("")
 
@@ -573,9 +579,9 @@ class Cortex:
             lines.append("UNBLOCKED PROJECTS:")
             lines.append("-" * 40)
             for proj in ready_projects:
-                owner_str = f" (owner: {proj['owner']})" if proj['owner'] else ""
+                owner_str = f" (owner: {proj['owner']})" if proj["owner"] else ""
                 lines.append(f"    {proj['project_id']} [{proj['status']}]{owner_str}")
-                if proj['blocks']:
+                if proj["blocks"]:
                     lines.append(f"      Blocks: {', '.join(proj['blocks'])}")
             lines.append("")
 
@@ -584,7 +590,7 @@ class Cortex:
         lines.append("-" * 40)
 
         # Find root projects (not blocked by anything)
-        roots = [p for p in summary['projects'] if not p['blocked_by']]
+        roots = [p for p in summary["projects"] if not p["blocked_by"]]
         visited = set()
 
         def print_tree(project_id: str, indent: int = 0):
@@ -594,32 +600,28 @@ class Cortex:
                 return
             visited.add(project_id)
 
-            proj = next((p for p in summary['projects']
-                        if p['project_id'] == project_id), None)
+            proj = next((p for p in summary["projects"] if p["project_id"] == project_id), None)
             if not proj:
                 lines.append("  " * indent + f"[{project_id}] (unknown)")
                 return
 
-            status_char = {
-                'completed': '+',
-                'active': '*',
-                'blocked': '!',
-                'pending': '-'
-            }.get(proj['status'], '?')
+            status_char = {"completed": "+", "active": "*", "blocked": "!", "pending": "-"}.get(
+                proj["status"], "?"
+            )
 
             lines.append("  " * indent + f"[{status_char}] {project_id}")
 
-            for blocked_id in proj['blocks']:
+            for blocked_id in proj["blocks"]:
                 print_tree(blocked_id, indent + 1)
 
         for root in roots:
-            print_tree(root['project_id'])
+            print_tree(root["project_id"])
 
         lines.append("")
         lines.append("Legend: [+] completed  [*] active  [!] blocked  [-] pending")
         lines.append("=" * 60)
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def run_deps(self, output_json: bool = False) -> bool:
         """
@@ -655,7 +657,7 @@ Your task is to analyze the current state of all projects and identify:
 # GLOBAL CONTEXT
 
 ## Metadata
-{json.dumps(global_ctx['metadata'], indent=2)}
+{json.dumps(global_ctx['metadata'], indent=2, cls=DateTimeEncoder)}
 
 ## Content
 {global_ctx['content']}
@@ -669,7 +671,7 @@ Your task is to analyze the current state of all projects and identify:
 ## Project {i}: {project['project_id']}
 
 ### Metadata
-{json.dumps(project['metadata'], indent=2)}
+{json.dumps(project['metadata'], indent=2, cls=DateTimeEncoder)}
 
 ### Content
 {project['content']}
@@ -727,54 +729,48 @@ Return ONLY valid JSON, no markdown formatting or additional text.
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/agent-hive/orchestrator",
-            "X-Title": "Agent Hive Cortex"
+            "X-Title": "Agent Hive Cortex",
         }
 
         payload = {
             "model": self.model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
+            "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
-            "max_tokens": 4000
+            "max_tokens": 4000,
         }
 
         try:
             print(f"🧠 Calling LLM ({self.model})...")
-            response = requests.post(
-                self.api_url,
-                headers=headers,
-                json=payload,
-                timeout=60
-            )
+            response = requests.post(self.api_url, headers=headers, json=payload, timeout=60)
             response.raise_for_status()
 
             result = response.json()
 
             # Defensive checks for response structure
-            choices = result.get('choices')
+            choices = result.get("choices")
             if not choices or not isinstance(choices, list) or len(choices) == 0:
-                print("❌ ERROR: Unexpected API response structure "
-                      f"(missing or empty 'choices'): {result}")
+                print(
+                    "❌ ERROR: Unexpected API response structure "
+                    f"(missing or empty 'choices'): {result}"
+                )
                 return None
 
-            message = choices[0].get('message') if isinstance(choices[0], dict) else None
-            if not message or 'content' not in message:
-                print("❌ ERROR: Unexpected API response structure "
-                      f"(missing 'message' or 'content'): {result}")
+            message = choices[0].get("message") if isinstance(choices[0], dict) else None
+            if not message or "content" not in message:
+                print(
+                    "❌ ERROR: Unexpected API response structure "
+                    f"(missing 'message' or 'content'): {result}"
+                )
                 return None
 
-            llm_response = message['content']
+            llm_response = message["content"]
 
             # Try to parse as JSON
             # Remove markdown code blocks if present
             llm_response = llm_response.strip()
-            if llm_response.startswith('```'):
-                lines = llm_response.split('\n')
-                llm_response = '\n'.join(lines[1:-1])
+            if llm_response.startswith("```"):
+                lines = llm_response.split("\n")
+                llm_response = "\n".join(lines[1:-1])
 
             return json.loads(llm_response)
 
@@ -800,7 +796,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
 
         for update in updates:
             try:
-                file_path = Path(update['file'])
+                file_path = Path(update["file"])
                 if not file_path.is_absolute():
                     file_path = self.base_path / file_path
 
@@ -821,19 +817,19 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 file_path = resolved_file_path
 
                 # Read the file
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     post = frontmatter.load(f)
 
                 # Update the frontmatter field
-                field = update['field']
-                value = update['value']
+                field = update["field"]
+                value = update["value"]
                 post.metadata[field] = value
 
                 # Also update last_updated
-                post.metadata['last_updated'] = datetime.utcnow().isoformat() + 'Z'
+                post.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
 
                 # Write back
-                with open(file_path, 'w', encoding='utf-8') as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write(frontmatter.dumps(post))
 
                 print(f"   ✓ Updated {file_path.name}: {field} = {value}")
@@ -871,8 +867,8 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         projects = self.discover_projects()
         print(f"   ✓ Found {len(projects)} project(s)")
         for project in projects:
-            status = project['metadata'].get('status', 'unknown')
-            blocked = project['metadata'].get('blocked', False)
+            status = project["metadata"].get("status", "unknown")
+            blocked = project["metadata"].get("blocked", False)
             blocked_indicator = "🔒" if blocked else "✓"
             print(f"     {blocked_indicator} {project['project_id']} ({status})")
 
@@ -894,7 +890,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         print(f"\n{analysis.get('summary', 'No summary provided')}\n")
 
         # Blocked tasks
-        blocked = analysis.get('blocked_tasks', [])
+        blocked = analysis.get("blocked_tasks", [])
         if blocked:
             print(f"🔒 BLOCKED TASKS ({len(blocked)}):")
             for task in blocked:
@@ -906,7 +902,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
             print("✅ No blocked tasks")
 
         # New projects
-        new_projects = analysis.get('new_projects', [])
+        new_projects = analysis.get("new_projects", [])
         if new_projects:
             print(f"\n🆕 NEW PROJECT REQUESTS ({len(new_projects)}):")
             for proj in new_projects:
@@ -915,7 +911,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 print(f"  Priority: {proj['priority']}")
 
         # Apply state updates
-        updates = analysis.get('state_updates', [])
+        updates = analysis.get("state_updates", [])
         if updates:
             print(f"\n📝 STATE UPDATES ({len(updates)}):")
             success = self.apply_state_updates(updates)
@@ -923,16 +919,16 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 return False
 
         # Notes
-        notes = analysis.get('notes', '')
+        notes = analysis.get("notes", "")
         if notes:
             print(f"\n📌 NOTES:\n{notes}")
 
         # Update GLOBAL.md with last run time
         try:
-            with open(self.global_file, 'r', encoding='utf-8') as f:
+            with open(self.global_file, "r", encoding="utf-8") as f:
                 post = frontmatter.load(f)
-            post.metadata['last_cortex_run'] = datetime.utcnow().isoformat() + 'Z'
-            with open(self.global_file, 'w', encoding='utf-8') as f:
+            post.metadata["last_cortex_run"] = datetime.utcnow().isoformat() + "Z"
+            with open(self.global_file, "w", encoding="utf-8") as f:
                 f.write(frontmatter.dumps(post))
             print("\n✅ Updated GLOBAL.md last_cortex_run timestamp")
         except Exception as e:
@@ -948,7 +944,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description='Agent Hive Cortex - The Orchestration Operating System',
+        description="Agent Hive Cortex - The Orchestration Operating System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -967,32 +963,30 @@ Examples:
 
   # Specify custom base path
   python -m src.cortex --path /path/to/hive
-        """
+        """,
     )
 
     parser.add_argument(
-        '--ready', '-r',
-        action='store_true',
-        help='Find ready work (fast, no LLM required)'
+        "--ready", "-r", action="store_true", help="Find ready work (fast, no LLM required)"
     )
 
     parser.add_argument(
-        '--deps', '-d',
-        action='store_true',
-        help='Show dependency graph (fast, no LLM required)'
+        "--deps", "-d", action="store_true", help="Show dependency graph (fast, no LLM required)"
     )
 
     parser.add_argument(
-        '--json', '-j',
-        action='store_true',
-        help='Output in JSON format for programmatic consumption'
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output in JSON format for programmatic consumption",
     )
 
     parser.add_argument(
-        '--path', '-p',
+        "--path",
+        "-p",
         type=str,
         default=None,
-        help='Base path for the hive (default: current directory)'
+        help="Base path for the hive (default: current directory)",
     )
 
     return parser.parse_args()
@@ -1013,8 +1007,7 @@ def main():
     else:
         # Full LLM-based analysis
         if args.json:
-            print('{"error": "JSON output only supported with --ready or --deps"}',
-                  file=sys.stderr)
+            print('{"error": "JSON output only supported with --ready or --deps"}', file=sys.stderr)
             sys.exit(1)
         success = cortex.run()
 

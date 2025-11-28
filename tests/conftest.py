@@ -27,11 +27,11 @@ Test global context.
         status="active",
         last_cortex_run=None,
         version="1.0.0",
-        orchestrator="agent-hive"
+        orchestrator="agent-hive",
     )
 
     global_file = Path(temp_dir) / "GLOBAL.md"
-    with open(global_file, 'w', encoding='utf-8') as f:
+    with open(global_file, "w", encoding="utf-8") as f:
         f.write(frontmatter.dumps(global_content))
 
     yield temp_dir
@@ -68,11 +68,11 @@ This is a test project.
         blocked=False,
         blocking_reason=None,
         priority="high",
-        tags=["test", "backend"]
+        tags=["test", "backend"],
     )
 
     agency_file = project_dir / "AGENCY.md"
-    with open(agency_file, 'w', encoding='utf-8') as f:
+    with open(agency_file, "w", encoding="utf-8") as f:
         f.write(frontmatter.dumps(agency_content))
 
     # Create a sample file in the project
@@ -107,11 +107,11 @@ This project is blocked.
         blocked=True,
         blocking_reason="Waiting for API key",
         priority="medium",
-        tags=["test"]
+        tags=["test"],
     )
 
     agency_file = project_dir / "AGENCY.md"
-    with open(agency_file, 'w', encoding='utf-8') as f:
+    with open(agency_file, "w", encoding="utf-8") as f:
         f.write(frontmatter.dumps(agency_content))
 
     return str(agency_file)
@@ -134,27 +134,19 @@ def sample_llm_response():
                 "project_id": "blocked-project",
                 "task": "Blocked task",
                 "reason": "Waiting for API key",
-                "recommendation": "Provide the required API key"
+                "recommendation": "Provide the required API key",
             }
         ],
         "state_updates": [],
         "new_projects": [],
-        "notes": "All systems operational"
+        "notes": "All systems operational",
     }
 
 
 @pytest.fixture
 def sample_api_response(sample_llm_response):  # pylint: disable=redefined-outer-name
     """Sample OpenRouter API response structure."""
-    return {
-        "choices": [
-            {
-                "message": {
-                    "content": json.dumps(sample_llm_response)
-                }
-            }
-        ]
-    }
+    return {"choices": [{"message": {"content": json.dumps(sample_llm_response)}}]}
 
 
 @pytest.fixture
@@ -184,12 +176,12 @@ This project depends on another.
             "blocked_by": ["prereq-project"],
             "blocks": [],
             "parent": None,
-            "related": []
-        }
+            "related": [],
+        },
     )
 
     agency_file = project_dir / "AGENCY.md"
-    with open(agency_file, 'w', encoding='utf-8') as f:
+    with open(agency_file, "w", encoding="utf-8") as f:
         f.write(frontmatter.dumps(agency_content))
 
     return str(agency_file)
@@ -217,11 +209,11 @@ This is a prerequisite project.
         blocked=False,
         blocking_reason=None,
         priority="high",
-        tags=["test"]
+        tags=["test"],
     )
 
     agency_file = project_dir / "AGENCY.md"
-    with open(agency_file, 'w', encoding='utf-8') as f:
+    with open(agency_file, "w", encoding="utf-8") as f:
         f.write(frontmatter.dumps(agency_content))
 
     return str(agency_file)
@@ -249,11 +241,11 @@ This is a prerequisite project that is not done.
         blocked=False,
         blocking_reason=None,
         priority="high",
-        tags=["test"]
+        tags=["test"],
     )
 
     agency_file = project_dir / "AGENCY.md"
-    with open(agency_file, 'w', encoding='utf-8') as f:
+    with open(agency_file, "w", encoding="utf-8") as f:
         f.write(frontmatter.dumps(agency_content))
 
     return str(agency_file)
@@ -281,11 +273,11 @@ This project is being worked on.
         blocked=False,
         blocking_reason=None,
         priority="high",
-        tags=["test"]
+        tags=["test"],
     )
 
     agency_file = project_dir / "AGENCY.md"
-    with open(agency_file, 'w', encoding='utf-8') as f:
+    with open(agency_file, "w", encoding="utf-8") as f:
         f.write(frontmatter.dumps(agency_content))
 
     return str(agency_file)

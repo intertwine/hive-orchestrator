@@ -28,6 +28,7 @@ class ClaimConflict(Exception):
 @dataclass
 class ClaimResult:
     """Result of a claim operation."""
+
     success: bool
     claim_id: Optional[str] = None
     project_id: Optional[str] = None
@@ -40,6 +41,7 @@ class ClaimResult:
 @dataclass
 class ClaimStatus:
     """Status of a project claim."""
+
     project_id: str
     is_claimed: bool
     claim_id: Optional[str] = None
@@ -56,12 +58,7 @@ class CoordinatorClient:
     with automatic handling of network errors and graceful degradation.
     """
 
-    def __init__(
-        self,
-        base_url: str = None,
-        timeout: float = 5.0,
-        retry_count: int = 1
-    ):
+    def __init__(self, base_url: str = None, timeout: float = 5.0, retry_count: int = 1):
         """
         Initialize the coordinator client.
 
@@ -85,10 +82,7 @@ class CoordinatorClient:
             True if server responds to health check, False otherwise.
         """
         try:
-            response = requests.get(
-                f"{self.base_url}/health",
-                timeout=self.timeout
-            )
+            response = requests.get(f"{self.base_url}/health", timeout=self.timeout)
             self._available = response.status_code == 200
             return self._available
         except requests.RequestException:
@@ -100,7 +94,7 @@ class CoordinatorClient:
         method: str,
         endpoint: str,
         json_data: Dict[str, Any] = None,
-        params: Dict[str, Any] = None
+        params: Dict[str, Any] = None,
     ) -> requests.Response:
         """
         Make a request to the coordinator server.
@@ -122,11 +116,7 @@ class CoordinatorClient:
         for attempt in range(self.retry_count + 1):
             try:
                 response = requests.request(
-                    method=method,
-                    url=url,
-                    json=json_data,
-                    params=params,
-                    timeout=self.timeout
+                    method=method, url=url, json=json_data, params=params, timeout=self.timeout
                 )
                 self._available = True
                 return response
@@ -141,11 +131,7 @@ class CoordinatorClient:
         raise CoordinatorUnavailable(f"Failed to reach coordinator at {self.base_url}")
 
     def claim(
-        self,
-        project_id: str,
-        agent_name: str,
-        ttl_seconds: int = 3600,
-        force: bool = False
+        self, project_id: str, agent_name: str, ttl_seconds: int = 3600, force: bool = False
     ) -> ClaimResult:
         """
         Claim a project for an agent.
@@ -169,9 +155,9 @@ class CoordinatorClient:
             json_data={
                 "project_id": project_id,
                 "agent_name": agent_name,
-                "ttl_seconds": ttl_seconds
+                "ttl_seconds": ttl_seconds,
             },
-            params={"force": str(force).lower()} if force else None
+            params={"force": str(force).lower()} if force else None,
         )
 
         data = response.json()
@@ -182,20 +168,17 @@ class CoordinatorClient:
                 claim_id=data.get("claim_id"),
                 project_id=data.get("project_id"),
                 agent_name=data.get("agent_name"),
-                expires_at=data.get("expires_at")
+                expires_at=data.get("expires_at"),
             )
 
         if response.status_code == 409:
             raise ClaimConflict(
                 message=data.get("error", "Project already claimed"),
                 current_owner=data.get("current_owner", "unknown"),
-                expires_at=data.get("expires_at", "unknown")
+                expires_at=data.get("expires_at", "unknown"),
             )
 
-        return ClaimResult(
-            success=False,
-            error=data.get("error", f"HTTP {response.status_code}")
-        )
+        return ClaimResult(success=False, error=data.get("error", f"HTTP {response.status_code}"))
 
     def release(self, project_id: str) -> bool:
         """
@@ -210,10 +193,7 @@ class CoordinatorClient:
         Raises:
             CoordinatorUnavailable: If the server cannot be reached
         """
-        response = self._request(
-            method="DELETE",
-            endpoint=f"/release/{project_id}"
-        )
+        response = self._request(method="DELETE", endpoint=f"/release/{project_id}")
 
         data = response.json()
         return data.get("success", False)
@@ -231,10 +211,7 @@ class CoordinatorClient:
         Raises:
             CoordinatorUnavailable: If the server cannot be reached
         """
-        response = self._request(
-            method="DELETE",
-            endpoint=f"/release/claim/{claim_id}"
-        )
+        response = self._request(method="DELETE", endpoint=f"/release/claim/{claim_id}")
 
         data = response.json()
         return data.get("success", False)
@@ -252,10 +229,7 @@ class CoordinatorClient:
         Raises:
             CoordinatorUnavailable: If the server cannot be reached
         """
-        response = self._request(
-            method="GET",
-            endpoint=f"/status/{project_id}"
-        )
+        response = self._request(method="GET", endpoint=f"/status/{project_id}")
 
         data = response.json()
         claim = data.get("claim")
@@ -266,7 +240,7 @@ class CoordinatorClient:
             claim_id=claim.get("claim_id") if claim else None,
             agent_name=claim.get("agent_name") if claim else None,
             created_at=claim.get("created_at") if claim else None,
-            expires_at=claim.get("expires_at") if claim else None
+            expires_at=claim.get("expires_at") if claim else None,
         )
 
     def get_all_reservations(self) -> Dict[str, Any]:
@@ -279,10 +253,7 @@ class CoordinatorClient:
         Raises:
             CoordinatorUnavailable: If the server cannot be reached
         """
-        response = self._request(
-            method="GET",
-            endpoint="/reservations"
-        )
+        response = self._request(method="GET", endpoint="/reservations")
 
         return response.json()
 
@@ -301,21 +272,14 @@ class CoordinatorClient:
             CoordinatorUnavailable: If the server cannot be reached
         """
         response = self._request(
-            method="POST",
-            endpoint=f"/extend/{project_id}",
-            params={"ttl_seconds": ttl_seconds}
+            method="POST", endpoint=f"/extend/{project_id}", params={"ttl_seconds": ttl_seconds}
         )
 
         if response.status_code == 200:
             return True
         return False
 
-    def try_claim(
-        self,
-        project_id: str,
-        agent_name: str,
-        ttl_seconds: int = 3600
-    ) -> ClaimResult:
+    def try_claim(self, project_id: str, agent_name: str, ttl_seconds: int = 3600) -> ClaimResult:
         """
         Try to claim a project, returning result without raising ClaimConflict.
 
@@ -338,10 +302,7 @@ class CoordinatorClient:
             return self.claim(project_id, agent_name, ttl_seconds)
         except ClaimConflict as e:
             return ClaimResult(
-                success=False,
-                project_id=project_id,
-                error=str(e),
-                current_owner=e.current_owner
+                success=False, project_id=project_id, error=str(e), current_owner=e.current_owner
             )
 
 

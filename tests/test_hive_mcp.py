@@ -7,7 +7,7 @@ from src.hive_mcp.server import (
     format_project,
     update_project_field,
     add_agent_note,
-    get_base_path
+    get_base_path,
 )
 from src.cortex import Cortex
 
@@ -48,11 +48,7 @@ class TestFormatProject:
         assert "test" in formatted["tags"]
         assert "path" in formatted
 
-    def test_format_project_with_dependencies(
-        self,
-        temp_hive_dir,
-        temp_project_with_dependency
-    ):
+    def test_format_project_with_dependencies(self, temp_hive_dir, temp_project_with_dependency):
         """Test formatting a project with dependencies."""
         cortex = Cortex(temp_hive_dir)
         projects = cortex.discover_projects()
@@ -69,54 +65,36 @@ class TestUpdateProjectField:
 
     def test_update_project_field(self, temp_hive_dir, temp_project):
         """Test updating a project field."""
-        success = update_project_field(
-            temp_project,
-            "status",
-            "completed",
-            temp_hive_dir
-        )
+        success = update_project_field(temp_project, "status", "completed", temp_hive_dir)
         assert success is True
 
         # Verify the update
-        with open(temp_project, 'r', encoding='utf-8') as f:
+        with open(temp_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
         assert post.metadata["status"] == "completed"
         assert "last_updated" in post.metadata
 
     def test_update_owner_field(self, temp_hive_dir, temp_project):
         """Test updating the owner field."""
-        success = update_project_field(
-            temp_project,
-            "owner",
-            "claude-3.5-sonnet",
-            temp_hive_dir
-        )
+        success = update_project_field(temp_project, "owner", "claude-3.5-sonnet", temp_hive_dir)
         assert success is True
 
         # Verify the update
-        with open(temp_project, 'r', encoding='utf-8') as f:
+        with open(temp_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
         assert post.metadata["owner"] == "claude-3.5-sonnet"
 
     def test_update_nonexistent_file(self, temp_hive_dir):
         """Test updating a file that doesn't exist."""
         success = update_project_field(
-            str(Path(temp_hive_dir) / "nonexistent.md"),
-            "status",
-            "active",
-            temp_hive_dir
+            str(Path(temp_hive_dir) / "nonexistent.md"), "status", "active", temp_hive_dir
         )
         assert success is False
 
     def test_update_outside_base_path(self, temp_hive_dir, temp_project):
         """Test that updates outside base path are rejected."""
         # Try to update with a different base path
-        success = update_project_field(
-            temp_project,
-            "status",
-            "completed",
-            "/some/other/path"
-        )
+        success = update_project_field(temp_project, "status", "completed", "/some/other/path")
         assert success is False
 
 
@@ -126,15 +104,12 @@ class TestAddAgentNote:
     def test_add_note_to_existing_section(self, temp_hive_dir, temp_project):
         """Test adding a note when Agent Notes section exists."""
         success = add_agent_note(
-            temp_project,
-            "claude-3.5-sonnet",
-            "Test note from Claude",
-            temp_hive_dir
+            temp_project, "claude-3.5-sonnet", "Test note from Claude", temp_hive_dir
         )
         assert success is True
 
         # Verify the note was added
-        with open(temp_project, 'r', encoding='utf-8') as f:
+        with open(temp_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
 
         assert "claude-3.5-sonnet" in post.content
@@ -157,24 +132,19 @@ Testing note addition.
             status="active",
             owner=None,
             priority="medium",
-            tags=[]
+            tags=[],
         )
 
         agency_file = project_dir / "AGENCY.md"
-        with open(agency_file, 'w', encoding='utf-8') as f:
+        with open(agency_file, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(agency_content))
 
         # Add a note
-        success = add_agent_note(
-            str(agency_file),
-            "grok",
-            "Creating notes section",
-            temp_hive_dir
-        )
+        success = add_agent_note(str(agency_file), "grok", "Creating notes section", temp_hive_dir)
         assert success is True
 
         # Verify the section was created
-        with open(agency_file, 'r', encoding='utf-8') as f:
+        with open(agency_file, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
 
         assert "## Agent Notes" in post.content
@@ -186,7 +156,7 @@ Testing note addition.
         add_agent_note(temp_project, "claude", "First note", temp_hive_dir)
         add_agent_note(temp_project, "grok", "Second note", temp_hive_dir)
 
-        with open(temp_project, 'r', encoding='utf-8') as f:
+        with open(temp_project, "r", encoding="utf-8") as f:
             content = f.read()
 
         assert "claude" in content
@@ -197,10 +167,7 @@ Testing note addition.
     def test_add_note_to_nonexistent_file(self, temp_hive_dir):
         """Test adding a note to a file that doesn't exist."""
         success = add_agent_note(
-            str(Path(temp_hive_dir) / "nonexistent.md"),
-            "claude",
-            "Test note",
-            temp_hive_dir
+            str(Path(temp_hive_dir) / "nonexistent.md"), "claude", "Test note", temp_hive_dir
         )
         assert success is False
 
@@ -217,6 +184,7 @@ class TestGetBasePath:
         """Test getting default base path."""
         monkeypatch.delenv("HIVE_BASE_PATH", raising=False)
         import os
+
         assert get_base_path() == os.getcwd()
 
 
@@ -230,22 +198,14 @@ class TestMCPToolIntegration:
 
         result = format_response(
             success=True,
-            data={
-                "count": len(projects),
-                "projects": [format_project(p) for p in projects]
-            }
+            data={"count": len(projects), "projects": [format_project(p) for p in projects]},
         )
 
         assert result["success"] is True
         assert result["data"]["count"] == 1
         assert result["data"]["projects"][0]["project_id"] == "test-project"
 
-    def test_get_ready_work_workflow(
-        self,
-        temp_hive_dir,
-        temp_project,
-        temp_blocked_project
-    ):
+    def test_get_ready_work_workflow(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test the get_ready_work workflow."""
         cortex = Cortex(temp_hive_dir)
         projects = cortex.discover_projects()
@@ -253,11 +213,7 @@ class TestMCPToolIntegration:
 
         # Only test-project should be ready (blocked-project is blocked)
         result = format_response(
-            success=True,
-            data={
-                "count": len(ready),
-                "projects": [format_project(p) for p in ready]
-            }
+            success=True, data={"count": len(ready), "projects": [format_project(p) for p in ready]}
         )
 
         assert result["success"] is True
@@ -267,54 +223,36 @@ class TestMCPToolIntegration:
     def test_claim_and_release_workflow(self, temp_hive_dir, temp_project):
         """Test claiming and releasing a project."""
         # Claim the project
-        success = update_project_field(
-            temp_project,
-            "owner",
-            "claude-3.5-sonnet",
-            temp_hive_dir
-        )
+        success = update_project_field(temp_project, "owner", "claude-3.5-sonnet", temp_hive_dir)
         assert success is True
 
         # Verify it's claimed
-        with open(temp_project, 'r', encoding='utf-8') as f:
+        with open(temp_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
         assert post.metadata["owner"] == "claude-3.5-sonnet"
 
         # Release the project
-        success = update_project_field(
-            temp_project,
-            "owner",
-            None,
-            temp_hive_dir
-        )
+        success = update_project_field(temp_project, "owner", None, temp_hive_dir)
         assert success is True
 
         # Verify it's released
-        with open(temp_project, 'r', encoding='utf-8') as f:
+        with open(temp_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
         assert post.metadata["owner"] is None
 
     def test_update_status_workflow(self, temp_hive_dir, temp_project):
         """Test updating project status."""
         # Update to completed
-        success = update_project_field(
-            temp_project,
-            "status",
-            "completed",
-            temp_hive_dir
-        )
+        success = update_project_field(temp_project, "status", "completed", temp_hive_dir)
         assert success is True
 
         # Verify the status
-        with open(temp_project, 'r', encoding='utf-8') as f:
+        with open(temp_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
         assert post.metadata["status"] == "completed"
 
     def test_get_dependencies_workflow(
-        self,
-        temp_hive_dir,
-        temp_project_with_dependency,
-        temp_prereq_project_incomplete
+        self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project_incomplete
     ):
         """Test getting dependency information."""
         cortex = Cortex(temp_hive_dir)
@@ -329,11 +267,7 @@ class TestMCPToolIntegration:
         assert "prereq-project" in result["data"]["blocking_projects"]
 
     def test_get_dependency_graph_workflow(
-        self,
-        temp_hive_dir,
-        temp_project,
-        temp_project_with_dependency,
-        temp_prereq_project
+        self, temp_hive_dir, temp_project, temp_project_with_dependency, temp_prereq_project
     ):
         """Test getting the full dependency graph."""
         cortex = Cortex(temp_hive_dir)
@@ -348,8 +282,7 @@ class TestMCPToolIntegration:
 
         # Find the dependent project in the summary
         dep_project = next(
-            p for p in result["data"]["projects"]
-            if p["project_id"] == "dependent-project"
+            p for p in result["data"]["projects"] if p["project_id"] == "dependent-project"
         )
         assert "prereq-project" in dep_project["blocked_by"]
 
@@ -373,7 +306,7 @@ class TestMCPToolIntegration:
         update_project_field(temp_project, "owner", None, temp_hive_dir)
 
         # Verify final state
-        with open(temp_project, 'r', encoding='utf-8') as f:
+        with open(temp_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
 
         assert post.metadata["status"] == "completed"

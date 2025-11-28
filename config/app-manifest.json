@@ -1,10 +1,10 @@
 {
   "name": "Agent Hive Orchestrator",
-  "url": "https://github.com/agent-hive/orchestrator",
+  "url": "https://github.com/intertwine/hive-orchestrator",
   "hook_attributes": {
-    "url": "https://agent-hive.example.com/webhooks"
+    "url": "https://your-deployment.example.com/webhooks"
   },
-  "redirect_url": "https://agent-hive.example.com/auth/callback",
+  "redirect_url": "https://your-deployment.example.com/auth/callback",
   "description": "Vendor-agnostic AI agent orchestration system that coordinates autonomous agents across different LLM providers using shared memory in AGENCY.md files.",
   "public": true,
   "default_permissions": {

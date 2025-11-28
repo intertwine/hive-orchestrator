@@ -68,8 +68,8 @@ Build a lightweight HTTP coordination server that:
 - [x] Integration tests with MCP server
 
 ### Documentation
-- [ ] Add deployment instructions to README
-- [ ] Document API endpoints
+- [x] Add deployment instructions to README
+- [x] Document API endpoints
 - [ ] Add Docker deployment option
 - [ ] Document scaling considerations
 
@@ -147,12 +147,12 @@ class Cortex:
 
 ## Success Criteria
 
-- [ ] Server starts in <1 second
-- [ ] Claims resolve in <50ms
-- [ ] Graceful degradation tested
-- [ ] No single point of failure (optional component)
-- [ ] Memory usage <50MB
-- [ ] All tests pass
+- [x] Server starts in <1 second
+- [x] Claims resolve in <50ms
+- [x] Graceful degradation tested
+- [x] No single point of failure (optional component)
+- [x] Memory usage <50MB
+- [x] All tests pass (41 coordinator tests)
 
 ## Reference Material
 
@@ -183,8 +183,9 @@ class Cortex:
 
 ## Next Steps
 
-1. Decide on persistence strategy (memory-only vs Redis/SQLite)
-2. Define claim TTL defaults
-3. Implement core server
-4. Add integration tests
-5. Document deployment options
+Core implementation complete! Remaining optional enhancements:
+
+1. Add coordination status to dashboard
+2. Docker deployment option
+3. Consider persistence strategy (Redis/SQLite) for production
+4. Document scaling considerations for high-availability deployments

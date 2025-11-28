@@ -89,6 +89,13 @@ This runs the orchestration engine that analyzes all projects and updates state.
 
 ```
 agent-hive/
+├── .claude/
+│   └── skills/                 # Claude Code skills for Agent Hive
+│       ├── hive-project-management/
+│       ├── cortex-operations/
+│       ├── deep-work-session/
+│       ├── multi-agent-coordination/
+│       └── hive-mcp/
 ├── .devcontainer/
 │   └── devcontainer.json       # DevContainer config (Codespaces/Cursor ready)
 ├── .github/
@@ -528,6 +535,99 @@ See [Hive MCP Server](#4-hive-mcp-server---ai-agent-integration) for configurati
 
 The DevContainer also includes a generic filesystem MCP server for lower-level file operations. When using Cursor/Claude Code in the DevContainer, agents have filesystem access for reading/writing files directly.
 
+## 🎯 Claude Code Skills
+
+Agent Hive includes a set of [Claude Code Skills](https://www.anthropic.com/news/skills) that teach Claude how to work effectively with the orchestration system. Skills are modular instruction sets that Claude loads automatically when relevant to your task.
+
+### Available Skills
+
+| Skill | Description | Use When |
+|-------|-------------|----------|
+| **hive-project-management** | Managing AGENCY.md files, frontmatter fields, task tracking | Creating/updating projects, managing ownership |
+| **cortex-operations** | Running Cortex CLI, dependency analysis, ready work detection | Finding work, analyzing dependencies, running orchestration |
+| **deep-work-session** | Focused work sessions, handoff protocol, session lifecycle | Starting/ending work sessions, following protocols |
+| **multi-agent-coordination** | Multi-agent patterns, conflict prevention, coordination server | Working with other agents, preventing conflicts |
+| **hive-mcp** | MCP server tools, programmatic project access | Using MCP tools for project management |
+
+### How Skills Work
+
+Skills use **progressive disclosure** - Claude loads only the skill name and description at startup, then loads full instructions when needed:
+
+```
+1. Startup: Load skill metadata (name + description)
+2. Task Match: Claude detects relevant skill from your request
+3. Activation: Full skill instructions loaded into context
+4. Execution: Claude follows skill guidance for the task
+```
+
+### Skill Location
+
+Skills are stored in `.claude/skills/` with this structure:
+
+```
+.claude/skills/
+├── hive-project-management/
+│   └── SKILL.md
+├── cortex-operations/
+│   └── SKILL.md
+├── deep-work-session/
+│   └── SKILL.md
+├── multi-agent-coordination/
+│   └── SKILL.md
+└── hive-mcp/
+    └── SKILL.md
+```
+
+### Using Skills
+
+Skills activate automatically based on your request. Examples:
+
+```
+# Activates: hive-project-management
+"Create a new project for the authentication feature"
+
+# Activates: cortex-operations
+"Find projects that are ready for me to work on"
+
+# Activates: deep-work-session
+"Start a deep work session on the demo project"
+
+# Activates: multi-agent-coordination
+"How do I coordinate with other agents on this project?"
+
+# Activates: hive-mcp
+"Use the MCP tools to claim project demo"
+```
+
+### What Skills Teach Claude
+
+Each skill provides comprehensive guidance:
+
+- **hive-project-management**: AGENCY.md structure, all frontmatter fields, task management, ownership rules, dependency configuration
+- **cortex-operations**: CLI commands (`--ready`, `--deps`, `--json`), output interpretation, troubleshooting, programmatic usage
+- **deep-work-session**: Session lifecycle (enter → claim → work → update → handoff), checklist, blocking protocol
+- **multi-agent-coordination**: Ownership protocol, dependency flow, coordinator API, conflict resolution patterns
+- **hive-mcp**: All 12 MCP tools with arguments, response formats, workflow examples
+
+### Installing Additional Skills
+
+You can add custom skills or install from the [Anthropic Skills repository](https://github.com/anthropics/skills):
+
+```bash
+# Create a new skill
+mkdir .claude/skills/my-custom-skill
+cat > .claude/skills/my-custom-skill/SKILL.md << 'EOF'
+---
+name: my-custom-skill
+description: Description of what this skill does and when to use it
+---
+
+# My Custom Skill
+
+Instructions for Claude to follow...
+EOF
+```
+
 ## 📚 Philosophy
 
 Agent Hive is built on these principles:
@@ -589,6 +689,7 @@ lsof -i :8501
 - [x] JSON output mode for programmatic access
 - [x] Dashboard dependency visualization
 - [x] Real-time agent coordination layer (HTTP API)
+- [x] Claude Code Skills for guided AI workflows
 
 **Planned:**
 - [ ] Web-based Dashboard (hosted version)

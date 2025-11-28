@@ -30,6 +30,31 @@ Instead of building vendor-specific workflows, Agent Hive uses a simple but powe
 └──────┘   └──────┘   └──────┘   └──────┘
 ```
 
+## 🔴 Live Orchestration on This Repository
+
+**This repository practices what it preaches.** The `projects/` directory contains real projects being actively coordinated by Cortex:
+
+- **Cortex runs every 4 hours** via GitHub Actions (see `.github/workflows/cortex.yml`)
+- **Project updates are committed automatically** - you can watch orchestration happen in real-time
+- **The `projects/` directory shows live work** - not just demos, but actual coordination
+
+### What You'll See
+
+Browse the `projects/` directory to see:
+- Active projects with assigned owners
+- Blocked tasks waiting for dependencies
+- Agent notes documenting progress
+- Task completion over time
+
+### For Forks
+
+When you fork this repository:
+- The Cortex workflow won't run (it requires the `OPENROUTER_API_KEY` secret)
+- Add your own API key in repository settings to enable it
+- Your fork becomes your own independent Hive
+
+This transparency demonstrates that Agent Hive is a real, working system - not just a concept.
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -45,8 +70,8 @@ Instead of building vendor-specific workflows, Agent Hive uses a simple but powe
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone the repository
-git clone https://github.com/your-org/agent-hive.git
-cd agent-hive
+git clone https://github.com/intertwine/hive-orchestrator.git
+cd hive-orchestrator
 
 # Install dependencies with uv
 make install
@@ -701,8 +726,8 @@ lsof -i :8501
 
 ## 📞 Support
 
-- GitHub Issues: https://github.com/your-org/agent-hive/issues
-- Discussions: https://github.com/your-org/agent-hive/discussions
+- GitHub Issues: https://github.com/intertwine/hive-orchestrator/issues
+- Discussions: https://github.com/intertwine/hive-orchestrator/discussions
 
 ---
 

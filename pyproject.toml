@@ -40,10 +40,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/agent-hive"
-Documentation = "https://github.com/your-org/agent-hive/blob/main/README.md"
-Repository = "https://github.com/your-org/agent-hive"
-Issues = "https://github.com/your-org/agent-hive/issues"
+Homepage = "https://github.com/intertwine/hive-orchestrator"
+Documentation = "https://github.com/intertwine/hive-orchestrator/blob/main/README.md"
+Repository = "https://github.com/intertwine/hive-orchestrator"
+Issues = "https://github.com/intertwine/hive-orchestrator/issues"
 
 [build-system]
 requires = ["hatchling"]

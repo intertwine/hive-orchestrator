@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question / Discussion
+    url: https://github.com/intertwine/hive-orchestrator/discussions
+    about: Ask questions or start a discussion about Agent Hive
+  - name: Security Vulnerability
+    url: https://github.com/intertwine/hive-orchestrator/security/advisories/new
+    about: Report a security vulnerability (please don't use public issues)

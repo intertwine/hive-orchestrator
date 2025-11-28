@@ -7,6 +7,11 @@ blocked: false
 blocking_reason: null
 priority: medium
 tags: [example, pipeline, etl, data, sequential, tutorial]
+dependencies:
+  blocked_by: []
+  blocks: []
+  parent: null
+  related: []
 ---
 
 # Data Pipeline (ETL) Workflow Example
@@ -267,3 +272,74 @@ Track these metrics:
 - **Quality**: Validation pass rate
 - **Latency**: Time per stage (simulated)
 - **Data loss**: Input vs output record count
+
+## Coordination Approaches
+
+Data pipelines with strict ordering benefit from dependency tracking and coordination.
+
+### Using Structured Dependencies
+
+For complex pipelines, consider splitting into separate projects with dependencies:
+
+```yaml
+# stage-2-validate/AGENCY.md
+dependencies:
+  blocked_by: [data-pipeline-stage-1]  # Wait for extraction
+  blocks: [data-pipeline-stage-3]      # Transformation waits on us
+```
+
+This allows `get_ready_work()` to automatically determine which stage is next.
+
+### Approach A: Git-Only (Simple)
+Sequential handoff using `owner` field. Each agent waits for previous to complete.
+
+### Approach B: MCP Server (Programmatic)
+AI agents use MCP tools to track pipeline progress.
+
+**Stage N Agent**:
+```
+1. get_ready_work()  # Only returns if stage N-1 complete
+2. claim_project("data-pipeline-example", "agent-name")
+3. Process data
+4. add_note(..., "Stage N complete: X records processed")
+5. release_project(...)
+```
+
+**Check dependencies**:
+```
+get_dependencies("data-pipeline-example")
+# Returns: {"blocked_by": [...], "all_dependencies_met": true}
+```
+
+### Approach C: HTTP Coordination (Ordered Execution)
+Use coordination server to enforce strict stage ordering.
+
+```bash
+# Stage 1 agent completes
+curl -X DELETE http://localhost:8080/release/pipeline-stage-1
+
+# Stage 2 agent checks if previous stage released
+curl http://localhost:8080/status/pipeline-stage-1
+# If released, proceed to claim stage 2
+
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "pipeline-stage-2", "agent_name": "validator", "ttl_seconds": 1800}'
+```
+
+### Approach D: Combined MCP + Coordination (Production ETL)
+For production data pipelines:
+
+1. Use separate claim IDs per stage: `pipeline-stage-1`, `pipeline-stage-2`, etc.
+2. Check previous stage completion before claiming next
+3. Use `coordinator_reservations()` to see pipeline status
+
+**Pipeline orchestration pattern**:
+```
+# Check all stage statuses
+coordinator_reservations()
+# Find next unclaimed, unblocked stage
+get_ready_work()
+# Claim and process
+coordinator_claim("pipeline-stage-N", "agent", 3600)
+```

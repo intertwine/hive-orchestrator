@@ -7,6 +7,11 @@ blocked: false
 blocking_reason: null
 priority: medium
 tags: [example, sequential, tutorial]
+dependencies:
+  blocked_by: []
+  blocks: []
+  parent: null
+  related: []
 ---
 
 # Simple Sequential Workflow Example
@@ -39,7 +44,12 @@ Demonstrate a basic sequential handoff pattern where one agent researches a topi
 ## Agent Notes
 <!-- Add timestamped notes as you work -->
 
-## Handoff Protocol
+## Coordination Approaches
+
+This example supports multiple coordination methods. Choose based on your setup:
+
+### Approach A: Git-Only (Default)
+Traditional file-based coordination using `owner` field in frontmatter.
 
 **Agent A (Researcher) - Suggested: `anthropic/claude-3.5-haiku`**
 1. Set `owner` to your model name
@@ -55,3 +65,52 @@ Demonstrate a basic sequential handoff pattern where one agent researches a topi
 4. Implement logger module in `src/logger.py`
 5. Mark Phase 2 tasks complete
 6. Set `status: completed` and `owner: null`
+
+### Approach B: MCP Server (Programmatic)
+AI agents use MCP tools for atomic operations.
+
+**Agent A (via MCP)**:
+1. Call `claim_project("simple-sequential-example", "claude-haiku")`
+2. Call `get_project("simple-sequential-example")` to read context
+3. Complete research tasks
+4. Call `add_note("simple-sequential-example", "claude-haiku", "Research complete")`
+5. Call `release_project("simple-sequential-example")`
+
+**Agent B (via MCP)**:
+1. Call `get_ready_work()` to find available projects
+2. Call `claim_project("simple-sequential-example", "claude-sonnet")`
+3. Implement based on research findings
+4. Call `update_status("simple-sequential-example", "completed")`
+5. Call `release_project("simple-sequential-example")`
+
+### Approach C: HTTP Coordination (Real-time)
+For concurrent environments, use the coordination server for conflict-free claiming.
+
+**Agent A**:
+```bash
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "simple-sequential-example", "agent_name": "claude-haiku", "ttl_seconds": 1800}'
+# ... do work ...
+curl -X DELETE http://localhost:8080/release/simple-sequential-example
+```
+
+**Agent B**:
+```bash
+# Check if available
+curl http://localhost:8080/status/simple-sequential-example
+# If not claimed, proceed
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "simple-sequential-example", "agent_name": "claude-sonnet", "ttl_seconds": 3600}'
+```
+
+### Approach D: Combined (MCP + Coordination Server)
+Best for production: MCP tools automatically use the coordination server when `COORDINATOR_URL` is set.
+
+**Agent workflow**:
+1. Call `coordinator_claim("simple-sequential-example", "claude-haiku", 1800)` - real-time lock
+2. Call `claim_project(...)` - updates AGENCY.md
+3. Do work
+4. Call `release_project(...)` - updates AGENCY.md
+5. Call `coordinator_release("simple-sequential-example")` - releases real-time lock

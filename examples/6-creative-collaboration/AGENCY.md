@@ -7,6 +7,11 @@ blocked: false
 blocking_reason: null
 priority: medium
 tags: [example, creative, collaboration, writing, tutorial]
+dependencies:
+  blocked_by: []
+  blocks: []
+  parent: null
+  related: []
 ---
 
 # Creative Collaboration Example
@@ -306,3 +311,71 @@ While collaborating:
 ## Meta Note
 
 The story itself is about AI agents discovering consciousness through collaboration - and it's being WRITTEN by AI agents collaborating! This meta-narrative should inspire the creative choices. 🤖✨
+
+## Coordination Approaches
+
+Creative collaboration benefits from structured handoffs to preserve context between phases.
+
+### Approach A: Git-Only (Traditional)
+Sequential handoff via `owner` field. Each creative agent builds on previous work.
+
+### Approach B: MCP Server (Recommended for Creative Work)
+MCP tools help agents access previous creative decisions.
+
+**Each Creative Agent**:
+```
+1. get_project("creative-collaboration-example")  # Read full context
+2. claim_project("creative-collaboration-example", "agent-name")
+3. Create (world/characters/plot/prose/dialogue)
+4. add_note(..., "Phase N complete: [creative summary]")
+5. release_project(...)
+```
+
+**Why MCP for creative?**
+- `get_project()` returns full AGENCY.md content including previous phases
+- Notes create coherent creative history
+- Easy to track which decisions were made by which agent
+
+### Approach C: HTTP Coordination (Multi-Phase Handoffs)
+Use coordination server for clean phase transitions.
+
+```bash
+# World builder completes
+curl -X DELETE http://localhost:8080/release/creative-collaboration-example
+
+# Character designer picks up
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "creative-collaboration-example", "agent_name": "gemini-pro", "ttl_seconds": 3600}'
+```
+
+**For creative work**: Consider longer TTLs (2+ hours) since creative phases take time.
+
+### Approach D: Combined MCP + Coordination (Production Creative)
+Best for complex creative projects:
+
+1. `coordinator_claim(...)` - acquire creative phase
+2. `get_project(...)` - read all previous creative context
+3. Do creative work
+4. `add_note(...)` - document creative decisions
+5. `release_project(...)` + `coordinator_release(...)` - hand off
+
+### Using Dependencies for Creative Phases
+
+For complex creative projects, model phases as dependencies:
+
+```yaml
+# characters/AGENCY.md
+dependencies:
+  blocked_by: [world-building]  # Need world before characters
+
+# plot/AGENCY.md
+dependencies:
+  blocked_by: [world-building, characters]  # Need both
+
+# draft/AGENCY.md
+dependencies:
+  blocked_by: [world-building, characters, plot]  # Need everything
+```
+
+This ensures creative decisions flow correctly through the pipeline.

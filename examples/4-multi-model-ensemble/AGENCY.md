@@ -7,6 +7,11 @@ blocked: false
 blocking_reason: null
 priority: medium
 tags: [example, ensemble, comparison, competitive, tutorial]
+dependencies:
+  blocked_by: []
+  blocks: []
+  parent: null
+  related: []
 ---
 
 # Multi-Model Ensemble Example
@@ -253,3 +258,69 @@ If judge finds multiple good ideas, combine them:
 - Plus Solution C's materialized view for aggregations
 - Expected performance: 0.4s (better than either alone!)
 ```
+
+## Coordination Approaches
+
+Ensemble/competitive patterns benefit from parallel coordination with isolated workspaces.
+
+### Approach A: Git-Only (Simple)
+Each model works independently, updates their section only. No coordination needed for Phase 1.
+
+### Approach B: MCP Server (Isolation + Judging)
+MCP tools help ensure models work independently and judge has full context.
+
+**Solution Agents (A, B, C, D) - Work in Parallel**:
+```
+1. claim_project("multi-model-ensemble-example", "claude-sonnet")
+2. Document solution in designated section only
+3. add_note(..., "Solution A complete")
+4. release_project(...)
+```
+
+**Judge Agent (After all complete)**:
+```
+1. get_project("multi-model-ensemble-example")  # Read all solutions
+2. claim_project("multi-model-ensemble-example", "claude-opus")
+3. Score each solution, select winner
+4. update_status("multi-model-ensemble-example", "completed")
+5. release_project(...)
+```
+
+### Approach C: HTTP Coordination (Parallel + Judge Trigger)
+Use coordination server with solution-specific claims for parallel work.
+
+**Phase 1 - Parallel Solutions**:
+```bash
+# Agent A claims their solution space
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "ensemble-solution-A", "agent_name": "claude-sonnet", "ttl_seconds": 1800}'
+
+# Similarly for B, C, D (all work in parallel)
+```
+
+**Phase 2 - Judge**:
+```bash
+# Check all solutions complete
+curl http://localhost:8080/reservations
+# If no active claims, all solutions done
+
+# Judge claims
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "multi-model-ensemble-example", "agent_name": "claude-opus", "ttl_seconds": 3600}'
+```
+
+### Approach D: Combined MCP + Coordination (Competition Mode)
+
+For formal competitive evaluations:
+
+1. Use separate claim IDs per solution: `ensemble-A`, `ensemble-B`, etc.
+2. All solution agents work simultaneously
+3. `coordinator_reservations()` shows progress of all competitors
+4. Judge waits for all to release, then evaluates
+
+**Benefits**:
+- Solutions truly independent (separate locks)
+- Clear visibility of who's still working
+- Judge knows exactly when to start

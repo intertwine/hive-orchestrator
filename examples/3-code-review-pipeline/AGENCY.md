@@ -7,6 +7,11 @@ blocked: false
 blocking_reason: null
 priority: medium
 tags: [example, pipeline, review, iteration, quality, tutorial]
+dependencies:
+  blocked_by: []
+  blocks: []
+  parent: null
+  related: []
 ---
 
 # Code Review Pipeline Example
@@ -159,3 +164,59 @@ If not approved after 3 cycles:
 - Set `blocked: true`
 - Set `blocking_reason: "Requires human architectural review"`
 - Escalate to human developer
+
+## Coordination Approaches
+
+Review pipelines involve multiple handoffs between the same agents. Choose your coordination method:
+
+### Approach A: Git-Only (Default)
+Use `owner` field in frontmatter to track who's currently working.
+
+### Approach B: MCP Server (Programmatic)
+AI agents use MCP tools for claiming and state updates.
+
+**Developer Agent A**:
+```
+1. claim_project("code-review-pipeline-example", "claude-sonnet")
+2. Implement authentication module
+3. add_note(..., "Stage 1 complete - ready for review")
+4. release_project(...)
+```
+
+**Reviewer Agent B**:
+```
+1. get_ready_work()  # Check if project is unclaimed
+2. claim_project("code-review-pipeline-example", "claude-opus")
+3. Review code, document findings
+4. add_note(..., "Review complete - 3 issues found")
+5. release_project(...)
+```
+
+### Approach C: HTTP Coordination (Real-time)
+Use coordination server for immediate handoff notifications.
+
+```bash
+# Agent A finishes implementation
+curl -X DELETE http://localhost:8080/release/code-review-pipeline-example
+
+# Agent B immediately picks up
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "code-review-pipeline-example", "agent_name": "claude-opus", "ttl_seconds": 3600}'
+```
+
+**Benefits for review pipelines**:
+- Instant handoff between iterations
+- No git polling needed
+- Clear audit trail of claims
+
+### Approach D: Combined MCP + Coordination (Production)
+Best for iterative workflows with tight feedback loops.
+
+**Each iteration**:
+1. `coordinator_claim(...)` - acquire lock
+2. `claim_project(...)` - update AGENCY.md
+3. Do work (implement/review)
+4. `add_note(...)` - document progress
+5. `release_project(...)` - update state
+6. `coordinator_release(...)` - signal completion

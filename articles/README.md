@@ -40,6 +40,12 @@ This directory contains a series of articles explaining the design philosophy, f
 
 **Key topics:** Installation, project creation, dashboard usage, dependencies, Cortex runs, common patterns, troubleshooting.
 
+### 7. [Agent Hive vs. The Framework Landscape](07-agent-hive-vs-the-framework-landscape.md)
+
+*Framework comparison.* Deep dive into how Agent Hive compares to other leading AI agent frameworks including LangGraph, CrewAI, AutoGen, OpenAI Agents SDK, and smolagents.
+
+**Key topics:** Framework philosophies, state management approaches, multi-agent coordination patterns, vendor lock-in considerations, when to use which framework, complementary architectures.
+
 ## Reading Order
 
 For newcomers, we recommend reading in order:
@@ -47,7 +53,7 @@ For newcomers, we recommend reading in order:
 1. **Article 1** - Understand the problem and solution
 2. **Article 6** - Get hands-on experience
 3. **Articles 3-5** - Deep dive into specific features
-4. **Article 2** - Context on the broader ecosystem
+4. **Articles 2 & 7** - Context on the broader ecosystem and framework comparisons
 
 ## Contributing
 

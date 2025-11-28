@@ -5,23 +5,19 @@ from unittest.mock import patch, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from src.coordinator import (
-    app,
-    store,
-    Claim,
-    ReservationStore
-)
+from src.coordinator import app, store, Claim, ReservationStore
 from src.coordinator_client import (
     CoordinatorClient,
     CoordinatorUnavailable,
     ClaimConflict,
-    get_coordinator_client
+    get_coordinator_client,
 )
 
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def client():
@@ -48,7 +44,7 @@ def sample_claim():
         project_id="test-project",
         agent_name="claude-3.5-sonnet",
         created_at=now,
-        expires_at=now + timedelta(hours=1)
+        expires_at=now + timedelta(hours=1),
     )
 
 
@@ -61,13 +57,14 @@ def expired_claim():
         project_id="expired-project",
         agent_name="old-agent",
         created_at=now - timedelta(hours=2),
-        expires_at=now - timedelta(hours=1)
+        expires_at=now - timedelta(hours=1),
     )
 
 
 # ============================================================================
 # ReservationStore Tests
 # ============================================================================
+
 
 class TestReservationStore:
     """Test the ReservationStore class."""
@@ -164,6 +161,7 @@ class TestClaim:
 # API Endpoint Tests
 # ============================================================================
 
+
 class TestHealthEndpoint:
     """Test the /health endpoint."""
 
@@ -182,11 +180,10 @@ class TestClaimEndpoint:
 
     def test_claim_project_success(self, client):
         """Test successfully claiming a project."""
-        response = client.post("/claim", json={
-            "project_id": "my-project",
-            "agent_name": "claude-opus",
-            "ttl_seconds": 3600
-        })
+        response = client.post(
+            "/claim",
+            json={"project_id": "my-project", "agent_name": "claude-opus", "ttl_seconds": 3600},
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -199,16 +196,12 @@ class TestClaimEndpoint:
     def test_claim_project_conflict(self, client):
         """Test claiming an already claimed project."""
         # First claim
-        client.post("/claim", json={
-            "project_id": "my-project",
-            "agent_name": "claude-opus"
-        })
+        client.post("/claim", json={"project_id": "my-project", "agent_name": "claude-opus"})
 
         # Second claim should fail
-        response = client.post("/claim", json={
-            "project_id": "my-project",
-            "agent_name": "grok-beta"
-        })
+        response = client.post(
+            "/claim", json={"project_id": "my-project", "agent_name": "grok-beta"}
+        )
 
         assert response.status_code == 409
         data = response.json()
@@ -219,16 +212,12 @@ class TestClaimEndpoint:
     def test_claim_project_force_override(self, client):
         """Test force claiming an already claimed project."""
         # First claim
-        client.post("/claim", json={
-            "project_id": "my-project",
-            "agent_name": "claude-opus"
-        })
+        client.post("/claim", json={"project_id": "my-project", "agent_name": "claude-opus"})
 
         # Force claim should succeed
-        response = client.post("/claim?force=true", json={
-            "project_id": "my-project",
-            "agent_name": "grok-beta"
-        })
+        response = client.post(
+            "/claim?force=true", json={"project_id": "my-project", "agent_name": "grok-beta"}
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -237,21 +226,19 @@ class TestClaimEndpoint:
 
     def test_claim_project_default_ttl(self, client):
         """Test that default TTL is used when not specified."""
-        response = client.post("/claim", json={
-            "project_id": "my-project",
-            "agent_name": "claude-opus"
-        })
+        response = client.post(
+            "/claim", json={"project_id": "my-project", "agent_name": "claude-opus"}
+        )
 
         assert response.status_code == 200
         # Claim should be stored with default TTL
 
     def test_claim_project_custom_ttl(self, client):
         """Test claiming with custom TTL."""
-        response = client.post("/claim", json={
-            "project_id": "my-project",
-            "agent_name": "claude-opus",
-            "ttl_seconds": 7200
-        })
+        response = client.post(
+            "/claim",
+            json={"project_id": "my-project", "agent_name": "claude-opus", "ttl_seconds": 7200},
+        )
 
         assert response.status_code == 200
 
@@ -262,10 +249,7 @@ class TestReleaseEndpoint:
     def test_release_project_success(self, client):
         """Test releasing a claimed project."""
         # Claim first
-        client.post("/claim", json={
-            "project_id": "my-project",
-            "agent_name": "claude-opus"
-        })
+        client.post("/claim", json={"project_id": "my-project", "agent_name": "claude-opus"})
 
         # Release
         response = client.delete("/release/my-project")
@@ -284,10 +268,9 @@ class TestReleaseEndpoint:
     def test_release_by_claim_id_success(self, client):
         """Test releasing by claim_id."""
         # Claim first
-        claim_response = client.post("/claim", json={
-            "project_id": "my-project",
-            "agent_name": "claude-opus"
-        })
+        claim_response = client.post(
+            "/claim", json={"project_id": "my-project", "agent_name": "claude-opus"}
+        )
         claim_id = claim_response.json()["claim_id"]
 
         # Release by claim_id
@@ -319,10 +302,7 @@ class TestStatusEndpoint:
     def test_status_claimed_project(self, client):
         """Test status of claimed project."""
         # Claim first
-        client.post("/claim", json={
-            "project_id": "my-project",
-            "agent_name": "claude-opus"
-        })
+        client.post("/claim", json={"project_id": "my-project", "agent_name": "claude-opus"})
 
         response = client.get("/status/my-project")
         assert response.status_code == 200
@@ -346,14 +326,8 @@ class TestReservationsEndpoint:
     def test_get_reservations_with_claims(self, client):
         """Test getting reservations with active claims."""
         # Create some claims
-        client.post("/claim", json={
-            "project_id": "project-1",
-            "agent_name": "claude-opus"
-        })
-        client.post("/claim", json={
-            "project_id": "project-2",
-            "agent_name": "grok-beta"
-        })
+        client.post("/claim", json={"project_id": "project-1", "agent_name": "claude-opus"})
+        client.post("/claim", json={"project_id": "project-2", "agent_name": "grok-beta"})
 
         response = client.get("/reservations")
         assert response.status_code == 200
@@ -368,10 +342,7 @@ class TestExtendEndpoint:
     def test_extend_claim_success(self, client):
         """Test extending a claim."""
         # Claim first
-        client.post("/claim", json={
-            "project_id": "my-project",
-            "agent_name": "claude-opus"
-        })
+        client.post("/claim", json={"project_id": "my-project", "agent_name": "claude-opus"})
 
         response = client.post("/extend/my-project?ttl_seconds=7200")
         assert response.status_code == 200
@@ -389,6 +360,7 @@ class TestExtendEndpoint:
 # Coordinator Client Tests
 # ============================================================================
 
+
 class TestCoordinatorClient:
     """Test the CoordinatorClient class."""
 
@@ -400,11 +372,7 @@ class TestCoordinatorClient:
 
     def test_client_initialization_custom(self):
         """Test client initialization with custom values."""
-        client = CoordinatorClient(
-            base_url="http://custom:9000",
-            timeout=10.0,
-            retry_count=3
-        )
+        client = CoordinatorClient(base_url="http://custom:9000", timeout=10.0, retry_count=3)
         assert client.base_url == "http://custom:9000"
         assert client.timeout == 10.0
         assert client.retry_count == 3
@@ -429,6 +397,7 @@ class TestCoordinatorClient:
     def test_is_available_failure(self, mock_get):
         """Test availability check when server is down."""
         from requests.exceptions import ConnectionError
+
         mock_get.side_effect = ConnectionError()
 
         client = CoordinatorClient()
@@ -444,7 +413,7 @@ class TestCoordinatorClient:
             "claim_id": "abc123",
             "project_id": "my-project",
             "agent_name": "claude-opus",
-            "expires_at": "2025-01-01T12:00:00Z"
+            "expires_at": "2025-01-01T12:00:00Z",
         }
         mock_request.return_value = mock_response
 
@@ -464,7 +433,7 @@ class TestCoordinatorClient:
             "success": False,
             "error": "Project already claimed",
             "current_owner": "grok-beta",
-            "expires_at": "2025-01-01T12:00:00Z"
+            "expires_at": "2025-01-01T12:00:00Z",
         }
         mock_request.return_value = mock_response
 
@@ -484,7 +453,7 @@ class TestCoordinatorClient:
             "success": False,
             "error": "Project already claimed",
             "current_owner": "grok-beta",
-            "expires_at": "2025-01-01T12:00:00Z"
+            "expires_at": "2025-01-01T12:00:00Z",
         }
         mock_request.return_value = mock_response
 
@@ -519,8 +488,8 @@ class TestCoordinatorClient:
                 "claim_id": "abc123",
                 "agent_name": "claude-opus",
                 "created_at": "2025-01-01T10:00:00Z",
-                "expires_at": "2025-01-01T11:00:00Z"
-            }
+                "expires_at": "2025-01-01T11:00:00Z",
+            },
         }
         mock_request.return_value = mock_response
 
@@ -534,6 +503,7 @@ class TestCoordinatorClient:
     def test_coordinator_unavailable(self, mock_request):
         """Test handling of unavailable coordinator."""
         from requests.exceptions import ConnectionError
+
         mock_request.side_effect = ConnectionError()
 
         client = CoordinatorClient(retry_count=0)
@@ -563,16 +533,16 @@ class TestGetCoordinatorClient:
 # Integration Tests
 # ============================================================================
 
+
 class TestIntegration:
     """Integration tests for coordinator workflow."""
 
     def test_full_claim_workflow(self, client):
         """Test complete claim-work-release workflow."""
         # 1. Claim project
-        claim_response = client.post("/claim", json={
-            "project_id": "integration-test",
-            "agent_name": "test-agent"
-        })
+        claim_response = client.post(
+            "/claim", json={"project_id": "integration-test", "agent_name": "test-agent"}
+        )
         assert claim_response.status_code == 200
         assert "claim_id" in claim_response.json()
 
@@ -581,10 +551,9 @@ class TestIntegration:
         assert status_response.json()["is_claimed"] is True
 
         # 3. Try to claim from another agent (should fail)
-        conflict_response = client.post("/claim", json={
-            "project_id": "integration-test",
-            "agent_name": "other-agent"
-        })
+        conflict_response = client.post(
+            "/claim", json={"project_id": "integration-test", "agent_name": "other-agent"}
+        )
         assert conflict_response.status_code == 409
 
         # 4. Extend the claim
@@ -600,10 +569,9 @@ class TestIntegration:
         assert status_response.json()["is_claimed"] is False
 
         # 7. Another agent can now claim
-        new_claim_response = client.post("/claim", json={
-            "project_id": "integration-test",
-            "agent_name": "other-agent"
-        })
+        new_claim_response = client.post(
+            "/claim", json={"project_id": "integration-test", "agent_name": "other-agent"}
+        )
         assert new_claim_response.status_code == 200
 
     def test_multiple_projects_workflow(self, client):
@@ -613,10 +581,7 @@ class TestIntegration:
 
         # Claim each project with different agent
         for project, agent in zip(projects, agents):
-            response = client.post("/claim", json={
-                "project_id": project,
-                "agent_name": agent
-            })
+            response = client.post("/claim", json={"project_id": project, "agent_name": agent})
             assert response.status_code == 200
 
         # Verify all reservations

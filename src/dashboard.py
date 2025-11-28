@@ -17,13 +17,13 @@ from cortex import Cortex
 def load_project(project_path: str):
     """Load and parse an AGENCY.md file."""
     try:
-        with open(project_path, 'r', encoding='utf-8') as f:
+        with open(project_path, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
             return {
-                'path': project_path,
-                'metadata': post.metadata,
-                'content': post.content,
-                'raw': frontmatter.dumps(post)
+                "path": project_path,
+                "metadata": post.metadata,
+                "content": post.content,
+                "raw": frontmatter.dumps(post),
             }
     except Exception as e:
         st.error(f"Error loading project: {e}")
@@ -44,10 +44,12 @@ def discover_projects(base_path: Path):
         if project_data:
             projects.append(project_data)
 
-    return sorted(projects, key=lambda x: x['metadata'].get('project_id', ''))
+    return sorted(projects, key=lambda x: x["metadata"].get("project_id", ""))
 
 
-def generate_file_tree(directory: Path, prefix: str = "", max_depth: int = 3, current_depth: int = 0):
+def generate_file_tree(
+    directory: Path, prefix: str = "", max_depth: int = 3, current_depth: int = 0
+):
     """Generate a text-based file tree."""
     if current_depth >= max_depth:
         return ""
@@ -55,7 +57,7 @@ def generate_file_tree(directory: Path, prefix: str = "", max_depth: int = 3, cu
     tree = ""
     try:
         items = sorted(directory.iterdir(), key=lambda x: (not x.is_dir(), x.name))
-        items = [i for i in items if not i.name.startswith('.') and i.name != '__pycache__']
+        items = [i for i in items if not i.name.startswith(".") and i.name != "__pycache__"]
 
         for i, item in enumerate(items):
             is_last = i == len(items) - 1
@@ -81,7 +83,7 @@ def generate_deep_work_context(project_path: str, base_path: Path):
         return None
 
     project_dir = Path(project_path).parent
-    project_id = project_data['metadata'].get('project_id', 'unknown')
+    project_id = project_data["metadata"].get("project_id", "unknown")
 
     # Build the context
     context = f"""# DEEP WORK SESSION CONTEXT
@@ -147,11 +149,7 @@ You may now begin working on the project. Start by analyzing the current state a
 def main():
     """Main dashboard application."""
 
-    st.set_page_config(
-        page_title="Agent Hive Dashboard",
-        page_icon="🧠",
-        layout="wide"
-    )
+    st.set_page_config(page_title="Agent Hive Dashboard", page_icon="🧠", layout="wide")
 
     # Determine base path
     base_path = Path(os.getenv("HIVE_BASE_PATH", os.getcwd()))
@@ -167,12 +165,13 @@ def main():
 
         if projects:
             project_options = {
-                f"{p['metadata'].get('project_id', 'unknown')} ({p['metadata'].get('status', 'unknown')})": p['path']
+                f"{p['metadata'].get('project_id', 'unknown')} ({p['metadata'].get('status', 'unknown')})": p[
+                    "path"
+                ]
                 for p in projects
             }
             selected_project_key = st.selectbox(
-                "Select a project",
-                options=list(project_options.keys())
+                "Select a project", options=list(project_options.keys())
             )
             selected_project_path = project_options[selected_project_key]
         else:
@@ -203,13 +202,13 @@ def main():
         # Load GLOBAL.md
         global_file = base_path / "GLOBAL.md"
         if global_file.exists():
-            with open(global_file, 'r', encoding='utf-8') as f:
+            with open(global_file, "r", encoding="utf-8") as f:
                 global_post = frontmatter.load(f)
-                last_run = global_post.metadata.get('last_cortex_run', 'Never')
-                if last_run and last_run != 'Never':
+                last_run = global_post.metadata.get("last_cortex_run", "Never")
+                if last_run and last_run != "Never":
                     try:
-                        last_run = datetime.fromisoformat(last_run.replace('Z', '+00:00'))
-                        last_run = last_run.strftime('%Y-%m-%d %H:%M UTC')
+                        last_run = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
+                        last_run = last_run.strftime("%Y-%m-%d %H:%M UTC")
                     except ValueError:
                         # If the date string is malformed, keep the original value
                         pass
@@ -223,15 +222,14 @@ def main():
         sidebar_cortex = Cortex(str(base_path))
         dep_summary = sidebar_cortex.get_dependency_summary()
 
-        if dep_summary['has_cycles']:
+        if dep_summary["has_cycles"]:
             st.error(f"⚠️ {len(dep_summary['cycles'])} cycle(s) detected!")
 
-        blocked_count = sum(
-            1 for p in dep_summary['projects'] if p['effectively_blocked']
-        )
+        blocked_count = sum(1 for p in dep_summary["projects"] if p["effectively_blocked"])
         ready_count = sum(
-            1 for p in dep_summary['projects']
-            if not p['effectively_blocked'] and p['status'] == 'active'
+            1
+            for p in dep_summary["projects"]
+            if not p["effectively_blocked"] and p["status"] == "active"
         )
 
         col1, col2 = st.columns(2)
@@ -248,23 +246,23 @@ def main():
         project_data = load_project(selected_project_path)
 
         if project_data:
-            metadata = project_data['metadata']
+            metadata = project_data["metadata"]
 
             # Project header
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 st.header(f"📁 {metadata.get('project_id', 'Unknown')}")
             with col2:
-                status = metadata.get('status', 'unknown')
+                status = metadata.get("status", "unknown")
                 status_color = {
-                    'active': '🟢',
-                    'pending': '🟡',
-                    'blocked': '🔴',
-                    'completed': '✅'
-                }.get(status, '⚪')
+                    "active": "🟢",
+                    "pending": "🟡",
+                    "blocked": "🔴",
+                    "completed": "✅",
+                }.get(status, "⚪")
                 st.metric("Status", f"{status_color} {status}")
             with col3:
-                priority = metadata.get('priority', 'medium')
+                priority = metadata.get("priority", "medium")
                 st.metric("Priority", priority.upper())
 
             # Metadata display
@@ -272,13 +270,13 @@ def main():
                 st.json(metadata)
 
             # Dependencies section
-            deps = metadata.get('dependencies', {})
+            deps = metadata.get("dependencies", {})
             if deps:
                 with st.expander("🔗 Dependencies", expanded=False):
                     col1, col2 = st.columns(2)
 
                     with col1:
-                        blocked_by = deps.get('blocked_by', [])
+                        blocked_by = deps.get("blocked_by", [])
                         if blocked_by:
                             st.markdown("**Blocked By:**")
                             for dep in blocked_by:
@@ -286,12 +284,12 @@ def main():
                         else:
                             st.markdown("**Blocked By:** None")
 
-                        parent = deps.get('parent')
+                        parent = deps.get("parent")
                         if parent:
                             st.markdown(f"**Parent:** `{parent}`")
 
                     with col2:
-                        blocks = deps.get('blocks', [])
+                        blocks = deps.get("blocks", [])
                         if blocks:
                             st.markdown("**Blocks:**")
                             for dep in blocks:
@@ -299,30 +297,30 @@ def main():
                         else:
                             st.markdown("**Blocks:** None")
 
-                        related = deps.get('related', [])
+                        related = deps.get("related", [])
                         if related:
                             st.markdown("**Related:**")
                             for dep in related:
                                 st.markdown(f"- `{dep}`")
 
                     # Check blocking status
-                    blocking_info = cortex.is_blocked(
-                        metadata.get('project_id', 'unknown')
-                    )
-                    if blocking_info['is_blocked']:
+                    blocking_info = cortex.is_blocked(metadata.get("project_id", "unknown"))
+                    if blocking_info["is_blocked"]:
                         st.warning("⚠️ This project is effectively blocked")
-                        for reason in blocking_info['reasons']:
+                        for reason in blocking_info["reasons"]:
                             st.markdown(f"- {reason}")
 
             # Main content
             st.divider()
-            st.markdown(project_data['content'])
+            st.markdown(project_data["content"])
 
             st.divider()
 
             # Deep Work section
             st.subheader("🚀 Deep Work Session")
-            st.write("Generate a comprehensive context package for an AI agent to work on this project.")
+            st.write(
+                "Generate a comprehensive context package for an AI agent to work on this project."
+            )
 
             col1, col2 = st.columns([3, 1])
 
@@ -330,17 +328,19 @@ def main():
                 if st.button("Generate Context", type="primary", use_container_width=True):
                     context = generate_deep_work_context(selected_project_path, base_path)
                     if context:
-                        st.session_state['deep_work_context'] = context
+                        st.session_state["deep_work_context"] = context
 
-            if 'deep_work_context' in st.session_state:
+            if "deep_work_context" in st.session_state:
                 st.text_area(
                     "Deep Work Context (copy and paste this to your AI agent)",
-                    value=st.session_state['deep_work_context'],
+                    value=st.session_state["deep_work_context"],
                     height=400,
-                    key="context_output"
+                    key="context_output",
                 )
 
-                st.info("💡 Copy the above context and paste it into your AI agent (Claude, Grok, Gemini, etc.) to start a Deep Work session.")
+                st.info(
+                    "💡 Copy the above context and paste it into your AI agent (Claude, Grok, Gemini, etc.) to start a Deep Work session."
+                )
 
     else:
         st.info("👈 Select a project from the sidebar to view details")
@@ -348,7 +348,8 @@ def main():
         st.divider()
 
         st.subheader("🎯 Getting Started")
-        st.markdown("""
+        st.markdown(
+            """
         **Agent Hive** is a vendor-agnostic orchestration OS for autonomous AI agents.
 
         ### Quick Start
@@ -383,7 +384,8 @@ def main():
         ### Learn More
 
         Check the README.md for full documentation.
-        """)
+        """
+        )
 
 
 if __name__ == "__main__":

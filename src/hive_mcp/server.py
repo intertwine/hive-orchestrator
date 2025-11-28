@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from cortex import Cortex  # pylint: disable=wrong-import-position
 from coordinator_client import (  # pylint: disable=wrong-import-position
     CoordinatorUnavailable,
-    get_coordinator_client
+    get_coordinator_client,
 )
 
 
@@ -34,11 +34,7 @@ def get_base_path() -> str:
 
 def format_response(success: bool, data: Any = None, error: str = None) -> Dict[str, Any]:
     """Format a standardized response."""
-    return {
-        "success": success,
-        "data": data,
-        "error": error
-    }
+    return {"success": success, "data": data, "error": error}
 
 
 def format_project(project: Dict[str, Any]) -> Dict[str, Any]:
@@ -53,16 +49,11 @@ def format_project(project: Dict[str, Any]) -> Dict[str, Any]:
         "priority": project["metadata"].get("priority", "medium"),
         "tags": project["metadata"].get("tags", []),
         "last_updated": project["metadata"].get("last_updated"),
-        "dependencies": project["metadata"].get("dependencies", {})
+        "dependencies": project["metadata"].get("dependencies", {}),
     }
 
 
-def update_project_field(
-    project_path: str,
-    field: str,
-    value: Any,
-    base_path: str = None
-) -> bool:
+def update_project_field(project_path: str, field: str, value: Any, base_path: str = None) -> bool:
     """
     Update a frontmatter field in a project's AGENCY.md file.
 
@@ -89,17 +80,17 @@ def update_project_field(
             return False
 
         # Read the file
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
 
         # Update the field
         post.metadata[field] = value
 
         # Update last_updated timestamp
-        post.metadata['last_updated'] = datetime.utcnow().isoformat() + 'Z'
+        post.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
 
         # Write back
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(post))
 
         return True
@@ -108,12 +99,7 @@ def update_project_field(
         return False
 
 
-def add_agent_note(
-    project_path: str,
-    agent: str,
-    note: str,
-    base_path: str = None
-) -> bool:
+def add_agent_note(project_path: str, agent: str, note: str, base_path: str = None) -> bool:
     """
     Add a timestamped note to the Agent Notes section of AGENCY.md.
 
@@ -140,7 +126,7 @@ def add_agent_note(
             return False
 
         # Read the file
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
 
         # Get current timestamp
@@ -169,10 +155,10 @@ def add_agent_note(
         post.content = content
 
         # Update last_updated
-        post.metadata['last_updated'] = datetime.utcnow().isoformat() + 'Z'
+        post.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
 
         # Write back
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(post))
 
         return True
@@ -192,19 +178,13 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="list_projects",
             description="List all projects in the hive with their metadata",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="get_ready_work",
             description="Get projects that are ready for an agent to claim "
-                       "(active, not blocked, no owner, dependencies met)",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
+            "(active, not blocked, no owner, dependencies met)",
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="get_project",
@@ -212,13 +192,10 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "project_id": {
-                        "type": "string",
-                        "description": "The project ID to retrieve"
-                    }
+                    "project_id": {"type": "string", "description": "The project ID to retrieve"}
                 },
-                "required": ["project_id"]
-            }
+                "required": ["project_id"],
+            },
         ),
         Tool(
             name="claim_project",
@@ -226,17 +203,14 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "project_id": {
-                        "type": "string",
-                        "description": "The project ID to claim"
-                    },
+                    "project_id": {"type": "string", "description": "The project ID to claim"},
                     "agent_name": {
                         "type": "string",
-                        "description": "The agent name (e.g., 'claude-3.5-sonnet')"
-                    }
+                        "description": "The agent name (e.g., 'claude-3.5-sonnet')",
+                    },
                 },
-                "required": ["project_id", "agent_name"]
-            }
+                "required": ["project_id", "agent_name"],
+            },
         ),
         Tool(
             name="release_project",
@@ -244,33 +218,26 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "project_id": {
-                        "type": "string",
-                        "description": "The project ID to release"
-                    }
+                    "project_id": {"type": "string", "description": "The project ID to release"}
                 },
-                "required": ["project_id"]
-            }
+                "required": ["project_id"],
+            },
         ),
         Tool(
             name="update_status",
-            description="Update the status of a project "
-                       "(active, pending, blocked, completed)",
+            description="Update the status of a project " "(active, pending, blocked, completed)",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "project_id": {
-                        "type": "string",
-                        "description": "The project ID to update"
-                    },
+                    "project_id": {"type": "string", "description": "The project ID to update"},
                     "status": {
                         "type": "string",
                         "description": "New status (active, pending, blocked, completed)",
-                        "enum": ["active", "pending", "blocked", "completed"]
-                    }
+                        "enum": ["active", "pending", "blocked", "completed"],
+                    },
                 },
-                "required": ["project_id", "status"]
-            }
+                "required": ["project_id", "status"],
+            },
         ),
         Tool(
             name="add_note",
@@ -280,19 +247,16 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "project_id": {
                         "type": "string",
-                        "description": "The project ID to add a note to"
+                        "description": "The project ID to add a note to",
                     },
                     "agent": {
                         "type": "string",
-                        "description": "The agent name (e.g., 'claude-3.5-sonnet')"
+                        "description": "The agent name (e.g., 'claude-3.5-sonnet')",
                     },
-                    "note": {
-                        "type": "string",
-                        "description": "The note content"
-                    }
+                    "note": {"type": "string", "description": "The note content"},
                 },
-                "required": ["project_id", "agent", "note"]
-            }
+                "required": ["project_id", "agent", "note"],
+            },
         ),
         Tool(
             name="get_dependencies",
@@ -302,27 +266,21 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "project_id": {
                         "type": "string",
-                        "description": "The project ID to get dependencies for"
+                        "description": "The project ID to get dependencies for",
                     }
                 },
-                "required": ["project_id"]
-            }
+                "required": ["project_id"],
+            },
         ),
         Tool(
             name="get_dependency_graph",
             description="Get the full dependency graph for all projects",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="coordinator_status",
             description="Check if the coordination server is available and get its status",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
+            inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="coordinator_claim",
@@ -330,22 +288,19 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "project_id": {
-                        "type": "string",
-                        "description": "The project ID to claim"
-                    },
+                    "project_id": {"type": "string", "description": "The project ID to claim"},
                     "agent_name": {
                         "type": "string",
-                        "description": "The agent name claiming the project"
+                        "description": "The agent name claiming the project",
                     },
                     "ttl_seconds": {
                         "type": "integer",
                         "description": "Time-to-live for the claim in seconds (default: 3600)",
-                        "default": 3600
-                    }
+                        "default": 3600,
+                    },
                 },
-                "required": ["project_id", "agent_name"]
-            }
+                "required": ["project_id", "agent_name"],
+            },
         ),
         Tool(
             name="coordinator_release",
@@ -353,21 +308,15 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "project_id": {
-                        "type": "string",
-                        "description": "The project ID to release"
-                    }
+                    "project_id": {"type": "string", "description": "The project ID to release"}
                 },
-                "required": ["project_id"]
-            }
+                "required": ["project_id"],
+            },
         ),
         Tool(
             name="coordinator_reservations",
             description="Get all active reservations from the coordination server",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
+            inputSchema={"type": "object", "properties": {}},
         ),
     ]
 
@@ -389,10 +338,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             projects = cortex.discover_projects()
             result = format_response(
                 success=True,
-                data={
-                    "count": len(projects),
-                    "projects": [format_project(p) for p in projects]
-                }
+                data={"count": len(projects), "projects": [format_project(p) for p in projects]},
             )
 
         elif name == "get_ready_work":
@@ -400,10 +346,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             ready = cortex.ready_work(projects)
             result = format_response(
                 success=True,
-                data={
-                    "count": len(ready),
-                    "projects": [format_project(p) for p in ready]
-                }
+                data={"count": len(ready), "projects": [format_project(p) for p in ready]},
             )
 
         elif name == "get_project":
@@ -420,8 +363,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     result = format_response(success=True, data=project_data)
                 else:
                     result = format_response(
-                        success=False,
-                        error=f"Project '{project_id}' not found"
+                        success=False, error=f"Project '{project_id}' not found"
                     )
 
         elif name == "claim_project":
@@ -430,8 +372,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
             if not project_id or not agent_name:
                 result = format_response(
-                    success=False,
-                    error="project_id and agent_name are required"
+                    success=False, error="project_id and agent_name are required"
                 )
             else:
                 projects = cortex.discover_projects()
@@ -439,31 +380,21 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
                 if not project:
                     result = format_response(
-                        success=False,
-                        error=f"Project '{project_id}' not found"
+                        success=False, error=f"Project '{project_id}' not found"
                     )
                 elif project["metadata"].get("owner") is not None:
                     result = format_response(
                         success=False,
-                        error=f"Project already claimed by {project['metadata']['owner']}"
+                        error=f"Project already claimed by {project['metadata']['owner']}",
                     )
                 else:
-                    success = update_project_field(
-                        project["path"],
-                        "owner",
-                        agent_name,
-                        base_path
-                    )
+                    success = update_project_field(project["path"], "owner", agent_name, base_path)
                     if success:
                         result = format_response(
-                            success=True,
-                            data={"project_id": project_id, "owner": agent_name}
+                            success=True, data={"project_id": project_id, "owner": agent_name}
                         )
                     else:
-                        result = format_response(
-                            success=False,
-                            error="Failed to update project"
-                        )
+                        result = format_response(success=False, error="Failed to update project")
 
         elif name == "release_project":
             project_id = arguments.get("project_id")
@@ -476,40 +407,27 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
                 if not project:
                     result = format_response(
-                        success=False,
-                        error=f"Project '{project_id}' not found"
+                        success=False, error=f"Project '{project_id}' not found"
                     )
                 else:
-                    success = update_project_field(
-                        project["path"],
-                        "owner",
-                        None,
-                        base_path
-                    )
+                    success = update_project_field(project["path"], "owner", None, base_path)
                     if success:
                         result = format_response(
-                            success=True,
-                            data={"project_id": project_id, "owner": None}
+                            success=True, data={"project_id": project_id, "owner": None}
                         )
                     else:
-                        result = format_response(
-                            success=False,
-                            error="Failed to update project"
-                        )
+                        result = format_response(success=False, error="Failed to update project")
 
         elif name == "update_status":
             project_id = arguments.get("project_id")
             status = arguments.get("status")
 
             if not project_id or not status:
-                result = format_response(
-                    success=False,
-                    error="project_id and status are required"
-                )
+                result = format_response(success=False, error="project_id and status are required")
             elif status not in ["active", "pending", "blocked", "completed"]:
                 result = format_response(
                     success=False,
-                    error="status must be one of: active, pending, blocked, completed"
+                    error="status must be one of: active, pending, blocked, completed",
                 )
             else:
                 projects = cortex.discover_projects()
@@ -517,26 +435,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
                 if not project:
                     result = format_response(
-                        success=False,
-                        error=f"Project '{project_id}' not found"
+                        success=False, error=f"Project '{project_id}' not found"
                     )
                 else:
-                    success = update_project_field(
-                        project["path"],
-                        "status",
-                        status,
-                        base_path
-                    )
+                    success = update_project_field(project["path"], "status", status, base_path)
                     if success:
                         result = format_response(
-                            success=True,
-                            data={"project_id": project_id, "status": status}
+                            success=True, data={"project_id": project_id, "status": status}
                         )
                     else:
-                        result = format_response(
-                            success=False,
-                            error="Failed to update project"
-                        )
+                        result = format_response(success=False, error="Failed to update project")
 
         elif name == "add_note":
             project_id = arguments.get("project_id")
@@ -545,8 +453,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
             if not project_id or not agent or not note:
                 result = format_response(
-                    success=False,
-                    error="project_id, agent, and note are required"
+                    success=False, error="project_id, agent, and note are required"
                 )
             else:
                 projects = cortex.discover_projects()
@@ -554,26 +461,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
                 if not project:
                     result = format_response(
-                        success=False,
-                        error=f"Project '{project_id}' not found"
+                        success=False, error=f"Project '{project_id}' not found"
                     )
                 else:
-                    success = add_agent_note(
-                        project["path"],
-                        agent,
-                        note,
-                        base_path
-                    )
+                    success = add_agent_note(project["path"], agent, note, base_path)
                     if success:
                         result = format_response(
-                            success=True,
-                            data={"project_id": project_id, "note_added": True}
+                            success=True, data={"project_id": project_id, "note_added": True}
                         )
                     else:
-                        result = format_response(
-                            success=False,
-                            error="Failed to add note"
-                        )
+                        result = format_response(success=False, error="Failed to add note")
 
         elif name == "get_dependencies":
             project_id = arguments.get("project_id")
@@ -586,8 +483,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
                 if not blocking_info:
                     result = format_response(
-                        success=False,
-                        error=f"Project '{project_id}' not found"
+                        success=False, error=f"Project '{project_id}' not found"
                     )
                 else:
                     result = format_response(success=True, data=blocking_info)
@@ -602,10 +498,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             if not coordinator:
                 result = format_response(
                     success=True,
-                    data={
-                        "available": False,
-                        "reason": "COORDINATOR_URL not configured"
-                    }
+                    data={"available": False, "reason": "COORDINATOR_URL not configured"},
                 )
             else:
                 try:
@@ -616,8 +509,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             data={
                                 "available": True,
                                 "url": coordinator.base_url,
-                                "active_claims": reservations.get("count", 0)
-                            }
+                                "active_claims": reservations.get("count", 0),
+                            },
                         )
                     else:
                         result = format_response(
@@ -625,17 +518,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             data={
                                 "available": False,
                                 "url": coordinator.base_url,
-                                "reason": "Server not responding"
-                            }
+                                "reason": "Server not responding",
+                            },
                         )
                 except CoordinatorUnavailable as e:
                     result = format_response(
                         success=True,
-                        data={
-                            "available": False,
-                            "url": coordinator.base_url,
-                            "reason": str(e)
-                        }
+                        data={"available": False, "url": coordinator.base_url, "reason": str(e)},
                     )
 
         elif name == "coordinator_claim":
@@ -645,22 +534,18 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
             if not project_id or not agent_name:
                 result = format_response(
-                    success=False,
-                    error="project_id and agent_name are required"
+                    success=False, error="project_id and agent_name are required"
                 )
             else:
                 coordinator = get_coordinator_client()
                 if not coordinator:
                     result = format_response(
-                        success=False,
-                        error="Coordinator not configured (COORDINATOR_URL not set)"
+                        success=False, error="Coordinator not configured (COORDINATOR_URL not set)"
                     )
                 else:
                     try:
                         claim_result = coordinator.try_claim(
-                            project_id=project_id,
-                            agent_name=agent_name,
-                            ttl_seconds=ttl_seconds
+                            project_id=project_id, agent_name=agent_name, ttl_seconds=ttl_seconds
                         )
                         if claim_result.success:
                             result = format_response(
@@ -669,19 +554,18 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                                     "claim_id": claim_result.claim_id,
                                     "project_id": claim_result.project_id,
                                     "agent_name": claim_result.agent_name,
-                                    "expires_at": claim_result.expires_at
-                                }
+                                    "expires_at": claim_result.expires_at,
+                                },
                             )
                         else:
                             result = format_response(
                                 success=False,
                                 error=claim_result.error,
-                                data={"current_owner": claim_result.current_owner}
+                                data={"current_owner": claim_result.current_owner},
                             )
                     except CoordinatorUnavailable as e:
                         result = format_response(
-                            success=False,
-                            error=f"Coordinator unavailable: {e}"
+                            success=False, error=f"Coordinator unavailable: {e}"
                         )
 
         elif name == "coordinator_release":
@@ -693,38 +577,31 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 coordinator = get_coordinator_client()
                 if not coordinator:
                     result = format_response(
-                        success=False,
-                        error="Coordinator not configured (COORDINATOR_URL not set)"
+                        success=False, error="Coordinator not configured (COORDINATOR_URL not set)"
                     )
                 else:
                     try:
                         released = coordinator.release(project_id)
                         result = format_response(
-                            success=True,
-                            data={"project_id": project_id, "released": released}
+                            success=True, data={"project_id": project_id, "released": released}
                         )
                     except CoordinatorUnavailable as e:
                         result = format_response(
-                            success=False,
-                            error=f"Coordinator unavailable: {e}"
+                            success=False, error=f"Coordinator unavailable: {e}"
                         )
 
         elif name == "coordinator_reservations":
             coordinator = get_coordinator_client()
             if not coordinator:
                 result = format_response(
-                    success=False,
-                    error="Coordinator not configured (COORDINATOR_URL not set)"
+                    success=False, error="Coordinator not configured (COORDINATOR_URL not set)"
                 )
             else:
                 try:
                     reservations = coordinator.get_all_reservations()
                     result = format_response(success=True, data=reservations)
                 except CoordinatorUnavailable as e:
-                    result = format_response(
-                        success=False,
-                        error=f"Coordinator unavailable: {e}"
-                    )
+                    result = format_response(success=False, error=f"Coordinator unavailable: {e}")
 
         else:
             result = format_response(success=False, error=f"Unknown tool: {name}")

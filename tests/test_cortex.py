@@ -1,4 +1,5 @@
 """Tests for the Cortex orchestration engine."""
+
 # pylint: disable=unused-argument,import-error,wrong-import-position
 
 import sys
@@ -10,7 +11,7 @@ from unittest.mock import Mock, patch
 import frontmatter
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from cortex import Cortex
 
@@ -64,11 +65,11 @@ class TestReadGlobalContext:
         global_ctx = cortex.read_global_context()
 
         assert global_ctx is not None
-        assert 'metadata' in global_ctx
-        assert 'content' in global_ctx
-        assert 'path' in global_ctx
-        assert global_ctx['metadata']['status'] == 'active'
-        assert global_ctx['metadata']['version'] == '1.0.0'
+        assert "metadata" in global_ctx
+        assert "content" in global_ctx
+        assert "path" in global_ctx
+        assert global_ctx["metadata"]["status"] == "active"
+        assert global_ctx["metadata"]["version"] == "1.0.0"
 
     def test_read_global_context_missing_file(self, temp_hive_dir):
         """Test reading GLOBAL.md when file doesn't exist."""
@@ -102,9 +103,9 @@ class TestDiscoverProjects:
         projects = cortex.discover_projects()
 
         assert len(projects) == 1
-        assert projects[0]['project_id'] == 'test-project'
-        assert projects[0]['metadata']['status'] == 'active'
-        assert projects[0]['metadata']['priority'] == 'high'
+        assert projects[0]["project_id"] == "test-project"
+        assert projects[0]["metadata"]["status"] == "active"
+        assert projects[0]["metadata"]["priority"] == "high"
 
     def test_discover_multiple_projects(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test discovering multiple projects."""
@@ -112,9 +113,9 @@ class TestDiscoverProjects:
         projects = cortex.discover_projects()
 
         assert len(projects) == 2
-        project_ids = [p['project_id'] for p in projects]
-        assert 'test-project' in project_ids
-        assert 'blocked-project' in project_ids
+        project_ids = [p["project_id"] for p in projects]
+        assert "test-project" in project_ids
+        assert "blocked-project" in project_ids
 
     def test_discover_no_projects_dir(self, temp_hive_dir):
         """Test discovering projects when directory doesn't exist."""
@@ -196,7 +197,7 @@ class TestCallLLM:
         """Test successful LLM call."""
         cortex = Cortex(temp_hive_dir)
 
-        with patch('cortex.requests.post') as mock_post:
+        with patch("cortex.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = sample_api_response
             mock_response.raise_for_status = Mock()
@@ -205,9 +206,9 @@ class TestCallLLM:
             result = cortex.call_llm("Test prompt")
 
             assert result is not None
-            assert 'summary' in result
-            assert 'blocked_tasks' in result
-            assert result['summary'] == "System is running well with 2 active projects"
+            assert "summary" in result
+            assert "blocked_tasks" in result
+            assert result["summary"] == "System is running well with 2 active projects"
 
     def test_call_llm_without_api_key(self, temp_hive_dir, monkeypatch):
         """Test LLM call without API key."""
@@ -225,15 +226,11 @@ class TestCallLLM:
 
         markdown_response = {
             "choices": [
-                {
-                    "message": {
-                        "content": f"```json\n{json.dumps(sample_llm_response)}\n```"
-                    }
-                }
+                {"message": {"content": f"```json\n{json.dumps(sample_llm_response)}\n```"}}
             ]
         }
 
-        with patch('cortex.requests.post') as mock_post:
+        with patch("cortex.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = markdown_response
             mock_response.raise_for_status = Mock()
@@ -242,13 +239,13 @@ class TestCallLLM:
             result = cortex.call_llm("Test prompt")
 
             assert result is not None
-            assert result['summary'] == "System is running well with 2 active projects"
+            assert result["summary"] == "System is running well with 2 active projects"
 
     def test_call_llm_network_error(self, temp_hive_dir, mock_env_vars):
         """Test LLM call with network error."""
         cortex = Cortex(temp_hive_dir)
 
-        with patch('cortex.requests.post') as mock_post:
+        with patch("cortex.requests.post") as mock_post:
             mock_post.side_effect = Exception("Network error")
 
             result = cortex.call_llm("Test prompt")
@@ -258,17 +255,9 @@ class TestCallLLM:
         """Test LLM call with invalid JSON response."""
         cortex = Cortex(temp_hive_dir)
 
-        invalid_response = {
-            "choices": [
-                {
-                    "message": {
-                        "content": "This is not valid JSON"
-                    }
-                }
-            ]
-        }
+        invalid_response = {"choices": [{"message": {"content": "This is not valid JSON"}}]}
 
-        with patch('cortex.requests.post') as mock_post:
+        with patch("cortex.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = invalid_response
             mock_response.raise_for_status = Mock()
@@ -283,7 +272,7 @@ class TestCallLLM:
 
         invalid_response = {"error": "No choices"}
 
-        with patch('cortex.requests.post') as mock_post:
+        with patch("cortex.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = invalid_response
             mock_response.raise_for_status = Mock()
@@ -311,7 +300,7 @@ class TestApplyStateUpdates:
                 "file": "projects/test-project/AGENCY.md",
                 "field": "status",
                 "value": "completed",
-                "reason": "All tasks finished"
+                "reason": "All tasks finished",
             }
         ]
 
@@ -319,10 +308,10 @@ class TestApplyStateUpdates:
         assert result is True
 
         # Verify the update was applied
-        with open(temp_project, 'r', encoding='utf-8') as f:
+        with open(temp_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
-            assert post.metadata['status'] == 'completed'
-            assert 'last_updated' in post.metadata
+            assert post.metadata["status"] == "completed"
+            assert "last_updated" in post.metadata
 
     def test_apply_multiple_updates(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test applying multiple state updates."""
@@ -333,27 +322,27 @@ class TestApplyStateUpdates:
                 "file": "projects/test-project/AGENCY.md",
                 "field": "priority",
                 "value": "low",
-                "reason": "Deprioritized"
+                "reason": "Deprioritized",
             },
             {
                 "file": "projects/blocked-project/AGENCY.md",
                 "field": "blocked",
                 "value": False,
-                "reason": "Unblocked"
-            }
+                "reason": "Unblocked",
+            },
         ]
 
         result = cortex.apply_state_updates(updates)
         assert result is True
 
         # Verify both updates were applied
-        with open(temp_project, 'r', encoding='utf-8') as f:
+        with open(temp_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
-            assert post.metadata['priority'] == 'low'
+            assert post.metadata["priority"] == "low"
 
-        with open(temp_blocked_project, 'r', encoding='utf-8') as f:
+        with open(temp_blocked_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
-            assert post.metadata['blocked'] is False
+            assert post.metadata["blocked"] is False
 
     def test_apply_update_nonexistent_file(self, temp_hive_dir):
         """Test applying update to non-existent file."""
@@ -364,7 +353,7 @@ class TestApplyStateUpdates:
                 "file": "projects/nonexistent/AGENCY.md",
                 "field": "status",
                 "value": "active",
-                "reason": "Test"
+                "reason": "Test",
             }
         ]
 
@@ -377,12 +366,7 @@ class TestApplyStateUpdates:
         cortex = Cortex(temp_hive_dir)
 
         updates = [
-            {
-                "file": temp_project,
-                "field": "status",
-                "value": "completed",
-                "reason": "Test"
-            }
+            {"file": temp_project, "field": "status", "value": "completed", "reason": "Test"}
         ]
 
         result = cortex.apply_state_updates(updates)
@@ -397,12 +381,7 @@ class TestApplyStateUpdates:
         external_file.write_text("---\ntest: value\n---\nContent")
 
         updates = [
-            {
-                "file": str(external_file),
-                "field": "status",
-                "value": "hacked",
-                "reason": "Test"
-            }
+            {"file": str(external_file), "field": "status", "value": "hacked", "reason": "Test"}
         ]
 
         result = cortex.apply_state_updates(updates)
@@ -439,7 +418,7 @@ class TestCortexRun:
         """Test successful cortex run."""
         cortex = Cortex(temp_hive_dir)
 
-        with patch('cortex.requests.post') as mock_post:
+        with patch("cortex.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = sample_api_response
             mock_response.raise_for_status = Mock()
@@ -450,9 +429,9 @@ class TestCortexRun:
 
             # Verify GLOBAL.md was updated with last_cortex_run
             global_file = Path(temp_hive_dir) / "GLOBAL.md"
-            with open(global_file, 'r', encoding='utf-8') as f:
+            with open(global_file, "r", encoding="utf-8") as f:
                 post = frontmatter.load(f)
-                assert post.metadata['last_cortex_run'] is not None
+                assert post.metadata["last_cortex_run"] is not None
 
     def test_run_with_state_updates(
         self, temp_hive_dir, temp_project, mock_env_vars, sample_llm_response
@@ -462,26 +441,18 @@ class TestCortexRun:
 
         # Add state updates to the response
         response_with_updates = sample_llm_response.copy()
-        response_with_updates['state_updates'] = [
+        response_with_updates["state_updates"] = [
             {
                 "file": "projects/test-project/AGENCY.md",
                 "field": "status",
                 "value": "completed",
-                "reason": "All tasks done"
+                "reason": "All tasks done",
             }
         ]
 
-        api_response = {
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps(response_with_updates)
-                    }
-                }
-            ]
-        }
+        api_response = {"choices": [{"message": {"content": json.dumps(response_with_updates)}}]}
 
-        with patch('cortex.requests.post') as mock_post:
+        with patch("cortex.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = api_response
             mock_response.raise_for_status = Mock()
@@ -491,15 +462,15 @@ class TestCortexRun:
             assert result is True
 
             # Verify state was updated
-            with open(temp_project, 'r', encoding='utf-8') as f:
+            with open(temp_project, "r", encoding="utf-8") as f:
                 post = frontmatter.load(f)
-                assert post.metadata['status'] == 'completed'
+                assert post.metadata["status"] == "completed"
 
     def test_run_handles_llm_failure(self, temp_hive_dir, temp_project, mock_env_vars):
         """Test cortex run handles LLM call failures gracefully."""
         cortex = Cortex(temp_hive_dir)
 
-        with patch('cortex.requests.post') as mock_post:
+        with patch("cortex.requests.post") as mock_post:
             mock_post.side_effect = Exception("API Error")
 
             result = cortex.run()
@@ -526,7 +497,7 @@ class TestHasUnresolvedBlockers:
         projects = cortex.discover_projects()
 
         # Find the dependent project
-        dependent = next(p for p in projects if p['project_id'] == 'dependent-project')
+        dependent = next(p for p in projects if p["project_id"] == "dependent-project")
 
         result = cortex.has_unresolved_blockers(dependent, projects)
         assert result is False
@@ -539,7 +510,7 @@ class TestHasUnresolvedBlockers:
         projects = cortex.discover_projects()
 
         # Find the dependent project
-        dependent = next(p for p in projects if p['project_id'] == 'dependent-project')
+        dependent = next(p for p in projects if p["project_id"] == "dependent-project")
 
         result = cortex.has_unresolved_blockers(dependent, projects)
         assert result is True
@@ -566,7 +537,7 @@ class TestReadyWork:
         ready = cortex.ready_work()
 
         assert len(ready) == 1
-        assert ready[0]['project_id'] == 'test-project'
+        assert ready[0]["project_id"] == "test-project"
 
     def test_ready_work_excludes_blocked_projects(
         self, temp_hive_dir, temp_project, temp_blocked_project
@@ -577,7 +548,7 @@ class TestReadyWork:
 
         # Should only find test-project, not blocked-project
         assert len(ready) == 1
-        assert ready[0]['project_id'] == 'test-project'
+        assert ready[0]["project_id"] == "test-project"
 
     def test_ready_work_excludes_claimed_projects(
         self, temp_hive_dir, temp_project, temp_claimed_project
@@ -588,7 +559,7 @@ class TestReadyWork:
 
         # Should only find test-project, not claimed-project
         assert len(ready) == 1
-        assert ready[0]['project_id'] == 'test-project'
+        assert ready[0]["project_id"] == "test-project"
 
     def test_ready_work_excludes_projects_with_unresolved_deps(
         self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project_incomplete
@@ -597,11 +568,11 @@ class TestReadyWork:
         cortex = Cortex(temp_hive_dir)
         ready = cortex.ready_work()
 
-        project_ids = [p['project_id'] for p in ready]
+        project_ids = [p["project_id"] for p in ready]
         # prereq-project is active but unclaimed, so it should be ready
         # dependent-project has unresolved dep, so should not be ready
-        assert 'prereq-project' in project_ids
-        assert 'dependent-project' not in project_ids
+        assert "prereq-project" in project_ids
+        assert "dependent-project" not in project_ids
 
     def test_ready_work_includes_projects_with_resolved_deps(
         self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project
@@ -610,15 +581,13 @@ class TestReadyWork:
         cortex = Cortex(temp_hive_dir)
         ready = cortex.ready_work()
 
-        project_ids = [p['project_id'] for p in ready]
+        project_ids = [p["project_id"] for p in ready]
         # prereq-project is completed, so not ready (status != active)
         # dependent-project has resolved dep and is active, so should be ready
-        assert 'dependent-project' in project_ids
-        assert 'prereq-project' not in project_ids
+        assert "dependent-project" in project_ids
+        assert "prereq-project" not in project_ids
 
-    def test_ready_work_returns_empty_when_all_blocked(
-        self, temp_hive_dir, temp_blocked_project
-    ):
+    def test_ready_work_returns_empty_when_all_blocked(self, temp_hive_dir, temp_blocked_project):
         """Test ready_work returns empty list when all projects blocked."""
         cortex = Cortex(temp_hive_dir)
         ready = cortex.ready_work()
@@ -633,7 +602,7 @@ class TestReadyWork:
         ready = cortex.ready_work(projects)
 
         assert len(ready) == 1
-        assert ready[0]['project_id'] == 'test-project'
+        assert ready[0]["project_id"] == "test-project"
 
 
 class TestReadyWorkFormatters:
@@ -647,15 +616,15 @@ class TestReadyWorkFormatters:
         json_output = cortex.format_ready_work_json(ready)
         data = json.loads(json_output)
 
-        assert 'timestamp' in data
-        assert 'count' in data
-        assert 'projects' in data
-        assert data['count'] == 1
-        assert len(data['projects']) == 1
-        assert data['projects'][0]['project_id'] == 'test-project'
-        assert 'priority' in data['projects'][0]
-        assert 'tags' in data['projects'][0]
-        assert 'path' in data['projects'][0]
+        assert "timestamp" in data
+        assert "count" in data
+        assert "projects" in data
+        assert data["count"] == 1
+        assert len(data["projects"]) == 1
+        assert data["projects"][0]["project_id"] == "test-project"
+        assert "priority" in data["projects"][0]
+        assert "tags" in data["projects"][0]
+        assert "path" in data["projects"][0]
 
     def test_format_ready_work_json_empty(self, temp_hive_dir):
         """Test JSON output with no ready projects."""
@@ -664,8 +633,8 @@ class TestReadyWorkFormatters:
         json_output = cortex.format_ready_work_json([])
         data = json.loads(json_output)
 
-        assert data['count'] == 0
-        assert len(data['projects']) == 0
+        assert data["count"] == 0
+        assert len(data["projects"]) == 0
 
     def test_format_ready_work_text_structure(self, temp_hive_dir, temp_project):
         """Test text output has correct structure."""
@@ -674,10 +643,10 @@ class TestReadyWorkFormatters:
 
         text_output = cortex.format_ready_work_text(ready)
 
-        assert 'READY WORK' in text_output
-        assert 'test-project' in text_output
-        assert 'Priority: high' in text_output
-        assert 'Tags: test, backend' in text_output
+        assert "READY WORK" in text_output
+        assert "test-project" in text_output
+        assert "Priority: high" in text_output
+        assert "Tags: test, backend" in text_output
 
     def test_format_ready_work_text_empty(self, temp_hive_dir):
         """Test text output with no ready projects."""
@@ -685,8 +654,8 @@ class TestReadyWorkFormatters:
 
         text_output = cortex.format_ready_work_text([])
 
-        assert 'Found 0 project(s)' in text_output
-        assert 'No projects ready' in text_output
+        assert "Found 0 project(s)" in text_output
+        assert "No projects ready" in text_output
 
     def test_format_ready_work_text_sorts_by_priority(
         self, temp_hive_dir, temp_project, temp_blocked_project
@@ -694,6 +663,7 @@ class TestReadyWorkFormatters:
         """Test that text output sorts projects by priority."""
         # Create a low-priority ready project
         from pathlib import Path as PathLib
+
         project_dir = PathLib(temp_hive_dir) / "projects" / "low-prio"
         project_dir.mkdir(parents=True)
 
@@ -704,11 +674,11 @@ class TestReadyWorkFormatters:
             owner=None,
             blocked=False,
             priority="low",
-            tags=[]
+            tags=[],
         )
 
         agency_file = project_dir / "AGENCY.md"
-        with open(agency_file, 'w', encoding='utf-8') as f:
+        with open(agency_file, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(agency_content))
 
         cortex = Cortex(temp_hive_dir)
@@ -717,8 +687,8 @@ class TestReadyWorkFormatters:
         text_output = cortex.format_ready_work_text(ready)
 
         # High priority should appear before low priority
-        high_pos = text_output.find('test-project')
-        low_pos = text_output.find('low-prio')
+        high_pos = text_output.find("test-project")
+        low_pos = text_output.find("low-prio")
         assert high_pos < low_pos
 
 
@@ -733,8 +703,8 @@ class TestRunReady:
 
         assert result is True
         captured = capsys.readouterr()
-        assert 'READY WORK' in captured.out
-        assert 'test-project' in captured.out
+        assert "READY WORK" in captured.out
+        assert "test-project" in captured.out
 
     def test_run_ready_json_output(self, temp_hive_dir, temp_project, capsys):
         """Test run_ready with JSON output."""
@@ -745,8 +715,8 @@ class TestRunReady:
         assert result is True
         captured = capsys.readouterr()
         data = json.loads(captured.out)
-        assert data['count'] == 1
-        assert data['projects'][0]['project_id'] == 'test-project'
+        assert data["count"] == 1
+        assert data["projects"][0]["project_id"] == "test-project"
 
 
 class TestBuildDependencyGraph:
@@ -758,12 +728,12 @@ class TestBuildDependencyGraph:
         projects = cortex.discover_projects()
         graph = cortex.build_dependency_graph(projects)
 
-        assert 'nodes' in graph
-        assert 'edges' in graph
-        assert 'reverse_edges' in graph
-        assert 'test-project' in graph['nodes']
-        assert graph['edges']['test-project'] == []
-        assert graph['reverse_edges']['test-project'] == []
+        assert "nodes" in graph
+        assert "edges" in graph
+        assert "reverse_edges" in graph
+        assert "test-project" in graph["nodes"]
+        assert graph["edges"]["test-project"] == []
+        assert graph["reverse_edges"]["test-project"] == []
 
     def test_build_graph_with_dependencies(
         self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project
@@ -774,9 +744,9 @@ class TestBuildDependencyGraph:
         graph = cortex.build_dependency_graph(projects)
 
         # prereq-project blocks dependent-project
-        assert 'dependent-project' in graph['edges']['prereq-project']
+        assert "dependent-project" in graph["edges"]["prereq-project"]
         # dependent-project is blocked by prereq-project
-        assert 'prereq-project' in graph['reverse_edges']['dependent-project']
+        assert "prereq-project" in graph["reverse_edges"]["dependent-project"]
 
 
 class TestDetectCycles:
@@ -811,9 +781,9 @@ class TestDetectCycles:
             blocked=False,
             priority="high",
             tags=[],
-            dependencies={"blocked_by": ["project-b"], "blocks": []}
+            dependencies={"blocked_by": ["project-b"], "blocks": []},
         )
-        with open(project_a_dir / "AGENCY.md", 'w', encoding='utf-8') as f:
+        with open(project_a_dir / "AGENCY.md", "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(agency_a))
 
         project_b_dir = PathLib(temp_hive_dir) / "projects" / "project-b"
@@ -826,9 +796,9 @@ class TestDetectCycles:
             blocked=False,
             priority="high",
             tags=[],
-            dependencies={"blocked_by": ["project-a"], "blocks": []}
+            dependencies={"blocked_by": ["project-a"], "blocks": []},
         )
-        with open(project_b_dir / "AGENCY.md", 'w', encoding='utf-8') as f:
+        with open(project_b_dir / "AGENCY.md", "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(agency_b))
 
         cortex = Cortex(temp_hive_dir)
@@ -839,7 +809,7 @@ class TestDetectCycles:
         cycle_projects = set()
         for cycle in cycles:
             cycle_projects.update(cycle)
-        assert 'project-a' in cycle_projects or 'project-b' in cycle_projects
+        assert "project-a" in cycle_projects or "project-b" in cycle_projects
 
 
 class TestIsBlocked:
@@ -848,47 +818,47 @@ class TestIsBlocked:
     def test_unblocked_project(self, temp_hive_dir, temp_project):
         """Test is_blocked for unblocked project."""
         cortex = Cortex(temp_hive_dir)
-        result = cortex.is_blocked('test-project')
+        result = cortex.is_blocked("test-project")
 
-        assert result['is_blocked'] is False
-        assert result['reasons'] == []
-        assert result['blocking_projects'] == []
-        assert result['in_cycle'] is False
+        assert result["is_blocked"] is False
+        assert result["reasons"] == []
+        assert result["blocking_projects"] == []
+        assert result["in_cycle"] is False
 
     def test_blocked_by_flag(self, temp_hive_dir, temp_blocked_project):
         """Test is_blocked for explicitly blocked project."""
         cortex = Cortex(temp_hive_dir)
-        result = cortex.is_blocked('blocked-project')
+        result = cortex.is_blocked("blocked-project")
 
-        assert result['is_blocked'] is True
-        assert 'Explicitly marked as blocked' in result['reasons']
+        assert result["is_blocked"] is True
+        assert "Explicitly marked as blocked" in result["reasons"]
 
     def test_blocked_by_dependency(
         self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project_incomplete
     ):
         """Test is_blocked for project with unresolved dependency."""
         cortex = Cortex(temp_hive_dir)
-        result = cortex.is_blocked('dependent-project')
+        result = cortex.is_blocked("dependent-project")
 
-        assert result['is_blocked'] is True
-        assert 'prereq-project' in result['blocking_projects']
+        assert result["is_blocked"] is True
+        assert "prereq-project" in result["blocking_projects"]
 
     def test_not_blocked_with_resolved_dependency(
         self, temp_hive_dir, temp_project_with_dependency, temp_prereq_project
     ):
         """Test is_blocked for project with resolved dependency."""
         cortex = Cortex(temp_hive_dir)
-        result = cortex.is_blocked('dependent-project')
+        result = cortex.is_blocked("dependent-project")
 
-        assert result['is_blocked'] is False
+        assert result["is_blocked"] is False
 
     def test_unknown_project(self, temp_hive_dir, temp_project):
         """Test is_blocked for unknown project."""
         cortex = Cortex(temp_hive_dir)
-        result = cortex.is_blocked('nonexistent-project')
+        result = cortex.is_blocked("nonexistent-project")
 
-        assert result['is_blocked'] is True
-        assert any('not found' in r for r in result['reasons'])
+        assert result["is_blocked"] is True
+        assert any("not found" in r for r in result["reasons"])
 
 
 class TestGetDependencySummary:
@@ -899,27 +869,27 @@ class TestGetDependencySummary:
         cortex = Cortex(temp_hive_dir)
         summary = cortex.get_dependency_summary()
 
-        assert 'total_projects' in summary
-        assert 'projects' in summary
-        assert 'has_cycles' in summary
-        assert 'cycles' in summary
-        assert summary['total_projects'] == 1
-        assert len(summary['projects']) == 1
+        assert "total_projects" in summary
+        assert "projects" in summary
+        assert "has_cycles" in summary
+        assert "cycles" in summary
+        assert summary["total_projects"] == 1
+        assert len(summary["projects"]) == 1
 
     def test_summary_project_details(self, temp_hive_dir, temp_project):
         """Test summary includes project details."""
         cortex = Cortex(temp_hive_dir)
         summary = cortex.get_dependency_summary()
 
-        proj = summary['projects'][0]
-        assert proj['project_id'] == 'test-project'
-        assert proj['status'] == 'active'
-        assert proj['priority'] == 'high'
-        assert 'blocks' in proj
-        assert 'blocked_by' in proj
-        assert 'effectively_blocked' in proj
-        assert 'blocking_reasons' in proj
-        assert 'in_cycle' in proj
+        proj = summary["projects"][0]
+        assert proj["project_id"] == "test-project"
+        assert proj["status"] == "active"
+        assert proj["priority"] == "high"
+        assert "blocks" in proj
+        assert "blocked_by" in proj
+        assert "effectively_blocked" in proj
+        assert "blocking_reasons" in proj
+        assert "in_cycle" in proj
 
 
 class TestDependencyFormatters:
@@ -932,10 +902,10 @@ class TestDependencyFormatters:
         output = cortex.format_deps_json(summary)
 
         data = json.loads(output)
-        assert 'timestamp' in data
-        assert 'total_projects' in data
-        assert 'has_cycles' in data
-        assert 'projects' in data
+        assert "timestamp" in data
+        assert "total_projects" in data
+        assert "has_cycles" in data
+        assert "projects" in data
 
     def test_format_deps_text(self, temp_hive_dir, temp_project):
         """Test text dependency output."""
@@ -943,9 +913,9 @@ class TestDependencyFormatters:
         summary = cortex.get_dependency_summary()
         output = cortex.format_deps_text(summary)
 
-        assert 'DEPENDENCY GRAPH' in output
-        assert 'test-project' in output
-        assert 'Legend:' in output
+        assert "DEPENDENCY GRAPH" in output
+        assert "test-project" in output
+        assert "Legend:" in output
 
 
 class TestRunDeps:
@@ -958,8 +928,8 @@ class TestRunDeps:
 
         assert result is True
         captured = capsys.readouterr()
-        assert 'DEPENDENCY GRAPH' in captured.out
-        assert 'test-project' in captured.out
+        assert "DEPENDENCY GRAPH" in captured.out
+        assert "test-project" in captured.out
 
     def test_run_deps_json(self, temp_hive_dir, temp_project, capsys):
         """Test run_deps JSON output."""
@@ -969,5 +939,5 @@ class TestRunDeps:
         assert result is True
         captured = capsys.readouterr()
         data = json.loads(captured.out)
-        assert data['total_projects'] == 1
-        assert len(data['projects']) == 1
+        assert data["total_projects"] == 1
+        assert len(data["projects"]) == 1

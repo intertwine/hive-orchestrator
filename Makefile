@@ -44,7 +44,7 @@ install:
 install-dev:
 	@echo "📦 Installing dev dependencies with uv..."
 	@command -v uv >/dev/null 2>&1 || { echo "❌ Error: uv not found. Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
-	uv sync --extra dev
+	uv sync --dev
 	@echo "✅ Dev dependencies installed!"
 
 # Sync dependencies
@@ -105,21 +105,17 @@ session:
 # Run linting
 lint:
 	@echo "🔍 Running pylint..."
-	@uv run pylint src/ || true
+	uv run pylint src/ tests/ --max-line-length=100 --fail-under=9.0
 
 # Format code
 format:
 	@echo "🎨 Formatting code with black..."
-	@uv run black src/ || echo "⚠️  black not installed. Run: make install-dev"
+	uv run black src/ tests/
 
 # Run tests
 test:
 	@echo "🧪 Running tests..."
-	@if [ -d "tests" ]; then \
-		uv run pytest tests/ -v; \
-	else \
-		echo "⚠️  No tests directory found"; \
-	fi
+	uv run pytest tests/ -v
 
 # Clean up
 clean:

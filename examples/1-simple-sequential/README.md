@@ -23,22 +23,11 @@ Perfect for:
 
 ## How to Run
 
-### Method 1: Automated with Cortex
+Agent Hive supports multiple coordination approaches. Choose based on your setup:
 
-```bash
-# Let Cortex orchestrate the agents
-cd /path/to/agent-hive
-uv run python src/cortex.py
-```
+### Method 1: Manual Deep Work Sessions (Any AI Provider)
 
-Cortex will:
-1. Detect the pending project
-2. Assign Agent A (or suggest model)
-3. Wait for completion
-4. Assign Agent B
-5. Mark project complete
-
-### Method 2: Manual Deep Work Sessions
+The simplest approach - works with any AI interface.
 
 ```bash
 # 1. Generate context for Agent A
@@ -56,6 +45,21 @@ make session PROJECT=examples/1-simple-sequential
 # 6. Agent B reads research and implements logger
 ```
 
+### Method 2: Automated with Cortex
+
+```bash
+# Let Cortex orchestrate the agents
+cd /path/to/agent-hive
+uv run python src/cortex.py
+```
+
+Cortex will:
+1. Detect the pending project
+2. Assign Agent A (or suggest model)
+3. Wait for completion
+4. Assign Agent B
+5. Mark project complete
+
 ### Method 3: Dashboard
 
 ```bash
@@ -65,6 +69,85 @@ make dashboard
 # Open http://localhost:8501
 # View project, generate contexts, monitor progress
 ```
+
+### Method 4: MCP Server (Claude Desktop / AI Agents)
+
+For AI agents with MCP support (like Claude Desktop):
+
+```bash
+# Start the MCP server
+uv run python -m hive_mcp
+```
+
+Configure in `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "hive": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "hive_mcp"],
+      "env": { "HIVE_BASE_PATH": "/path/to/agent-hive" }
+    }
+  }
+}
+```
+
+**Agent A workflow (via MCP)**:
+1. `claim_project("simple-sequential-example", "claude-haiku")`
+2. Complete research tasks
+3. `add_note("simple-sequential-example", "claude-haiku", "Research complete")`
+4. `release_project("simple-sequential-example")`
+
+**Agent B workflow (via MCP)**:
+1. `get_ready_work()` → finds available project
+2. `claim_project("simple-sequential-example", "claude-sonnet")`
+3. Implement based on research
+4. `update_status("simple-sequential-example", "completed")`
+5. `release_project("simple-sequential-example")`
+
+### Method 5: HTTP Coordination Server (Real-time Multi-Agent)
+
+For concurrent agents that need real-time conflict prevention:
+
+```bash
+# Terminal 1: Start coordination server
+uv run python -m src.coordinator
+
+# Terminal 2: Agent A claims work
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "simple-sequential-example", "agent_name": "claude-haiku", "ttl_seconds": 1800}'
+
+# ... Agent A works ...
+
+# Agent A releases
+curl -X DELETE http://localhost:8080/release/simple-sequential-example
+
+# Agent B checks availability
+curl http://localhost:8080/status/simple-sequential-example
+
+# Agent B claims
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "simple-sequential-example", "agent_name": "claude-sonnet", "ttl_seconds": 3600}'
+```
+
+### Method 6: Combined MCP + Coordination (Production)
+
+For production deployments, use both MCP (for AGENCY.md updates) and Coordination Server (for real-time locks):
+
+```bash
+# Set environment variable
+export COORDINATOR_URL=http://localhost:8080
+uv run python -m hive_mcp
+```
+
+**Agent workflow**:
+1. `coordinator_claim(...)` - acquire real-time lock
+2. `claim_project(...)` - update AGENCY.md
+3. Do work
+4. `release_project(...)` - update AGENCY.md
+5. `coordinator_release(...)` - release real-time lock
 
 ## Expected Output
 
@@ -111,6 +194,27 @@ Research findings written by Agent A are read by Agent B:
 - [x] Research Python logging best practices  ✓ Agent A
 - [ ] Implement logger module                 ← Agent B next
 ```
+
+### 4. Structured Dependencies
+
+The AGENCY.md includes a `dependencies` field for explicit project relationships:
+
+```yaml
+dependencies:
+  blocked_by: []        # Projects that must complete before this one
+  blocks: []            # Projects waiting on this one
+  parent: null          # Parent epic (optional)
+  related: []           # Non-blocking related projects
+```
+
+For sequential projects that depend on each other:
+```yaml
+# In project-b/AGENCY.md
+dependencies:
+  blocked_by: [project-a]  # Can't start until project-a completes
+```
+
+Use `make deps` to visualize the dependency graph.
 
 ## Tips for Success
 

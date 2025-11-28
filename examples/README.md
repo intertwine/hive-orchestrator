@@ -303,7 +303,11 @@ Multiple models solve same problem → Judge selects best
 
 ## 🛠️ Running Examples
 
+Agent Hive offers multiple approaches for running examples, from manual sessions to fully automated coordination. Choose based on your needs:
+
 ### Option 1: Manual Deep Work Sessions
+
+The simplest approach - generate context and work manually with any AI.
 
 ```bash
 # Generate context for an example
@@ -314,7 +318,11 @@ make session PROJECT=examples/1-simple-sequential
 # Repeat for each agent
 ```
 
+**Best for**: Learning, single-agent work, any AI provider
+
 ### Option 2: Find Ready Work (Fast)
+
+Instant detection of actionable projects without LLM calls.
 
 ```bash
 # Find projects ready for work (no LLM, instant)
@@ -333,7 +341,11 @@ Ready work detection finds projects that are:
 - `owner: null`
 - No incomplete `blocked_by` dependencies
 
+**Best for**: Scripting, fast project discovery, CI/CD integration
+
 ### Option 3: Automated with Cortex
+
+Full orchestration with LLM-based analysis.
 
 ```bash
 # Cortex orchestrates agents automatically
@@ -344,7 +356,11 @@ uv run python src/cortex.py
 # Updates files and commits changes
 ```
 
+**Best for**: Fully automated workflows, scheduled runs via GitHub Actions
+
 ### Option 4: Dashboard
+
+Visual web interface for human oversight.
 
 ```bash
 # Start web UI
@@ -357,17 +373,131 @@ make dashboard
 # See dependency graphs
 ```
 
-### Option 5: MCP Server (AI Agents)
+**Best for**: Human-in-the-loop workflows, monitoring, team collaboration
+
+### Option 5: MCP Server (AI Agent Integration)
+
+Enable AI agents like Claude to interact with Agent Hive programmatically via the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 ```bash
-# Run MCP server for Claude Desktop integration
+# Run MCP server
 uv run python -m hive_mcp
-
-# Claude can then use tools like:
-# - get_ready_work()
-# - claim_project("example-1")
-# - add_note("example-1", "agent", "Started work")
 ```
+
+**Claude Desktop Configuration** (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "hive": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "hive_mcp"],
+      "env": {
+        "HIVE_BASE_PATH": "/path/to/agent-hive",
+        "COORDINATOR_URL": "http://localhost:8080"
+      }
+    }
+  }
+}
+```
+
+**Available MCP Tools**:
+
+| Tool | Description |
+|------|-------------|
+| `list_projects` | List all discovered projects with metadata |
+| `get_ready_work` | Get projects ready for an agent to claim |
+| `get_project` | Get full details of a specific project |
+| `claim_project` | Set owner field to claim work |
+| `release_project` | Set owner to null |
+| `update_status` | Change project status |
+| `add_note` | Append to agent notes section |
+| `get_dependencies` | Get dependency info for a project |
+| `get_dependency_graph` | Get full dependency graph |
+| `coordinator_status` | Check if coordination server is available |
+| `coordinator_claim` | Claim via coordination server (real-time) |
+| `coordinator_release` | Release via coordination server |
+| `coordinator_reservations` | Get all active reservations |
+
+**Best for**: AI agent automation, Claude Desktop, programmatic access
+
+### Option 6: HTTP Coordination Server (Real-time Multi-Agent)
+
+For scenarios where multiple agents need to work concurrently without conflicts, the optional coordination server provides real-time reservation management.
+
+```bash
+# Start coordination server
+uv run python -m src.coordinator
+
+# Default: http://localhost:8080
+# Custom: COORDINATOR_HOST=0.0.0.0 COORDINATOR_PORT=9000 uv run python -m src.coordinator
+```
+
+**API Endpoints**:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check with active claim count |
+| `/claim` | POST | Claim a project (returns 409 if already claimed) |
+| `/release/{project_id}` | DELETE | Release a project claim |
+| `/status/{project_id}` | GET | Check claim status |
+| `/reservations` | GET | List all active reservations |
+| `/extend/{project_id}` | POST | Extend claim TTL |
+
+**Example: Claim a project**:
+
+```bash
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "example-1", "agent_name": "claude-opus", "ttl_seconds": 3600}'
+```
+
+**Response (Success - 200)**:
+```json
+{
+  "success": true,
+  "claim_id": "uuid-here",
+  "project_id": "example-1",
+  "agent_name": "claude-opus",
+  "expires_at": "2025-01-01T12:00:00Z"
+}
+```
+
+**Response (Conflict - 409)**:
+```json
+{
+  "success": false,
+  "error": "Project already claimed",
+  "current_owner": "grok-beta",
+  "expires_at": "2025-01-01T11:00:00Z"
+}
+```
+
+**Key Features**:
+- **TTL-based claims**: Auto-expire after configurable time (default: 1 hour)
+- **Conflict detection**: 409 response prevents double-claiming
+- **Force override**: `?force=true` for admin use
+- **Graceful fallback**: Clients work with git-only when server unavailable
+
+**Best for**: High-concurrency scenarios, real-time multi-agent work, enterprise deployments
+
+---
+
+## 🎯 Choosing Your Approach
+
+| Scenario | Recommended Approach |
+|----------|---------------------|
+| Learning Agent Hive | Manual Sessions (Option 1) |
+| Single agent workflows | Manual Sessions or MCP Server |
+| Parallel multi-agent | Coordination Server (Option 6) |
+| Scheduled automation | Cortex + GitHub Actions (Option 3) |
+| Team collaboration | Dashboard + MCP (Options 4 & 5) |
+| CI/CD integration | Ready Work CLI (Option 2) |
+| Enterprise/production | Coordination Server + MCP |
+
+These options can be combined. For example:
+- Use **MCP Server** + **Coordination Server** for AI agents with real-time conflict prevention
+- Use **Dashboard** + **Ready Work CLI** for human oversight with scripted agent dispatch
 
 ## 📊 Comparison Matrix
 

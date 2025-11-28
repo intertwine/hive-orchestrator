@@ -38,66 +38,91 @@ Perfect for:
 
 ## How to Run
 
-### Method 1: Fully Parallel (Recommended)
+Agent Hive supports multiple coordination approaches for parallel tasks:
+
+### Method 1: Manual Deep Work Sessions (Fully Parallel)
 
 Launch 4 separate AI agent sessions simultaneously:
 
 **Terminal 1: Agent A (Validators)**
 ```bash
-# Generate context for Task A
 make session PROJECT=examples/2-parallel-tasks
-
-# In your AI interface:
-# - Use Claude Haiku 4.5 or similar
-# - Claim Task A in your notes
-# - Build src/validators.py
-# - Mark Task A complete
+# In your AI interface: Claim Task A, build src/validators.py
 ```
 
-**Terminal 2: Agent B (Formatters)**
+**Terminal 2-4: Agents B, C, D** (similar pattern for each task)
+
+### Method 2: MCP Server (Recommended for AI Agents)
+
 ```bash
-# Same project, different task
-make session PROJECT=examples/2-parallel-tasks
-
-# Use different AI session/window
-# - Claim Task B
-# - Build src/formatters.py
-# - Mark Task B complete
+# Start MCP server
+uv run python -m hive_mcp
 ```
 
-**Terminal 3: Agent C (Parsers)**
+**Each agent uses MCP tools**:
+```python
+claim_project("parallel-tasks-example", "claude-haiku")
+# Work on assigned task
+add_note("parallel-tasks-example", "claude-haiku", "Completed Task A")
+release_project("parallel-tasks-example")
+```
+
+### Method 3: HTTP Coordination Server (Best for High Concurrency)
+
+The coordination server provides **real-time conflict prevention** - especially valuable for parallel work.
+
 ```bash
-make session PROJECT=examples/2-parallel-tasks
-# Claim Task C, build src/parsers.py
+# Terminal 1: Start coordination server
+uv run python -m src.coordinator
+
+# Terminal 2-5: Each agent claims their task
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "parallel-tasks-A", "agent_name": "claude-haiku", "ttl_seconds": 1800}'
 ```
 
-**Terminal 4: Agent D (Strings)**
+**Why use coordination for parallel?**
+- **Task-level locking**: Use `parallel-tasks-A`, `parallel-tasks-B`, etc. as separate project IDs
+- **Visibility**: `GET /reservations` shows who's working on what
+- **Conflict detection**: 409 response if someone else claims same task
+- **Auto-expiry**: TTL prevents abandoned locks
+
+**Monitor all agents**:
 ```bash
-make session PROJECT=examples/2-parallel-tasks
-# Claim Task D, build src/strings.py
+curl http://localhost:8080/reservations
+# Returns: {"count": 4, "reservations": [...]}
 ```
 
-### Method 2: Sequential Simulation
+### Method 4: Combined MCP + Coordination (Production)
 
-If you can't run parallel sessions, simulate it by switching between agents:
+Best of both worlds - real-time locks + persistent state updates:
+
+```bash
+export COORDINATOR_URL=http://localhost:8080
+uv run python -m hive_mcp
+```
+
+**Each agent workflow**:
+1. `coordinator_claim("parallel-tasks-A", "agent-name", 1800)` - real-time lock
+2. Work on assigned file
+3. `add_note(...)` - update shared state
+4. `coordinator_release("parallel-tasks-A")` - release lock
+
+### Method 5: Sequential Simulation
+
+If you can't run parallel sessions:
 
 ```bash
 # Round 1: Each agent does 25% of work
-# Agent A: Start validators.py
-# Agent B: Start formatters.py
-# Agent C: Start parsers.py
-# Agent D: Start strings.py
-
 # Round 2: Each continues
 # (Repeat until all complete)
 ```
 
-### Method 3: Automated Orchestration
+### Method 6: Automated Orchestration
 
 ```bash
 # Cortex can dispatch to multiple agents
-# (Requires multi-agent configuration)
-uv run python src/cortex.py --parallel
+uv run python src/cortex.py
 ```
 
 ## Expected Output
@@ -207,15 +232,46 @@ Status: completed  ← All done!
 
 ## Handling Dependencies
 
-What if Task C depends on Task A?
+### Structured Dependency Tracking
 
-### Option 1: Split into Phases
+Agent Hive supports explicit dependencies in AGENCY.md frontmatter:
+
+```yaml
+dependencies:
+  blocked_by: []        # This project waits for these
+  blocks: []            # These projects wait for us
+  parent: null          # Parent epic
+  related: []           # Non-blocking relationships
+```
+
+For parallel tasks with some dependencies, you can model inter-task relationships:
+
+```yaml
+# task-c/AGENCY.md
+dependencies:
+  blocked_by: [task-a]  # C waits for A
+```
+
+Use `make deps` to visualize the dependency graph.
+
+### What if Task C depends on Task A?
+
+**Option 1: Split into Phases**
 ```
 Phase 1 (Parallel): A, B, D
 Phase 2 (After A): C
 ```
 
-### Option 2: Conditional Start
+**Option 2: Use blocked_by**
+```yaml
+# In task-c project
+dependencies:
+  blocked_by: [task-a]
+```
+
+Agent C won't show in `get_ready_work()` until Task A completes.
+
+**Option 3: Conditional Start**
 Agent C checks if Task A is complete before starting:
 ```markdown
 - **Agent C**: Waiting for Task A completion...
@@ -223,7 +279,7 @@ Agent C checks if Task A is complete before starting:
 - **Agent C**: Starting Task C now
 ```
 
-### Option 3: Different Examples
+**Option 4: Different Examples**
 Use Example 1 (Sequential) or Example 3 (Pipeline) for dependent tasks
 
 ## Troubleshooting

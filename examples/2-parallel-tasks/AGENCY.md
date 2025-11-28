@@ -7,6 +7,11 @@ blocked: false
 blocking_reason: null
 priority: medium
 tags: [example, parallel, concurrent, tutorial]
+dependencies:
+  blocked_by: []
+  blocks: []
+  parent: null
+  related: []
 ---
 
 # Parallel Tasks Workflow Example
@@ -74,21 +79,77 @@ Demonstrate concurrent execution where multiple agents work on independent tasks
 ## Agent Notes
 <!-- Add timestamped notes as you work -->
 
-## Coordination Protocol
+## Coordination Approaches
 
-### For Each Agent:
+Parallel tasks benefit especially from the HTTP Coordination Server to prevent conflicts.
 
-1. **Claim your task**: Add a note here with your agent ID and assigned task
+### Approach A: Git-Only (Simple)
+Each agent updates AGENCY.md independently. Works when agents touch different files.
+
+**For Each Agent:**
+1. **Claim your task**: Add a note with your agent ID and assigned task
 2. **Work independently**: No need to wait for other agents
 3. **Update progress**: Mark your subtasks complete as you go
 4. **Add notes**: Document decisions and blockers
-5. **Release when done**: Remove yourself from notes when complete
+5. **Release when done**: Add completion note
+
+### Approach B: MCP Server (Programmatic)
+AI agents use MCP tools for claiming and tracking.
+
+**Each Agent (via MCP)**:
+```
+1. claim_project("parallel-tasks-example", "agent-name")
+2. Do assigned work on your designated file
+3. add_note("parallel-tasks-example", "agent-name", "Completed Task X")
+4. release_project("parallel-tasks-example")
+```
+
+**Coordination Note**: Since agents work on different files, multiple agents can safely claim this project simultaneously. The `owner` field tracks overall project ownership, but Agent Notes track individual task claims.
+
+### Approach C: HTTP Coordination (Recommended for Parallel)
+Use the coordination server to prevent race conditions when multiple agents work concurrently.
+
+**Agent A (Validators)**:
+```bash
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "parallel-tasks-validators", "agent_name": "claude-haiku", "ttl_seconds": 1800}'
+# Work on src/validators.py
+curl -X DELETE http://localhost:8080/release/parallel-tasks-validators
+```
+
+**Agent B (Formatters)**:
+```bash
+curl -X POST http://localhost:8080/claim \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "parallel-tasks-formatters", "agent_name": "claude-haiku", "ttl_seconds": 1800}'
+# Work on src/formatters.py
+curl -X DELETE http://localhost:8080/release/parallel-tasks-formatters
+```
+
+**Tip**: Use task-specific project IDs for fine-grained locking in parallel scenarios.
+
+### Approach D: Combined MCP + Coordination (Production)
+Best for high-concurrency environments:
+
+```bash
+export COORDINATOR_URL=http://localhost:8080
+uv run python -m hive_mcp
+```
+
+**Agent workflow**:
+1. `coordinator_claim("parallel-tasks-A", "claude-haiku", 1800)` - task-level lock
+2. Do work on assigned file
+3. `add_note(...)` - update shared AGENCY.md
+4. `coordinator_release("parallel-tasks-A")` - release lock
+
+**Check all reservations**: `coordinator_reservations()` to see who's working on what.
 
 ### Important Notes:
-- ✅ Tasks are **fully independent** - no coordination needed
-- ✅ Multiple agents can have `owner` field simultaneously (in their notes)
+- ✅ Tasks are **fully independent** - minimal coordination needed
 - ✅ Each agent works on **different files** - no merge conflicts
 - ✅ Project is **complete** when all 4 tasks are done
+- ✅ Use task-specific claim IDs for fine-grained parallel control
 
 ### Example Agent Note:
 ```markdown

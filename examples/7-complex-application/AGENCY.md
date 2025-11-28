@@ -7,6 +7,11 @@ blocked: false
 blocking_reason: null
 priority: high
 tags: [example, complex, full-stack, comprehensive, tutorial]
+dependencies:
+  blocked_by: []
+  blocks: []
+  parent: null
+  related: []
 ---
 
 # Complex Application Example: Task Management API
@@ -369,3 +374,108 @@ This comprehensive example teaches:
 4. **Specialization**: Different agents for different skills
 5. **Production readiness**: Security, testing, documentation
 6. **Real-world patterns**: How actual development teams work
+
+## Coordination Approaches
+
+Complex applications benefit from the full coordination stack. This example demonstrates all patterns.
+
+### Using Structured Dependencies
+
+Model the phase dependencies explicitly:
+
+```yaml
+# phase-2/AGENCY.md (Auth, CRUD, Models - parallel)
+dependencies:
+  blocked_by: [complex-app-phase-1]  # Wait for foundation
+  blocks: [complex-app-phase-3]      # QA waits on us
+
+# phase-3/AGENCY.md (QA - review pipeline)
+dependencies:
+  blocked_by: [complex-app-phase-2-auth, complex-app-phase-2-crud, complex-app-phase-2-models]
+
+# phase-4/AGENCY.md (Documentation)
+dependencies:
+  blocked_by: [complex-app-phase-3]  # Wait for QA approval
+```
+
+Use `make deps` to visualize the full dependency graph.
+
+### Approach A: Git-Only (Traditional Team)
+Use `owner` field and agent notes for coordination. Good for learning, but slower for complex projects.
+
+### Approach B: MCP Server (AI Agents)
+MCP tools provide programmatic coordination for all phases.
+
+**Phase 1 Agents (Sequential)**:
+```
+1. claim_project(...) → do architecture → release_project(...)
+2. claim_project(...) → do schema → release_project(...)
+3. claim_project(...) → do setup → release_project(...)
+```
+
+**Phase 2 Agents (Parallel)**:
+```
+# All three claim simultaneously
+1. claim_project("complex-app-auth", "agent-D")
+2. claim_project("complex-app-crud", "agent-E")
+3. claim_project("complex-app-models", "agent-F")
+# Work in parallel, release when done
+```
+
+**Phase 3 (Review Pipeline)**:
+```
+1. claim_project(...) → write tests → release_project(...)
+2. claim_project(...) → review → add_note(findings) → release_project(...)
+3. claim_project(...) → fix issues → release_project(...)
+4. claim_project(...) → final review → update_status("completed")
+```
+
+### Approach C: HTTP Coordination (Production Team)
+Use coordination server for real-time conflict prevention across all phases.
+
+**Phase-level coordination**:
+```bash
+# Start Phase 1 (sequential within phase)
+curl -X POST http://localhost:8080/claim \
+  -d '{"project_id": "complex-app-phase-1-arch", "agent_name": "architect", "ttl_seconds": 1800}'
+
+# After Phase 1 complete, Phase 2 agents claim in parallel
+curl -X POST http://localhost:8080/claim \
+  -d '{"project_id": "complex-app-phase-2-auth", "agent_name": "auth-dev", "ttl_seconds": 3600}'
+curl -X POST http://localhost:8080/claim \
+  -d '{"project_id": "complex-app-phase-2-crud", "agent_name": "crud-dev", "ttl_seconds": 3600}'
+curl -X POST http://localhost:8080/claim \
+  -d '{"project_id": "complex-app-phase-2-models", "agent_name": "models-dev", "ttl_seconds": 3600}'
+```
+
+**Monitor all agents**:
+```bash
+curl http://localhost:8080/reservations
+# Shows which phases/tasks are claimed and by whom
+```
+
+### Approach D: Combined MCP + Coordination (Enterprise)
+Best for complex multi-phase projects:
+
+**Orchestration pattern**:
+1. Use `get_dependency_graph()` to understand all relationships
+2. Use `get_ready_work()` to find next actionable tasks
+3. Use `coordinator_claim()` for real-time lock
+4. Use `claim_project()` + work + `add_note()` + `release_project()`
+5. Use `coordinator_release()` to signal completion
+6. Repeat until `get_ready_work()` returns empty
+
+**Benefits**:
+- Full visibility via MCP tools
+- Real-time conflict prevention via coordinator
+- Dependency-aware task selection
+- Audit trail in agent notes
+
+### Recommended Coordination by Phase
+
+| Phase | Pattern | Recommended Approach |
+|-------|---------|---------------------|
+| Phase 1 (Foundation) | Sequential | MCP or Git-only |
+| Phase 2 (Features) | Parallel | Coordination Server + MCP |
+| Phase 3 (QA) | Review Pipeline | MCP with iteration tracking |
+| Phase 4 (Docs) | Sequential | MCP or Git-only |

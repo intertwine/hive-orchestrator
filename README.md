@@ -1,6 +1,6 @@
 # 🧠 Agent Hive - Vendor-Agnostic Agent Orchestration OS
 
-[![Cortex Heartbeat](https://github.com/intertwine/hive-orchestrator/actions/workflows/cortex.yml/badge.svg)](https://github.com/intertwine/hive-orchestrator/actions/workflows/cortex.yml)
+[![Cortex Heartbeat](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/cortex.yml?label=Cortex%20Heartbeat)](https://github.com/intertwine/hive-orchestrator/actions/workflows/cortex.yml)
 
 **Agent Hive** is a production-ready orchestration operating system for autonomous AI agents. It enables seamless coordination across different LLM providers (Claude, Grok, Gemini, etc.) using shared memory stored in Markdown files.
 

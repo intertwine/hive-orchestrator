@@ -4,6 +4,11 @@
 
 ---
 
+![Hero: The Shift-Change Problem](images/01-hero-shift-change.png)
+*The Shift-Change Problem: Every new AI agent session begins with no memory of what came before.*
+
+---
+
 ## The Shift-Change Problem
 
 Imagine a software company staffed entirely by engineers who work in shifts, but with a peculiar constraint: every time a new engineer arrives, they have complete amnesia about everything that happened before. No memory of the architecture decisions made yesterday. No recollection of the bug that was half-fixed on the previous shift. No awareness of the rabbit holes their predecessor explored and wisely abandoned.
@@ -16,6 +21,9 @@ As Anthropic's engineering team recently documented in their article on [effecti
 
 Context windows are finite. Complex projects are not. When your task takes longer than a single context window allows, you need a way to bridge the gap between sessions.
 
+![Context Window Visualization](images/01-context-window.png)
+*Context windows are finite. Complex projects are not. When work outlasts the context window, crucial information is lost.*
+
 ## The Failure Modes
 
 Before diving into solutions, it's worth understanding how agents fail when left to their own devices on long-horizon tasks. Anthropic identified two telling patterns:
@@ -25,6 +33,9 @@ Before diving into solutions, it's worth understanding how agents fail when left
 **2. The Premature Victory**: After some features have been built, a later agent instance looks around, sees that progress has been made, and declares the job done. Without persistent state tracking, it's easy to mistake "some work completed" for "all work completed."
 
 Both failures stem from the same root cause: agents lack durable, structured memory about project state.
+
+![The Two Failure Modes](images/01-failure-modes.png)
+*Two failure modes: The One-Shot Trap (trying to complete everything at once) and Premature Victory (declaring success with work unfinished).*
 
 ## The Industry Response: Structured Note-Taking
 
@@ -85,6 +96,9 @@ This isn't just a progress file—it's a complete project manifest that captures
 - **Structural relationships** (dependencies between projects)
 - **Work breakdown** (task checklists)
 
+![AGENCY.md as Shared Memory](images/01-agency-md-shared-memory.png)
+*The AGENCY.md file serves as shared memory between agents, humans, and automation—a single source of truth everyone can read and write.*
+
 ### Why This Matters
 
 The key innovation isn't the format—it's what the format enables:
@@ -138,6 +152,9 @@ You are an AI agent entering a Deep Work session. Your responsibilities:
 
 This context package ensures every session starts with the agent fully oriented—no need to re-discover project state through exploratory coding.
 
+![The Deep Work Session](images/01-deep-work-session.png)
+*The Deep Work session: Agents enter with a comprehensive context package—fully oriented before writing a single line of code.*
+
 ## Vendor-Agnostic by Design
 
 Here's something that sets Agent Hive apart: it's completely vendor-agnostic. The same AGENCY.md file can be read and updated by Claude, GPT-4, Grok, Gemini, or a human with a text editor.
@@ -151,6 +168,9 @@ This matters because:
 
 The AGENCY.md file is human-readable not by accident, but by design. Transparency isn't a feature we bolted on—it's the foundation.
 
+![Vendor Agnostic Operation](images/01-vendor-agnostic.png)
+*Vendor-agnostic by design: The same AGENCY.md file works with Claude, GPT-4, Grok, Gemini—or a human with a text editor.*
+
 ## The Cortex: Automated Coordination
 
 While agents work on individual projects, the Cortex orchestration engine maintains oversight of the entire system. Running on a schedule (every 4 hours by default via GitHub Actions), it:
@@ -162,6 +182,9 @@ While agents work on individual projects, the Cortex orchestration engine mainta
 5. Surfaces ready work that agents can claim
 
 Critically, the Cortex never executes code—it only updates Markdown. All actual implementation work is done by agents or humans. This separation of concerns keeps the system safe and auditable.
+
+![The Cortex Orchestrator](images/01-cortex-orchestrator.png)
+*The Cortex orchestrator maintains system-wide oversight—analyzing dependencies, detecting cycles, and coordinating without executing code.*
 
 ## Addressing Anthropic's Failure Modes
 
@@ -192,6 +215,9 @@ An agent that declares victory prematurely will leave obvious artifacts: uncheck
 ## The Bigger Picture
 
 What we're building with Agent Hive isn't just a progress tracking system—it's an operating system for agent coordination. The AGENCY.md primitive is our "file," Cortex is our "scheduler," and the Deep Work session is our "process."
+
+![Building the Operating System for Agents](images/01-operating-system.png)
+*Agent Hive as an operating system: AGENCY.md files are our "files," Cortex is our "scheduler," and Deep Work sessions are our "processes."*
 
 This might sound like overkill for simple tasks. And for simple tasks, it probably is. If your agent can complete the work in a single context window, you don't need elaborate orchestration.
 

@@ -4,6 +4,11 @@
 
 ---
 
+![Hero: The Onboarding Problem](images/05-hero-onboarding.png)
+*Every session starts fresh—agents don't remember yesterday's onboarding. Skills and protocols provide instant orientation for effective work.*
+
+---
+
 ## The Onboarding Problem
 
 When a new engineer joins a team, they don't immediately know how things work. They need onboarding: what tools to use, what conventions to follow, where to find things, how to communicate with teammates.
@@ -83,6 +88,9 @@ Skills activate automatically based on user requests:
 ```
 
 The agent recognizes which skill is relevant and loads its instructions.
+
+![Skills as Knowledge Modules](images/05-skills-modules.png)
+*Skills are modular instruction sets—only loaded when needed. Five built-in skills cover project management, Cortex CLI, deep work, coordination, and MCP tools.*
 
 ## The Deep Work Protocol
 
@@ -187,6 +195,9 @@ Always add a final note summarizing the session:
   auth module has a known issue (see issue #45) - work around it.
 ```
 
+![The Deep Work Lifecycle](images/05-deep-work-lifecycle.png)
+*The Deep Work lifecycle: Enter → Claim → Work → Update → Handoff. A complete cycle ensures clean state for the next session.*
+
 ## The Ownership Protocol
 
 Ownership is sacred in Agent Hive. The protocol is simple but must be followed strictly:
@@ -223,6 +234,9 @@ Use consistent, identifiable names:
 | X.AI | `grok-beta`, `grok-2` |
 | Custom | `my-research-agent-v1` |
 
+![The Ownership Protocol Ceremony](images/05-ownership-protocol.png)
+*Ownership protocol is sacred: verify availability, claim formally, work with commitment, release properly. Only one owner at a time.*
+
 ## The Blocking Protocol
 
 When an agent hits something it cannot resolve, the blocking protocol ensures the issue is visible and documented:
@@ -258,6 +272,9 @@ Use blocked status for **external** dependencies, not internal challenges:
 - Difficult technical problems (keep working)
 - Uncertainty about approach (make a decision and document it)
 - Need for more context (read more, ask in notes)
+
+![Blocking Protocol](images/05-blocking-protocol.png)
+*When blocked by external dependencies, don't struggle—set blocked status, document the reason clearly, and signal for help. Visibility over silence.*
 
 ## The Communication Protocol
 
@@ -302,6 +319,9 @@ Always include:
   for the interface. All new data access should follow this pattern.
 ```
 
+![Communication Through Notes](images/05-communication-notes.png)
+*Agent Notes are the communication channel: timestamped, attributed, and persistent. @mentions for specific agents, DECISION for choices, BLOCKED for obstacles.*
+
 ## The MCP Protocol
 
 For programmatic interaction, Agent Hive provides MCP (Model Context Protocol) tools. These enable agents to interact with the orchestration system without file manipulation.
@@ -341,6 +361,9 @@ await mcp.add_note(
 # Release
 await mcp.release_project(project_id="auth-feature")
 ```
+
+![MCP Tools in Action](images/05-mcp-tools.png)
+*MCP tools enable programmatic interaction: list projects, find ready work, claim, update status, add notes, release—all without manual file editing.*
 
 ## Creating Custom Skills
 
@@ -400,6 +423,9 @@ Explicit protocols serve several purposes:
 5. **Onboarding**: New agents (or humans) can learn the system quickly
 
 The protocols aren't bureaucracy—they're the foundation that makes multi-agent coordination possible.
+
+![Why Protocols Matter](images/05-why-protocols-matter.png)
+*Protocols aren't bureaucracy—they're the foundation that makes multi-agent coordination possible. Consistency, predictability, debuggability.*
 
 ---
 

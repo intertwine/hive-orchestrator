@@ -59,9 +59,9 @@ Build `hive-mcp` - an MCP server that exposes Hive Orchestrator functionality as
 - [x] Add Claude Desktop configuration example (in AGENCY.md)
 
 ### Documentation
-- [ ] Add MCP server setup instructions to README
-- [ ] Document all available tools
-- [ ] Add example Claude Desktop config
+- [x] Add MCP server setup instructions to README
+- [x] Document all available tools
+- [x] Add example Claude Desktop config
 
 ### Testing
 - [x] Write unit tests for each tool (21 comprehensive tests)
@@ -115,7 +115,7 @@ async def list_projects() -> list[dict]:
 - [x] MCP server starts without errors
 - [x] All core tools implemented and tested
 - [x] Works with Claude Desktop
-- [ ] Documentation complete (README updates pending)
+- [x] Documentation complete (README has full MCP section)
 - [x] All tests pass (21 tests, 100% pass rate)
 
 ## Reference Material
@@ -145,12 +145,14 @@ Implementation summary:
 - Proper error handling and path validation
 - Supports HIVE_BASE_PATH environment variable
 
-The MCP server is ready for Claude Desktop integration. Only documentation updates to README remain.
+The MCP server is ready for Claude Desktop integration. README documentation has been added.
 
 ---
 
 ## Next Steps
 
-1. Add MCP server documentation to main README.md
+Project complete! Future enhancements could include:
+
+1. ~~Add MCP server documentation to main README.md~~ - Done
 2. Test with Claude Desktop in real environment
 3. Consider adding more advanced tools (batch operations, search, etc.)

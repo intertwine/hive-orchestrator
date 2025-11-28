@@ -1,12 +1,14 @@
 ---
-project_id: demo
-status: active
-owner: null
-last_updated: null
 blocked: false
 blocking_reason: null
+last_updated: '2025-11-28T20:01:11.933105Z'
+owner: null
 priority: medium
-tags: [example, tutorial]
+project_id: demo
+status: active
+tags:
+- example
+- tutorial
 ---
 
 # Demo Project - Agent Collaboration Example

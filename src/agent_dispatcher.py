@@ -76,7 +76,7 @@ class AgentDispatcher:
                 check=False,
             )
             if result.returncode != 0:
-                print("   gh CLI not available or not authenticated")
+                print("   gh CLI not available or version check failed")
                 return False
         except FileNotFoundError:
             print("   gh CLI not installed")

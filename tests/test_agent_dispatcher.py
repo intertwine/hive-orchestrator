@@ -4,12 +4,9 @@
 
 import sys
 import os
-import tempfile
-import shutil
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from datetime import datetime
-import pytest
 import frontmatter
 
 # Add src to path
@@ -317,6 +314,42 @@ class TestDispatch:
 
         assert result is True
         mock_create_issue.assert_called_once()
+
+    @patch.object(AgentDispatcher, "claim_project")
+    @patch.object(AgentDispatcher, "create_github_issue")
+    def test_returns_false_when_claim_fails(
+        self, mock_create_issue, mock_claim_project, temp_hive_dir, temp_project
+    ):
+        """Test that dispatch returns False when claim_project fails after issue creation.
+
+        This is a critical error path - if issue is created but claim fails,
+        we could end up with duplicate issues on retry.
+        """
+        mock_create_issue.return_value = "https://github.com/test/issue/1"
+        mock_claim_project.return_value = False  # Simulate claim failure
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+
+        project = {
+            "path": temp_project,
+            "project_id": "test-project",
+            "metadata": {
+                "owner": None,
+                "project_id": "test-project",
+                "priority": "high",
+                "tags": ["test"],
+            },
+            "content": "# Test\n\n- [ ] Task 1",
+        }
+
+        result = dispatcher.dispatch(project)
+
+        # Should return False because claim failed
+        assert result is False
+        # Issue was created
+        mock_create_issue.assert_called_once()
+        # Claim was attempted
+        mock_claim_project.assert_called_once()
 
 
 class TestValidateEnvironment:

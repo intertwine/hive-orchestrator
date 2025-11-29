@@ -16,8 +16,8 @@ from typing import Dict, Any, List, Optional
 import frontmatter
 from dotenv import load_dotenv
 
-from cortex import Cortex
-from context_assembler import (
+from src.cortex import Cortex
+from src.context_assembler import (
     build_issue_title,
     build_issue_body,
     build_issue_labels,

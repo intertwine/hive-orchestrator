@@ -23,6 +23,7 @@ Welcome to the Agent Hive examples! This directory contains diverse, production-
 | 5 | [Data Pipeline](#5-data-pipeline) | A→B→C→D→E→F | ⭐⭐⭐ Advanced | 60-90m | 6 | ETL workflows |
 | 6 | [Creative Collaboration](#6-creative-collaboration) | Sequential+Parallel | ⭐⭐ Intermediate | 2-4h | 6 | Creative projects |
 | 7 | [Complex Application](#7-complex-application) | All patterns | ⭐⭐⭐⭐ Expert | 2.5-4h | 12 | Production apps |
+| 8 | [Agent Dispatchers](#8-agent-dispatchers) | Extensibility | ⭐⭐⭐ Advanced | Varies | 1+ | Custom integrations |
 
 ## 📖 Detailed Examples
 
@@ -199,6 +200,42 @@ Phase 4: Documentation (Sequential)
 - SaaS products
 
 **→ [View Example 7](7-complex-application/README.md)**
+
+---
+
+### 8. Agent Dispatchers
+
+**Pattern**: Extensibility (Custom integrations)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Agent Dispatchers                         │
+├─────────────────────────────────────────────────────────────┤
+│   GitHub Issues    │    Slack Bot    │    Custom Webhook    │
+│   (@claude)        │    (Team)       │    (Any Agent)       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │   Ready Work    │
+                    │   (Cortex)      │
+                    └─────────────────┘
+```
+
+**What you'll learn**:
+- How Agent Hive separates work detection from dispatch
+- Building custom dispatchers for different agent platforms
+- Multi-agent routing based on project attributes
+- Handling completion callbacks
+
+**Use cases**:
+- Custom agent integrations
+- Multi-agent routing
+- Slack/Discord bots
+- Webhook-based systems
+- Enterprise integrations
+
+**→ [View Example 8](8-agent-dispatchers/README.md)**
 
 ---
 

@@ -9,6 +9,8 @@ status: active
 tags:
 - example
 - tutorial
+relevant_files:
+- projects/demo/AGENCY.md
 ---
 
 # Demo Project - Agent Collaboration Example

@@ -46,6 +46,12 @@ This directory contains a series of articles explaining the design philosophy, f
 
 **Key topics:** Framework philosophies, state management approaches, multi-agent coordination patterns, vendor lock-in considerations, when to use which framework, complementary architectures.
 
+### 8. [Building Extensible Agent Dispatchers](08-building-extensible-agent-dispatchers.md)
+
+*Architecture deep dive.* Explores how Agent Hive's architecture enables building custom agent dispatchers that can route work to different agent platforms (Claude Code, OpenAI Assistants, Slack bots, etc.).
+
+**Key topics:** Dispatcher pattern, work detection vs. delivery, multi-agent routing, custom integrations, completion callbacks, production architecture.
+
 ## Reading Order
 
 For newcomers, we recommend reading in order:
@@ -54,6 +60,7 @@ For newcomers, we recommend reading in order:
 2. **Article 6** - Get hands-on experience
 3. **Articles 3-5** - Deep dive into specific features
 4. **Articles 2 & 7** - Context on the broader ecosystem and framework comparisons
+5. **Article 8** - Advanced: extending Agent Hive with custom dispatchers
 
 ## Contributing
 

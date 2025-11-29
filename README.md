@@ -127,7 +127,8 @@ agent-hive/
 │   └── devcontainer.json       # DevContainer config (Codespaces/Cursor ready)
 ├── .github/
 │   └── workflows/
-│       └── cortex.yml          # Automated 4-hour heartbeat
+│       ├── cortex.yml          # Automated 4-hour heartbeat
+│       └── agent-assignment.yml # Automated agent work dispatch
 ├── config/
 │   └── app-manifest.json       # GitHub App definition (for SaaS)
 ├── examples/
@@ -139,6 +140,8 @@ agent-hive/
 │   └── start_session.sh        # Deep Work session bootstrap
 ├── src/
 │   ├── cortex.py               # Orchestration logic
+│   ├── agent_dispatcher.py     # Automated agent work assignment
+│   ├── context_assembler.py    # Issue context builder
 │   ├── coordinator.py          # Real-time coordination server (optional)
 │   ├── coordinator_client.py   # Coordinator client library
 │   ├── dashboard.py            # Streamlit UI
@@ -357,6 +360,49 @@ curl -X POST http://localhost:8080/claim \
 - Background cleanup of expired claims
 - Graceful degradation (clients fall back to git-only when unavailable)
 - OpenAPI documentation at `/docs`
+
+### 6. Agent Dispatcher - Automated Work Assignment
+
+The Agent Dispatcher proactively finds ready work and assigns it to Claude Code by creating GitHub issues.
+
+**How it works:**
+
+1. **Finds ready work** - Uses Cortex to discover unblocked, unowned projects
+2. **Selects highest priority** - Priority level first, then age (oldest first)
+3. **Builds rich context** - AGENCY.md content, file trees, relevant files
+4. **Creates GitHub issue** - With `@claude` mention to trigger Claude Code
+5. **Claims the project** - Sets `owner: "claude-code"` in AGENCY.md
+
+**Run manually:**
+
+```bash
+# Dispatch highest priority ready project
+uv run python -m src.agent_dispatcher
+
+# Dry run (preview without changes)
+uv run python -m src.agent_dispatcher --dry-run
+
+# Dispatch up to 3 projects
+uv run python -m src.agent_dispatcher --max 3
+```
+
+**GitHub Actions:**
+
+The Agent Dispatcher runs automatically every 4 hours (15 minutes after Cortex) via `.github/workflows/agent-assignment.yml`.
+
+**AGENCY.md Extension - relevant_files:**
+
+Specify files to include in the issue context:
+
+```yaml
+---
+project_id: my-project
+relevant_files:
+  - src/api/routes.py
+  - src/models/user.py
+  - tests/test_api.py
+---
+```
 
 ## 🎓 Usage Patterns
 
@@ -717,6 +763,7 @@ lsof -i :8501
 - [x] Dashboard dependency visualization
 - [x] Real-time agent coordination layer (HTTP API)
 - [x] Claude Code Skills for guided AI workflows
+- [x] Automated agent work assignment (Agent Dispatcher)
 
 **Planned:**
 - [ ] Web-based Dashboard (hosted version)

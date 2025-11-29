@@ -52,7 +52,8 @@ agent-hive/
 │   └── devcontainer.json       # VS Code DevContainer + MCP support
 ├── .github/
 │   └── workflows/
-│       └── cortex.yml          # Automated 4-hour heartbeat
+│       ├── cortex.yml          # Automated 4-hour heartbeat
+│       └── agent-assignment.yml # Automated agent work dispatch
 ├── config/
 │   └── app-manifest.json       # GitHub App configuration (future)
 ├── projects/
@@ -62,7 +63,9 @@ agent-hive/
 │   └── start_session.sh        # Deep Work session bootstrap
 ├── src/
 │   ├── cortex.py               # Orchestration engine
-│   └── dashboard.py            # Streamlit dashboard
+│   ├── dashboard.py            # Streamlit dashboard
+│   ├── agent_dispatcher.py     # Agent work assignment
+│   └── context_assembler.py    # Issue context builder
 ├── GLOBAL.md                   # Root system state
 ├── pyproject.toml              # Project configuration
 ├── Makefile                    # Development commands
@@ -213,6 +216,49 @@ blocked_projects: 1
 - Generating Deep Work session contexts
 - Monitoring system health
 
+### 5. Agent Dispatcher - Automated Work Assignment
+
+`src/agent_dispatcher.py` proactively assigns work to Claude Code:
+
+1. **Finds ready work** - Uses Cortex to discover unblocked, unowned projects
+2. **Selects highest priority** - Priority level, then age (oldest first)
+3. **Builds rich context** - AGENCY.md content, file trees, relevant files
+4. **Creates GitHub issue** - With `@claude` mention to trigger Claude Code
+5. **Claims the project** - Sets `owner: "claude-code"` in AGENCY.md
+
+**Key features:**
+- One task per issue (clean PR scope)
+- Duplicate prevention via `owner` field
+- Dry-run mode for testing
+- Rate limiting (default: 1 issue per run)
+
+**Usage:**
+
+```bash
+# Run dispatcher (dispatch 1 project)
+uv run python -m src.agent_dispatcher
+
+# Dry run (preview without changes)
+uv run python -m src.agent_dispatcher --dry-run
+
+# Dispatch up to 3 projects
+uv run python -m src.agent_dispatcher --max 3
+```
+
+**AGENCY.md Extension - relevant_files:**
+
+Projects can specify files to include in the issue context:
+
+```yaml
+---
+project_id: my-project
+relevant_files:
+  - src/api/routes.py
+  - src/models/user.py
+  - tests/test_api.py
+---
+```
+
 ## Development Workflows
 
 ### Adding a New Feature
@@ -323,6 +369,19 @@ The project has comprehensive test coverage for all major functionality:
   - Deep Work context generation
   - Integration workflows
 
+- **tests/test_agent_dispatcher.py**: Tests for the Agent Dispatcher
+  - Work selection and prioritization
+  - Project claiming and ownership
+  - GitHub issue creation
+  - Environment validation
+  - Full dispatch workflow
+
+- **tests/test_context_assembler.py**: Tests for context building
+  - File tree generation
+  - Relevant file content extraction
+  - Issue title and body building
+  - Label generation
+
 - **tests/conftest.py**: Shared test fixtures and utilities
   - Temporary test directory structures
   - Mock environment variables
@@ -389,16 +448,25 @@ uv run pylint tests/ --max-line-length=100
 
 ### GitHub Actions
 
-The `.github/workflows/cortex.yml` workflow:
+**Cortex Heartbeat** (`.github/workflows/cortex.yml`):
 
-- Runs every 4 hours
+- Runs every 4 hours (at minute 0)
 - Installs dependencies with `uv`
-- Executes Cortex
+- Executes Cortex to analyze and update state
 - Commits changes if state updated
 - Only modifies AGENCY.md and GLOBAL.md files
 
+**Agent Assignment** (`.github/workflows/agent-assignment.yml`):
+
+- Runs every 4 hours (at minute 15, after Cortex)
+- Finds ready work using the Agent Dispatcher
+- Creates GitHub issues with `@claude` mention
+- Claims projects by setting `owner` in AGENCY.md
+- Only modifies AGENCY.md files
+
 **Required Secrets:**
-- `OPENROUTER_API_KEY`: Your OpenRouter API key
+- `OPENROUTER_API_KEY`: Your OpenRouter API key (for Cortex)
+- `GITHUB_TOKEN`: Automatically provided (for issue creation)
 
 ### Local Development
 

@@ -1,7 +1,8 @@
 ---
-Pending tasks - Configure OpenRouter API key: Remove or clarify requirement
-last_cortex_run: '2025-11-29T12:01:24.966697Z'
-last_updated: '2025-11-29T12:01:24.965725Z'
+Pending tasks - Configure OpenRouter API key: Remove or clarify requirement - this
+  appears to be a stale task with no context
+last_cortex_run: '2025-11-29T16:01:25.606438Z'
+last_updated: '2025-11-29T16:01:25.604986Z'
 orchestrator: agent-hive
 status: active
 version: 1.0.0

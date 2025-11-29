@@ -389,7 +389,14 @@ The project has comprehensive test coverage for all major functionality:
 
 ### Running Tests
 
+**IMPORTANT:** Test dependencies (pytest, etc.) are in the `dev` optional dependencies.
+You must install them first before running tests:
+
 ```bash
+# Install dev dependencies (REQUIRED before running tests)
+make install-dev
+# Or directly: uv sync --extra dev
+
 # Run all tests (REQUIRED before committing)
 make test
 

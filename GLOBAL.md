@@ -1,7 +1,8 @@
 ---
-Pending tasks - Configure OpenRouter API key: '[ ] Configure OpenRouter API key'
-last_cortex_run: '2025-11-29T04:01:48.491483Z'
-last_updated: '2025-11-29T04:01:48.491137Z'
+Pending tasks - Configure OpenRouter API key: Needs clarification - is this blocking
+  current work?
+last_cortex_run: '2025-11-29T08:01:23.709775Z'
+last_updated: '2025-11-29T08:01:23.708734Z'
 orchestrator: agent-hive
 status: active
 version: 1.0.0

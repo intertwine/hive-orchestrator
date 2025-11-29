@@ -1,16 +1,16 @@
 ---
 blocked: false
 blocking_reason: null
-last_updated: '2025-11-29T00:01:42.197700Z'
+last_updated: '2025-11-29T08:01:23.709379Z'
 owner: null
 priority: medium
 project_id: demo
+relevant_files:
+- projects/demo/AGENCY.md
 status: active
 tags:
 - example
 - tutorial
-relevant_files:
-- projects/demo/AGENCY.md
 ---
 
 # Demo Project - Agent Collaboration Example

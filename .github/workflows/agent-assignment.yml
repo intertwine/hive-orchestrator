@@ -1,0 +1,110 @@
+name: Agent Assignment
+
+on:
+  schedule:
+    # Run 15 minutes after Cortex (which runs at 0 */4 * * *)
+    # This ensures state is updated before we dispatch
+    - cron: '15 */4 * * *'
+  workflow_dispatch:
+    # Allow manual triggering from GitHub UI
+    inputs:
+      dry_run:
+        description: 'Dry run (preview only, no changes)'
+        required: false
+        default: 'false'
+        type: boolean
+      max_dispatches:
+        description: 'Maximum projects to dispatch'
+        required: false
+        default: '1'
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  dispatch-work:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv sync
+
+      - name: Run Agent Dispatcher
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Determine dry run flag
+          DRY_RUN_FLAG=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+            echo "Running in dry-run mode"
+          fi
+
+          # Determine max dispatches
+          MAX_DISPATCHES="${{ github.event.inputs.max_dispatches }}"
+          if [ -z "$MAX_DISPATCHES" ]; then
+            MAX_DISPATCHES="1"
+          fi
+
+          echo "Max dispatches: $MAX_DISPATCHES"
+
+          # Run the dispatcher
+          uv run python -m src.agent_dispatcher $DRY_RUN_FLAG --max "$MAX_DISPATCHES"
+
+      - name: Validate changes before commit
+        run: |
+          # Only add AGENCY.md files for safety (dispatcher only modifies these)
+          git add projects/**/AGENCY.md 2>/dev/null || true
+
+          # Check which files are staged
+          if git diff --staged --name-only | grep -qvE '^projects/.*/AGENCY\.md$'; then
+            echo "WARNING: Unexpected files modified. Only AGENCY.md files should be changed."
+            echo "Modified files:"
+            git diff --staged --name-only
+            echo "Aborting commit for safety."
+            exit 1
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "Agent Hive Dispatcher"
+          git config user.email "dispatcher@agent-hive.dev"
+
+      - name: Commit and push changes
+        run: |
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            echo "Committing AGENCY.md updates..."
+            git commit -m "Agent assigned work [$(date -u +%Y-%m-%d\ %H:%M\ UTC)]"
+            git push
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatcher-logs-${{ github.run_number }}
+          path: |
+            *.log
+            **/*.log
+          retention-days: 7

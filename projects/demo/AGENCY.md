@@ -1,13 +1,13 @@
 ---
 blocked: false
 blocking_reason: null
-last_updated: '2025-11-29T16:01:25.606077Z'
+last_updated: '2025-11-29T20:01:17.577743Z'
 owner: claude-code
 priority: medium
 project_id: demo
 relevant_files:
 - projects/demo/AGENCY.md
-status: active
+status: Consider updating from 'active' if no agent activity expected
 tags:
 - example
 - tutorial

@@ -365,6 +365,8 @@ curl -X POST http://localhost:8080/claim \
 
 The Agent Dispatcher proactively finds ready work and assigns it to Claude Code by creating GitHub issues.
 
+> **Prerequisite**: The Agent Dispatcher requires the [Claude Code GitHub App](#installing-claude-code-github-app) to be installed on your repository for `@claude` mentions to work.
+
 **How it works:**
 
 1. **Finds ready work** - Uses Cortex to discover unblocked, unowned projects
@@ -475,9 +477,33 @@ schedule:
   - cron: '0 */2 * * *'
 ```
 
-### GitHub App Deployment (Optional)
+### Installing Claude Code GitHub App
 
-To deploy Agent Hive as a GitHub App:
+The [Claude Code GitHub App](https://github.com/apps/claude) is **required** for the Agent Dispatcher to work. It responds to `@claude` mentions in issues and pull requests.
+
+**Installation:**
+
+1. Visit https://github.com/apps/claude
+2. Click **"Install"** or **"Configure"**
+3. Select your organization or account
+4. Choose **"Only select repositories"** and add this repository
+5. Click **"Install"**
+
+**Verify installation:**
+
+```bash
+# Run the verification script
+uv run python scripts/verify_claude_app.py
+
+# Test the dispatcher (dry run)
+uv run python -m src.agent_dispatcher --dry-run
+```
+
+For detailed instructions, see [docs/INSTALL_CLAUDE_APP.md](docs/INSTALL_CLAUDE_APP.md).
+
+### Custom GitHub App Deployment (Optional)
+
+To deploy Agent Hive as your own custom GitHub App (for webhooks/SaaS):
 
 1. Go to GitHub Settings > Developer > GitHub Apps > New GitHub App
 2. Use `config/app-manifest.json` as the base configuration

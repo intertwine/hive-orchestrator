@@ -1,10 +1,13 @@
 ---
 Pending tasks - Configure OpenRouter API key: Remove or clarify requirement - this
   appears to be a stale task with no context
+Pending tasks section: Update to remove 'Configure OpenRouter API key' and 'Run initial
+  Cortex cycle' (GitHub Actions not yet configured, but this is a deployment task,
+  not a blocker)
 Tasks.Pending: Remove checkbox item '[ ] Configure OpenRouter API key'
 blocked_tasks_section: Update to reflect 'None currently' is accurate
-last_cortex_run: '2025-11-30T00:01:58.172604Z'
-last_updated: '2025-11-30T00:01:58.075283Z'
+last_cortex_run: '2025-11-30T04:11:24.168998Z'
+last_updated: '2025-11-30T04:11:24.168092Z'
 orchestrator: agent-hive
 pending_tasks: Remove 'Configure OpenRouter API key' - stale task with no context
 status: active

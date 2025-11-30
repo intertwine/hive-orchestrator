@@ -1,11 +1,12 @@
 ---
 Pending tasks - Configure OpenRouter API key: Remove or clarify requirement - this
   appears to be a stale task with no context
+Tasks.Pending: Remove checkbox item '[ ] Configure OpenRouter API key'
 blocked_tasks_section: Update to reflect 'None currently' is accurate
-last_cortex_run: '2025-11-29T20:01:17.578101Z'
-last_updated: '2025-11-29T20:01:17.577190Z'
+last_cortex_run: '2025-11-30T00:01:58.172604Z'
+last_updated: '2025-11-30T00:01:58.075283Z'
 orchestrator: agent-hive
-pending_tasks: Remove 'Configure OpenRouter API key' or clarify context
+pending_tasks: Remove 'Configure OpenRouter API key' - stale task with no context
 status: active
 version: 1.0.0
 ---

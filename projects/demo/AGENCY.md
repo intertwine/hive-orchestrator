@@ -1,7 +1,7 @@
 ---
 blocked: false
 blocking_reason: null
-last_updated: '2025-11-30T16:01:27.110384Z'
+last_updated: '2025-11-30T20:01:24.215885Z'
 owner: claude-code
 priority: medium
 project_id: demo

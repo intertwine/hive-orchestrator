@@ -1,4 +1,4 @@
-.PHONY: help install install-dev run dashboard cortex ready ready-json deps deps-json session clean test lint format sync
+.PHONY: help install install-dev run dashboard cortex ready ready-json deps deps-json session clean test lint format sync verify-claude
 
 # Default target
 help:
@@ -20,6 +20,7 @@ help:
 	@echo "  make deps           Show dependency graph"
 	@echo "  make deps-json      Show dependency graph as JSON"
 	@echo "  make session        Start a Deep Work session (requires PROJECT=...)"
+	@echo "  make verify-claude  Verify Claude Code GitHub App setup"
 	@echo ""
 	@echo "Development Commands:"
 	@echo "  make lint           Run code linting (pylint)"
@@ -101,6 +102,11 @@ session:
 		exit 1; \
 	fi
 	@./scripts/start_session.sh $(PROJECT)
+
+# Verify Claude Code GitHub App installation
+verify-claude:
+	@echo "🔍 Verifying Claude Code GitHub App setup..."
+	@uv run python scripts/verify_claude_app.py
 
 # Run linting
 lint:

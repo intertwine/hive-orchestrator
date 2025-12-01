@@ -405,15 +405,15 @@ class TestRun:
         mock_dispatch.assert_called_once()
 
     @patch.object(AgentDispatcher, "validate_environment")
-    def test_returns_false_when_no_work(self, mock_validate, temp_hive_dir):
-        """Test returns False when no work available."""
+    def test_returns_true_when_no_work(self, mock_validate, temp_hive_dir):
+        """Test returns True when no work available (no work is not an error)."""
         mock_validate.return_value = True
 
         # No projects in temp_hive_dir initially
         dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
         result = dispatcher.run()
 
-        assert result is False
+        assert result is True  # No work is success, not failure
 
     def test_dry_run_skips_validation(self, temp_hive_dir):
         """Test dry run skips environment validation."""
@@ -422,8 +422,8 @@ class TestRun:
         # Should not fail even without gh installed
         result = dispatcher.run()
 
-        # Returns False because no work, but didn't fail validation
-        assert result is False
+        # Returns True - no work is success, validation was skipped
+        assert result is True
 
     @patch.object(AgentDispatcher, "validate_environment")
     def test_respects_max_dispatches(self, mock_validate, temp_hive_dir):

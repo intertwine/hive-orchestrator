@@ -359,7 +359,7 @@ class AgentDispatcher:
         if not ready_projects:
             print("\n No work available to dispatch")
             print("=" * 60)
-            return False
+            return True  # No work is not an error, just nothing to do
 
         # Display candidates
         print("\n Candidates:")
@@ -397,7 +397,7 @@ class AgentDispatcher:
         print(f" DISPATCH COMPLETE: {dispatched} project(s) dispatched")
         print("=" * 60)
 
-        return dispatched > 0
+        return True  # Successful completion, regardless of dispatch count
 
 
 def parse_args() -> argparse.Namespace:

@@ -1,8 +1,8 @@
 ---
 blocked: false
 blocking_reason: null
-last_updated: '2025-12-01T04:19:53.430432Z'
-owner: claude-code
+last_updated: '2025-12-01T08:01:24.612515Z'
+owner: null
 priority: medium
 project_id: demo
 relevant_files:

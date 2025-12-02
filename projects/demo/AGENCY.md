@@ -1,13 +1,13 @@
 ---
 blocked: false
-blocking_reason: Awaiting agent assignment or clarification of scope
-last_updated: '2025-12-02T08:01:35.900145Z'
+blocking_reason: null
+last_updated: '2025-12-02T12:01:43.422660Z'
 owner: null
 priority: medium
 project_id: demo
 relevant_files:
 - projects/demo/AGENCY.md
-status: blocked
+status: paused
 tags:
 - example
 - tutorial

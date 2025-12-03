@@ -145,14 +145,18 @@ agent-hive/
 │   ├── coordinator.py          # Real-time coordination server (optional)
 │   ├── coordinator_client.py   # Coordinator client library
 │   ├── dashboard.py            # Streamlit UI
+│   ├── security.py             # Security utilities (YAML, sanitization, auth)
+│   ├── tracing.py              # Weave observability integration
 │   └── hive_mcp/               # MCP server for AI agents
 │       ├── __init__.py
 │       ├── __main__.py
 │       └── server.py           # MCP tool implementations
 ├── tests/                      # Test suite (150+ tests)
+├── articles/                   # Documentation articles
 ├── GLOBAL.md                   # Root system state
 ├── Makefile                    # Convenience commands
 ├── pyproject.toml              # Python project configuration & dependencies
+├── SECURITY.md                 # Security policy and hardening documentation
 └── README.md                   # This file
 ```
 
@@ -490,6 +494,13 @@ WEAVE_DISABLED=true
 - Request/response latency (milliseconds)
 - Token usage (prompt, completion, total)
 - Success/failure status
+- Cortex orchestration runs
+
+**Key features:**
+- **Automatic header sanitization**: API keys are redacted from traces
+- **Graceful degradation**: If Weave fails or isn't configured, the app continues normally
+- **Decorators for custom tracing**: Use `@trace_op("name")` to trace your own functions
+- **LLMCallMetadata**: Rich metadata class capturing all call details
 
 **View traces:**
 - Log into [wandb.ai](https://wandb.ai)
@@ -497,6 +508,36 @@ WEAVE_DISABLED=true
 - View call traces, costs, and performance metrics
 
 Tracing is **optional** and gracefully degrades - if Weave is not configured or fails to initialize, the application continues to function normally.
+
+### Security Configuration
+
+Agent Hive includes comprehensive security hardening. See [SECURITY.md](SECURITY.md) for full details.
+
+**Required for production:**
+
+```bash
+# Add to .env for Coordinator API authentication
+HIVE_API_KEY=your-secure-api-key-here
+HIVE_REQUIRE_AUTH=true
+```
+
+**Security features:**
+- **Safe YAML parsing**: Prevents deserialization attacks (RCE prevention)
+- **Prompt injection protection**: Sanitizes untrusted content before LLM calls
+- **API key authentication**: Bearer token auth for Coordinator server
+- **Path traversal validation**: Prevents directory escape attacks
+- **Input validation**: Bounds checking on dispatch limits and recursion depth
+- **Issue body sanitization**: Filters injection patterns in GitHub issues
+
+**Environment variables:**
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `HIVE_API_KEY` | Coordinator authentication | None (required for external access) |
+| `HIVE_REQUIRE_AUTH` | Enable/disable auth | `true` in production |
+| `COORDINATOR_HOST` | Server binding address | `127.0.0.1` (localhost only) |
+
+For detailed security documentation, see the [Security article](articles/09-agent-hive-security.md) and [SECURITY.md](SECURITY.md).
 
 ### GitHub Actions Schedule
 
@@ -821,6 +862,8 @@ lsof -i :8501
 - [x] Real-time agent coordination layer (HTTP API)
 - [x] Claude Code Skills for guided AI workflows
 - [x] Automated agent work assignment (Agent Dispatcher)
+- [x] Security hardening (YAML RCE, prompt injection, auth)
+- [x] Weave tracing integration (LLM observability)
 
 **Planned:**
 - [ ] Web-based Dashboard (hosted version)

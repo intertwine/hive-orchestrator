@@ -621,6 +621,58 @@ Use patterns from these examples to build:
 - **CI/CD pipeline**: Test, build, deploy, monitor
 - **Game**: Mechanics, art, sound, testing
 
+## 🔒 Security Considerations
+
+When running examples, keep these security best practices in mind:
+
+### API Key Management
+
+- **Never commit API keys** to the repository
+- Use the `.env` file for local development (it's git-ignored)
+- Use GitHub Secrets for CI/CD workflows
+- Rotate keys if you suspect exposure
+
+### Coordinator Server (Option 6)
+
+When running the Coordinator Server for real-time multi-agent coordination:
+
+```bash
+# Local development (no auth required)
+uv run python -m src.coordinator
+
+# Production (authentication required)
+HIVE_API_KEY=your-secure-key HIVE_REQUIRE_AUTH=true uv run python -m src.coordinator
+```
+
+**Security features:**
+- Bearer token authentication (`Authorization: Bearer <key>`)
+- Default binding to localhost only (127.0.0.1)
+- For external access, use HTTPS via a reverse proxy
+
+### YAML Security
+
+Agent Hive uses safe YAML parsing to prevent deserialization attacks. All `AGENCY.md` files are parsed with `yaml.safe_load()`, which prevents:
+- Arbitrary code execution via `!!python/object`
+- Remote code execution via malicious tags
+
+### Weave Tracing (Observability)
+
+Enable Weave tracing to monitor all LLM calls across examples:
+
+```bash
+# Add to .env
+WANDB_API_KEY=your-wandb-api-key
+WEAVE_PROJECT=agent-hive
+```
+
+Tracing provides:
+- Call latency and token usage metrics
+- Automatic API key redaction in traces
+- Success/failure monitoring
+- Cost tracking
+
+See [SECURITY.md](../SECURITY.md) for the full security policy.
+
 ## 🔧 Troubleshooting
 
 ### Example won't start

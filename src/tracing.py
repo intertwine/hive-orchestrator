@@ -30,7 +30,7 @@ import os
 import functools
 import time
 from typing import Any, Callable, Dict, Optional, TypeVar
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 
@@ -170,7 +170,7 @@ class LLMCallMetadata:  # pylint: disable=too-few-public-methods,too-many-instan
         self.latency_ms = latency_ms
         self.success = success
         self.error = error
-        self.timestamp = datetime.utcnow().isoformat() + "Z"
+        self.timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert metadata to dictionary."""
@@ -185,6 +185,24 @@ class LLMCallMetadata:  # pylint: disable=too-few-public-methods,too-many-instan
             "error": self.error,
             "timestamp": self.timestamp,
         }
+
+
+def _sanitize_headers(headers: Dict[str, str]) -> Dict[str, str]:
+    """Sanitize headers for tracing by redacting sensitive values.
+
+    This prevents API keys and other secrets from being logged to Weave traces.
+
+    Args:
+        headers: The original headers dictionary.
+
+    Returns:
+        A new dictionary with sensitive values redacted.
+    """
+    sensitive_keys = {"authorization", "api-key", "x-api-key", "bearer"}
+    return {
+        k: "***REDACTED***" if k.lower() in sensitive_keys else v
+        for k, v in headers.items()
+    }
 
 
 def _extract_token_usage(response_json: Dict[str, Any]) -> Dict[str, Optional[int]]:
@@ -232,9 +250,13 @@ def traced_llm_call(
     Raises:
         Does not raise exceptions - errors are captured in metadata.
     """
-    # If tracing is enabled, use the traced version
+    # If tracing is enabled, use the traced version with sanitized headers for logging
     if is_tracing_enabled() and _tracing_initialized:
-        return _traced_llm_call_impl(api_url, headers, payload, model, timeout)
+        # Sanitize headers for tracing to avoid logging API keys
+        sanitized_headers = _sanitize_headers(headers)
+        return _traced_llm_call_impl(
+            api_url, sanitized_headers, payload, model, timeout, _original_headers=headers
+        )
     return _untraced_llm_call_impl(api_url, headers, payload, model, timeout)
 
 
@@ -292,16 +314,34 @@ if _weave_available:
     @weave.op(name="llm_call")
     def _traced_llm_call_impl(
         api_url: str,
+        headers: Dict[str, str],  # Sanitized headers for tracing (logged by Weave)
+        payload: Dict[str, Any],
+        model: str,
+        timeout: int = 60,
+        _original_headers: Optional[Dict[str, str]] = None,  # Original headers for actual request
+    ) -> Dict[str, Any]:
+        """Traced implementation of LLM call.
+
+        Note: The 'headers' parameter contains sanitized headers (API keys redacted)
+        which is what Weave will log. The '_original_headers' contains the actual
+        headers used for the API request.
+        """
+        # Use original headers for the actual request, fall back to sanitized if not provided
+        actual_headers = _original_headers if _original_headers else headers
+        return _untraced_llm_call_impl(api_url, actual_headers, payload, model, timeout)
+else:
+    # Fallback if weave is not available
+    def _traced_llm_call_impl(
+        api_url: str,
         headers: Dict[str, str],
         payload: Dict[str, Any],
         model: str,
         timeout: int = 60,
+        _original_headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
-        """Traced implementation of LLM call."""
-        return _untraced_llm_call_impl(api_url, headers, payload, model, timeout)
-else:
-    # Fallback if weave is not available
-    _traced_llm_call_impl = _untraced_llm_call_impl
+        """Fallback implementation when weave is not available."""
+        actual_headers = _original_headers if _original_headers else headers
+        return _untraced_llm_call_impl(api_url, actual_headers, payload, model, timeout)
 
 
 def traced_cortex_run(func: F) -> F:

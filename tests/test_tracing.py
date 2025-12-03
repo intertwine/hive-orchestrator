@@ -5,7 +5,7 @@
 import sys
 import os
 import json
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -20,6 +20,7 @@ from tracing import (
     traced_llm_call,
     LLMCallMetadata,
     _extract_token_usage,
+    _sanitize_headers,
     print_tracing_status,
     _weave_available,
 )
@@ -165,6 +166,63 @@ class TestLLMCallMetadata:
 
         assert metadata.success is False
         assert metadata.error == "Connection timeout"
+
+
+class TestSanitizeHeaders:
+    """Test the _sanitize_headers function."""
+
+    def test_sanitize_authorization_header(self):
+        """Test that Authorization header is redacted."""
+        headers = {
+            "Authorization": "Bearer sk-secret-key-12345",
+            "Content-Type": "application/json",
+        }
+        result = _sanitize_headers(headers)
+        assert result["Authorization"] == "***REDACTED***"
+        assert result["Content-Type"] == "application/json"
+
+    def test_sanitize_api_key_header(self):
+        """Test that API-Key header is redacted."""
+        headers = {
+            "API-Key": "my-secret-api-key",
+            "Accept": "application/json",
+        }
+        result = _sanitize_headers(headers)
+        assert result["API-Key"] == "***REDACTED***"
+        assert result["Accept"] == "application/json"
+
+    def test_sanitize_x_api_key_header(self):
+        """Test that X-API-Key header is redacted."""
+        headers = {
+            "X-API-Key": "my-secret-api-key",
+        }
+        result = _sanitize_headers(headers)
+        assert result["X-API-Key"] == "***REDACTED***"
+
+    def test_sanitize_case_insensitive(self):
+        """Test that header name comparison is case-insensitive."""
+        headers = {
+            "AUTHORIZATION": "Bearer token",
+            "authorization": "Bearer token2",
+        }
+        result = _sanitize_headers(headers)
+        assert result["AUTHORIZATION"] == "***REDACTED***"
+        assert result["authorization"] == "***REDACTED***"
+
+    def test_sanitize_preserves_safe_headers(self):
+        """Test that non-sensitive headers are preserved."""
+        headers = {
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://example.com",
+            "X-Title": "My App",
+        }
+        result = _sanitize_headers(headers)
+        assert result == headers
+
+    def test_sanitize_empty_headers(self):
+        """Test sanitizing empty headers dictionary."""
+        result = _sanitize_headers({})
+        assert result == {}
 
 
 class TestExtractTokenUsage:

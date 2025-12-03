@@ -1,8 +1,8 @@
 ---
 blocked: false
 blocking_reason: null
-last_updated: '2025-12-03T08:01:31.175862Z'
-owner: null
+last_updated: '2025-12-03T08:24:19.776338Z'
+owner: claude-code
 priority: medium
 project_id: demo
 relevant_files:
@@ -66,6 +66,7 @@ When you complete your assigned task(s):
 4. Add notes in the "Agent Notes" section below
 
 ### Agent Notes
+- **2025-12-03 08:24 - Agent Dispatcher**: Assigned to Claude Code. Issue: https://github.com/intertwine/hive-orchestrator/issues/25
 - **2025-12-01 08:24 - Agent Dispatcher**: Assigned to Claude Code. Issue: https://github.com/intertwine/hive-orchestrator/issues/22
 - **2025-11-29 08:23 - Agent Dispatcher**: Assigned to Claude Code. Issue: https://github.com/intertwine/hive-orchestrator/issues/19
 

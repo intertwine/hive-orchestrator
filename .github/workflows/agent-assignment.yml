@@ -14,14 +14,15 @@ on:
         default: 'false'
         type: boolean
       max_dispatches:
-        description: 'Maximum projects to dispatch'
+        description: 'Maximum projects to dispatch (1-10)'
         required: false
         default: '1'
         type: string
 
+# Minimal permissions following principle of least privilege
 permissions:
-  contents: write
-  issues: write
+  contents: write  # Required to update AGENCY.md files
+  issues: write    # Required to create GitHub issues
 
 jobs:
   dispatch-work:
@@ -41,8 +42,12 @@ jobs:
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          # Download and verify uv installer
+          curl -LsSf https://astral.sh/uv/install.sh -o install.sh
+          # Install uv
+          sh install.sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          rm install.sh
 
       - name: Install dependencies
         run: |
@@ -59,7 +64,7 @@ jobs:
             echo "Running in dry-run mode"
           fi
 
-          # Determine max dispatches
+          # Determine max dispatches (validated in Python, default 1, max 10)
           MAX_DISPATCHES="${{ github.event.inputs.max_dispatches }}"
           if [ -z "$MAX_DISPATCHES" ]; then
             MAX_DISPATCHES="1"
@@ -67,7 +72,7 @@ jobs:
 
           echo "Max dispatches: $MAX_DISPATCHES"
 
-          # Run the dispatcher
+          # Run the dispatcher with validated inputs
           uv run python -m src.agent_dispatcher $DRY_RUN_FLAG --max "$MAX_DISPATCHES"
 
       - name: Validate changes before commit

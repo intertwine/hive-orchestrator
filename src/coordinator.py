@@ -7,18 +7,23 @@ preventing multiple agents from claiming the same project simultaneously.
 
 Inspired by beads' Agent Mail concept, this coordinator enables faster conflict
 resolution than git-only coordination while remaining fully optional.
+
+Security Note: This server now requires API key authentication via the
+HIVE_API_KEY environment variable. Set this to a secure random value.
 """
 
 import os
 import uuid
 import asyncio
+import hmac
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -26,6 +31,59 @@ from pydantic import BaseModel, Field
 # Configuration
 DEFAULT_TTL_SECONDS = 3600  # 1 hour default claim TTL
 MAX_TTL_SECONDS = 86400  # 24 hours maximum TTL
+
+# Security configuration
+HIVE_API_KEY = os.getenv("HIVE_API_KEY")
+REQUIRE_AUTH = os.getenv("HIVE_REQUIRE_AUTH", "true").lower() == "true"
+
+# HTTP Bearer token security scheme
+security = HTTPBearer(auto_error=False)
+
+
+def verify_api_key(
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
+) -> bool:
+    """
+    Verify the API key provided in the Authorization header.
+
+    Uses constant-time comparison to prevent timing attacks.
+
+    Args:
+        credentials: HTTP Bearer credentials from the request
+
+    Returns:
+        True if authentication passes
+
+    Raises:
+        HTTPException: If authentication fails
+    """
+    # Only allow unauthenticated access if BOTH auth is disabled AND no key is configured
+    if (not REQUIRE_AUTH) and (not HIVE_API_KEY):
+        return True
+
+    # If auth is required but no API key is configured, fail securely
+    if not HIVE_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Server misconfiguration: HIVE_API_KEY not set but authentication is required",
+        )
+
+    if not credentials:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Provide Bearer token in Authorization header.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Use constant-time comparison to prevent timing attacks
+    if not hmac.compare_digest(credentials.credentials.encode(), HIVE_API_KEY.encode()):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API key",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return True
 
 
 @dataclass
@@ -231,17 +289,22 @@ async def health_check():
     )
 
 
-@app.post("/claim", response_model=ClaimResponse, responses={409: {"model": ConflictResponse}})
-async def claim_project(request: ClaimRequest, force: bool = Query(default=False)):
+@app.post(
+    "/claim",
+    response_model=ClaimResponse,
+    responses={409: {"model": ConflictResponse}},
+    dependencies=[Depends(verify_api_key)],
+)
+async def claim_project(request: ClaimRequest):
     """
     Claim a project for an agent.
 
+    Requires authentication via Bearer token in Authorization header.
     Returns 409 Conflict if the project is already claimed by another agent.
-    Use ?force=true to override existing claims (admin use only).
     """
     existing_claim = store.get_claim(request.project_id)
 
-    if existing_claim and not force:
+    if existing_claim:
         return JSONResponse(
             status_code=409,
             content={
@@ -274,9 +337,13 @@ async def claim_project(request: ClaimRequest, force: bool = Query(default=False
     )
 
 
-@app.delete("/release/{project_id}", response_model=ReleaseResponse)
+@app.delete(
+    "/release/{project_id}",
+    response_model=ReleaseResponse,
+    dependencies=[Depends(verify_api_key)],
+)
 async def release_project(project_id: str):
-    """Release a project claim by project_id."""
+    """Release a project claim by project_id. Requires authentication."""
     claim = store.remove_claim(project_id)
 
     if claim:
@@ -291,9 +358,13 @@ async def release_project(project_id: str):
     )
 
 
-@app.delete("/release/claim/{claim_id}", response_model=ReleaseResponse)
+@app.delete(
+    "/release/claim/{claim_id}",
+    response_model=ReleaseResponse,
+    dependencies=[Depends(verify_api_key)],
+)
 async def release_by_claim_id(claim_id: str):
-    """Release a project claim by claim_id."""
+    """Release a project claim by claim_id. Requires authentication."""
     claim = store.remove_claim_by_id(claim_id)
 
     if claim:
@@ -326,9 +397,9 @@ async def get_reservations():
     )
 
 
-@app.post("/extend/{project_id}")
+@app.post("/extend/{project_id}", dependencies=[Depends(verify_api_key)])
 async def extend_claim(project_id: str, ttl_seconds: int = Query(default=DEFAULT_TTL_SECONDS)):
-    """Extend an existing claim's TTL."""
+    """Extend an existing claim's TTL. Requires authentication."""
     claim = store.get_claim(project_id)
 
     if not claim:
@@ -349,10 +420,21 @@ async def extend_claim(project_id: str, ttl_seconds: int = Query(default=DEFAULT
 
 def main():
     """Run the coordinator server."""
-    host = os.getenv("COORDINATOR_HOST", "0.0.0.0")
+    # Default to localhost for security (prevents external access)
+    # Set COORDINATOR_HOST=0.0.0.0 to allow external connections
+    host = os.getenv("COORDINATOR_HOST", "127.0.0.1")
     port = int(os.getenv("COORDINATOR_PORT", "8080"))
 
+    # Security warning if binding to all interfaces
+    if host == "0.0.0.0":
+        if not HIVE_API_KEY:
+            print("WARNING: Binding to all interfaces without HIVE_API_KEY set!")
+            print("         Set HIVE_API_KEY environment variable for security.")
+        if not REQUIRE_AUTH:
+            print("WARNING: Authentication is disabled (HIVE_REQUIRE_AUTH=false)!")
+
     print(f"Starting Agent Hive Coordinator on {host}:{port}")
+    print(f"Authentication: {'required' if REQUIRE_AUTH and HIVE_API_KEY else 'disabled'}")
     uvicorn.run(app, host=host, port=port)
 
 

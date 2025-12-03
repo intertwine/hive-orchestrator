@@ -21,8 +21,24 @@ from src.coordinator_client import (
 
 @pytest.fixture
 def client():
-    """Create a test client for the FastAPI app."""
-    return TestClient(app)
+    """Create a test client for the FastAPI app with auth disabled for testing."""
+    # Disable authentication for tests by setting both env vars
+    with patch.dict(
+        "os.environ",
+        {"HIVE_REQUIRE_AUTH": "false", "HIVE_API_KEY": ""},
+        clear=False,
+    ):
+        # Need to reload the module to pick up the new env vars
+        import src.coordinator as coordinator_module
+        original_require_auth = coordinator_module.REQUIRE_AUTH
+        original_api_key = coordinator_module.HIVE_API_KEY
+        coordinator_module.REQUIRE_AUTH = False
+        coordinator_module.HIVE_API_KEY = None
+        try:
+            yield TestClient(app)
+        finally:
+            coordinator_module.REQUIRE_AUTH = original_require_auth
+            coordinator_module.HIVE_API_KEY = original_api_key
 
 
 @pytest.fixture(autouse=True)
@@ -209,20 +225,25 @@ class TestClaimEndpoint:
         assert data["error"] == "Project already claimed"
         assert data["current_owner"] == "claude-opus"
 
-    def test_claim_project_force_override(self, client):
-        """Test force claiming an already claimed project."""
+    def test_claim_project_force_override_removed(self, client):
+        """Test that force parameter has been removed for security.
+
+        The force parameter was removed in the December 2025 security hardening
+        to prevent unauthorized claim overrides.
+        """
         # First claim
         client.post("/claim", json={"project_id": "my-project", "agent_name": "claude-opus"})
 
-        # Force claim should succeed
+        # Force claim should be ignored (parameter removed for security)
         response = client.post(
             "/claim?force=true", json={"project_id": "my-project", "agent_name": "grok-beta"}
         )
 
-        assert response.status_code == 200
+        # Should return conflict since force is no longer supported
+        assert response.status_code == 409
         data = response.json()
-        assert data["success"] is True
-        assert data["agent_name"] == "grok-beta"
+        assert data["success"] is False
+        assert data["current_owner"] == "claude-opus"
 
     def test_claim_project_default_ttl(self, client):
         """Test that default TTL is used when not specified."""

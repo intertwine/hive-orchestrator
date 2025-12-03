@@ -71,6 +71,79 @@ If deploying your own instance:
 - Monitor logs for unusual activity
 - Keep dependencies updated
 
+## Security Hardening (December 2025)
+
+The following security hardening measures were implemented to address vulnerabilities identified in the December 2025 security audit.
+
+### 1. YAML Deserialization Protection
+
+**Vulnerability**: The original code used `frontmatter.load()` which internally uses PyYAML's unsafe loader, allowing arbitrary code execution via malicious YAML tags like `!!python/object`.
+
+**Mitigation**: All YAML parsing now uses `yaml.safe_load()` through the `safe_load_agency_md()` function in `src/security.py`. This prevents execution of arbitrary Python code through YAML files.
+
+### 2. Prompt Injection Prevention
+
+**Vulnerability**: Untrusted content from AGENCY.md files was injected directly into LLM prompts without sanitization.
+
+**Mitigation**:
+- Content is sanitized using `sanitize_untrusted_content()` before inclusion in prompts
+- Prompts use XML-style delimiters (`<untrusted_content>`) to clearly mark boundaries
+- Security preambles warn the LLM to ignore instructions in untrusted content
+- Code blocks and common injection patterns are filtered
+
+### 3. GitHub Actions Hardening
+
+**Mitigations**:
+- Explicit minimal permissions set in workflow files
+- API keys are masked using `::add-mask::`
+- uv installer is downloaded and executed separately (not piped directly)
+
+### 4. Coordinator Authentication
+
+**Vulnerability**: The Coordinator server had no authentication, allowing unauthorized access.
+
+**Mitigations**:
+- API key authentication via `HIVE_API_KEY` environment variable
+- Bearer token required in Authorization header
+- Constant-time comparison to prevent timing attacks
+- Default binding to localhost (127.0.0.1) instead of all interfaces
+
+### 5. Issue Body Sanitization
+
+**Mitigations**:
+- Issue bodies are truncated to 4000 characters
+- Injection patterns are filtered
+- @mentions (except @claude) are neutralized
+- Labels are sanitized to alphanumeric characters
+
+### 6. Input Validation
+
+**Mitigations**:
+- `max_dispatches` is validated and clamped to 1-10
+- Recursion depth limit (100) in dependency graph traversal
+- Path traversal validation using `validate_path_within_base()`
+
+## Security Environment Variables
+
+| Variable | Purpose | Security Notes |
+|----------|---------|----------------|
+| `OPENROUTER_API_KEY` | LLM API access | Store as secret, never log |
+| `HIVE_API_KEY` | Coordinator auth | Required for external access |
+| `HIVE_REQUIRE_AUTH` | Enable/disable auth | Keep "true" in production |
+| `COORDINATOR_HOST` | Server binding | Keep 127.0.0.1 for local use |
+
+## Security Testing
+
+Run security tests with:
+
+```bash
+# Run all tests including security tests
+make test
+
+# Run security tests specifically
+uv run pytest tests/test_security.py -v
+```
+
 ## Known Security Considerations
 
 ### By Design
@@ -84,6 +157,9 @@ If deploying your own instance:
 - No code execution from LLM responses
 - Git-based audit trail for all changes
 - Secrets stored in environment variables
+- Safe YAML parsing (prevents RCE)
+- Prompt injection protection
+- API key authentication for Coordinator
 
 ## Scope
 

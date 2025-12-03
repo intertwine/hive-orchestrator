@@ -1,13 +1,13 @@
 ---
 blocked: false
 blocking_reason: null
-last_updated: '2025-12-03T04:06:11.352706Z'
+last_updated: '2025-12-03T08:01:31.175862Z'
 owner: null
 priority: medium
 project_id: demo
 relevant_files:
 - projects/demo/AGENCY.md
-status: paused
+status: active
 tags:
 - example
 - tutorial

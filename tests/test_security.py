@@ -8,7 +8,6 @@ These tests verify that security mitigations are working correctly:
 - API key authentication
 """
 
-import tempfile
 import pytest
 from pathlib import Path
 
@@ -195,6 +194,12 @@ class TestIssueBodySanitization:
         assert "@malicious-user" not in result
         assert "@another-user" not in result
 
+    def test_sanitize_issue_body_preserves_claude_code_mention(self):
+        """Test that @claude-code mentions are preserved."""
+        body = "@claude-code Please work on this task"
+        result = sanitize_issue_body(body)
+        assert "@claude-code" in result
+
 
 class TestPathTraversal:
     """Test path traversal prevention."""
@@ -215,6 +220,12 @@ class TestPathTraversal:
         """Test that paths outside base are rejected."""
         base = Path("/home/user/hive")
         file_path = Path("/etc/passwd")
+        assert validate_path_within_base(file_path, base) is False
+
+    def test_validate_path_within_base_rejects_prefix_attack(self):
+        """Test that directory prefix attacks are rejected."""
+        base = Path("/home/user/hive")
+        file_path = Path("/home/user/hive_evil/malicious.md")
         assert validate_path_within_base(file_path, base) is False
 
 

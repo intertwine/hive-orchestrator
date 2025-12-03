@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
-from src.security import safe_dump_agency_md, sanitize_untrusted_content
+from src.security import safe_dump_agency_md
 
 
 def generate_file_tree(

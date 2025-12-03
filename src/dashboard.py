@@ -13,8 +13,8 @@ import glob
 from pathlib import Path
 from datetime import datetime
 import streamlit as st
-from cortex import Cortex
-from security import safe_load_agency_md, safe_dump_agency_md
+from src.cortex import Cortex
+from src.security import safe_load_agency_md, safe_dump_agency_md
 
 
 def load_project(project_path: str):

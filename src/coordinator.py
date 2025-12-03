@@ -57,9 +57,16 @@ def verify_api_key(
     Raises:
         HTTPException: If authentication fails
     """
-    # If auth is disabled or no API key is configured, allow access
-    if not REQUIRE_AUTH or not HIVE_API_KEY:
+    # Only allow unauthenticated access if BOTH auth is disabled AND no key is configured
+    if (not REQUIRE_AUTH) and (not HIVE_API_KEY):
         return True
+
+    # If auth is required but no API key is configured, fail securely
+    if not HIVE_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Server misconfiguration: HIVE_API_KEY not set but authentication is required",
+        )
 
     if not credentials:
         raise HTTPException(

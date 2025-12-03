@@ -21,8 +21,24 @@ from src.coordinator_client import (
 
 @pytest.fixture
 def client():
-    """Create a test client for the FastAPI app."""
-    return TestClient(app)
+    """Create a test client for the FastAPI app with auth disabled for testing."""
+    # Disable authentication for tests by setting both env vars
+    with patch.dict(
+        "os.environ",
+        {"HIVE_REQUIRE_AUTH": "false", "HIVE_API_KEY": ""},
+        clear=False,
+    ):
+        # Need to reload the module to pick up the new env vars
+        import src.coordinator as coordinator_module
+        original_require_auth = coordinator_module.REQUIRE_AUTH
+        original_api_key = coordinator_module.HIVE_API_KEY
+        coordinator_module.REQUIRE_AUTH = False
+        coordinator_module.HIVE_API_KEY = None
+        try:
+            yield TestClient(app)
+        finally:
+            coordinator_module.REQUIRE_AUTH = original_require_auth
+            coordinator_module.HIVE_API_KEY = original_api_key
 
 
 @pytest.fixture(autouse=True)

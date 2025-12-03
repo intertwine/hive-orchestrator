@@ -21,10 +21,8 @@ from dotenv import load_dotenv
 from src.security import (
     safe_load_agency_md,
     safe_dump_agency_md,
-    safe_parse_frontmatter,
     build_secure_llm_prompt,
     sanitize_untrusted_content,
-    mask_secret,
     validate_path_within_base,
     MAX_RECURSION_DEPTH,
 )
@@ -668,8 +666,9 @@ class Cortex:
         # Combine all project content for sanitization
         combined_content_parts = []
 
-        # Add global content (sanitized)
-        combined_content_parts.append(f"# GLOBAL CONTEXT\n{global_ctx['content']}")
+        # Add global content (sanitized - GLOBAL.md is also user-editable)
+        sanitized_global = sanitize_untrusted_content(global_ctx['content'])
+        combined_content_parts.append(f"# GLOBAL CONTEXT\n{sanitized_global}")
 
         # Add each project content (sanitized)
         for i, project in enumerate(projects, 1):

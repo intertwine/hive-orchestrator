@@ -16,7 +16,7 @@ import os
 import re
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
 import yaml
@@ -327,14 +327,15 @@ def sanitize_issue_body(body: str) -> str:
 
     # Additional sanitization for GitHub issue context
     # Remove @mentions that might trigger unwanted notifications
-    # (except for @claude which is intentional)
+    # (except for @claude and @claude-code which are intentional)
     def filter_mentions(match):
         mention = match.group(0)
         if mention.lower() in ["@claude", "@claude-code"]:
             return mention
         return f"[at]{mention[1:]}"
 
-    sanitized = re.sub(r"@(?!claude\b)[a-zA-Z0-9_-]+", filter_mentions, sanitized)
+    # Use negative lookahead to preserve @claude and @claude-code
+    sanitized = re.sub(r"@(?!claude\b)(?!claude-code\b)[a-zA-Z0-9_-]+", filter_mentions, sanitized)
 
     return sanitized
 
@@ -344,6 +345,8 @@ def validate_path_within_base(file_path: Path, base_path: Path) -> bool:
     Validate that a file path is within the allowed base path.
 
     This prevents path traversal attacks (e.g., ../../../etc/passwd).
+    Also prevents directory prefix attacks (e.g., /home/user/hive_evil when
+    base is /home/user/hive).
 
     Args:
         file_path: Path to validate
@@ -355,20 +358,22 @@ def validate_path_within_base(file_path: Path, base_path: Path) -> bool:
     try:
         resolved_file = file_path.resolve()
         resolved_base = base_path.resolve()
-        return str(resolved_file).startswith(str(resolved_base))
+        # Use is_relative_to() to properly check containment
+        # This prevents prefix attacks like /hive_evil matching /hive
+        return resolved_file.is_relative_to(resolved_base)
     except (OSError, ValueError):
         return False
 
 
-def validate_api_key(provided_key: str, expected_key: str) -> bool:
+def validate_api_key(provided_key: Optional[str], expected_key: Optional[str]) -> bool:
     """
     Validate an API key using constant-time comparison.
 
     This prevents timing attacks that could leak information about the key.
 
     Args:
-        provided_key: The key provided in the request
-        expected_key: The expected valid key
+        provided_key: The key provided in the request (can be None)
+        expected_key: The expected valid key (can be None)
 
     Returns:
         True if keys match, False otherwise

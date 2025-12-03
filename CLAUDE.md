@@ -37,6 +37,7 @@ Defined in `pyproject.toml`:
 - **python-frontmatter** (>=1.0.0): Parse Markdown files with YAML frontmatter
 - **pyyaml** (>=6.0.1): YAML parsing and serialization
 - **python-dotenv** (>=1.0.0): Environment variable management
+- **weave** (>=0.51.0): Weights & Biases observability for LLM tracing
 
 ### Development Tools
 
@@ -65,7 +66,8 @@ agent-hive/
 │   ├── cortex.py               # Orchestration engine
 │   ├── dashboard.py            # Streamlit dashboard
 │   ├── agent_dispatcher.py     # Agent work assignment
-│   └── context_assembler.py    # Issue context builder
+│   ├── context_assembler.py    # Issue context builder
+│   └── tracing.py              # Weave observability integration
 ├── GLOBAL.md                   # Root system state
 ├── pyproject.toml              # Project configuration
 ├── Makefile                    # Development commands
@@ -382,6 +384,13 @@ The project has comprehensive test coverage for all major functionality:
   - Issue title and body building
   - Label generation
 
+- **tests/test_tracing.py**: Tests for Weave observability integration
+  - Tracing enable/disable logic
+  - LLMCallMetadata class
+  - Token usage extraction
+  - Traced LLM calls (success, error, timeout)
+  - Cortex integration with tracing
+
 - **tests/conftest.py**: Shared test fixtures and utilities
   - Temporary test directory structures
   - Mock environment variables
@@ -527,6 +536,60 @@ response = client.chat.completions.create(
     messages=[{"role": "user", "content": "Hello"}]
 )
 ```
+
+### Weave Tracing (Observability)
+
+Agent Hive uses [Weights & Biases Weave](https://docs.wandb.ai/weave) for LLM observability.
+All LLM calls are automatically traced with metrics including latency, token usage, and success/failure status.
+
+**Configuration:**
+
+Set in `.env`:
+```bash
+WANDB_API_KEY=your-wandb-api-key     # Required for remote logging
+WEAVE_PROJECT=agent-hive              # Optional, defaults to "agent-hive"
+WEAVE_DISABLED=false                  # Set to "true" to disable tracing
+```
+
+**Tracing Module (`src/tracing.py`):**
+
+The tracing module provides:
+- `init_tracing()` - Initialize Weave at application startup
+- `traced_llm_call()` - Make a traced LLM API call with metrics
+- `get_tracing_status()` - Check current tracing status
+- `is_tracing_enabled()` - Check if tracing is enabled
+- `trace_op()` - Decorator to trace custom functions
+- `LLMCallMetadata` - Data class for call metrics
+
+**Usage in Code:**
+
+```python
+from src.tracing import init_tracing, traced_llm_call, is_tracing_enabled
+
+# Initialize at startup (optional - degrades gracefully)
+if is_tracing_enabled():
+    init_tracing()
+
+# Make traced LLM call
+result = traced_llm_call(
+    api_url="https://openrouter.ai/api/v1/chat/completions",
+    headers={"Authorization": f"Bearer {api_key}"},
+    payload={"model": model, "messages": messages},
+    model=model,
+)
+
+# Access call metadata
+print(f"Latency: {result['metadata'].latency_ms}ms")
+print(f"Tokens: {result['metadata'].total_tokens}")
+```
+
+**Graceful Degradation:**
+
+Tracing is optional and safe:
+- If `WANDB_API_KEY` is not set, tracing is skipped
+- If `WEAVE_DISABLED=true`, tracing is disabled
+- If Weave fails to initialize, the application continues normally
+- All LLM calls work identically with or without tracing
 
 ## Troubleshooting
 

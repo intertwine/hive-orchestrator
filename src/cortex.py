@@ -15,7 +15,6 @@ import glob
 from pathlib import Path
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional
-import requests
 from dotenv import load_dotenv
 
 from src.security import (
@@ -25,6 +24,12 @@ from src.security import (
     sanitize_untrusted_content,
     validate_path_within_base,
     MAX_RECURSION_DEPTH,
+)
+from src.tracing import (
+    init_tracing,
+    traced_llm_call,
+    get_tracing_status,
+    is_tracing_enabled,
 )
 
 
@@ -739,7 +744,11 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         )
 
     def call_llm(self, prompt: str) -> Optional[Dict[str, Any]]:
-        """Call the LLM via OpenRouter API."""
+        """Call the LLM via OpenRouter API with optional Weave tracing.
+
+        This method uses the tracing module to capture LLM call metrics
+        including latency, token usage, and success/failure status.
+        """
 
         if not self.api_key:
             print("❌ ERROR: Cannot call LLM without OPENROUTER_API_KEY")
@@ -761,10 +770,33 @@ Return ONLY valid JSON, no markdown formatting or additional text.
 
         try:
             print(f"🧠 Calling LLM ({self.model})...")
-            response = requests.post(self.api_url, headers=headers, json=payload, timeout=60)
-            response.raise_for_status()
 
-            result = response.json()
+            # Use traced LLM call for observability
+            call_result = traced_llm_call(
+                api_url=self.api_url,
+                headers=headers,
+                payload=payload,
+                model=self.model,
+                timeout=60,
+            )
+
+            metadata = call_result["metadata"]
+            result = call_result["response"]
+
+            # Log tracing metadata if available
+            if metadata.latency_ms:
+                print(f"   ⏱ Latency: {metadata.latency_ms:.0f}ms")
+            if metadata.total_tokens:
+                print(f"   📊 Tokens: {metadata.total_tokens}")
+
+            # Check for errors in the traced call
+            if not metadata.success:
+                print(f"❌ ERROR calling OpenRouter API: {metadata.error}")
+                return None
+
+            if result is None:
+                print("❌ ERROR: No response received from API")
+                return None
 
             # Defensive checks for response structure
             choices = result.get("choices")
@@ -794,9 +826,6 @@ Return ONLY valid JSON, no markdown formatting or additional text.
 
             return json.loads(llm_response)
 
-        except requests.exceptions.RequestException as e:
-            print(f"❌ ERROR calling OpenRouter API: {e}")
-            return None
         except json.JSONDecodeError as e:
             print(f"❌ ERROR parsing LLM response as JSON: {e}")
             print(f"Response was: {llm_response[:200]}...")
@@ -1011,6 +1040,13 @@ Examples:
 def main():
     """CLI entry point for Cortex."""
     args = parse_args()
+
+    # Initialize Weave tracing (optional - degrades gracefully if not configured)
+    if is_tracing_enabled():
+        init_tracing()
+        tracing_status = get_tracing_status()
+        if tracing_status["tracing_initialized"]:
+            print(f"📈 Weave tracing active (project: {tracing_status['project']})")
 
     cortex = Cortex(base_path=args.path)
 

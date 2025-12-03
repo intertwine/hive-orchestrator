@@ -199,11 +199,13 @@ class TestBuildAnalysisPrompt:
 class TestCallLLM:
     """Test LLM API calls."""
 
-    def test_call_llm_success(self, temp_hive_dir, mock_env_vars, sample_api_response):
+    def test_call_llm_success(self, temp_hive_dir, mock_env_vars, sample_api_response, monkeypatch):
         """Test successful LLM call."""
+        # Disable weave tracing for tests
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
         cortex = Cortex(temp_hive_dir)
 
-        with patch("cortex.requests.post") as mock_post:
+        with patch("tracing.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = sample_api_response
             mock_response.raise_for_status = Mock()
@@ -225,9 +227,10 @@ class TestCallLLM:
         assert result is None
 
     def test_call_llm_with_markdown_wrapped_json(
-        self, temp_hive_dir, mock_env_vars, sample_llm_response
+        self, temp_hive_dir, mock_env_vars, sample_llm_response, monkeypatch
     ):
         """Test LLM call with JSON wrapped in markdown code blocks."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
         cortex = Cortex(temp_hive_dir)
 
         markdown_response = {
@@ -236,7 +239,7 @@ class TestCallLLM:
             ]
         }
 
-        with patch("cortex.requests.post") as mock_post:
+        with patch("tracing.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = markdown_response
             mock_response.raise_for_status = Mock()
@@ -247,23 +250,25 @@ class TestCallLLM:
             assert result is not None
             assert result["summary"] == "System is running well with 2 active projects"
 
-    def test_call_llm_network_error(self, temp_hive_dir, mock_env_vars):
+    def test_call_llm_network_error(self, temp_hive_dir, mock_env_vars, monkeypatch):
         """Test LLM call with network error."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
         cortex = Cortex(temp_hive_dir)
 
-        with patch("cortex.requests.post") as mock_post:
+        with patch("tracing.requests.post") as mock_post:
             mock_post.side_effect = Exception("Network error")
 
             result = cortex.call_llm("Test prompt")
             assert result is None
 
-    def test_call_llm_invalid_json_response(self, temp_hive_dir, mock_env_vars):
+    def test_call_llm_invalid_json_response(self, temp_hive_dir, mock_env_vars, monkeypatch):
         """Test LLM call with invalid JSON response."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
         cortex = Cortex(temp_hive_dir)
 
         invalid_response = {"choices": [{"message": {"content": "This is not valid JSON"}}]}
 
-        with patch("cortex.requests.post") as mock_post:
+        with patch("tracing.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = invalid_response
             mock_response.raise_for_status = Mock()
@@ -272,13 +277,14 @@ class TestCallLLM:
             result = cortex.call_llm("Test prompt")
             assert result is None
 
-    def test_call_llm_missing_choices(self, temp_hive_dir, mock_env_vars):
+    def test_call_llm_missing_choices(self, temp_hive_dir, mock_env_vars, monkeypatch):
         """Test LLM call with missing choices in response."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
         cortex = Cortex(temp_hive_dir)
 
         invalid_response = {"error": "No choices"}
 
-        with patch("cortex.requests.post") as mock_post:
+        with patch("tracing.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = invalid_response
             mock_response.raise_for_status = Mock()
@@ -420,11 +426,14 @@ class TestCortexRun:
         result = cortex.run()
         assert result is False
 
-    def test_run_success(self, temp_hive_dir, temp_project, mock_env_vars, sample_api_response):
+    def test_run_success(
+        self, temp_hive_dir, temp_project, mock_env_vars, sample_api_response, monkeypatch
+    ):
         """Test successful cortex run."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
         cortex = Cortex(temp_hive_dir)
 
-        with patch("cortex.requests.post") as mock_post:
+        with patch("tracing.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = sample_api_response
             mock_response.raise_for_status = Mock()
@@ -440,9 +449,10 @@ class TestCortexRun:
                 assert post.metadata["last_cortex_run"] is not None
 
     def test_run_with_state_updates(
-        self, temp_hive_dir, temp_project, mock_env_vars, sample_llm_response
+        self, temp_hive_dir, temp_project, mock_env_vars, sample_llm_response, monkeypatch
     ):
         """Test cortex run with state updates."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
         cortex = Cortex(temp_hive_dir)
 
         # Add state updates to the response
@@ -458,7 +468,7 @@ class TestCortexRun:
 
         api_response = {"choices": [{"message": {"content": json.dumps(response_with_updates)}}]}
 
-        with patch("cortex.requests.post") as mock_post:
+        with patch("tracing.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = api_response
             mock_response.raise_for_status = Mock()
@@ -472,11 +482,12 @@ class TestCortexRun:
                 post = frontmatter.load(f)
                 assert post.metadata["status"] == "completed"
 
-    def test_run_handles_llm_failure(self, temp_hive_dir, temp_project, mock_env_vars):
+    def test_run_handles_llm_failure(self, temp_hive_dir, temp_project, mock_env_vars, monkeypatch):
         """Test cortex run handles LLM call failures gracefully."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
         cortex = Cortex(temp_hive_dir)
 
-        with patch("cortex.requests.post") as mock_post:
+        with patch("tracing.requests.post") as mock_post:
             mock_post.side_effect = Exception("API Error")
 
             result = cortex.run()

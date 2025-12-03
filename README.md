@@ -467,6 +467,37 @@ OPENROUTER_MODEL=google/gemini-pro
 OPENROUTER_MODEL=x-ai/grok-beta
 ```
 
+### Weave Tracing (Observability)
+
+Agent Hive includes built-in observability via [Weights & Biases Weave](https://docs.wandb.ai/weave). Weave automatically traces all LLM calls, capturing latency, token usage, and costs.
+
+**Enable Weave tracing:**
+
+```bash
+# Add to .env
+WANDB_API_KEY=your-wandb-api-key
+WEAVE_PROJECT=agent-hive  # Optional, defaults to "agent-hive"
+```
+
+**Disable tracing (optional):**
+
+```bash
+WEAVE_DISABLED=true
+```
+
+**What gets traced:**
+- All LLM API calls to OpenRouter
+- Request/response latency (milliseconds)
+- Token usage (prompt, completion, total)
+- Success/failure status
+
+**View traces:**
+- Log into [wandb.ai](https://wandb.ai)
+- Navigate to your Weave project
+- View call traces, costs, and performance metrics
+
+Tracing is **optional** and gracefully degrades - if Weave is not configured or fails to initialize, the application continues to function normally.
+
 ### GitHub Actions Schedule
 
 Edit `.github/workflows/cortex.yml`:

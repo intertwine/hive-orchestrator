@@ -209,20 +209,25 @@ class TestClaimEndpoint:
         assert data["error"] == "Project already claimed"
         assert data["current_owner"] == "claude-opus"
 
-    def test_claim_project_force_override(self, client):
-        """Test force claiming an already claimed project."""
+    def test_claim_project_force_override_removed(self, client):
+        """Test that force parameter has been removed for security.
+
+        The force parameter was removed in the December 2025 security hardening
+        to prevent unauthorized claim overrides.
+        """
         # First claim
         client.post("/claim", json={"project_id": "my-project", "agent_name": "claude-opus"})
 
-        # Force claim should succeed
+        # Force claim should be ignored (parameter removed for security)
         response = client.post(
             "/claim?force=true", json={"project_id": "my-project", "agent_name": "grok-beta"}
         )
 
-        assert response.status_code == 200
+        # Should return conflict since force is no longer supported
+        assert response.status_code == 409
         data = response.json()
-        assert data["success"] is True
-        assert data["agent_name"] == "grok-beta"
+        assert data["success"] is False
+        assert data["current_owner"] == "claude-opus"
 
     def test_claim_project_default_ttl(self, client):
         """Test that default TTL is used when not specified."""

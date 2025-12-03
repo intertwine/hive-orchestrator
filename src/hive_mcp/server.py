@@ -4,6 +4,9 @@ Hive MCP Server - Model Context Protocol integration for Agent Hive.
 
 This server exposes Hive Orchestrator functionality as MCP tools
 that can be used by AI agents like Claude.
+
+Security Note: This server uses safe YAML loading to prevent deserialization
+attacks from malicious AGENCY.md content.
 """
 
 import os
@@ -12,7 +15,6 @@ import json
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
-import frontmatter
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
@@ -24,6 +26,11 @@ from cortex import Cortex  # pylint: disable=wrong-import-position
 from coordinator_client import (  # pylint: disable=wrong-import-position
     CoordinatorUnavailable,
     get_coordinator_client,
+)
+from security import (  # pylint: disable=wrong-import-position
+    safe_load_agency_md,
+    safe_dump_agency_md,
+    validate_path_within_base,
 )
 
 
@@ -57,6 +64,8 @@ def update_project_field(project_path: str, field: str, value: Any, base_path: s
     """
     Update a frontmatter field in a project's AGENCY.md file.
 
+    Uses safe YAML loading to prevent deserialization attacks.
+
     Args:
         project_path: Path to the AGENCY.md file
         field: The frontmatter field to update
@@ -69,29 +78,26 @@ def update_project_field(project_path: str, field: str, value: Any, base_path: s
     try:
         file_path = Path(project_path)
 
-        # Validate path is within base_path if provided
+        # Validate path is within base_path if provided (prevent path traversal)
         if base_path:
-            resolved_file = file_path.resolve()
-            resolved_base = Path(base_path).resolve()
-            if not str(resolved_file).startswith(str(resolved_base)):
+            if not validate_path_within_base(file_path, Path(base_path)):
                 return False
 
         if not file_path.exists():
             return False
 
-        # Read the file
-        with open(file_path, "r", encoding="utf-8") as f:
-            post = frontmatter.load(f)
+        # Read the file using safe loading
+        parsed = safe_load_agency_md(file_path)
 
         # Update the field
-        post.metadata[field] = value
+        parsed.metadata[field] = value
 
         # Update last_updated timestamp
-        post.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
+        parsed.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
 
-        # Write back
+        # Write back using safe dump
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(frontmatter.dumps(post))
+            f.write(safe_dump_agency_md(parsed.metadata, parsed.content))
 
         return True
 
@@ -102,6 +108,8 @@ def update_project_field(project_path: str, field: str, value: Any, base_path: s
 def add_agent_note(project_path: str, agent: str, note: str, base_path: str = None) -> bool:
     """
     Add a timestamped note to the Agent Notes section of AGENCY.md.
+
+    Uses safe YAML loading to prevent deserialization attacks.
 
     Args:
         project_path: Path to the AGENCY.md file
@@ -115,28 +123,26 @@ def add_agent_note(project_path: str, agent: str, note: str, base_path: str = No
     try:
         file_path = Path(project_path)
 
-        # Validate path is within base_path if provided
+        # Validate path is within base_path if provided (prevent path traversal)
         if base_path:
-            resolved_file = file_path.resolve()
-            resolved_base = Path(base_path).resolve()
-            if not str(resolved_file).startswith(str(resolved_base)):
+            if not validate_path_within_base(file_path, Path(base_path)):
                 return False
 
         if not file_path.exists():
             return False
 
-        # Read the file
-        with open(file_path, "r", encoding="utf-8") as f:
-            post = frontmatter.load(f)
+        # Read the file using safe loading
+        parsed = safe_load_agency_md(file_path)
 
         # Get current timestamp
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
 
-        # Format the note
-        new_note = f"- **{timestamp} - {agent}**: {note}"
+        # Format the note (truncate to prevent abuse)
+        truncated_note = note[:2000] if len(note) > 2000 else note
+        new_note = f"- **{timestamp} - {agent}**: {truncated_note}"
 
         # Add to content
-        content = post.content.strip()
+        content = parsed.content.strip()
 
         # Look for Agent Notes section
         if "## Agent Notes" in content:
@@ -152,14 +158,12 @@ def add_agent_note(project_path: str, agent: str, note: str, base_path: str = No
             # Add Agent Notes section at the end
             content = f"{content}\n\n## Agent Notes\n{new_note}"
 
-        post.content = content
-
         # Update last_updated
-        post.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
+        parsed.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
 
-        # Write back
+        # Write back using safe dump
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(frontmatter.dumps(post))
+            f.write(safe_dump_agency_md(parsed.metadata, content))
 
         return True
 

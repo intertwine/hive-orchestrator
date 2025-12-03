@@ -9,7 +9,8 @@ relevant files, and structured instructions for Claude Code.
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
-import frontmatter
+
+from src.security import safe_dump_agency_md, sanitize_untrusted_content
 
 
 def generate_file_tree(
@@ -163,8 +164,8 @@ def build_issue_body(
     tags = metadata.get("tags", [])
     relevant_files = metadata.get("relevant_files", [])
 
-    # Build the raw AGENCY.md content
-    raw_agency = frontmatter.dumps(frontmatter.Post(content, **metadata))
+    # Build the raw AGENCY.md content using safe dump (prevents injection via frontmatter)
+    raw_agency = safe_dump_agency_md(metadata, content)
 
     # Get file tree for project
     file_tree = generate_file_tree(project_dir, max_depth=3)

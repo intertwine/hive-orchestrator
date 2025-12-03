@@ -15,9 +15,19 @@ import glob
 from pathlib import Path
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional
-import frontmatter
 import requests
 from dotenv import load_dotenv
+
+from src.security import (
+    safe_load_agency_md,
+    safe_dump_agency_md,
+    safe_parse_frontmatter,
+    build_secure_llm_prompt,
+    sanitize_untrusted_content,
+    mask_secret,
+    validate_path_within_base,
+    MAX_RECURSION_DEPTH,
+)
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -70,47 +80,47 @@ class Cortex:
         return True
 
     def read_global_context(self) -> Optional[Dict[str, Any]]:
-        """Read and parse GLOBAL.md file."""
+        """Read and parse GLOBAL.md file using safe YAML loading."""
         if not self.global_file.exists():
-            print(f"❌ ERROR: GLOBAL.md not found at {self.global_file}")
+            print(f"ERROR: GLOBAL.md not found at {self.global_file}")
             return None
 
         try:
-            with open(self.global_file, "r", encoding="utf-8") as f:
-                post = frontmatter.load(f)
-                return {
-                    "metadata": post.metadata,
-                    "content": post.content,
-                    "path": str(self.global_file),
-                }
+            # Use safe loading to prevent YAML deserialization attacks
+            parsed = safe_load_agency_md(self.global_file)
+            return {
+                "metadata": parsed.metadata,
+                "content": parsed.content,
+                "path": str(self.global_file),
+            }
         except Exception as e:
-            print(f"❌ ERROR reading GLOBAL.md: {e}")
+            print(f"ERROR reading GLOBAL.md: {e}")
             return None
 
     def discover_projects(self) -> List[Dict[str, Any]]:
-        """Discover all projects with AGENCY.md files."""
+        """Discover all projects with AGENCY.md files using safe YAML loading."""
         projects = []
 
         if not self.projects_dir.exists():
-            print(f"⚠️  WARNING: Projects directory not found at {self.projects_dir}")
+            print(f"WARNING: Projects directory not found at {self.projects_dir}")
             return projects
 
         agency_files = glob.glob(str(self.projects_dir / "*" / "AGENCY.md"))
 
         for agency_file in agency_files:
             try:
-                with open(agency_file, "r", encoding="utf-8") as f:
-                    post = frontmatter.load(f)
-                    projects.append(
-                        {
-                            "path": agency_file,
-                            "project_id": post.metadata.get("project_id", "unknown"),
-                            "metadata": post.metadata,
-                            "content": post.content,
-                        }
-                    )
+                # Use safe loading to prevent YAML deserialization attacks
+                parsed = safe_load_agency_md(Path(agency_file))
+                projects.append(
+                    {
+                        "path": agency_file,
+                        "project_id": parsed.metadata.get("project_id", "unknown"),
+                        "metadata": parsed.metadata,
+                        "content": parsed.content,
+                    }
+                )
             except Exception as e:
-                print(f"⚠️  WARNING: Could not parse {agency_file}: {e}")
+                print(f"WARNING: Could not parse {agency_file}: {e}")
 
         return projects
 
@@ -193,15 +203,20 @@ class Cortex:
         rec_stack = set()
         path = []
 
-        def dfs(node: str) -> bool:
+        def dfs(node: str, depth: int = 0) -> bool:
             """DFS to detect cycles, returns True if cycle found."""
+            # Prevent DoS via deeply nested graphs
+            if depth > MAX_RECURSION_DEPTH:
+                print(f"WARNING: Max recursion depth exceeded at node {node}")
+                return False
+
             visited.add(node)
             rec_stack.add(node)
             path.append(node)
 
             for neighbor in edges.get(node, []):
                 if neighbor not in visited:
-                    if dfs(neighbor):
+                    if dfs(neighbor, depth + 1):
                         return True
                 elif neighbor in rec_stack:
                     # Found a cycle - extract it from path
@@ -216,7 +231,7 @@ class Cortex:
 
         for node in nodes:
             if node not in visited:
-                dfs(node)
+                dfs(node, 0)
 
         return cycles
 
@@ -644,47 +659,49 @@ class Cortex:
         return True
 
     def build_analysis_prompt(self, global_ctx: Dict, projects: List[Dict]) -> str:
-        """Build the prompt for the LLM to analyze system state."""
+        """
+        Build the prompt for the LLM to analyze system state.
 
-        prompt = f"""You are the Cortex of Agent Hive, an orchestration operating system.
+        Uses secure prompt construction to prevent injection attacks from
+        user-editable AGENCY.md content.
+        """
+        # Combine all project content for sanitization
+        combined_content_parts = []
 
-Your task is to analyze the current state of all projects and identify:
-1. Blocked tasks that need attention
-2. New project requests in GLOBAL.md
-3. State updates needed in AGENCY.md files
-4. Priority recommendations
+        # Add global content (sanitized)
+        combined_content_parts.append(f"# GLOBAL CONTEXT\n{global_ctx['content']}")
 
-# GLOBAL CONTEXT
-
-## Metadata
-{json.dumps(global_ctx['metadata'], indent=2, cls=DateTimeEncoder)}
-
-## Content
-{global_ctx['content']}
-
-# PROJECTS
-
-"""
-
+        # Add each project content (sanitized)
         for i, project in enumerate(projects, 1):
-            prompt += f"""
-## Project {i}: {project['project_id']}
+            sanitized_content = sanitize_untrusted_content(project['content'])
+            combined_content_parts.append(
+                f"\n## Project {i}: {project['project_id']}\n{sanitized_content}"
+            )
 
-### Metadata
-{json.dumps(project['metadata'], indent=2, cls=DateTimeEncoder)}
+        combined_content = "\n---\n".join(combined_content_parts)
 
-### Content
-{project['content']}
+        # Build combined metadata
+        combined_metadata = {
+            "global": global_ctx['metadata'],
+            "projects": [
+                {
+                    "project_id": p['project_id'],
+                    "path": p['path'],
+                    **p['metadata']
+                }
+                for p in projects
+            ]
+        }
 
----
-"""
+        # Use secure prompt builder with additional task instructions
+        additional_context = """
+Your specific tasks are:
+1. Identify blocked tasks that need attention
+2. Detect new project requests in GLOBAL.md
+3. Suggest state updates needed in AGENCY.md files
+4. Provide priority recommendations
 
-        prompt += """
-
-# YOUR TASK
-
-Analyze the above information and respond with a JSON object containing:
-
+Respond with a JSON object containing:
 {
   "summary": "Brief summary of system state",
   "blocked_tasks": [
@@ -716,7 +733,11 @@ Analyze the above information and respond with a JSON object containing:
 Return ONLY valid JSON, no markdown formatting or additional text.
 """
 
-        return prompt
+        return build_secure_llm_prompt(
+            metadata=combined_metadata,
+            content=combined_content,
+            additional_context=additional_context
+        )
 
     def call_llm(self, prompt: str) -> Optional[Dict[str, Any]]:
         """Call the LLM via OpenRouter API."""
@@ -786,13 +807,13 @@ Return ONLY valid JSON, no markdown formatting or additional text.
             return None
 
     def apply_state_updates(self, updates: List[Dict[str, Any]]) -> bool:
-        """Apply state updates to AGENCY.md files."""
+        """Apply state updates to AGENCY.md files using safe YAML handling."""
 
         if not updates:
-            print("✅ No state updates needed")
+            print("No state updates needed")
             return True
 
-        print(f"\n📝 Applying {len(updates)} state update(s)...")
+        print(f"\nApplying {len(updates)} state update(s)...")
 
         for update in updates:
             try:
@@ -800,43 +821,40 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 if not file_path.is_absolute():
                     file_path = self.base_path / file_path
 
-                # Resolve both paths to absolute, canonical form
-                resolved_file_path = file_path.resolve()
-                resolved_base_path = self.base_path.resolve()
-
-                # Check that the file is within the base path (prevent path traversal)
-                if not str(resolved_file_path).startswith(str(resolved_base_path)):
-                    print(f"⚠️  WARNING: File path outside project directory: {resolved_file_path}")
+                # Validate path is within base directory (prevent path traversal)
+                if not validate_path_within_base(file_path, self.base_path):
+                    print(f"WARNING: File path outside project directory: {file_path}")
                     continue
 
+                resolved_file_path = file_path.resolve()
+
                 if not resolved_file_path.exists():
-                    print(f"⚠️  WARNING: File not found: {resolved_file_path}")
+                    print(f"WARNING: File not found: {resolved_file_path}")
                     continue
 
                 # Use the resolved path for all operations
                 file_path = resolved_file_path
 
-                # Read the file
-                with open(file_path, "r", encoding="utf-8") as f:
-                    post = frontmatter.load(f)
+                # Read the file using safe loading
+                parsed = safe_load_agency_md(file_path)
 
                 # Update the frontmatter field
                 field = update["field"]
                 value = update["value"]
-                post.metadata[field] = value
+                parsed.metadata[field] = value
 
                 # Also update last_updated
-                post.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
+                parsed.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
 
-                # Write back
+                # Write back using safe dump
                 with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(frontmatter.dumps(post))
+                    f.write(safe_dump_agency_md(parsed.metadata, parsed.content))
 
-                print(f"   ✓ Updated {file_path.name}: {field} = {value}")
+                print(f"   Updated {file_path.name}: {field} = {value}")
                 print(f"     Reason: {update.get('reason', 'N/A')}")
 
             except Exception as e:
-                print(f"   ✗ ERROR updating {update['file']}: {e}")
+                print(f"   ERROR updating {update['file']}: {e}")
                 return False
 
         return True
@@ -923,16 +941,15 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         if notes:
             print(f"\n📌 NOTES:\n{notes}")
 
-        # Update GLOBAL.md with last run time
+        # Update GLOBAL.md with last run time (using safe loading)
         try:
-            with open(self.global_file, "r", encoding="utf-8") as f:
-                post = frontmatter.load(f)
-            post.metadata["last_cortex_run"] = datetime.utcnow().isoformat() + "Z"
+            parsed = safe_load_agency_md(self.global_file)
+            parsed.metadata["last_cortex_run"] = datetime.utcnow().isoformat() + "Z"
             with open(self.global_file, "w", encoding="utf-8") as f:
-                f.write(frontmatter.dumps(post))
-            print("\n✅ Updated GLOBAL.md last_cortex_run timestamp")
+                f.write(safe_dump_agency_md(parsed.metadata, parsed.content))
+            print("\nUpdated GLOBAL.md last_cortex_run timestamp")
         except Exception as e:
-            print(f"\n⚠️  WARNING: Could not update GLOBAL.md timestamp: {e}")
+            print(f"\nWARNING: Could not update GLOBAL.md timestamp: {e}")
 
         print("\n" + "=" * 60)
         print("✅ CORTEX RUN COMPLETED")

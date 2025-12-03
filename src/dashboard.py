@@ -3,6 +3,9 @@
 Agent Hive Dashboard - Streamlit UI
 
 Provides human oversight and control over the Agent Hive orchestration system.
+
+Security Note: This dashboard uses safe YAML loading to prevent deserialization
+attacks from malicious AGENCY.md content.
 """
 
 import os
@@ -10,21 +13,21 @@ import glob
 from pathlib import Path
 from datetime import datetime
 import streamlit as st
-import frontmatter
 from cortex import Cortex
+from security import safe_load_agency_md, safe_dump_agency_md
 
 
 def load_project(project_path: str):
-    """Load and parse an AGENCY.md file."""
+    """Load and parse an AGENCY.md file using safe YAML loading."""
     try:
-        with open(project_path, "r", encoding="utf-8") as f:
-            post = frontmatter.load(f)
-            return {
-                "path": project_path,
-                "metadata": post.metadata,
-                "content": post.content,
-                "raw": frontmatter.dumps(post),
-            }
+        # Use safe loading to prevent YAML deserialization attacks
+        parsed = safe_load_agency_md(Path(project_path))
+        return {
+            "path": project_path,
+            "metadata": parsed.metadata,
+            "content": parsed.content,
+            "raw": safe_dump_agency_md(parsed.metadata, parsed.content),
+        }
     except Exception as e:
         st.error(f"Error loading project: {e}")
         return None
@@ -199,12 +202,12 @@ def main():
 
         st.header("📊 System Status")
 
-        # Load GLOBAL.md
+        # Load GLOBAL.md using safe loading
         global_file = base_path / "GLOBAL.md"
         if global_file.exists():
-            with open(global_file, "r", encoding="utf-8") as f:
-                global_post = frontmatter.load(f)
-                last_run = global_post.metadata.get("last_cortex_run", "Never")
+            try:
+                global_parsed = safe_load_agency_md(global_file)
+                last_run = global_parsed.metadata.get("last_cortex_run", "Never")
                 if last_run and last_run != "Never":
                     try:
                         last_run = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
@@ -214,6 +217,8 @@ def main():
                         pass
                 st.metric("Last Cortex Run", last_run)
                 st.metric("Total Projects", len(projects))
+            except Exception as e:
+                st.error(f"Error loading GLOBAL.md: {e}")
 
         st.divider()
 

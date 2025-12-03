@@ -13,7 +13,6 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-import frontmatter
 from dotenv import load_dotenv
 
 from src.cortex import Cortex
@@ -22,6 +21,12 @@ from src.context_assembler import (
     build_issue_body,
     build_issue_labels,
     get_next_task,
+)
+from src.security import (
+    safe_load_agency_md,
+    safe_dump_agency_md,
+    sanitize_issue_body,
+    validate_max_dispatches,
 )
 
 # Load environment variables
@@ -164,6 +169,8 @@ class AgentDispatcher:
         """
         Claim a project by setting owner and adding issue link to AGENCY.md.
 
+        Uses safe YAML loading to prevent deserialization attacks.
+
         Args:
             project: Project to claim
             issue_url: URL of the created GitHub issue
@@ -178,12 +185,12 @@ class AgentDispatcher:
         try:
             project_path = Path(project["path"])
 
-            with open(project_path, "r", encoding="utf-8") as f:
-                post = frontmatter.load(f)
+            # Use safe loading to prevent YAML deserialization attacks
+            parsed = safe_load_agency_md(project_path)
 
             # Update metadata
-            post.metadata["owner"] = self.AGENT_NAME
-            post.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
+            parsed.metadata["owner"] = self.AGENT_NAME
+            parsed.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
 
             # Add agent note with issue link
             timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
@@ -193,18 +200,19 @@ class AgentDispatcher:
             )
 
             # Find or create Agent Notes section
-            if "## Agent Notes" in post.content:
+            content = parsed.content
+            if "## Agent Notes" in content:
                 # Append to existing section
-                post.content = post.content.replace(
+                content = content.replace(
                     "## Agent Notes", f"## Agent Notes{note}", 1
                 )
             else:
                 # Add new section at the end
-                post.content += f"\n\n## Agent Notes{note}"
+                content += f"\n\n## Agent Notes{note}"
 
-            # Write back
+            # Write back using safe dump
             with open(project_path, "w", encoding="utf-8") as f:
-                f.write(frontmatter.dumps(post))
+                f.write(safe_dump_agency_md(parsed.metadata, content))
 
             return True
 
@@ -218,6 +226,8 @@ class AgentDispatcher:
         """
         Create a GitHub issue using the gh CLI.
 
+        Sanitizes title and body to prevent injection attacks via issue content.
+
         Args:
             title: Issue title
             body: Issue body (markdown)
@@ -226,18 +236,27 @@ class AgentDispatcher:
         Returns:
             Issue URL on success, None on failure
         """
+        # Sanitize title (truncate and strip dangerous patterns)
+        safe_title = title[:200] if title else "Agent Hive Task"
+
+        # Sanitize body to prevent injection attacks
+        safe_body = sanitize_issue_body(body)
+
         if self.dry_run:
-            print(f"   [DRY RUN] Would create issue: {title}")
+            print(f"   [DRY RUN] Would create issue: {safe_title}")
             print(f"   [DRY RUN] Labels: {', '.join(labels)}")
             return "https://github.com/example/repo/issues/999"
 
         try:
-            # Build gh command
-            cmd = ["gh", "issue", "create", "--title", title, "--body", body]
+            # Build gh command with sanitized inputs
+            cmd = ["gh", "issue", "create", "--title", safe_title, "--body", safe_body]
 
             # Add labels
             for label in labels:
-                cmd.extend(["--label", label])
+                # Sanitize label names (alphanumeric, dashes, colons only)
+                safe_label = "".join(c for c in label if c.isalnum() or c in "-:_")
+                if safe_label:
+                    cmd.extend(["--label", safe_label])
 
             result = subprocess.run(
                 cmd,
@@ -252,7 +271,7 @@ class AgentDispatcher:
                 if "label" in result.stderr.lower():
                     print("   Warning: Label issue, retrying without labels...")
                     # Retry without labels
-                    cmd = ["gh", "issue", "create", "--title", title, "--body", body]
+                    cmd = ["gh", "issue", "create", "--title", safe_title, "--body", safe_body]
                     result = subprocess.run(
                         cmd,
                         capture_output=True,
@@ -451,8 +470,15 @@ def main():
     """CLI entry point for Agent Dispatcher."""
     args = parse_args()
 
+    # Validate max_dispatches to prevent DoS via unbounded dispatch requests
+    try:
+        max_dispatches = validate_max_dispatches(args.max)
+    except ValueError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
+
     dispatcher = AgentDispatcher(base_path=args.path, dry_run=args.dry_run)
-    success = dispatcher.run(max_dispatches=args.max)
+    success = dispatcher.run(max_dispatches=max_dispatches)
 
     sys.exit(0 if success else 1)
 

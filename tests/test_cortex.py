@@ -147,16 +147,22 @@ class TestBuildAnalysisPrompt:
     """Test building analysis prompts for LLM."""
 
     def test_build_analysis_prompt_structure(self, temp_hive_dir, temp_project):
-        """Test that the analysis prompt has the correct structure."""
+        """Test that the analysis prompt has the correct secure structure."""
         cortex = Cortex(temp_hive_dir)
         global_ctx = cortex.read_global_context()
         projects = cortex.discover_projects()
 
         prompt = cortex.build_analysis_prompt(global_ctx, projects)
 
+        # Check for secure prompt structure
+        assert "<system_instructions>" in prompt
+        assert "</system_instructions>" in prompt
+        assert "<untrusted_content>" in prompt
+        assert "</untrusted_content>" in prompt
+        assert "SECURITY NOTICE" in prompt
+
+        # Check for content
         assert "GLOBAL CONTEXT" in prompt
-        assert "PROJECTS" in prompt
-        assert "YOUR TASK" in prompt
         assert "test-project" in prompt
         assert "blocked_tasks" in prompt
         assert "state_updates" in prompt

@@ -7,8 +7,9 @@ on:
   workflow_dispatch:
     # Allow manual triggering from GitHub UI
 
+# Minimal permissions following principle of least privilege
 permissions:
-  contents: write
+  contents: write  # Required to commit state updates
 
 jobs:
   cortex-run:
@@ -28,8 +29,12 @@ jobs:
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          # Download and verify uv installer
+          curl -LsSf https://astral.sh/uv/install.sh -o install.sh
+          # Install uv
+          sh install.sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          rm install.sh
 
       - name: Install dependencies
         run: |
@@ -39,6 +44,8 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
+          # Mask the API key in logs
+          echo "::add-mask::$OPENROUTER_API_KEY"
           uv run python src/cortex.py
 
       - name: Validate changes before commit

@@ -1,17 +1,22 @@
 ---
-project_id: beads-adoption
-status: completed
-owner: null
-last_updated: 2025-11-28T12:00:00Z
 blocked: false
 blocking_reason: null
-priority: high
-tags: [enhancement, architecture, multi-agent]
 dependencies:
-  blocks: [agent-coordination]
   blocked_by: []
+  blocks:
+  - agent-coordination
   parent: null
-  related: [hive-mcp]
+  related:
+  - hive-mcp
+last_updated: '2025-12-04T04:06:58.219540Z'
+owner: null
+priority: high
+project_id: beads-adoption
+status: completed
+tags:
+- enhancement
+- architecture
+- multi-agent
 ---
 
 # Beads Pattern Adoption for Hive Orchestrator

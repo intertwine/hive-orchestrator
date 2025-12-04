@@ -1,17 +1,21 @@
 ---
-project_id: hive-mcp
-status: completed
-owner: null
-last_updated: 2025-11-27T19:30:00Z
 blocked: false
 blocking_reason: null
-priority: high
-tags: [mcp, agent-tooling, integration]
 dependencies:
-  blocks: []
   blocked_by: []
+  blocks: []
   parent: beads-adoption
-  related: [beads-adoption]
+  related:
+  - beads-adoption
+last_updated: '2025-12-04T04:06:58.223502Z'
+owner: null
+priority: high
+project_id: hive-mcp
+status: completed
+tags:
+- mcp
+- agent-tooling
+- integration
 ---
 
 # Hive MCP Server

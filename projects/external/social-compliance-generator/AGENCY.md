@@ -4,18 +4,13 @@ status: active
 owner: null
 blocked: false
 priority: high
-phase: analyze
 tags:
   - cross-repo
-  - multi-agent
+  - external
   - demonstration
 target_repo:
   url: https://github.com/intertwine/social-compliance-generator
   branch: main
-models:
-  analyst: anthropic/claude-haiku-4.5
-  strategist: google/gemini-2.0-flash-001
-  implementer: openai/gpt-4o
 last_updated: 2024-12-04T00:00:00Z
 ---
 
@@ -23,38 +18,43 @@ last_updated: 2024-12-04T00:00:00Z
 
 ## Objective
 
-Demonstrate Agent Hive's multi-agent, vendor-agnostic orchestration by using three different AI models to analyze, strategize, and implement an improvement to an external GitHub repository.
+Analyze, strategize, and implement an improvement to the [social-compliance-generator](https://github.com/intertwine/social-compliance-generator) repository - an automated social media content generation system that posts to X four times daily.
 
-### Pipeline Overview
-
-This project uses the **"Relay Race" Pattern**:
-
-1. **Analyst (Claude Haiku)**: Examines the repository structure and identifies potential improvement areas
-2. **Strategist (Gemini Flash)**: Reviews the analysis and selects the most impactful, well-scoped improvement
-3. **Implementer (GPT-4o)**: Generates the actual code changes and PR content
-
-Each agent writes to its designated section below, creating a persistent record of the collaborative process.
+This project demonstrates Agent Hive's ability to coordinate work on external GitHub repositories using the standard file-based protocol.
 
 ## Tasks
 
-- [ ] Run analyst phase to examine repository structure
-- [ ] Run strategist phase to identify improvement opportunity
-- [ ] Run implementer phase to generate code changes
-- [ ] Review generated implementation
-- [ ] Submit PR to target repository
-- [ ] Document the process for the article
+- [ ] Analyze repository structure, architecture, and code patterns
+- [ ] Identify the single most impactful improvement opportunity
+- [ ] Generate implementation (code changes, commit message, PR content)
+- [ ] Submit PR to the target repository
+
+## Context
+
+The target repository is a TypeScript project that:
+- Searches for AI news using Tavily API
+- Generates posts using OpenRouter LLMs
+- Creates images with Google Gemini
+- Generates videos with OpenAI Sora
+- Publishes to X via OAuth 2.0
+
+Key files to examine:
+- `src/index.ts` - Main orchestration logic
+- `src/services/` - Modular API integrations
+- `.github/workflows/` - GitHub Actions automation
+- `package.json` - Dependencies and scripts
 
 ## Phase 1: Analysis
 
-*Waiting for analyst agent to examine the repository...*
+*Analysis of repository structure and patterns will be written here.*
 
 ## Phase 2: Strategy
 
-*Waiting for strategist agent to identify improvement...*
+*Identified improvement and implementation plan will be written here.*
 
 ## Phase 3: Implementation
 
-*Waiting for implementer agent to generate code changes...*
+*Generated code changes and PR content will be written here.*
 
 ## Agent Notes
 

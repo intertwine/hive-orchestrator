@@ -52,6 +52,18 @@ This directory contains a series of articles explaining the design philosophy, f
 
 **Key topics:** Dispatcher pattern, work detection vs. delivery, multi-agent routing, custom integrations, completion callbacks, production architecture.
 
+### 9. [Security in Agent Hive](09-agent-hive-security.md)
+
+*Security hardening guide.* Comprehensive overview of Agent Hive's security model, the December 2025 security audit findings, and best practices for secure deployment.
+
+**Key topics:** YAML deserialization protection, prompt injection prevention, API authentication, path traversal prevention, GitHub Actions hardening, secure LLM integration.
+
+### 10. [Observability with Weave Tracing](10-weave-tracing-observability.md)
+
+*Monitoring and debugging.* How to use Weights & Biases Weave to trace LLM calls, monitor costs, debug issues, and gain visibility into Agent Hive operations.
+
+**Key topics:** Weave setup, traced LLM calls, custom operation tracing, API key sanitization, graceful degradation, viewing traces in W&B.
+
 ## Reading Order
 
 For newcomers, we recommend reading in order:
@@ -61,6 +73,8 @@ For newcomers, we recommend reading in order:
 3. **Articles 3-5** - Deep dive into specific features
 4. **Articles 2 & 7** - Context on the broader ecosystem and framework comparisons
 5. **Article 8** - Advanced: extending Agent Hive with custom dispatchers
+6. **Article 9** - Security best practices (important for production)
+7. **Article 10** - Observability and monitoring
 
 ## Contributing
 

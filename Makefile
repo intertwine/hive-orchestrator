@@ -1,4 +1,4 @@
-.PHONY: help install install-dev run dashboard cortex ready ready-json deps deps-json session clean test lint format sync verify-claude
+.PHONY: help install install-dev run dashboard cortex ready ready-json deps deps-json session clean test lint format sync verify-claude cross-repo
 
 # Default target
 help:
@@ -20,6 +20,7 @@ help:
 	@echo "  make deps           Show dependency graph"
 	@echo "  make deps-json      Show dependency graph as JSON"
 	@echo "  make session        Start a Deep Work session (requires PROJECT=...)"
+	@echo "  make cross-repo     Run cross-repo multi-agent pipeline (requires PROJECT=...)"
 	@echo "  make verify-claude  Verify Claude Code GitHub App setup"
 	@echo ""
 	@echo "Development Commands:"
@@ -107,6 +108,16 @@ session:
 verify-claude:
 	@echo "🔍 Verifying Claude Code GitHub App setup..."
 	@uv run python scripts/verify_claude_app.py
+
+# Run cross-repo multi-agent pipeline
+cross-repo:
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "❌ Error: PROJECT variable not set"; \
+		echo "Usage: make cross-repo PROJECT=projects/external/social-compliance-generator/AGENCY.md"; \
+		exit 1; \
+	fi
+	@echo "🚀 Running Cross-Repo Multi-Agent Pipeline..."
+	uv run python -m src.cross_repo_pipeline $(PROJECT)
 
 # Run linting
 lint:

@@ -15,6 +15,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from src.security import safe_dump_agency_md
 
@@ -63,12 +64,17 @@ def clone_external_repo(url: str, branch: str = "main") -> Optional[Path]:
     Clone an external repository to a temporary directory.
 
     Args:
-        url: Git repository URL
+        url: Git repository URL (must be https://)
         branch: Branch to clone (default: main)
 
     Returns:
         Path to cloned repo, or None on failure
     """
+    # Validate URL - only allow https:// for security
+    if not url.startswith("https://"):
+        return None
+
+    temp_dir = None
     try:
         temp_dir = tempfile.mkdtemp(prefix="hive_external_")
         result = subprocess.run(
@@ -92,6 +98,9 @@ def clone_external_repo(url: str, branch: str = "main") -> Optional[Path]:
         return Path(temp_dir)
 
     except (subprocess.TimeoutExpired, OSError):
+        # Clean up temp directory on exception to prevent resource leaks
+        if temp_dir:
+            shutil.rmtree(temp_dir, ignore_errors=True)
         return None
 
 
@@ -127,6 +136,8 @@ def get_external_repo_context(
                     extension = "    " if is_last else "│   "
                     result += filtered_tree(item, prefix + extension, depth + 1, max_d)
         except PermissionError:
+            # Intentionally skip directories/files we cannot access to avoid breaking
+            # the file tree generation
             pass
         return result
 
@@ -153,8 +164,14 @@ def get_external_repo_context(
                 file_content = file_path.read_text(encoding="utf-8")
                 if len(file_content) > 15000:
                     file_content = file_content[:15000] + "\n\n... (truncated)"
-                content_parts.append(f"### `{file_pattern}`\n\n```\n{file_content}\n```")
+                # Escape triple backticks to prevent markdown injection
+                file_content_escaped = file_content.replace("```", "`\u200B`\u200B`")
+                content_parts.append(
+                    f"### `{file_pattern}`\n\n```\n{file_content_escaped}\n```"
+                )
             except (UnicodeDecodeError, PermissionError):
+                # Intentionally ignore files that cannot be read due to encoding
+                # or permission errors
                 pass
 
     key_files_content = "\n\n".join(content_parts) if content_parts else ""
@@ -311,7 +328,9 @@ def build_issue_body(
         cloned_repo_path = clone_external_repo(repo_url, repo_branch)
         if cloned_repo_path:
             ext_tree, ext_files = get_external_repo_context(cloned_repo_path)
-            repo_name = repo_url.split("/")[-1].replace(".git", "")
+            # Use urllib.parse for robust URL parsing
+            parsed_url = urlparse(repo_url)
+            repo_name = parsed_url.path.rstrip("/").split("/")[-1].replace(".git", "")
 
             external_repo_section = f"""
 ### Target Repository

@@ -6,6 +6,8 @@ import sys
 import os
 import tempfile
 from pathlib import Path
+from unittest.mock import patch, MagicMock
+import subprocess
 import pytest
 import frontmatter
 
@@ -407,7 +409,7 @@ class TestExternalRepoContext:
 
             assert "custom content" in files_content
             # package.json should not be included since we specified custom files
-            assert "test" not in files_content or "custom.txt" in files_content
+            assert "test" not in files_content  # package.json content excluded
 
     def test_get_external_repo_context_excludes_noise_dirs(self):
         """Test that noise directories are excluded from tree."""
@@ -439,6 +441,112 @@ class TestExternalRepoContext:
         nonexistent = Path("/tmp/definitely_does_not_exist_12345")
         # Should not raise an exception
         cleanup_external_repo(nonexistent)
+
+
+class TestCloneExternalRepo:
+    """Tests for clone_external_repo function."""
+
+    def test_rejects_non_https_url(self):
+        """Test that non-https URLs are rejected for security."""
+        # HTTP should be rejected
+        result = clone_external_repo("http://github.com/user/repo")
+        assert result is None
+
+        # Git protocol should be rejected
+        result = clone_external_repo("git://github.com/user/repo")
+        assert result is None
+
+        # SSH should be rejected
+        result = clone_external_repo("git@github.com:user/repo.git")
+        assert result is None
+
+        # File protocol should be rejected
+        result = clone_external_repo("file:///path/to/repo")
+        assert result is None
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    def test_successful_clone(self, mock_mkdtemp, mock_run):
+        """Test successful repository clone."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.return_value = MagicMock(returncode=0)
+
+        result = clone_external_repo("https://github.com/user/repo")
+
+        assert result == Path("/tmp/hive_external_test")
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args
+        assert "git" in call_args[0][0]
+        assert "clone" in call_args[0][0]
+        assert "--depth" in call_args[0][0]
+        assert "https://github.com/user/repo" in call_args[0][0]
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    @patch("context_assembler.shutil.rmtree")
+    def test_clone_failure_cleans_up(self, mock_rmtree, mock_mkdtemp, mock_run):
+        """Test that failed clone cleans up temp directory."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.return_value = MagicMock(returncode=1, stderr="Clone failed")
+
+        result = clone_external_repo("https://github.com/user/repo")
+
+        assert result is None
+        mock_rmtree.assert_called_once_with("/tmp/hive_external_test", ignore_errors=True)
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    @patch("context_assembler.shutil.rmtree")
+    def test_timeout_cleans_up(self, mock_rmtree, mock_mkdtemp, mock_run):
+        """Test that timeout cleans up temp directory."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=120)
+
+        result = clone_external_repo("https://github.com/user/repo")
+
+        assert result is None
+        mock_rmtree.assert_called_once_with("/tmp/hive_external_test", ignore_errors=True)
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    @patch("context_assembler.shutil.rmtree")
+    def test_os_error_cleans_up(self, mock_rmtree, mock_mkdtemp, mock_run):
+        """Test that OSError cleans up temp directory."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.side_effect = OSError("Git not found")
+
+        result = clone_external_repo("https://github.com/user/repo")
+
+        assert result is None
+        mock_rmtree.assert_called_once_with("/tmp/hive_external_test", ignore_errors=True)
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    def test_custom_branch(self, mock_mkdtemp, mock_run):
+        """Test cloning with custom branch."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.return_value = MagicMock(returncode=0)
+
+        clone_external_repo("https://github.com/user/repo", branch="develop")
+
+        call_args = mock_run.call_args[0][0]
+        assert "--branch" in call_args
+        branch_idx = call_args.index("--branch")
+        assert call_args[branch_idx + 1] == "develop"
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    def test_shallow_clone(self, mock_mkdtemp, mock_run):
+        """Test that clone uses --depth 1 for efficiency."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.return_value = MagicMock(returncode=0)
+
+        clone_external_repo("https://github.com/user/repo")
+
+        call_args = mock_run.call_args[0][0]
+        assert "--depth" in call_args
+        depth_idx = call_args.index("--depth")
+        assert call_args[depth_idx + 1] == "1"
 
 
 class TestBuildIssueBodyWithExternalRepo:

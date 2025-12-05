@@ -410,6 +410,50 @@ relevant_files:
 ---
 ```
 
+### 7. External Repository Support
+
+Agent Hive can coordinate work on external GitHub repositories. Add a `target_repo` field to your AGENCY.md:
+
+```yaml
+---
+project_id: improve-external-lib
+status: active
+target_repo:
+  url: https://github.com/org/external-repo
+  branch: main
+---
+
+# Improve External Library
+
+## Tasks
+- [ ] Analyze repository structure
+- [ ] Identify improvement opportunity
+- [ ] Implement and submit PR
+
+## Phase 1: Analysis
+*Agent writes analysis here*
+
+## Phase 2: Strategy
+*Agent writes improvement plan here*
+
+## Phase 3: Implementation
+*Agent writes code changes here*
+```
+
+When the Dispatcher creates an issue for this project, it automatically:
+
+1. **Clones the external repo** (shallow, depth=1)
+2. **Generates a file tree** (4 levels deep, excludes noise like node_modules)
+3. **Reads key files** (package.json, README.md, src/index.*, etc.)
+4. **Includes context in the issue** for the agent
+5. **Cleans up** temporary files
+
+The agent then works on the external repository while using AGENCY.md as shared memory. Results are written to Phase sections, and when ready, the agent submits a PR to the target repository.
+
+**See also:**
+- [Example 9: Cross-Repository Workflows](examples/9-cross-repo-workflows/)
+- [Article 11: Cross-Repository Multi-Agent Workflows](articles/11-cross-repo-multi-agent-workflows.md)
+
 ## 🎓 Usage Patterns
 
 ### Pattern 1: Autonomous Orchestration

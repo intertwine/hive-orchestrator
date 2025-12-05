@@ -6,6 +6,8 @@ import sys
 import os
 import tempfile
 from pathlib import Path
+from unittest.mock import patch, MagicMock
+import subprocess
 import pytest
 import frontmatter
 
@@ -19,6 +21,9 @@ from context_assembler import (
     build_issue_title,
     build_issue_body,
     build_issue_labels,
+    clone_external_repo,
+    get_external_repo_context,
+    cleanup_external_repo,
 )
 
 
@@ -360,3 +365,246 @@ class TestBuildIssueLabels:
         }
         labels = build_issue_labels(project)
         assert "project:my-project" in labels
+
+
+class TestExternalRepoContext:
+    """Tests for external repository context functions."""
+
+    def test_get_external_repo_context_generates_tree(self):
+        """Test that get_external_repo_context generates file tree."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            (temp_path / "src").mkdir()
+            (temp_path / "src" / "index.ts").write_text("export const main = () => {};")
+            (temp_path / "package.json").write_text('{"name": "test"}')
+
+            tree, files_content = get_external_repo_context(temp_path)
+
+            assert "src" in tree
+            assert "index.ts" in tree
+            assert "package.json" in tree
+
+    def test_get_external_repo_context_reads_key_files(self):
+        """Test that get_external_repo_context reads key files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            (temp_path / "package.json").write_text('{"name": "test-package"}')
+            (temp_path / "README.md").write_text("# Test Project")
+
+            tree, files_content = get_external_repo_context(temp_path)
+
+            assert "test-package" in files_content
+            assert "# Test Project" in files_content
+
+    def test_get_external_repo_context_with_custom_files(self):
+        """Test get_external_repo_context with custom key files list."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            (temp_path / "custom.txt").write_text("custom content")
+            (temp_path / "package.json").write_text('{"name": "test"}')
+
+            tree, files_content = get_external_repo_context(
+                temp_path, key_files=["custom.txt"]
+            )
+
+            assert "custom content" in files_content
+            # package.json should not be included since we specified custom files
+            assert "test" not in files_content  # package.json content excluded
+
+    def test_get_external_repo_context_excludes_noise_dirs(self):
+        """Test that noise directories are excluded from tree."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            (temp_path / "node_modules").mkdir()
+            (temp_path / "node_modules" / "dep.js").write_text("dep")
+            (temp_path / "src").mkdir()
+            (temp_path / "src" / "main.ts").write_text("main")
+
+            tree, _ = get_external_repo_context(temp_path)
+
+            assert "node_modules" not in tree
+            assert "src" in tree
+            assert "main.ts" in tree
+
+    def test_cleanup_external_repo(self):
+        """Test that cleanup_external_repo removes directory."""
+        temp_dir = tempfile.mkdtemp(prefix="test_cleanup_")
+        temp_path = Path(temp_dir)
+        (temp_path / "file.txt").write_text("test")
+
+        assert temp_path.exists()
+        cleanup_external_repo(temp_path)
+        assert not temp_path.exists()
+
+    def test_cleanup_external_repo_handles_nonexistent(self):
+        """Test that cleanup_external_repo handles nonexistent path."""
+        nonexistent = Path("/tmp/definitely_does_not_exist_12345")
+        # Should not raise an exception
+        cleanup_external_repo(nonexistent)
+
+
+class TestCloneExternalRepo:
+    """Tests for clone_external_repo function."""
+
+    def test_rejects_non_https_url(self):
+        """Test that non-https URLs are rejected for security."""
+        # HTTP should be rejected
+        result = clone_external_repo("http://github.com/user/repo")
+        assert result is None
+
+        # Git protocol should be rejected
+        result = clone_external_repo("git://github.com/user/repo")
+        assert result is None
+
+        # SSH should be rejected
+        result = clone_external_repo("git@github.com:user/repo.git")
+        assert result is None
+
+        # File protocol should be rejected
+        result = clone_external_repo("file:///path/to/repo")
+        assert result is None
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    def test_successful_clone(self, mock_mkdtemp, mock_run):
+        """Test successful repository clone."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.return_value = MagicMock(returncode=0)
+
+        result = clone_external_repo("https://github.com/user/repo")
+
+        assert result == Path("/tmp/hive_external_test")
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args
+        assert "git" in call_args[0][0]
+        assert "clone" in call_args[0][0]
+        assert "--depth" in call_args[0][0]
+        assert "https://github.com/user/repo" in call_args[0][0]
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    @patch("context_assembler.shutil.rmtree")
+    def test_clone_failure_cleans_up(self, mock_rmtree, mock_mkdtemp, mock_run):
+        """Test that failed clone cleans up temp directory."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.return_value = MagicMock(returncode=1, stderr="Clone failed")
+
+        result = clone_external_repo("https://github.com/user/repo")
+
+        assert result is None
+        mock_rmtree.assert_called_once_with("/tmp/hive_external_test", ignore_errors=True)
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    @patch("context_assembler.shutil.rmtree")
+    def test_timeout_cleans_up(self, mock_rmtree, mock_mkdtemp, mock_run):
+        """Test that timeout cleans up temp directory."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=120)
+
+        result = clone_external_repo("https://github.com/user/repo")
+
+        assert result is None
+        mock_rmtree.assert_called_once_with("/tmp/hive_external_test", ignore_errors=True)
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    @patch("context_assembler.shutil.rmtree")
+    def test_os_error_cleans_up(self, mock_rmtree, mock_mkdtemp, mock_run):
+        """Test that OSError cleans up temp directory."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.side_effect = OSError("Git not found")
+
+        result = clone_external_repo("https://github.com/user/repo")
+
+        assert result is None
+        mock_rmtree.assert_called_once_with("/tmp/hive_external_test", ignore_errors=True)
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    def test_custom_branch(self, mock_mkdtemp, mock_run):
+        """Test cloning with custom branch."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.return_value = MagicMock(returncode=0)
+
+        clone_external_repo("https://github.com/user/repo", branch="develop")
+
+        call_args = mock_run.call_args[0][0]
+        assert "--branch" in call_args
+        branch_idx = call_args.index("--branch")
+        assert call_args[branch_idx + 1] == "develop"
+
+    @patch("context_assembler.subprocess.run")
+    @patch("context_assembler.tempfile.mkdtemp")
+    def test_shallow_clone(self, mock_mkdtemp, mock_run):
+        """Test that clone uses --depth 1 for efficiency."""
+        mock_mkdtemp.return_value = "/tmp/hive_external_test"
+        mock_run.return_value = MagicMock(returncode=0)
+
+        clone_external_repo("https://github.com/user/repo")
+
+        call_args = mock_run.call_args[0][0]
+        assert "--depth" in call_args
+        depth_idx = call_args.index("--depth")
+        assert call_args[depth_idx + 1] == "1"
+
+
+class TestBuildIssueBodyWithExternalRepo:
+    """Tests for build_issue_body with external repository support."""
+
+    @pytest.fixture
+    def external_repo_project(self):
+        """Create a project with target_repo for testing."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            project_dir = temp_path / "projects" / "external" / "test-external"
+            project_dir.mkdir(parents=True)
+
+            content = """# External Project
+
+## Tasks
+- [ ] Analyze repository
+- [ ] Implement improvement
+"""
+            post = frontmatter.Post(
+                content,
+                project_id="test-external",
+                status="active",
+                priority="high",
+                tags=["external", "cross-repo"],
+                owner=None,
+                target_repo={
+                    "url": "https://github.com/example/repo",
+                    "branch": "main",
+                },
+            )
+
+            agency_file = project_dir / "AGENCY.md"
+            with open(agency_file, "w", encoding="utf-8") as f:
+                f.write(frontmatter.dumps(post))
+
+            yield {
+                "path": str(agency_file),
+                "project_id": "test-external",
+                "metadata": post.metadata,
+                "content": content,
+                "base_path": temp_path,
+            }
+
+    def test_includes_external_repo_instructions(self, external_repo_project):
+        """Test that external repo projects have different instructions."""
+        body = build_issue_body(
+            external_repo_project,
+            external_repo_project["base_path"],
+        )
+        # External repo projects should mention forking
+        assert "external repository work" in body or "Fork" in body
+
+    def test_includes_target_repo_in_metadata(self, external_repo_project):
+        """Test that target_repo is included in the issue body."""
+        body = build_issue_body(
+            external_repo_project,
+            external_repo_project["base_path"],
+        )
+        # The metadata dump should include target_repo
+        assert "target_repo" in body or "https://github.com/example/repo" in body

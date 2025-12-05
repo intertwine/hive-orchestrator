@@ -64,6 +64,12 @@ This directory contains a series of articles explaining the design philosophy, f
 
 **Key topics:** Weave setup, traced LLM calls, custom operation tracing, API key sanitization, graceful degradation, viewing traces in W&B.
 
+### 11. [Cross-Repository Multi-Agent Workflows](11-cross-repo-multi-agent-workflows.md)
+
+*Extending beyond a single codebase.* How to use Agent Hive to coordinate AI agents working across external GitHub repositories using the file-based hive protocol.
+
+**Key topics:** target_repo metadata, context assembly, multi-phase improvements, external repository analysis, cross-repo PR workflows, security considerations.
+
 ## Reading Order
 
 For newcomers, we recommend reading in order:
@@ -75,6 +81,7 @@ For newcomers, we recommend reading in order:
 5. **Article 8** - Advanced: extending Agent Hive with custom dispatchers
 6. **Article 9** - Security best practices (important for production)
 7. **Article 10** - Observability and monitoring
+8. **Article 11** - Cross-repository workflows for external projects
 
 ## Contributing
 

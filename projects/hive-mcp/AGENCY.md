@@ -7,7 +7,7 @@ dependencies:
   parent: beads-adoption
   related:
   - beads-adoption
-last_updated: '2025-12-04T08:01:31.029105Z'
+last_updated: '2025-12-05T00:01:56.807853Z'
 owner: null
 priority: high
 project_id: hive-mcp

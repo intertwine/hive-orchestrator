@@ -8,7 +8,7 @@ dependencies:
   related:
   - beads-adoption
   - hive-mcp
-last_updated: '2025-12-05T00:01:56.805985Z'
+last_updated: '2025-12-05T04:06:44.335175Z'
 owner: null
 priority: medium
 project_id: agent-coordination

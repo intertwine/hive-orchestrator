@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 
@@ -147,10 +147,10 @@ class AgentDispatcher:
                         timestamp = datetime.fromisoformat(
                             str(last_updated).replace("Z", "+00:00")
                         )
-                    # Normalize to naive datetime for comparison
-                    # (remove timezone info, assuming all timestamps are UTC)
+                    # Normalize to naive UTC datetime for consistent comparison
+                    # Convert to UTC first, then strip timezone info
                     if timestamp.tzinfo is not None:
-                        timestamp = timestamp.replace(tzinfo=None)
+                        timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
                 else:
                     timestamp = datetime.max.replace(tzinfo=None)
             except (ValueError, TypeError):

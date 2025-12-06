@@ -6,7 +6,7 @@ import sys
 import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import frontmatter
 
 # Add src to path
@@ -153,6 +153,44 @@ class TestSelectWork:
         result = dispatcher.select_work(projects)
         # Should select older (datetime) project
         assert result["project_id"] == "datetime-timestamp"
+
+    def test_handles_timezone_aware_datetime(self, temp_hive_dir):
+        """Test handles timezone-aware datetime objects correctly.
+
+        YAML parsers can produce timezone-aware datetime objects. The sort_key
+        function must convert these to UTC before comparing to avoid incorrect
+        ordering when mixing timezones.
+        """
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir)
+
+        # Create timezone offsets
+        utc_plus_5 = timezone(timedelta(hours=5))
+
+        # Project with UTC+5 timezone: 2025-01-15T05:00:00+05:00 = 2025-01-15T00:00:00Z
+        # Project with UTC timezone: 2025-01-01T00:00:00Z
+        # The UTC+5 project is actually the same UTC time as Jan 15 midnight UTC
+        projects = [
+            {
+                "project_id": "utc-plus-5",
+                "metadata": {
+                    "priority": "high",
+                    # This is 2025-01-15 05:00 in UTC+5, which is 2025-01-15 00:00 UTC
+                    "last_updated": datetime(2025, 1, 15, 5, 0, 0, tzinfo=utc_plus_5),
+                },
+            },
+            {
+                "project_id": "utc-older",
+                "metadata": {
+                    "priority": "high",
+                    # This is 2025-01-01 00:00 UTC - clearly older
+                    "last_updated": datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+                },
+            },
+        ]
+
+        result = dispatcher.select_work(projects)
+        # Should select older project (utc-older is Jan 1, utc-plus-5 is Jan 15 in UTC)
+        assert result["project_id"] == "utc-older"
 
 
 class TestIsAlreadyAssigned:

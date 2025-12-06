@@ -39,7 +39,7 @@ def discover_projects(base_path: Path):
     if not projects_dir.exists():
         return []
 
-    agency_files = glob.glob(str(projects_dir / "*" / "AGENCY.md"))
+    agency_files = glob.glob(str(projects_dir / "**" / "AGENCY.md"), recursive=True)
     projects = []
 
     for agency_file in agency_files:

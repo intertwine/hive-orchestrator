@@ -108,7 +108,9 @@ class Cortex:
             print(f"WARNING: Projects directory not found at {self.projects_dir}")
             return projects
 
-        agency_files = glob.glob(str(self.projects_dir / "*" / "AGENCY.md"))
+        agency_files = glob.glob(
+            str(self.projects_dir / "**" / "AGENCY.md"), recursive=True
+        )
 
         for agency_file in agency_files:
             try:

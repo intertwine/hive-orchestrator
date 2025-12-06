@@ -52,7 +52,8 @@ Browse the `projects/` directory to see:
 
 When you fork this repository:
 - The Cortex workflow won't run (it requires the `OPENROUTER_API_KEY` secret)
-- Add your own API key in repository settings to enable it
+- The Claude Code workflow won't run (it requires the `ANTHROPIC_API_KEY` secret)
+- Add your API keys in repository settings to enable them (Settings → Secrets and variables → Actions)
 - Your fork becomes your own independent Hive
 
 This transparency demonstrates that Agent Hive is a real, working system - not just a concept.
@@ -396,6 +397,15 @@ uv run python -m src.agent_dispatcher --max 3
 
 The Agent Dispatcher runs automatically every 4 hours (15 minutes after Cortex) via `.github/workflows/agent-assignment.yml`.
 
+**Claude Code Integration:**
+
+When issues are created with `@claude` mentions, the Claude Code Action (`.github/workflows/claude.yml`) automatically responds. This enables Claude to:
+- Analyze code and implement requested changes
+- Create pull requests for bug fixes and features
+- Answer questions about the codebase
+
+Requires `ANTHROPIC_API_KEY` secret to be configured.
+
 **AGENCY.md Extension - relevant_files:**
 
 Specify files to include in the issue context:
@@ -699,6 +709,10 @@ The project will now be tracked automatically.
 ### Option 1: GitHub Actions (Free Tier)
 
 Already configured! Just push to GitHub and enable Actions.
+
+**Required Secrets** (Settings → Secrets and variables → Actions):
+- `OPENROUTER_API_KEY` - For Cortex orchestration engine
+- `ANTHROPIC_API_KEY` - For Claude Code Action (@claude mentions)
 
 ### Option 2: Local Cron Job
 

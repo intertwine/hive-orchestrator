@@ -334,13 +334,13 @@ def sanitize_issue_body(body: str) -> str:
 
     # Filter @mentions - only allow @claude and @claude-code
     # Other mentions could trigger unwanted notifications
-    def filter_mentions(match):
-        mention = match.group(0)
-        if mention.lower() in ["@claude", "@claude-code"]:
-            return mention
-        return f"[at]{mention[1:]}"
-
-    sanitized = re.sub(r"@(?!claude\b)(?!claude-code\b)[a-zA-Z0-9_-]+", filter_mentions, sanitized)
+    # The negative lookahead already excludes @claude and @claude-code from matching,
+    # so we only need to replace what actually matches
+    sanitized = re.sub(
+        r"@(?!claude\b)(?!claude-code\b)([a-zA-Z0-9_-]+)",
+        r"[at]\1",
+        sanitized
+    )
 
     return sanitized
 

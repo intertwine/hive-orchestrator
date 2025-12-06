@@ -98,6 +98,62 @@ class TestSelectWork:
         result = dispatcher.select_work(projects)
         assert result["project_id"] == "no-priority"
 
+    def test_handles_datetime_object_in_last_updated(self, temp_hive_dir):
+        """Test handles datetime objects in last_updated (from YAML parser).
+
+        When YAML files are loaded, ISO timestamps are automatically parsed
+        into datetime objects. The sort_key function must handle both strings
+        and datetime objects.
+        """
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir)
+
+        # YAML parser often converts timestamps to datetime objects
+        projects = [
+            {
+                "project_id": "newer-datetime",
+                "metadata": {
+                    "priority": "high",
+                    "last_updated": datetime(2025, 1, 15, 0, 0, 0),
+                },
+            },
+            {
+                "project_id": "older-datetime",
+                "metadata": {
+                    "priority": "high",
+                    "last_updated": datetime(2025, 1, 1, 0, 0, 0),
+                },
+            },
+        ]
+
+        result = dispatcher.select_work(projects)
+        # Should select older project
+        assert result["project_id"] == "older-datetime"
+
+    def test_handles_mixed_string_and_datetime(self, temp_hive_dir):
+        """Test handles mix of string and datetime last_updated values."""
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir)
+
+        projects = [
+            {
+                "project_id": "string-timestamp",
+                "metadata": {
+                    "priority": "high",
+                    "last_updated": "2025-01-15T00:00:00Z",
+                },
+            },
+            {
+                "project_id": "datetime-timestamp",
+                "metadata": {
+                    "priority": "high",
+                    "last_updated": datetime(2025, 1, 1, 0, 0, 0),
+                },
+            },
+        ]
+
+        result = dispatcher.select_work(projects)
+        # Should select older (datetime) project
+        assert result["project_id"] == "datetime-timestamp"
+
 
 class TestIsAlreadyAssigned:
     """Tests for is_already_assigned method."""

@@ -136,13 +136,24 @@ class AgentDispatcher:
             last_updated = metadata.get("last_updated", "")
 
             # Parse last_updated for age-based sorting (older = higher priority)
+            # Normalize all timestamps to naive UTC for consistent comparison
             try:
                 if last_updated:
-                    # ISO format timestamp
-                    timestamp = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
+                    # Handle both datetime objects (from YAML parser) and strings
+                    if isinstance(last_updated, datetime):
+                        timestamp = last_updated
+                    else:
+                        # ISO format string timestamp
+                        timestamp = datetime.fromisoformat(
+                            str(last_updated).replace("Z", "+00:00")
+                        )
+                    # Normalize to naive datetime for comparison
+                    # (remove timezone info, assuming all timestamps are UTC)
+                    if timestamp.tzinfo is not None:
+                        timestamp = timestamp.replace(tzinfo=None)
                 else:
                     timestamp = datetime.max.replace(tzinfo=None)
-            except ValueError:
+            except (ValueError, TypeError):
                 timestamp = datetime.max.replace(tzinfo=None)
 
             return (priority_order.get(priority, 2), timestamp)

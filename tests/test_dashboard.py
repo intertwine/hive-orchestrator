@@ -123,6 +123,52 @@ class TestDiscoverProjects:
             # No projects created yet
             assert len(projects) == 0
 
+    def test_discover_nested_projects(self, temp_hive_dir):
+        """Test discovering projects in nested directories (e.g., projects/external/foo)."""
+        base_path = Path(temp_hive_dir)
+        projects_dir = base_path / "projects"
+
+        # Create a nested project at projects/external/nested-project/AGENCY.md
+        nested_dir = projects_dir / "external" / "nested-project"
+        nested_dir.mkdir(parents=True)
+        nested_agency = nested_dir / "AGENCY.md"
+        nested_agency.write_text("""---
+project_id: nested-project
+status: active
+owner: null
+priority: high
+tags:
+  - external
+---
+
+# Nested Project
+
+A project in a nested directory.
+""")
+
+        # Also create a regular project
+        regular_dir = projects_dir / "regular-project"
+        regular_dir.mkdir(parents=True)
+        regular_agency = regular_dir / "AGENCY.md"
+        regular_agency.write_text("""---
+project_id: regular-project
+status: active
+owner: null
+priority: medium
+---
+
+# Regular Project
+""")
+
+        with patch("streamlit.error"):
+            projects = discover_projects(base_path)
+
+            # Should find both projects
+            assert len(projects) == 2
+            project_ids = [p["metadata"]["project_id"] for p in projects]
+            assert "nested-project" in project_ids
+            assert "regular-project" in project_ids
+
 
 class TestGenerateFileTree:
     """Test file tree generation."""

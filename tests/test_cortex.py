@@ -142,6 +142,50 @@ class TestDiscoverProjects:
         # Should skip malformed project
         assert len(projects) == 0
 
+    def test_discover_nested_projects(self, temp_hive_dir):
+        """Test discovering projects in nested directories (e.g., projects/external/foo)."""
+        # Create a nested project at projects/external/nested-project/AGENCY.md
+        nested_dir = Path(temp_hive_dir) / "projects" / "external" / "nested-project"
+        nested_dir.mkdir(parents=True)
+        nested_agency = nested_dir / "AGENCY.md"
+        nested_agency.write_text("""---
+project_id: nested-project
+status: active
+owner: null
+priority: high
+target_repo:
+  url: https://github.com/example/repo
+  branch: main
+---
+
+# Nested External Project
+
+A project in a nested directory for cross-repo work.
+""")
+
+        # Also create a regular project
+        regular_dir = Path(temp_hive_dir) / "projects" / "regular-project"
+        regular_dir.mkdir(parents=True)
+        regular_agency = regular_dir / "AGENCY.md"
+        regular_agency.write_text("""---
+project_id: regular-project
+status: active
+owner: null
+priority: medium
+---
+
+# Regular Project
+""")
+
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        # Should find both projects
+        assert len(projects) == 2
+        project_ids = [p["project_id"] for p in projects]
+        assert "nested-project" in project_ids
+        assert "regular-project" in project_ids
+
 
 class TestBuildAnalysisPrompt:
     """Test building analysis prompts for LLM."""

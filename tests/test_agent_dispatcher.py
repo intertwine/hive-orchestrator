@@ -4,6 +4,7 @@
 
 import sys
 import os
+import subprocess
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone, timedelta
@@ -364,6 +365,101 @@ class TestCreateGitHubIssue:
         )
 
         assert result is None
+
+
+class TestAddClaudeComment:
+    """Tests for add_claude_comment method."""
+
+    def test_dry_run_returns_true(self, temp_hive_dir):
+        """Test dry run mode returns True without calling gh."""
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=True)
+
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/123"
+        )
+
+        assert result is True
+
+    @patch("subprocess.run")
+    def test_successful_comment_addition(self, mock_run, temp_hive_dir):
+        """Test successful comment addition."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/42"
+        )
+
+        assert result is True
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0][0]
+        assert "gh" in call_args
+        assert "issue" in call_args
+        assert "comment" in call_args
+        assert "42" in call_args
+        assert "@claude" in call_args[call_args.index("--body") + 1]
+
+    @patch("subprocess.run")
+    def test_handles_trailing_slash_in_url(self, mock_run, temp_hive_dir):
+        """Test URL parsing handles trailing slashes."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/99/"
+        )
+
+        assert result is True
+        call_args = mock_run.call_args[0][0]
+        assert "99" in call_args
+
+    @patch("subprocess.run")
+    def test_handles_gh_cli_failure(self, mock_run, temp_hive_dir):
+        """Test handling of gh CLI failure."""
+        mock_run.return_value = MagicMock(
+            returncode=1,
+            stdout="",
+            stderr="Error: permission denied",
+        )
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/123"
+        )
+
+        assert result is False
+
+    @patch("subprocess.run")
+    def test_handles_timeout(self, mock_run, temp_hive_dir):
+        """Test handling of subprocess timeout."""
+        mock_run.side_effect = subprocess.TimeoutExpired("gh", 30)
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/123"
+        )
+
+        assert result is False
+
+    @patch("subprocess.run")
+    def test_handles_general_exception(self, mock_run, temp_hive_dir):
+        """Test handling of general exceptions."""
+        mock_run.side_effect = OSError("Network error")
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/123"
+        )
+
+        assert result is False
 
 
 class TestDispatch:

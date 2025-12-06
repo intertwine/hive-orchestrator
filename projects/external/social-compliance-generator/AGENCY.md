@@ -11,7 +11,7 @@ tags:
 target_repo:
   url: https://github.com/intertwine/social-compliance-generator
   branch: main
-last_updated: 2024-12-04T00:00:00Z
+last_updated: 2025-12-06T12:45:00Z
 ---
 
 # Cross-Repository Improvement: Social Compliance Generator

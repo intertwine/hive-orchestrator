@@ -260,7 +260,13 @@ class AgentDispatcher:
 
         try:
             # Build gh command with sanitized inputs
-            cmd = ["gh", "issue", "create", "--title", safe_title, "--body", safe_body]
+            # Assign to 'claude' user to trigger the Claude Code workflow
+            cmd = [
+                "gh", "issue", "create",
+                "--title", safe_title,
+                "--body", safe_body,
+                "--assignee", "claude",
+            ]
 
             # Add labels
             for label in labels:
@@ -281,8 +287,13 @@ class AgentDispatcher:
                 # Check if it's a label error (labels might not exist)
                 if "label" in result.stderr.lower():
                     print("   Warning: Label issue, retrying without labels...")
-                    # Retry without labels
-                    cmd = ["gh", "issue", "create", "--title", safe_title, "--body", safe_body]
+                    # Retry without labels but keep assignee
+                    cmd = [
+                        "gh", "issue", "create",
+                        "--title", safe_title,
+                        "--body", safe_body,
+                        "--assignee", "claude",
+                    ]
                     result = subprocess.run(
                         cmd,
                         capture_output=True,

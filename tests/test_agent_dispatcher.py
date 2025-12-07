@@ -346,6 +346,9 @@ class TestCreateGitHubIssue:
         assert "create" in call_args
         assert "Test Title" in call_args
         assert "Test Body" in call_args
+        # Verify assignee is set to trigger Claude Code workflow
+        assert "--assignee" in call_args
+        assert "claude" in call_args
 
         # Verify URL returned
         assert result == "https://github.com/owner/repo/issues/1"
@@ -365,6 +368,37 @@ class TestCreateGitHubIssue:
         )
 
         assert result is None
+
+    @patch("subprocess.run")
+    def test_retries_with_assignee_when_label_fails(self, mock_run, temp_hive_dir):
+        """Test that assignee is preserved when retrying after label failure."""
+        # First call fails with label error, second call succeeds
+        mock_run.side_effect = [
+            MagicMock(
+                returncode=1, stdout="", stderr="label 'nonexistent' not found"
+            ),
+            MagicMock(
+                returncode=0,
+                stdout="https://github.com/owner/repo/issues/1",
+                stderr="",
+            ),
+        ]
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.create_github_issue(
+            "Test Title", "Test Body", ["nonexistent-label"]
+        )
+
+        # Should have been called twice
+        assert mock_run.call_count == 2
+
+        # Verify second call has assignee but no labels
+        second_call_args = mock_run.call_args_list[1][0][0]
+        assert "--assignee" in second_call_args
+        assert "claude" in second_call_args
+        assert "--label" not in second_call_args
+
+        assert result == "https://github.com/owner/repo/issues/1"
 
 
 class TestDispatch:

@@ -346,9 +346,6 @@ class TestCreateGitHubIssue:
         assert "create" in call_args
         assert "Test Title" in call_args
         assert "Test Body" in call_args
-        # Verify assignee is set to trigger Claude Code workflow
-        assert "--assignee" in call_args
-        assert "claude" in call_args
 
         # Verify URL returned
         assert result == "https://github.com/owner/repo/issues/1"
@@ -370,8 +367,8 @@ class TestCreateGitHubIssue:
         assert result is None
 
     @patch("subprocess.run")
-    def test_retries_with_assignee_when_label_fails(self, mock_run, temp_hive_dir):
-        """Test that assignee is preserved when retrying after label failure."""
+    def test_retries_without_labels_on_label_error(self, mock_run, temp_hive_dir):
+        """Test that labels are removed when retrying after label failure."""
         # First call fails with label error, second call succeeds
         mock_run.side_effect = [
             MagicMock(
@@ -392,13 +389,106 @@ class TestCreateGitHubIssue:
         # Should have been called twice
         assert mock_run.call_count == 2
 
-        # Verify second call has assignee but no labels
+        # Verify second call has no labels
         second_call_args = mock_run.call_args_list[1][0][0]
-        assert "--assignee" in second_call_args
-        assert "claude" in second_call_args
         assert "--label" not in second_call_args
 
         assert result == "https://github.com/owner/repo/issues/1"
+
+
+class TestAddClaudeComment:
+    """Tests for add_claude_comment method."""
+
+    def test_dry_run_returns_true(self, temp_hive_dir):
+        """Test dry run mode returns True without calling gh."""
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=True)
+
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/123"
+        )
+
+        assert result is True
+
+    @patch("subprocess.run")
+    def test_successful_comment_addition(self, mock_run, temp_hive_dir):
+        """Test successful comment addition."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/42"
+        )
+
+        assert result is True
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0][0]
+        assert "gh" in call_args
+        assert "issue" in call_args
+        assert "comment" in call_args
+        assert "42" in call_args
+        assert "@claude" in call_args[call_args.index("--body") + 1]
+
+    @patch("subprocess.run")
+    def test_handles_trailing_slash_in_url(self, mock_run, temp_hive_dir):
+        """Test URL parsing handles trailing slashes."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/99/"
+        )
+
+        assert result is True
+        call_args = mock_run.call_args[0][0]
+        assert "99" in call_args
+
+    @patch("subprocess.run")
+    def test_handles_gh_cli_failure(self, mock_run, temp_hive_dir):
+        """Test handling of gh CLI failure."""
+        mock_run.return_value = MagicMock(
+            returncode=1,
+            stdout="",
+            stderr="Error: permission denied",
+        )
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/123"
+        )
+
+        assert result is False
+
+    @patch("subprocess.run")
+    def test_handles_timeout(self, mock_run, temp_hive_dir):
+        """Test handling of subprocess timeout."""
+        mock_run.side_effect = subprocess.TimeoutExpired("gh", 30)
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/123"
+        )
+
+        assert result is False
+
+    @patch("subprocess.run")
+    def test_handles_general_exception(self, mock_run, temp_hive_dir):
+        """Test handling of general exceptions."""
+        mock_run.side_effect = OSError("Network error")
+
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        result = dispatcher.add_claude_comment(
+            "https://github.com/owner/repo/issues/123"
+        )
+
+        assert result is False
 
 
 class TestDispatch:

@@ -260,13 +260,7 @@ class AgentDispatcher:
 
         try:
             # Build gh command with sanitized inputs
-            # Assign to 'claude' user to trigger the Claude Code workflow
-            cmd = [
-                "gh", "issue", "create",
-                "--title", safe_title,
-                "--body", safe_body,
-                "--assignee", "claude",
-            ]
+            cmd = ["gh", "issue", "create", "--title", safe_title, "--body", safe_body]
 
             # Add labels
             for label in labels:
@@ -287,13 +281,8 @@ class AgentDispatcher:
                 # Check if it's a label error (labels might not exist)
                 if "label" in result.stderr.lower():
                     print("   Warning: Label issue, retrying without labels...")
-                    # Retry without labels but keep assignee
-                    cmd = [
-                        "gh", "issue", "create",
-                        "--title", safe_title,
-                        "--body", safe_body,
-                        "--assignee", "claude",
-                    ]
+                    # Retry without labels
+                    cmd = ["gh", "issue", "create", "--title", safe_title, "--body", safe_body]
                     result = subprocess.run(
                         cmd,
                         capture_output=True,
@@ -316,6 +305,56 @@ class AgentDispatcher:
         except Exception as e:
             print(f"   ERROR creating issue: {e}")
             return None
+
+    def add_claude_comment(self, issue_url: str) -> bool:
+        """
+        Add a comment to the issue to trigger Claude Code.
+
+        GitHub API-created issues don't trigger notifications from @mentions
+        in the initial body. A separate comment is needed to invoke Claude.
+
+        Args:
+            issue_url: URL of the GitHub issue
+
+        Returns:
+            True on success, False on failure
+        """
+        if self.dry_run:
+            print("   [DRY RUN] Would add @claude comment to trigger assignment")
+            return True
+
+        try:
+            # Extract issue number from URL
+            # URL format: https://github.com/owner/repo/issues/123
+            issue_number = issue_url.rstrip("/").split("/")[-1]
+
+            comment = "@claude Please work on this issue."
+
+            cmd = [
+                "gh", "issue", "comment", issue_number,
+                "--body", comment
+            ]
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+
+            if result.returncode != 0:
+                print(f"   Warning: Failed to add Claude comment: {result.stderr}")
+                return False
+
+            return True
+
+        except subprocess.TimeoutExpired:
+            print("   Warning: gh comment command timed out")
+            return False
+        except Exception as e:
+            print(f"   Warning: Failed to add Claude comment: {e}")
+            return False
 
     def dispatch(self, project: Dict[str, Any]) -> bool:
         """
@@ -356,6 +395,12 @@ class AgentDispatcher:
             return False
 
         print(f"   Issue created: {issue_url}")
+
+        # Add a comment to trigger Claude Code
+        # GitHub doesn't trigger notifications from @mentions in the initial body
+        print("   Adding @claude comment to trigger assignment...")
+        if not self.add_claude_comment(issue_url):
+            print("   Warning: Could not add Claude comment, but issue was created")
 
         # Claim the project
         print("   Claiming project...")

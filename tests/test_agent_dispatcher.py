@@ -346,6 +346,9 @@ class TestCreateGitHubIssue:
         assert "create" in call_args
         assert "Test Title" in call_args
         assert "Test Body" in call_args
+        # Verify assignee is set to trigger Claude Code workflow
+        assert "--assignee" in call_args
+        assert "claude" in call_args
 
         # Verify URL returned
         assert result == "https://github.com/owner/repo/issues/1"

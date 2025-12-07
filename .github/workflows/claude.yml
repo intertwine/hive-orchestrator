@@ -1,0 +1,50 @@
+name: Claude Code
+
+on:
+  # Respond to @claude mentions in issue comments
+  issue_comment:
+    types: [created]
+  # Respond to @claude mentions in PR review comments
+  pull_request_review_comment:
+    types: [created]
+  # Respond to @claude mentions in PR reviews
+  pull_request_review:
+    types: [submitted]
+  # Respond to @claude mentions when issues are opened or assigned
+  issues:
+    types: [opened, assigned]
+
+jobs:
+  claude-response:
+    # Only run if the event contains @claude or is assigned to claude
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || (github.event.action == 'assigned' && github.event.assignee.login == 'claude')))
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    permissions:
+      contents: write       # Required to push code changes
+      pull-requests: write  # Required to create/update PRs and comment
+      issues: write         # Required to comment on issues
+      id-token: write       # Required for OIDC token (if using cloud providers)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code Action
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          trigger_phrase: "@claude"
+          # Use a sticky comment to consolidate Claude's responses
+          use_sticky_comment: true
+          # Allowed tools for this repository
+          claude_args: |
+            --allowedTools "Bash(*),Read,Write,Edit,Glob,Grep,TodoWrite"

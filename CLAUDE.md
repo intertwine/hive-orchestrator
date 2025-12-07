@@ -480,9 +480,25 @@ uv run pylint tests/ --max-line-length=100
 - Claims projects by setting `owner` in AGENCY.md
 - Only modifies AGENCY.md files
 
+**Claude Code** (`.github/workflows/claude.yml`):
+
+- Responds to `@claude` mentions in issues and PR comments
+- Triggers on: issue comments, PR review comments, PR reviews, and new issues
+- Uses the official [anthropics/claude-code-action](https://github.com/anthropics/claude-code-action)
+- Automatically analyzes context and implements requested changes
+- Can create PRs, fix bugs, and answer questions
+
 **Required Secrets:**
 - `OPENROUTER_API_KEY`: Your OpenRouter API key (for Cortex)
+- `ANTHROPIC_API_KEY`: Your Anthropic API key (for Claude Code Action)
 - `GITHUB_TOKEN`: Automatically provided (for issue creation)
+
+**Setting up ANTHROPIC_API_KEY:**
+1. Go to your repository on GitHub
+2. Navigate to **Settings → Secrets and variables → Actions**
+3. Click **New repository secret**
+4. Name: `ANTHROPIC_API_KEY`
+5. Value: Your Anthropic API key from https://console.anthropic.com/
 
 ### Local Development
 

@@ -1,6 +1,6 @@
 # 🧠 Agent Hive - Vendor-Agnostic Agent Orchestration OS
 
-[![Cortex Heartbeat](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/cortex.yml?label=Cortex%20Heartbeat)](https://github.com/intertwine/hive-orchestrator/actions/workflows/cortex.yml)
+[![Cortex Heartbeat](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/cortex.yml?branch=main&label=Cortex%20Heartbeat)](https://github.com/intertwine/hive-orchestrator/actions/workflows/cortex.yml)
 
 ![Agent Hive](images/agent-hive-explainer-image-web.png)
 

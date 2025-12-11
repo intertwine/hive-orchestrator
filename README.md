@@ -2,6 +2,8 @@
 
 [![Cortex Heartbeat](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/cortex.yml?label=Cortex%20Heartbeat)](https://github.com/intertwine/hive-orchestrator/actions/workflows/cortex.yml)
 
+![Agent Hive](images/agent-hive-explainer-image-web.png)
+
 **Agent Hive** is a production-ready orchestration operating system for autonomous AI agents. It enables seamless coordination across different LLM providers (Claude, Grok, Gemini, etc.) using shared memory stored in Markdown files.
 
 > **Inspiration**: Some patterns in Agent Hive were inspired by [beads](https://github.com/steveyegge/beads), particularly the ready work detection, dependency tracking, and MCP integration concepts. We've adapted these ideas for our Markdown-first, vendor-agnostic approach.
@@ -12,24 +14,24 @@ Instead of building vendor-specific workflows, Agent Hive uses a simple but powe
 
 ### The Architecture
 
-```
+```diagram
 ┌─────────────────────────────────────────────────────────────┐
 │                      GLOBAL.md                              │
 │                  (Root System State)                        │
 └─────────────────────────────────────────────────────────────┘
                             │
-                ┌───────────┴───────────┐
-                │                       │
+                ┌───────────┴──────────┐
+                │                      │
          ┌──────▼─────┐         ┌──────▼─────┐
          │ AGENCY.md  │         │ AGENCY.md  │
          │ (Project 1)│         │ (Project 2)│
          └──────┬─────┘         └──────┬─────┘
-                │                       │
+                │                      │
     ┌───────────┼───────────┐          │
     │           │           │          │
-┌───▼──┐   ┌───▼──┐   ┌───▼──┐   ┌───▼──┐
-│Claude│   │ Grok │   │Gemini│   │Human │
-└──────┘   └──────┘   └──────┘   └──────┘
+┌───▼──┐    ┌───▼──┐    ┌───▼──┐   ┌───▼───┐
+│Claude│    │ Grok │    │Gemini│   │ Human │
+└──────┘    └──────┘    └──────┘   └───────┘
 ```
 
 ## 🔴 Live Orchestration on This Repository
@@ -43,6 +45,7 @@ Instead of building vendor-specific workflows, Agent Hive uses a simple but powe
 ### What You'll See
 
 Browse the `projects/` directory to see:
+
 - Active projects with assigned owners
 - Blocked tasks waiting for dependencies
 - Agent notes documenting progress
@@ -51,6 +54,7 @@ Browse the `projects/` directory to see:
 ### For Forks
 
 When you fork this repository:
+
 - The Cortex workflow won't run (it requires the `OPENROUTER_API_KEY` secret)
 - The Claude Code workflow won't run (it requires the `ANTHROPIC_API_KEY` secret)
 - Add your API keys in repository settings to enable them (Settings → Secrets and variables → Actions)
@@ -86,7 +90,7 @@ make setup-env
 nano .env
 ```
 
-### Your `.env` file should look like:
+### Your `.env` file should look like
 
 ```bash
 OPENROUTER_API_KEY=your-api-key-here
@@ -103,7 +107,7 @@ COORDINATOR_URL=http://localhost:8080
 make dashboard
 ```
 
-Open http://localhost:8501 in your browser.
+Open <http://localhost:8501> in your browser.
 
 ### Run Cortex (CLI)
 
@@ -115,7 +119,7 @@ This runs the orchestration engine that analyzes all projects and updates state.
 
 ## 📁 Repository Structure
 
-```
+```bash
 agent-hive/
 ├── .claude/
 │   └── skills/                 # Claude Code skills for Agent Hive
@@ -178,37 +182,40 @@ blocking_reason: null
 priority: high
 tags: [feature, backend]
 dependencies:
-  blocked_by: [other-project]  # This project waits for these
-  blocks: [downstream-project]  # These projects wait for us
-  parent: epic-project          # Part of a larger epic (optional)
-  related: [context-project]    # Related but non-blocking (optional)
+  blocked_by: [other-project] # This project waits for these
+  blocks: [downstream-project] # These projects wait for us
+  parent: epic-project # Part of a larger epic (optional)
+  related: [context-project] # Related but non-blocking (optional)
 ---
 
 # Project Title
 
 ## Objective
+
 What this project aims to achieve.
 
 ## Tasks
+
 - [ ] Task 1
 - [ ] Task 2
 - [x] Completed task
 
 ## Agent Notes
+
 - **2025-01-15 10:30 - Claude**: Started work on Task 1
 ```
 
 **Key Fields:**
 
-| Field | Description |
-|-------|-------------|
-| `project_id` | Unique identifier for the project |
-| `status` | `active`, `pending`, `blocked`, or `completed` |
-| `owner` | Agent currently working (or `null` if unclaimed) |
-| `blocked` | `true` if blocked on external dependency |
-| `priority` | `low`, `medium`, `high`, or `critical` |
-| `dependencies.blocked_by` | Projects that must complete before this one |
-| `dependencies.blocks` | Projects waiting on this one |
+| Field                     | Description                                      |
+| ------------------------- | ------------------------------------------------ |
+| `project_id`              | Unique identifier for the project                |
+| `status`                  | `active`, `pending`, `blocked`, or `completed`   |
+| `owner`                   | Agent currently working (or `null` if unclaimed) |
+| `blocked`                 | `true` if blocked on external dependency         |
+| `priority`                | `low`, `medium`, `high`, or `critical`           |
+| `dependencies.blocked_by` | Projects that must complete before this one      |
+| `dependencies.blocks`     | Projects waiting on this one                     |
 
 ### 2. Cortex - The Orchestration Engine
 
@@ -255,21 +262,21 @@ The `hive-mcp` server enables AI agents like Claude to interact with Agent Hive 
 
 **Available Tools:**
 
-| Tool | Description |
-|------|-------------|
-| `list_projects` | List all discovered projects with metadata |
-| `get_ready_work` | Get projects ready for an agent to claim |
-| `get_project` | Get full details of a specific project |
-| `claim_project` | Set owner field to claim work |
-| `release_project` | Set owner to null |
-| `update_status` | Change project status |
-| `add_note` | Append to agent notes section |
-| `get_dependencies` | Get dependency info for a project |
-| `get_dependency_graph` | Get full dependency graph |
-| `coordinator_status` | Check if coordination server is available |
-| `coordinator_claim` | Claim project via coordination server |
-| `coordinator_release` | Release project via coordination server |
-| `coordinator_reservations` | Get all active reservations |
+| Tool                       | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `list_projects`            | List all discovered projects with metadata |
+| `get_ready_work`           | Get projects ready for an agent to claim   |
+| `get_project`              | Get full details of a specific project     |
+| `claim_project`            | Set owner field to claim work              |
+| `release_project`          | Set owner to null                          |
+| `update_status`            | Change project status                      |
+| `add_note`                 | Append to agent notes section              |
+| `get_dependencies`         | Get dependency info for a project          |
+| `get_dependency_graph`     | Get full dependency graph                  |
+| `coordinator_status`       | Check if coordination server is available  |
+| `coordinator_claim`        | Claim project via coordination server      |
+| `coordinator_release`      | Release project via coordination server    |
+| `coordinator_reservations` | Get all active reservations                |
 
 **Claude Desktop Configuration:**
 
@@ -320,14 +327,14 @@ COORDINATOR_URL=http://localhost:8080
 
 **API Endpoints:**
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check with active claim count |
-| `/claim` | POST | Claim a project (returns 409 if already claimed) |
-| `/release/{project_id}` | DELETE | Release a project claim |
-| `/status/{project_id}` | GET | Check claim status of a project |
-| `/reservations` | GET | List all active reservations |
-| `/extend/{project_id}` | POST | Extend claim TTL |
+| Endpoint                | Method | Description                                      |
+| ----------------------- | ------ | ------------------------------------------------ |
+| `/health`               | GET    | Health check with active claim count             |
+| `/claim`                | POST   | Claim a project (returns 409 if already claimed) |
+| `/release/{project_id}` | DELETE | Release a project claim                          |
+| `/status/{project_id}`  | GET    | Check claim status of a project                  |
+| `/reservations`         | GET    | List all active reservations                     |
+| `/extend/{project_id}`  | POST   | Extend claim TTL                                 |
 
 **Claim Request Example:**
 
@@ -338,6 +345,7 @@ curl -X POST http://localhost:8080/claim \
 ```
 
 **Response (Success - 200):**
+
 ```json
 {
   "success": true,
@@ -349,6 +357,7 @@ curl -X POST http://localhost:8080/claim \
 ```
 
 **Response (Conflict - 409):**
+
 ```json
 {
   "success": false,
@@ -360,6 +369,7 @@ curl -X POST http://localhost:8080/claim \
 ```
 
 **Features:**
+
 - Automatic claim expiration (configurable TTL, default 1 hour)
 - Force-claim option for admin override (`?force=true`)
 - Background cleanup of expired claims
@@ -400,6 +410,7 @@ The Agent Dispatcher runs automatically every 4 hours (15 minutes after Cortex) 
 **Claude Code Integration:**
 
 When issues are created with `@claude` mentions, the Claude Code Action (`.github/workflows/claude.yml`) automatically responds. This enables Claude to:
+
 - Analyze code and implement requested changes
 - Create pull requests for bug fixes and features
 - Answer questions about the codebase
@@ -454,13 +465,14 @@ When the Dispatcher creates an issue for this project, it automatically:
 
 1. **Clones the external repo** (shallow, depth=1)
 2. **Generates a file tree** (4 levels deep, excludes noise like node_modules)
-3. **Reads key files** (package.json, README.md, src/index.*, etc.)
+3. **Reads key files** (package.json, README.md, src/index.\*, etc.)
 4. **Includes context in the issue** for the agent
 5. **Cleans up** temporary files
 
 The agent then works on the external repository while using AGENCY.md as shared memory. Results are written to Phase sections, and when ready, the agent submits a PR to the target repository.
 
 **See also:**
+
 - [Example 9: Cross-Repository Workflows](examples/9-cross-repo-workflows/)
 - [Article 11: Cross-Repository Multi-Agent Workflows](articles/11-cross-repo-multi-agent-workflows.md)
 
@@ -469,6 +481,7 @@ The agent then works on the external repository while using AGENCY.md as shared 
 ### Pattern 1: Autonomous Orchestration
 
 Let GitHub Actions run Cortex every 4 hours. It will:
+
 1. Read all AGENCY.md files
 2. Identify blocked tasks
 3. Update project statuses
@@ -491,6 +504,7 @@ make session PROJECT=projects/demo
 ```
 
 This creates a `SESSION_CONTEXT.md` file with:
+
 - Full AGENCY.md content
 - File tree
 - Handoff instructions
@@ -544,6 +558,7 @@ WEAVE_DISABLED=true
 ```
 
 **What gets traced:**
+
 - All LLM API calls to OpenRouter
 - Request/response latency (milliseconds)
 - Token usage (prompt, completion, total)
@@ -551,12 +566,14 @@ WEAVE_DISABLED=true
 - Cortex orchestration runs
 
 **Key features:**
+
 - **Automatic header sanitization**: API keys are redacted from traces
 - **Graceful degradation**: If Weave fails or isn't configured, the app continues normally
 - **Decorators for custom tracing**: Use `@trace_op("name")` to trace your own functions
 - **LLMCallMetadata**: Rich metadata class capturing all call details
 
 **View traces:**
+
 - Log into [wandb.ai](https://wandb.ai)
 - Navigate to your Weave project
 - View call traces, costs, and performance metrics
@@ -576,6 +593,7 @@ HIVE_REQUIRE_AUTH=true
 ```
 
 **Security features:**
+
 - **Safe YAML parsing**: Prevents deserialization attacks (RCE prevention)
 - **Prompt injection protection**: Sanitizes untrusted content before LLM calls
 - **API key authentication**: Bearer token auth for Coordinator server
@@ -585,11 +603,11 @@ HIVE_REQUIRE_AUTH=true
 
 **Environment variables:**
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `HIVE_API_KEY` | Coordinator authentication | None (required for external access) |
-| `HIVE_REQUIRE_AUTH` | Enable/disable auth | `true` in production |
-| `COORDINATOR_HOST` | Server binding address | `127.0.0.1` (localhost only) |
+| Variable            | Purpose                    | Default                             |
+| ------------------- | -------------------------- | ----------------------------------- |
+| `HIVE_API_KEY`      | Coordinator authentication | None (required for external access) |
+| `HIVE_REQUIRE_AUTH` | Enable/disable auth        | `true` in production                |
+| `COORDINATOR_HOST`  | Server binding address     | `127.0.0.1` (localhost only)        |
 
 For detailed security documentation, see the [Security article](articles/09-agent-hive-security.md) and [SECURITY.md](SECURITY.md).
 
@@ -600,7 +618,7 @@ Edit `.github/workflows/cortex.yml`:
 ```yaml
 schedule:
   # Run every 2 hours instead of 4
-  - cron: '0 */2 * * *'
+  - cron: "0 */2 * * *"
 ```
 
 ### Installing Claude Code GitHub App
@@ -609,7 +627,7 @@ The [Claude Code GitHub App](https://github.com/apps/claude) is **required** for
 
 **Installation:**
 
-1. Visit https://github.com/apps/claude
+1. Visit <https://github.com/apps/claude>
 2. Click **"Install"** or **"Configure"**
 3. Select your organization or account
 4. Choose **"Only select repositories"** and add this repository
@@ -671,13 +689,13 @@ make lint
 mkdir projects/my-new-project
 ```
 
-2. Create an `AGENCY.md` file (copy from `projects/demo/AGENCY.md`):
+1. Create an `AGENCY.md` file (copy from `projects/demo/AGENCY.md`):
 
 ```bash
 cp projects/demo/AGENCY.md projects/my-new-project/AGENCY.md
 ```
 
-3. Edit the frontmatter and content:
+1. Edit the frontmatter and content:
 
 ```yaml
 ---
@@ -689,14 +707,13 @@ blocked: false
 priority: high
 tags: [new-feature]
 ---
-
 # My New Project
 
 ## Objective
 Build a new feature that...
 ```
 
-4. Run Cortex:
+1. Run Cortex:
 
 ```bash
 make cortex
@@ -711,6 +728,7 @@ The project will now be tracked automatically.
 Already configured! Just push to GitHub and enable Actions.
 
 **Required Secrets** (Settings → Secrets and variables → Actions):
+
 - `OPENROUTER_API_KEY` - For Cortex orchestration engine
 - `ANTHROPIC_API_KEY` - For Claude Code Action (@claude mentions)
 
@@ -724,6 +742,7 @@ Already configured! Just push to GitHub and enable Actions.
 ### Option 3: Cloud VM
 
 Deploy to AWS/GCP/Azure with:
+
 - Cron job running Cortex
 - Nginx serving Dashboard
 - GitHub App webhook receiver
@@ -752,6 +771,7 @@ uv run python -m hive_mcp
 ```
 
 This enables agents to:
+
 - 📋 List and query projects programmatically
 - 🎯 Find ready work without scanning files
 - 🔒 Claim/release projects atomically
@@ -770,19 +790,19 @@ Agent Hive includes a set of [Claude Code Skills](https://www.anthropic.com/news
 
 ### Available Skills
 
-| Skill | Description | Use When |
-|-------|-------------|----------|
-| **hive-project-management** | Managing AGENCY.md files, frontmatter fields, task tracking | Creating/updating projects, managing ownership |
-| **cortex-operations** | Running Cortex CLI, dependency analysis, ready work detection | Finding work, analyzing dependencies, running orchestration |
-| **deep-work-session** | Focused work sessions, handoff protocol, session lifecycle | Starting/ending work sessions, following protocols |
-| **multi-agent-coordination** | Multi-agent patterns, conflict prevention, coordination server | Working with other agents, preventing conflicts |
-| **hive-mcp** | MCP server tools, programmatic project access | Using MCP tools for project management |
+| Skill                        | Description                                                    | Use When                                                    |
+| ---------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------- |
+| **hive-project-management**  | Managing AGENCY.md files, frontmatter fields, task tracking    | Creating/updating projects, managing ownership              |
+| **cortex-operations**        | Running Cortex CLI, dependency analysis, ready work detection  | Finding work, analyzing dependencies, running orchestration |
+| **deep-work-session**        | Focused work sessions, handoff protocol, session lifecycle     | Starting/ending work sessions, following protocols          |
+| **multi-agent-coordination** | Multi-agent patterns, conflict prevention, coordination server | Working with other agents, preventing conflicts             |
+| **hive-mcp**                 | MCP server tools, programmatic project access                  | Using MCP tools for project management                      |
 
 ### How Skills Work
 
 Skills use **progressive disclosure** - Claude loads only the skill name and description at startup, then loads full instructions when needed:
 
-```
+```bash
 1. Startup: Load skill metadata (name + description)
 2. Task Match: Claude detects relevant skill from your request
 3. Activation: Full skill instructions loaded into context
@@ -793,7 +813,7 @@ Skills use **progressive disclosure** - Claude loads only the skill name and des
 
 Skills are stored in `.claude/skills/` with this structure:
 
-```
+```bash
 .claude/skills/
 ├── hive-project-management/
 │   └── SKILL.md
@@ -811,7 +831,7 @@ Skills are stored in `.claude/skills/` with this structure:
 
 Skills activate automatically based on your request. Examples:
 
-```
+```bash
 # Activates: hive-project-management
 "Create a new project for the authentication feature"
 
@@ -884,7 +904,7 @@ MIT License - see LICENSE file for details.
 
 ### "OPENROUTER_API_KEY not set"
 
-Edit your `.env` file and add your API key from https://openrouter.ai/
+Edit your `.env` file and add your API key from <https://openrouter.ai/>
 
 ### "No projects found"
 
@@ -912,6 +932,7 @@ lsof -i :8501
 ## 🎯 Roadmap
 
 **Completed:**
+
 - [x] Ready work detection (fast, no LLM required)
 - [x] Dependency tracking with cycle detection
 - [x] MCP server for AI agent integration
@@ -922,10 +943,11 @@ lsof -i :8501
 - [x] Automated agent work assignment (Agent Dispatcher)
 - [x] Security hardening (YAML RCE, prompt injection, auth)
 - [x] Weave tracing integration (LLM observability)
+- [x] Multi-repository support
 
 **Planned:**
+
 - [ ] Web-based Dashboard (hosted version)
-- [ ] Multi-repository support
 - [ ] Slack/Discord integration
 - [ ] Agent performance metrics
 - [ ] Visual workflow builder
@@ -933,8 +955,8 @@ lsof -i :8501
 
 ## 📞 Support
 
-- GitHub Issues: https://github.com/intertwine/hive-orchestrator/issues
-- Discussions: https://github.com/intertwine/hive-orchestrator/discussions
+- GitHub Issues: <https://github.com/intertwine/hive-orchestrator/issues>
+- Discussions: <https://github.com/intertwine/hive-orchestrator/discussions>
 
 ---
 

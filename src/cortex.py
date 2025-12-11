@@ -101,7 +101,7 @@ class Cortex:
             return None
 
     def discover_projects(self) -> List[Dict[str, Any]]:
-        """Discover all projects with AGENCY.md files using safe YAML loading."""
+        """Discover all projects with AGENCY.md files (including in nested directories) using safe YAML loading."""
         projects = []
 
         if not self.projects_dir.exists():

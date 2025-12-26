@@ -201,7 +201,7 @@ async function generateImagesOpenAI({ prompt, model, size, imagesPerPrompt }) {
     throw new Error('OPENAI_API_KEY is required to generate images.');
   }
 
-  const response = await fetch('https://api.openai.com/v1/images', {
+  const response = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

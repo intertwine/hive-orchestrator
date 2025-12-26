@@ -58,18 +58,23 @@ class CoordinatorClient:
     with automatic handling of network errors and graceful degradation.
     """
 
-    def __init__(self, base_url: str = None, timeout: float = 5.0, retry_count: int = 1):
+    def __init__(
+        self, base_url: str = None, api_key: str = None, timeout: float = 5.0, retry_count: int = 1
+    ):
         """
         Initialize the coordinator client.
 
         Args:
             base_url: Base URL of the coordinator server.
                      If None, reads from COORDINATOR_URL env var.
+            api_key: API key for authentication.
+                    If None, reads from HIVE_API_KEY env var.
             timeout: Request timeout in seconds.
             retry_count: Number of retries for failed requests.
         """
         self.base_url = base_url or os.getenv("COORDINATOR_URL", "http://localhost:8080")
         self.base_url = self.base_url.rstrip("/")
+        self.api_key = api_key or os.getenv("HIVE_API_KEY")
         self.timeout = timeout
         self.retry_count = retry_count
         self._available: Optional[bool] = None
@@ -113,10 +118,20 @@ class CoordinatorClient:
         """
         url = f"{self.base_url}{endpoint}"
 
+        # Build headers with authentication if API key is available
+        headers = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
         for attempt in range(self.retry_count + 1):
             try:
                 response = requests.request(
-                    method=method, url=url, json=json_data, params=params, timeout=self.timeout
+                    method=method,
+                    url=url,
+                    json=json_data,
+                    params=params,
+                    headers=headers,
+                    timeout=self.timeout,
                 )
                 self._available = True
                 return response
@@ -315,5 +330,6 @@ def get_coordinator_client() -> Optional[CoordinatorClient]:
     """
     url = os.getenv("COORDINATOR_URL")
     if url:
-        return CoordinatorClient(base_url=url)
+        api_key = os.getenv("HIVE_API_KEY")
+        return CoordinatorClient(base_url=url, api_key=api_key)
     return None

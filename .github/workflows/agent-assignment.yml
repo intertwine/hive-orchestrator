@@ -11,7 +11,7 @@ on:
       dry_run:
         description: 'Dry run (preview only, no changes)'
         required: false
-        default: 'false'
+        default: false
         type: boolean
       max_dispatches:
         description: 'Maximum projects to dispatch (1-10)'

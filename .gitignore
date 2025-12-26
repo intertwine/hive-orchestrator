@@ -212,3 +212,6 @@ __marimo__/
 tmp/
 temp/
 .DS_Store
+
+# Node.js (for skill scripts)
+node_modules/

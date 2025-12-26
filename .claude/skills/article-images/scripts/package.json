@@ -1,0 +1,9 @@
+{
+  "name": "article-images-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Image generation scripts for article-images skill",
+  "dependencies": {
+    "google-auth-library": "^9.0.0"
+  }
+}

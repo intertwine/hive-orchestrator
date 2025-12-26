@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const DEFAULT_PROMPTS_GLOB = 'articles/prompts/*.md';
 const DEFAULT_OUTPUT_ROOT = 'articles/images';
-const DEFAULT_MODEL = 'gpt-image-1';
+const DEFAULT_MODEL = 'gpt-image-1.5';
 const DEFAULT_IMAGES_PER_PROMPT = 1;
 const DEFAULT_MAX_PROMPTS = 1000;
 const DEFAULT_MAX_IMAGES = 1000;
@@ -217,19 +217,26 @@ async function generateImagesOpenAI({ prompt, model, size, imagesPerPrompt }) {
     throw new Error('OPENAI_API_KEY is required to generate images.');
   }
 
+  // Build request body - GPT image models (gpt-image-1, gpt-image-1.5) always return
+  // base64 and don't support response_format. Only DALL-E 2 supports response_format.
+  const isGptImageModel = model.startsWith('gpt-image');
+  const requestBody = {
+    model,
+    prompt,
+    size,
+    n: imagesPerPrompt,
+  };
+  if (!isGptImageModel) {
+    requestBody.response_format = 'b64_json';
+  }
+
   const response = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model,
-      prompt,
-      size,
-      n: imagesPerPrompt,
-      response_format: 'b64_json',
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {

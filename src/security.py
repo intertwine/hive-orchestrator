@@ -34,17 +34,17 @@ MAX_AGENT_NOTE_LENGTH = 2000
 # Patterns to strip from untrusted content (injection prevention)
 INJECTION_PATTERNS = [
     # Prompt injection patterns
-    r'(?i)ignore\s+(all\s+)?(previous\s+)?instructions?',
-    r'(?i)disregard\s+(all\s+)?(previous\s+)?instructions?',
-    r'(?i)forget\s+(all\s+)?(previous\s+)?instructions?',
-    r'(?i)override\s+(all\s+)?(previous\s+)?instructions?',
-    r'(?i)system\s*:\s*',
-    r'(?i)assistant\s*:\s*',
-    r'(?i)user\s*:\s*',
+    r"(?i)ignore\s+(all\s+)?(previous\s+)?instructions?",
+    r"(?i)disregard\s+(all\s+)?(previous\s+)?instructions?",
+    r"(?i)forget\s+(all\s+)?(previous\s+)?instructions?",
+    r"(?i)override\s+(all\s+)?(previous\s+)?instructions?",
+    r"(?i)system\s*:\s*",
+    r"(?i)assistant\s*:\s*",
+    r"(?i)user\s*:\s*",
     # Command injection patterns
-    r'(?i)(exec|eval|system|shell)\s*[:(]',
+    r"(?i)(exec|eval|system|shell)\s*[:(]",
     # Exfiltration patterns
-    r'(?i)(exfil|leak|steal|extract)\s+.*(key|secret|token|password)',
+    r"(?i)(exfil|leak|steal|extract)\s+.*(key|secret|token|password)",
 ]
 
 # Compiled injection patterns for performance
@@ -164,8 +164,7 @@ def safe_parse_frontmatter(content: str) -> ParsedAgencyMd:
     if len(parts) < 3:
         # Invalid format - only one delimiter or malformed
         raise ValueError(
-            "Invalid frontmatter format: expected '---' delimiters "
-            "at start and after YAML block"
+            "Invalid frontmatter format: expected '---' delimiters " "at start and after YAML block"
         )
 
     # parts[0] is empty (before first ---)
@@ -334,12 +333,12 @@ def sanitize_issue_body(body: str) -> str:
 
     # Filter @mentions - only allow @claude and @claude-code
     # Other mentions could trigger unwanted notifications
-    # The negative lookahead already excludes @claude and @claude-code from matching,
-    # so we only need to replace what actually matches
+    # The negative lookahead checks that we DON'T have exactly 'claude' or 'claude-code'
+    # by ensuring there are no more username characters after these strings
     sanitized = re.sub(
-        r"@(?!claude\b)(?!claude-code\b)([a-zA-Z0-9_-]+)",
+        r"@(?!claude(?![-a-zA-Z0-9_])|claude-code(?![-a-zA-Z0-9_]))([a-zA-Z0-9_-]+)",
         r"[at]\1",
-        sanitized
+        sanitized,
     )
 
     return sanitized

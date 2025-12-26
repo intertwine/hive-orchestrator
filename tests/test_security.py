@@ -79,7 +79,8 @@ class TestYAMLDeserialization:
         project_dir = Path(temp_hive_dir) / "projects" / "test"
         project_dir.mkdir(parents=True)
         agency_file = project_dir / "AGENCY.md"
-        agency_file.write_text("""---
+        agency_file.write_text(
+            """---
 project_id: test-project
 status: active
 ---
@@ -87,7 +88,8 @@ status: active
 # Test Project
 
 Some content here.
-""")
+"""
+        )
 
         result = safe_load_agency_md(agency_file)
         assert result.metadata["project_id"] == "test-project"
@@ -99,14 +101,16 @@ Some content here.
         project_dir = Path(temp_hive_dir) / "projects" / "malicious"
         project_dir.mkdir(parents=True)
         agency_file = project_dir / "AGENCY.md"
-        agency_file.write_text("""---
+        agency_file.write_text(
+            """---
 project_id: malicious
 exploit: !!python/object/apply:os.system
   args: ['echo pwned']
 ---
 
 # Malicious Project
-""")
+"""
+        )
 
         with pytest.raises(YAMLSecurityError):
             safe_load_agency_md(agency_file)
@@ -199,6 +203,53 @@ class TestIssueBodySanitization:
         body = "@claude-code Please work on this task"
         result = sanitize_issue_body(body)
         assert "@claude-code" in result
+
+    def test_sanitize_issue_body_filters_claude_extra(self):
+        """Test that @claude-extra mentions are filtered (BUG FIX)."""
+        body = "@claude-extra Please do this task"
+        result = sanitize_issue_body(body)
+        assert "@claude-extra" not in result, (
+            "Bug: @claude-extra was preserved but should be filtered. "
+            "Only @claude and @claude-code should be allowed."
+        )
+        assert "[at]claude-extra" in result
+
+    def test_sanitize_issue_body_filters_claude_beta(self):
+        """Test that @claude-beta mentions are filtered (BUG FIX)."""
+        body = "@claude-beta Work on this"
+        result = sanitize_issue_body(body)
+        assert "@claude-beta" not in result, (
+            "Bug: @claude-beta was preserved but should be filtered. "
+            "Only @claude and @claude-code should be allowed."
+        )
+        assert "[at]claude-beta" in result
+
+    def test_sanitize_issue_body_filters_claude_agent(self):
+        """Test that @claude-agent mentions are filtered (BUG FIX)."""
+        body = "@claude-agent Fix this"
+        result = sanitize_issue_body(body)
+        assert "@claude-agent" not in result, (
+            "Bug: @claude-agent was preserved but should be filtered. "
+            "Only @claude and @claude-code should be allowed."
+        )
+        assert "[at]claude-agent" in result
+
+    def test_sanitize_issue_body_mixed_mentions_with_claude_prefix(self):
+        """Test multiple mentions including @claude-* variants (BUG FIX)."""
+        body = "@user1 @claude @claude-beta @claude-code @other"
+        result = sanitize_issue_body(body)
+
+        # Should preserve
+        assert "@claude" in result, "@claude should be preserved"
+        assert "@claude-code" in result, "@claude-code should be preserved"
+
+        # Should filter
+        assert "@user1" not in result, "@user1 should be filtered"
+        assert "@other" not in result, "@other should be filtered"
+        assert (
+            "@claude-beta" not in result
+        ), "Bug: @claude-beta should be filtered but was preserved"
+        assert "[at]claude-beta" in result
 
 
 class TestPathTraversal:

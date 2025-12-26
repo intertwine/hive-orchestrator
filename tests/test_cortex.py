@@ -329,7 +329,7 @@ class TestCallLLM:
 
             result = cortex.call_llm("Test prompt")
 
-            # This should work but will fail with the current buggy implementation
+            # This should work and does work with the fixed implementation
             assert result is not None
             assert result["summary"] == "System is running well with 2 active projects"
 

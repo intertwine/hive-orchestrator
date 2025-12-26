@@ -827,8 +827,9 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 # Use regex to extract content between ``` markers
                 # This handles both single-line and multi-line markdown
                 # Matches: ```json\n{...}\n``` or ```{...}``` or ```json{...}```
+                # The pattern allows optional language tags (json, JSON, javascript)
                 match = re.search(
-                    r'^```(?:json)?\s*(.+?)\s*```$',
+                    r'^```(?:json|JSON|javascript)?\s*(.+?)\s*```$',
                     llm_response,
                     re.DOTALL
                 )

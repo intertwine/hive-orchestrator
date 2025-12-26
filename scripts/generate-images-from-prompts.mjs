@@ -414,7 +414,9 @@ async function main() {
       model,
       images: manifestImages,
     };
-    await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    if (!dryRun) {
+      await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    }
   }
 }
 

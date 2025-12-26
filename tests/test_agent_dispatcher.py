@@ -306,7 +306,7 @@ class TestClaimProject:
         # Should be recent (within last minute)
         updated = datetime.fromisoformat(post.metadata["last_updated"].replace("Z", "+00:00"))
         now = datetime.now(timezone.utc)
-        diff = abs((now - updated.replace(tzinfo=None)).total_seconds())
+        diff = abs((now - updated).total_seconds())
         assert diff < 60
 
 

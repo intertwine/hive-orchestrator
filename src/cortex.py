@@ -460,7 +460,7 @@ class Cortex:
     def format_ready_work_json(self, ready_projects: List[Dict[str, Any]]) -> str:
         """Format ready work as JSON for programmatic consumption."""
         output = {
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "count": len(ready_projects),
             "projects": [
                 {
@@ -542,7 +542,7 @@ class Cortex:
     def format_deps_json(self, summary: Dict[str, Any]) -> str:
         """Format dependency summary as JSON."""
         output = {
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "total_projects": summary["total_projects"],
             "has_cycles": summary["has_cycles"],
             "cycles": summary["cycles"],
@@ -888,7 +888,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 parsed.metadata[field] = value
 
                 # Also update last_updated
-                parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat() + "Z"
+                parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
                 # Write back using safe dump
                 with open(file_path, "w", encoding="utf-8") as f:
@@ -995,7 +995,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         if changes_applied > 0:
             try:
                 parsed = safe_load_agency_md(self.global_file)
-                parsed.metadata["last_cortex_run"] = datetime.now(timezone.utc).isoformat() + "Z"
+                parsed.metadata["last_cortex_run"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 with open(self.global_file, "w", encoding="utf-8") as f:
                     f.write(safe_dump_agency_md(parsed.metadata, parsed.content))
                 print(f"\n📝 Updated GLOBAL.md (last_cortex_run) - {changes_applied} change(s) applied")

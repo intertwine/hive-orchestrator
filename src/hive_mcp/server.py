@@ -93,7 +93,7 @@ def update_project_field(project_path: str, field: str, value: Any, base_path: s
         parsed.metadata[field] = value
 
         # Update last_updated timestamp
-        parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat() + "Z"
+        parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         # Write back using safe dump
         with open(file_path, "w", encoding="utf-8") as f:
@@ -159,7 +159,7 @@ def add_agent_note(project_path: str, agent: str, note: str, base_path: str = No
             content = f"{content}\n\n## Agent Notes\n{new_note}"
 
         # Update last_updated
-        parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat() + "Z"
+        parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         # Write back using safe dump
         with open(file_path, "w", encoding="utf-8") as f:

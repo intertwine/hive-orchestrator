@@ -201,7 +201,7 @@ class AgentDispatcher:
 
             # Update metadata
             parsed.metadata["owner"] = self.AGENT_NAME
-            parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat() + "Z"
+            parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
             # Add agent note with issue link
             timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")

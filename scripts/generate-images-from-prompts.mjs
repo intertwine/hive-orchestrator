@@ -37,6 +37,15 @@ function getEnvString(name, fallback) {
   return process.env[name] ?? fallback;
 }
 
+function getEnvBoolean(name, fallback) {
+  const value = process.env[name];
+  if (value === undefined || value === '') return fallback;
+  // Ensure value is a string before processing
+  const strValue = String(value).toLowerCase();
+  // Treat "false", "0", "no", "off" as false, everything else as true
+  return !['false', '0', 'no', 'off'].includes(strValue);
+}
+
 function normalizeNewlines(text) {
   return text.replace(/\r\n/g, '\n');
 }
@@ -296,8 +305,8 @@ async function main() {
   const imagesPerPrompt = getEnvNumber('IMAGES_PER_PROMPT', DEFAULT_IMAGES_PER_PROMPT);
   const maxPrompts = getEnvNumber('MAX_PROMPTS', DEFAULT_MAX_PROMPTS);
   const maxImages = getEnvNumber('MAX_IMAGES', DEFAULT_MAX_IMAGES);
-  const dryRun = Boolean(process.env.DRY_RUN);
-  const force = Boolean(process.env.FORCE);
+  const dryRun = getEnvBoolean('DRY_RUN', false);
+  const force = getEnvBoolean('FORCE', false);
   const sleepMin = getEnvNumber('SLEEP_MIN_MS', DEFAULT_SLEEP_MIN_MS);
   const sleepMax = getEnvNumber('SLEEP_MAX_MS', DEFAULT_SLEEP_MAX_MS);
   const maxRetries = getEnvNumber('MAX_RETRIES', DEFAULT_MAX_RETRIES);

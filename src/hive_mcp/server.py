@@ -483,13 +483,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 result = format_response(success=False, error="project_id is required")
             else:
                 projects = cortex.discover_projects()
-                blocking_info = cortex.is_blocked(project_id, projects)
+                project = next((p for p in projects if p["project_id"] == project_id), None)
 
-                if not blocking_info:
+                if not project:
                     result = format_response(
                         success=False, error=f"Project '{project_id}' not found"
                     )
                 else:
+                    blocking_info = cortex.is_blocked(project_id, projects)
                     result = format_response(success=True, data=blocking_info)
 
         elif name == "get_dependency_graph":

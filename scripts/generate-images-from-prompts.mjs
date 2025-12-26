@@ -364,6 +364,12 @@ async function main() {
         continue;
       }
 
+      // Check MAX_IMAGES limit before processing the prompt
+      if (generatedImageCount + imagesPerPrompt > maxImages) {
+        console.warn('Reached MAX_IMAGES limit.');
+        break;
+      }
+
       const outputFiles = Array.from({ length: imagesPerPrompt }, (_, idx) => {
         const version = idx + 1;
         return `${imageHint}_v${version}.png`;
@@ -371,12 +377,8 @@ async function main() {
 
       if (dryRun) {
         console.log(`[DRY RUN] Would generate ${outputFiles.join(', ')} for ${filePath}`);
+        generatedImageCount += imagesPerPrompt;
       } else {
-        if (generatedImageCount + imagesPerPrompt > maxImages) {
-          console.warn('Reached MAX_IMAGES limit.');
-          break;
-        }
-
         const imagesBase64 = await generateWithRetry({
           prompt: finalPrompt,
           model,

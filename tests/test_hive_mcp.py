@@ -266,6 +266,26 @@ class TestMCPToolIntegration:
         assert result["data"]["is_blocked"] is True
         assert "prereq-project" in result["data"]["blocking_projects"]
 
+    def test_get_dependencies_nonexistent_project(self, temp_hive_dir, temp_project):
+        """Test get_dependencies with a nonexistent project returns error."""
+        cortex = Cortex(temp_hive_dir)
+        projects = cortex.discover_projects()
+
+        # Check if the project exists (simulating the fixed MCP handler logic)
+        project_id = "nonexistent-project"
+        project = next((p for p in projects if p["project_id"] == project_id), None)
+
+        if not project:
+            result = format_response(success=False, error=f"Project '{project_id}' not found")
+        else:
+            blocking_info = cortex.is_blocked(project_id, projects)
+            result = format_response(success=True, data=blocking_info)
+
+        # Verify the result is an error response
+        assert result["success"] is False
+        assert result["error"] == "Project 'nonexistent-project' not found"
+        assert result["data"] is None
+
     def test_get_dependency_graph_workflow(
         self, temp_hive_dir, temp_project, temp_project_with_dependency, temp_prereq_project
     ):

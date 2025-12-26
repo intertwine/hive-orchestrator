@@ -270,17 +270,18 @@ async function writeImages(outputDir, imageHint, imagesBase64, dryRun) {
   return files;
 }
 
-function shouldSkip(existingEntry, outputDir) {
+async function shouldSkip(existingEntry, outputDir) {
   if (!existingEntry) return false;
   if (!existingEntry.output_files || existingEntry.output_files.length === 0) return false;
-  return Promise.all(
+  const results = await Promise.all(
     existingEntry.output_files.map((file) =>
       fs
         .access(path.join(outputDir, file))
         .then(() => true)
         .catch(() => false),
     ),
-  ).then((results) => results.every(Boolean));
+  );
+  return results.every(Boolean);
 }
 
 async function main() {

@@ -1,6 +1,6 @@
 """Tests for the Agent Hive Coordinator server and client."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 import pytest
 from fastapi.testclient import TestClient
@@ -54,7 +54,7 @@ def clear_store():
 @pytest.fixture
 def sample_claim():
     """Create a sample claim for testing."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     return Claim(
         claim_id="test-claim-123",
         project_id="test-project",
@@ -67,7 +67,7 @@ def sample_claim():
 @pytest.fixture
 def expired_claim():
     """Create an expired claim for testing."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     return Claim(
         claim_id="expired-claim-456",
         project_id="expired-project",

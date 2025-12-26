@@ -16,7 +16,7 @@ import os
 import uuid
 import asyncio
 import hmac
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
@@ -98,7 +98,7 @@ class Claim:
 
     def is_expired(self) -> bool:
         """Check if the claim has expired."""
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert claim to dictionary."""
@@ -251,7 +251,7 @@ async def cleanup_task():
 async def lifespan(app: FastAPI):  # pylint: disable=unused-argument,redefined-outer-name
     """Application lifespan handler for startup/shutdown tasks."""
     global server_start_time  # pylint: disable=global-statement
-    server_start_time = datetime.utcnow()
+    server_start_time = datetime.now(timezone.utc)
 
     # Start background cleanup task
     task = asyncio.create_task(cleanup_task())
@@ -282,7 +282,7 @@ async def health_check():
     """Health check endpoint."""
     uptime = 0.0
     if server_start_time:
-        uptime = (datetime.utcnow() - server_start_time).total_seconds()
+        uptime = (datetime.now(timezone.utc) - server_start_time).total_seconds()
 
     return HealthResponse(
         status="healthy", active_claims=len(store.get_all_active_claims()), uptime_seconds=uptime
@@ -317,7 +317,7 @@ async def claim_project(request: ClaimRequest):
         )
 
     # Create new claim
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     claim = Claim(
         claim_id=str(uuid.uuid4()),
         project_id=request.project_id,
@@ -408,7 +408,7 @@ async def extend_claim(project_id: str, ttl_seconds: int = Query(default=DEFAULT
         )
 
     # Extend the expiration
-    new_expires = datetime.utcnow() + timedelta(seconds=min(ttl_seconds, MAX_TTL_SECONDS))
+    new_expires = datetime.now(timezone.utc) + timedelta(seconds=min(ttl_seconds, MAX_TTL_SECONDS))
     claim.expires_at = new_expires
 
     return {

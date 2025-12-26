@@ -144,9 +144,7 @@ class AgentDispatcher:
                         timestamp = last_updated
                     else:
                         # ISO format string timestamp
-                        timestamp = datetime.fromisoformat(
-                            str(last_updated).replace("Z", "+00:00")
-                        )
+                        timestamp = datetime.fromisoformat(str(last_updated).replace("Z", "+00:00"))
                     # Normalize to naive UTC datetime for consistent comparison
                     # Convert to UTC first, then strip timezone info
                     if timestamp.tzinfo is not None:
@@ -201,10 +199,10 @@ class AgentDispatcher:
 
             # Update metadata
             parsed.metadata["owner"] = self.AGENT_NAME
-            parsed.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
+            parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
             # Add agent note with issue link
-            timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
             note = (
                 f"\n- **{timestamp} - Agent Dispatcher**: "
                 f"Assigned to Claude Code. Issue: {issue_url}"
@@ -214,9 +212,7 @@ class AgentDispatcher:
             content = parsed.content
             if "## Agent Notes" in content:
                 # Append to existing section
-                content = content.replace(
-                    "## Agent Notes", f"## Agent Notes{note}", 1
-                )
+                content = content.replace("## Agent Notes", f"## Agent Notes{note}", 1)
             else:
                 # Add new section at the end
                 content += f"\n\n## Agent Notes{note}"
@@ -231,9 +227,7 @@ class AgentDispatcher:
             print(f"   ERROR claiming project: {e}")
             return False
 
-    def create_github_issue(
-        self, title: str, body: str, labels: List[str]
-    ) -> Optional[str]:
+    def create_github_issue(self, title: str, body: str, labels: List[str]) -> Optional[str]:
         """
         Create a GitHub issue using the gh CLI.
 
@@ -330,10 +324,7 @@ class AgentDispatcher:
 
             comment = "@claude Please work on this issue."
 
-            cmd = [
-                "gh", "issue", "comment", issue_number,
-                "--body", comment
-            ]
+            cmd = ["gh", "issue", "comment", issue_number, "--body", comment]
 
             result = subprocess.run(
                 cmd,
@@ -424,7 +415,7 @@ class AgentDispatcher:
         print("=" * 60)
         print(" AGENT HIVE DISPATCHER")
         print("=" * 60)
-        print(f"Timestamp: {datetime.utcnow().isoformat()}")
+        print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
         print(f"Base Path: {self.base_path}")
         print(f"Dry Run: {self.dry_run}")
         print(f"Max Dispatches: {max_dispatches}")
@@ -451,12 +442,13 @@ class AgentDispatcher:
         print("\n Candidates:")
         for proj in ready_projects:
             meta = proj.get("metadata", {})
-            proj_id = meta.get('project_id', 'unknown')
-            priority = meta.get('priority', 'medium')
+            proj_id = meta.get("project_id", "unknown")
+            priority = meta.get("priority", "medium")
             print(f"   - {proj_id} (priority: {priority})")
 
         # Dispatch projects
         dispatched = 0
+        attempted_paths = set()  # Track projects already attempted in this run
         print(f"\n Dispatching (max {max_dispatches})...")
 
         for _ in range(max_dispatches):
@@ -464,19 +456,19 @@ class AgentDispatcher:
             if dispatched > 0:
                 ready_projects = self.cortex.ready_work()
 
-            project = self.select_work(ready_projects)
+            # Filter out already-attempted projects
+            available_projects = [p for p in ready_projects if p.get("path") not in attempted_paths]
+
+            project = self.select_work(available_projects)
             if not project:
                 print("   No more projects to dispatch")
                 break
 
+            # Mark as attempted before dispatching
+            attempted_paths.add(project.get("path"))
+
             if self.dispatch(project):
                 dispatched += 1
-            else:
-                # If dispatch failed, remove from candidates and try next
-                ready_projects = [
-                    p for p in ready_projects
-                    if p.get("path") != project.get("path")
-                ]
 
         # Summary
         print("\n" + "=" * 60)

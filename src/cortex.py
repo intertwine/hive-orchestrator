@@ -12,8 +12,9 @@ import os
 import sys
 import json
 import glob
+import re
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 
@@ -460,7 +461,7 @@ class Cortex:
     def format_ready_work_json(self, ready_projects: List[Dict[str, Any]]) -> str:
         """Format ready work as JSON for programmatic consumption."""
         output = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "count": len(ready_projects),
             "projects": [
                 {
@@ -480,7 +481,7 @@ class Cortex:
         lines.append("=" * 60)
         lines.append("READY WORK")
         lines.append("=" * 60)
-        lines.append(f"Timestamp: {datetime.utcnow().isoformat()}")
+        lines.append(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
         lines.append(f"Found {len(ready_projects)} project(s) ready for work")
         lines.append("")
 
@@ -542,7 +543,7 @@ class Cortex:
     def format_deps_json(self, summary: Dict[str, Any]) -> str:
         """Format dependency summary as JSON."""
         output = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "total_projects": summary["total_projects"],
             "has_cycles": summary["has_cycles"],
             "cycles": summary["cycles"],
@@ -556,7 +557,7 @@ class Cortex:
         lines.append("=" * 60)
         lines.append("DEPENDENCY GRAPH")
         lines.append("=" * 60)
-        lines.append(f"Timestamp: {datetime.utcnow().isoformat()}")
+        lines.append(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
         lines.append(f"Total Projects: {summary['total_projects']}")
         lines.append("")
 
@@ -823,8 +824,17 @@ Return ONLY valid JSON, no markdown formatting or additional text.
             # Remove markdown code blocks if present
             llm_response = llm_response.strip()
             if llm_response.startswith("```"):
-                lines = llm_response.split("\n")
-                llm_response = "\n".join(lines[1:-1])
+                # Use regex to extract content between ``` markers
+                # This handles both single-line and multi-line markdown
+                # Matches: ```json\n{...}\n``` or ```{...}``` or ```json{...}```
+                # The pattern allows optional language tags (json, JSON, javascript)
+                match = re.search(
+                    r'^```(?:json|JSON|javascript)?\s*(.+?)\s*```$',
+                    llm_response,
+                    re.DOTALL
+                )
+                if match:
+                    llm_response = match.group(1).strip()
 
             return json.loads(llm_response)
 
@@ -888,7 +898,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 parsed.metadata[field] = value
 
                 # Also update last_updated
-                parsed.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
+                parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
                 # Write back using safe dump
                 with open(file_path, "w", encoding="utf-8") as f:
@@ -913,7 +923,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         print("=" * 60)
         print("🧠 AGENT HIVE CORTEX")
         print("=" * 60)
-        print(f"Timestamp: {datetime.utcnow().isoformat()}")
+        print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
         print(f"Base Path: {self.base_path}")
         print()
 
@@ -995,7 +1005,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         if changes_applied > 0:
             try:
                 parsed = safe_load_agency_md(self.global_file)
-                parsed.metadata["last_cortex_run"] = datetime.utcnow().isoformat() + "Z"
+                parsed.metadata["last_cortex_run"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 with open(self.global_file, "w", encoding="utf-8") as f:
                     f.write(safe_dump_agency_md(parsed.metadata, parsed.content))
                 print(f"\n📝 Updated GLOBAL.md (last_cortex_run) - {changes_applied} change(s) applied")

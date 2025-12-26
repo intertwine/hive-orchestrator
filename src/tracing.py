@@ -214,6 +214,14 @@ def _extract_token_usage(response_json: Dict[str, Any]) -> Dict[str, Optional[in
     Returns:
         Dictionary with prompt_tokens, completion_tokens, total_tokens.
     """
+    # Check if response_json is a dictionary before calling .get()
+    if not isinstance(response_json, dict):
+        return {
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+        }
+
     usage = response_json.get("usage", {})
     return {
         "prompt_tokens": usage.get("prompt_tokens"),

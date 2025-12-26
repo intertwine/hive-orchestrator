@@ -280,6 +280,46 @@ class TestExtractTokenUsage:
         assert result["completion_tokens"] is None
         assert result["total_tokens"] == 150
 
+    def test_extract_from_json_string(self):
+        """Test extracting tokens when response is a JSON string."""
+        response = "Internal Server Error"
+
+        result = _extract_token_usage(response)
+
+        assert result["prompt_tokens"] is None
+        assert result["completion_tokens"] is None
+        assert result["total_tokens"] is None
+
+    def test_extract_from_json_list(self):
+        """Test extracting tokens when response is a JSON list."""
+        response = ["error1", "error2"]
+
+        result = _extract_token_usage(response)
+
+        assert result["prompt_tokens"] is None
+        assert result["completion_tokens"] is None
+        assert result["total_tokens"] is None
+
+    def test_extract_from_json_number(self):
+        """Test extracting tokens when response is a JSON number."""
+        response = 404
+
+        result = _extract_token_usage(response)
+
+        assert result["prompt_tokens"] is None
+        assert result["completion_tokens"] is None
+        assert result["total_tokens"] is None
+
+    def test_extract_from_json_boolean(self):
+        """Test extracting tokens when response is a JSON boolean."""
+        response = True
+
+        result = _extract_token_usage(response)
+
+        assert result["prompt_tokens"] is None
+        assert result["completion_tokens"] is None
+        assert result["total_tokens"] is None
+
 
 class TestTracedLLMCall:
     """Test the traced_llm_call function."""
@@ -374,6 +414,96 @@ class TestTracedLLMCall:
         # Latency should be captured (very small in tests but > 0)
         assert result["metadata"].latency_ms is not None
         assert result["metadata"].latency_ms >= 0
+
+    def test_traced_call_with_json_string_response(self, monkeypatch):
+        """Test traced_llm_call handles API responses where JSON is a string."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
+
+        mock_response = Mock()
+        mock_response.json.return_value = "Internal Server Error"
+        mock_response.raise_for_status = Mock()
+
+        with patch("tracing.requests.post", return_value=mock_response):
+            result = traced_llm_call(
+                api_url="https://api.test.com",
+                headers={"Authorization": "Bearer test"},
+                payload={"model": "test", "messages": []},
+                model="test-model",
+            )
+
+        # Should not crash - should handle gracefully
+        assert result is not None
+        assert result["response"] == "Internal Server Error"
+        assert result["metadata"].success is True
+        # Token counts should be None since no usage data available
+        assert result["metadata"].prompt_tokens is None
+        assert result["metadata"].completion_tokens is None
+        assert result["metadata"].total_tokens is None
+
+    def test_traced_call_with_json_list_response(self, monkeypatch):
+        """Test traced_llm_call handles API responses where JSON is a list."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
+
+        mock_response = Mock()
+        mock_response.json.return_value = ["error1", "error2"]
+        mock_response.raise_for_status = Mock()
+
+        with patch("tracing.requests.post", return_value=mock_response):
+            result = traced_llm_call(
+                api_url="https://api.test.com",
+                headers={"Authorization": "Bearer test"},
+                payload={"model": "test", "messages": []},
+                model="test-model",
+            )
+
+        # Should not crash
+        assert result is not None
+        assert result["response"] == ["error1", "error2"]
+        assert result["metadata"].prompt_tokens is None
+        assert result["metadata"].completion_tokens is None
+        assert result["metadata"].total_tokens is None
+
+    def test_traced_call_with_json_number_response(self, monkeypatch):
+        """Test traced_llm_call handles API responses where JSON is a number."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
+
+        mock_response = Mock()
+        mock_response.json.return_value = 404
+        mock_response.raise_for_status = Mock()
+
+        with patch("tracing.requests.post", return_value=mock_response):
+            result = traced_llm_call(
+                api_url="https://api.test.com",
+                headers={"Authorization": "Bearer test"},
+                payload={"model": "test", "messages": []},
+                model="test-model",
+            )
+
+        # Should not crash
+        assert result is not None
+        assert result["response"] == 404
+        assert result["metadata"].prompt_tokens is None
+
+    def test_traced_call_with_json_boolean_response(self, monkeypatch):
+        """Test traced_llm_call handles API responses where JSON is a boolean."""
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
+
+        mock_response = Mock()
+        mock_response.json.return_value = False
+        mock_response.raise_for_status = Mock()
+
+        with patch("tracing.requests.post", return_value=mock_response):
+            result = traced_llm_call(
+                api_url="https://api.test.com",
+                headers={"Authorization": "Bearer test"},
+                payload={"model": "test", "messages": []},
+                model="test-model",
+            )
+
+        # Should not crash
+        assert result is not None
+        assert result["response"] is False
+        assert result["metadata"].prompt_tokens is None
 
 
 class TestTraceOpDecorator:

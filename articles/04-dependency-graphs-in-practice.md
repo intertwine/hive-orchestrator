@@ -1,11 +1,11 @@
 # Dependency Graphs in Practice
 
-*This is the fourth article in a series exploring Agent Hive and AI agent orchestration.*
+_This is the fourth article in a series exploring Agent Hive and AI agent orchestration._
 
 ---
 
-![Hero: Why Dependencies Matter](images/04-hero-dependencies.png)
-*One project needs no tracking. Five you can manage. Fifty? Implicit dependencies become a liability. Agent Hive makes relationships explicit and queryable.*
+![Hero: Why Dependencies Matter](images/dependency-graphs-in-practice/img-01_v1.png)
+_One project needs no tracking. Five you can manage. Fifty? Implicit dependencies become a liability. Agent Hive makes relationships explicit and queryable._
 
 ---
 
@@ -70,6 +70,7 @@ dependencies:
 ```
 
 The parent project (auth-epic) contains the overall objective; child projects contain the specific implementation work. This enables:
+
 - Rolling up status across related work
 - Understanding which tactical projects serve which strategic goals
 - Navigating from high-level to low-level and back
@@ -86,8 +87,8 @@ dependencies:
 
 When working on api-v2, an agent might benefit from reading the related projects for context—but they're not required to wait for anything.
 
-![The Four Dependency Types](images/04-dependency-types.png)
-*Four dependency types for different relationships: blocked_by (must wait), blocks (others waiting), parent (hierarchy), related (context only).*
+![The Four Dependency Types](images/dependency-graphs-in-practice/img-02_v1.png)
+_Four dependency types for different relationships: blocked_by (must wait), blocks (others waiting), parent (hierarchy), related (context only)._
 
 ## Viewing the Dependency Graph
 
@@ -101,7 +102,7 @@ uv run python -m src.cortex --deps
 
 Output:
 
-```
+```text
 ============================================================
 DEPENDENCY GRAPH
 ============================================================
@@ -167,7 +168,9 @@ Output:
       "blocks": ["frontend-integration"],
       "blocked_by": ["database-schema", "auth-service"],
       "effectively_blocked": true,
-      "blocking_reasons": ["Blocked by uncompleted: database-schema, auth-service"],
+      "blocking_reasons": [
+        "Blocked by uncompleted: database-schema, auth-service"
+      ],
       "in_cycle": false
     }
   ]
@@ -188,7 +191,7 @@ uv run python -m src.cortex --ready
 
 Output:
 
-```
+```text
 ============================================================
 READY WORK
 ============================================================
@@ -214,6 +217,7 @@ Found 3 project(s) ready for work
 ```
 
 A project is "ready" when:
+
 - `status` is `active`
 - `blocked` is `false`
 - `owner` is `null` (unclaimed)
@@ -221,8 +225,8 @@ A project is "ready" when:
 
 This query runs without any LLM calls—it's pure graph traversal.
 
-![Ready Work Detection](images/04-ready-work.png)
-*Finding ready work requires no LLM calls—just pure graph traversal. Projects with all blockers cleared light up as claimable.*
+![Ready Work Detection](images/dependency-graphs-in-practice/img-03_v1.png)
+_Finding ready work requires no LLM calls—just pure graph traversal. Projects with all blockers cleared light up as claimable._
 
 ## Cycle Detection
 
@@ -256,8 +260,8 @@ uv run python -m src.cortex --deps
 
 The dashboard shows cycle warnings prominently. Resolving cycles requires human intervention to restructure the dependencies.
 
-![Cycle Detection](images/04-cycle-detection.png)
-*Circular dependencies are deadlocks that can never resolve. Each project waits for something that's waiting for it. Cortex detects these cycles automatically.*
+![Cycle Detection](images/dependency-graphs-in-practice/img-04_v1.png)
+_Circular dependencies are deadlocks that can never resolve. Each project waits for something that's waiting for it. Cortex detects these cycles automatically._
 
 ## Real-World Examples
 
@@ -265,7 +269,7 @@ The dashboard shows cycle warnings prominently. Resolving cycles requires human 
 
 A typical feature moving from research to production:
 
-```
+```text
 research-auth → design-auth → implement-auth → test-auth → deploy-auth
 ```
 
@@ -306,14 +310,14 @@ dependencies:
 
 Query result: Only `implement-auth` shows as ready work.
 
-![Feature Development Pipeline](images/04-feature-pipeline.png)
-*A typical feature pipeline: research → design → implement → test → deploy. Each stage blocked by the previous, creating orderly progression.*
+![Feature Development Pipeline](images/dependency-graphs-in-practice/img-05_v1.png)
+_A typical feature pipeline: research → design → implement → test → deploy. Each stage blocked by the previous, creating orderly progression._
 
 ### Example 2: Platform Migration
 
 Multiple workstreams that must coordinate:
 
-```
+```text
                     ┌─────────────────┐
                     │   migration-    │
                     │     planning    │
@@ -365,8 +369,8 @@ dependencies:
 
 The three migration projects can run in parallel once planning completes. Integration testing waits for all three.
 
-![Platform Migration Diagram](images/04-platform-migration.png)
-*Platform migration: planning unlocks three parallel workstreams, integration testing waits for all three, then cutover can proceed. Complex coordination made visible.*
+![Platform Migration Diagram](images/dependency-graphs-in-practice/img-06_v1.png)
+_Platform migration: planning unlocks three parallel workstreams, integration testing waits for all three, then cutover can proceed. Complex coordination made visible._
 
 ### Example 3: Epic with Sub-Projects
 
@@ -430,8 +434,8 @@ Dependencies work best when projects are similarly sized. A tiny bug fix dependi
 
 Downstream projects remain blocked until the blocker is marked `completed`. Don't leave completed work in `active` status.
 
-![Dependency Best Practices](images/04-best-practices.png)
-*Dependency management rules: be explicit, minimize dependencies, use related for context, watch for cycles, keep consistent granularity, update status promptly.*
+![Dependency Best Practices](images/dependency-graphs-in-practice/img-07_v1.png)
+_Dependency management rules: be explicit, minimize dependencies, use related for context, watch for cycles, keep consistent granularity, update status promptly._
 
 ## Programmatic Access
 
@@ -466,8 +470,8 @@ graph = cortex.build_dependency_graph(cortex.discover_projects())
 cycles = cortex.detect_cycles()
 ```
 
-![The Full Dependency Graph View](images/04-full-graph.png)
-*The full dependency graph: every project, every relationship, every status—visible and queryable. Complexity becomes clarity.*
+![The Full Dependency Graph View](images/dependency-graphs-in-practice/img-08_v1.png)
+_The full dependency graph: every project, every relationship, every status—visible and queryable. Complexity becomes clarity._
 
 ## Conclusion
 
@@ -477,6 +481,6 @@ The investment is small—a few lines of YAML in each AGENCY.md file. The return
 
 ---
 
-*Next in the series: "Skills and Protocols" - teaching agents to work effectively within Agent Hive.*
+_Next in the series: "Skills and Protocols" - teaching agents to work effectively within Agent Hive._
 
-*Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator).*
+_Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator)._

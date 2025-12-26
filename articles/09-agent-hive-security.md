@@ -1,6 +1,13 @@
 # Security in Agent Hive
 
-*A comprehensive guide to Agent Hive's security model and best practices for secure deployment.*
+_A comprehensive guide to Agent Hive's security model and best practices for secure deployment._
+
+---
+
+![Hero: Defense in Depth](images/agent-hive-security/img-01_v1.png)
+_Defense in depth: Multiple security layers protect Agent Hive. No single layer is perfect, but together they significantly raise the bar for attackers._
+
+---
 
 ## Introduction
 
@@ -20,7 +27,7 @@ Agent Hive follows these core security principles:
 
 Agent Hive has several attack surfaces that require protection:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                     Attack Surfaces                          │
 ├─────────────────────────────────────────────────────────────┤
@@ -45,6 +52,9 @@ Agent Hive has several attack surfaces that require protection:
 │     └── Unbounded dispatch                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+![Attack Surface Overview](images/agent-hive-security/img-02_v1.png)
+_Understanding the attack surface: YAML files, LLM APIs, Coordinator server, GitHub Actions, and Agent Dispatcher each require specific protections._
 
 ## YAML Deserialization Protection
 
@@ -82,11 +92,15 @@ The `safe_load_agency_md()` function:
 ### What's Blocked
 
 Safe YAML loading prevents these dangerous tags:
+
 - `!!python/object`
 - `!!python/object/apply`
 - `!!python/name`
 - `!!python/module`
 - `!!python/object/new`
+
+![YAML Deserialization Protection](images/agent-hive-security/img-03_v1.png)
+_YAML deserialization attacks can execute arbitrary code. Agent Hive's safe_load() function blocks all dangerous YAML tags._
 
 ## Prompt Injection Prevention
 
@@ -114,6 +128,7 @@ sanitized = sanitize_untrusted_content(untrusted_content)
 ```
 
 This function:
+
 - Truncates content to a maximum length
 - Removes code blocks that might hide instructions
 - Strips common injection patterns
@@ -174,11 +189,15 @@ INJECTION_PATTERNS = [
 ]
 ```
 
+![Prompt Injection Defense](images/agent-hive-security/img-04_v1.png)
+_Prompt injection defense: Sanitize content, use clear delimiters, and instruct the LLM to treat file content as data, not instructions._
+
 ## Coordinator API Authentication
 
 ### The Vulnerability
 
 The Coordinator server originally had no authentication, allowing anyone with network access to:
+
 - Claim projects (denial of service)
 - Release other agents' claims
 - Enumerate active reservations
@@ -225,13 +244,16 @@ The server binds to `127.0.0.1` by default, preventing external access unless ex
 COORDINATOR_HOST = os.getenv("COORDINATOR_HOST", "127.0.0.1")
 ```
 
+![API Authentication Flow](images/agent-hive-security/img-05_v1.png)
+_Coordinator API authentication: Bearer tokens validated with constant-time comparison, localhost binding by default, HTTPS for production._
+
 ## Path Traversal Prevention
 
 ### The Vulnerability
 
 Malicious project IDs could escape the base directory:
 
-```
+```text
 project_id: "../../../etc/passwd"
 ```
 
@@ -251,9 +273,13 @@ if not validate_path_within_base(file, base):
 ```
 
 This function:
+
 1. Resolves both paths to absolute paths
 2. Uses `is_relative_to()` to check containment
 3. Prevents prefix attacks (e.g., `/hive_evil` matching `/hive`)
+
+![Path Traversal Prevention](images/agent-hive-security/img-06_v1.png)
+_Path traversal prevention: All file paths are validated to ensure they stay within the allowed base directory._
 
 ## GitHub Actions Hardening
 
@@ -261,7 +287,7 @@ This function:
 
 ```yaml
 permissions:
-  contents: write  # Only what's needed
+  contents: write # Only what's needed
 ```
 
 ### Secret Masking
@@ -286,11 +312,15 @@ curl https://example.com/install.sh | sh
 - run: sh install.sh
 ```
 
+![GitHub Actions Security](images/agent-hive-security/img-07_v1.png)
+_GitHub Actions hardening: Explicit minimal permissions, secret masking in logs, and safe installer patterns._
+
 ## Issue Body Sanitization
 
 ### The Vulnerability
 
 When the Agent Dispatcher creates GitHub issues, malicious content in AGENCY.md files could:
+
 - Inject commands for Claude Code
 - Trigger unwanted @mentions
 - Exfiltrate data
@@ -304,6 +334,7 @@ body = sanitize_issue_body(raw_body)
 ```
 
 This function:
+
 1. Truncates to 4000 characters
 2. Applies standard content sanitization
 3. Neutralizes @mentions (except @claude)
@@ -397,9 +428,13 @@ WEAVE_PROJECT=agent-hive
 ```
 
 Watch for:
+
 - Unusual LLM call patterns
 - High error rates
 - Unexpected latency spikes
+
+![Secure Deployment Checklist](images/agent-hive-security/img-08_v1.png)
+_Secure deployment checklist: Environment variables, HTTPS, key rotation, monitoring, and testing - all essential for production._
 
 ## Security Testing
 
@@ -414,6 +449,7 @@ uv run pytest tests/test_security.py -v
 ```
 
 The security test suite covers:
+
 - YAML safe loading
 - Prompt sanitization
 - Path validation

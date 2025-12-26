@@ -1,6 +1,13 @@
 # Observability with Weave Tracing
 
-*How to monitor, debug, and gain visibility into Agent Hive's LLM operations.*
+_How to monitor, debug, and gain visibility into Agent Hive's LLM operations._
+
+---
+
+![Hero: The Observability Dashboard](images/weave-tracing/img-01_v1.png)
+_Complete visibility: Weave tracing shows every LLM call, its latency, token usage, and success status. No more black-box AI operations._
+
+---
 
 ## Introduction
 
@@ -45,7 +52,7 @@ Open your project at `https://wandb.ai/<your-username>/agent-hive/weave`
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    Agent Hive Components                     │
 ├─────────────────────────────────────────────────────────────┤
@@ -69,6 +76,9 @@ Open your project at `https://wandb.ai/<your-username>/agent-hive/weave`
                     │ (visualization) │
                     └─────────────────┘
 ```
+
+![Tracing Architecture Flow](images/weave-tracing/img-02_v1.png)
+_Tracing architecture: All LLM calls flow through traced_llm_call(), which captures metrics and sends them to Weave for analysis._
 
 ## Using the Tracing Module
 
@@ -131,6 +141,9 @@ class LLMCallMetadata:
     timestamp: str          # ISO timestamp
 ```
 
+![LLMCallMetadata Visualization](images/weave-tracing/img-03_v1.png)
+_Rich metadata for every call: Model, latency, token counts, success status, and timestamps - all captured automatically._
+
 ### Custom Operation Tracing
 
 Trace your own functions with the `@trace_op` decorator:
@@ -145,6 +158,7 @@ def process_project(project_id: str) -> dict:
 ```
 
 This creates a trace entry for each invocation with:
+
 - Function name
 - Arguments
 - Return value
@@ -200,6 +214,9 @@ headers = {
 
 This prevents API keys from appearing in your traces while still providing full visibility into request/response data.
 
+![Automatic Header Sanitization](images/weave-tracing/img-04_v1.png)
+_Security by default: API keys and sensitive headers are automatically redacted before being sent to Weave traces._
+
 ## Graceful Degradation
 
 Tracing is designed to never break your application:
@@ -235,6 +252,9 @@ init_tracing()  # Returns False, prints warning
 result = traced_llm_call(...)  # No tracing, but works
 ```
 
+![Graceful Degradation](images/weave-tracing/img-05_v1.png)
+_Graceful degradation: If Weave isn't available, isn't configured, or fails to initialize, Agent Hive continues working normally._
+
 ## Viewing Traces in W&B
 
 ### The Traces View
@@ -249,6 +269,7 @@ Navigate to your project's Weave tab to see:
 ### Filtering Traces
 
 Filter by:
+
 - Time range
 - Operation name (e.g., `llm_call`, `cortex_run`)
 - Success/failure status
@@ -257,11 +278,15 @@ Filter by:
 ### Inspecting a Single Trace
 
 Click on a trace to see:
+
 - Full request payload (with redacted headers)
 - Complete response body
 - Token breakdown
 - Latency timeline
 - Error details (if failed)
+
+![Trace Inspection View](images/weave-tracing/img-06_v1.png)
+_Drilling into traces: See the full request, response, token breakdown, and timing for any LLM call._
 
 ## Common Patterns
 
@@ -305,6 +330,9 @@ def my_operation():
     }
 ```
 
+![Custom Operation Tracing](images/weave-tracing/img-07_v1.png)
+_Trace any operation: Use @trace_op to add observability to your own functions, creating hierarchical trace records._
+
 ## Debugging with Traces
 
 ### Slow LLM Calls
@@ -328,15 +356,18 @@ def my_operation():
 2. Sum total tokens
 3. Identify cost-heavy operations
 
+![Debugging with Traces](images/weave-tracing/img-08_v1.png)
+_Debug with data: Filter by latency, success status, or model to identify issues. Traces provide the evidence you need._
+
 ## Configuration Reference
 
 ### Environment Variables
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `WANDB_API_KEY` | W&B authentication | Required for remote logging |
-| `WEAVE_PROJECT` | Project name in W&B | `agent-hive` |
-| `WEAVE_DISABLED` | Disable tracing | `false` |
+| Variable         | Purpose             | Default                     |
+| ---------------- | ------------------- | --------------------------- |
+| `WANDB_API_KEY`  | W&B authentication  | Required for remote logging |
+| `WEAVE_PROJECT`  | Project name in W&B | `agent-hive`                |
+| `WEAVE_DISABLED` | Disable tracing     | `false`                     |
 
 ### Disabling Tracing
 
@@ -353,6 +384,7 @@ unset WANDB_API_KEY
 ### 1. Always Trace in Production
 
 Tracing helps you:
+
 - Debug issues faster
 - Track costs
 - Identify optimization opportunities
@@ -386,6 +418,7 @@ def process_project(project_id: str):
 ### 4. Monitor Error Rates
 
 Set up alerts in W&B when:
+
 - Error rate exceeds threshold
 - Latency spikes
 - Token usage unexpectedly increases
@@ -421,6 +454,7 @@ pip install weave
 ### "Could not initialize Weave"
 
 Check:
+
 1. `WANDB_API_KEY` is set correctly
 2. Network connectivity to wandb.ai
 3. API key has correct permissions
@@ -434,6 +468,7 @@ Check:
 ### High latency from tracing
 
 Weave tracing adds minimal overhead (<1ms per call). If you see issues:
+
 1. Check network latency to W&B
 2. Consider batching traces (automatic in Weave)
 3. Disable tracing for high-frequency, low-value operations

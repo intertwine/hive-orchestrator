@@ -2,6 +2,13 @@
 
 How Agent Hive extends beyond single repositories to coordinate AI agents working across multiple GitHub repositories.
 
+---
+
+![Hero: Beyond Repository Boundaries](images/cross-repo-multi-agent-workflows/img-01_v1.png)
+*Beyond single-repo limits: Agent Hive extends its reach to coordinate AI agents working across any accessible GitHub repository.*
+
+---
+
 ## The Challenge
 
 Modern software development rarely happens in isolation. Organizations maintain multiple repositories, contribute to open source projects, and integrate with third-party systems. Traditional AI coding assistants are typically confined to a single repository context, limiting their ability to:
@@ -35,9 +42,14 @@ When the Dispatcher encounters a project with `target_repo`, it automatically:
 
 The agent then has full context to work on the external repository while using AGENCY.md as shared memory.
 
+![The target_repo Extension](images/cross-repo-multi-agent-workflows/img-02_v1.png)
+*One simple extension: Add target_repo to AGENCY.md and the Dispatcher automatically clones, extracts context, and includes external repository data.*
+
+---
+
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Agent Hive Repository                        │
 │                                                                  │
@@ -85,6 +97,11 @@ The agent then has full context to work on the external repository while using A
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+![Context Assembly Pipeline](images/cross-repo-multi-agent-workflows/img-03_v1.png)
+*Context assembly: Clone (depth=1), extract file tree, read key files, build issue context, clean up. All automatic when target_repo is set.*
+
+---
+
 ## Multi-Phase Workflows
 
 Cross-repository improvements often benefit from a phased approach:
@@ -92,6 +109,7 @@ Cross-repository improvements often benefit from a phased approach:
 ### Phase 1: Analysis
 
 An agent examines the target repository to understand:
+
 - Architecture and code organization
 - Technology stack and dependencies
 - Coding patterns and conventions
@@ -101,21 +119,30 @@ An agent examines the target repository to understand:
 ## Phase 1: Analysis
 
 ### Repository Structure
+
 The repository follows a standard TypeScript/Node.js structure:
+
 - `src/` - Main application code
 - `src/services/` - Modular service integrations
 - `.github/workflows/` - CI/CD automation
 
 ### Technology Stack
+
 - Runtime: Node.js with TypeScript
 - APIs: OpenRouter, Tavily, X API v2
 - Infrastructure: GitHub Actions, Cloudflare Workers
 
 ### Improvement Opportunities
+
 1. Error handling could be more consistent
 2. No retry logic for API calls
 3. Missing input validation in some services
 ```
+
+![Analysis Phase](images/cross-repo-multi-agent-workflows/img-04_v1.png)
+*Phase 1 - Analysis: Before implementing, agents thoroughly examine the target repository—architecture, stack, patterns, opportunities.*
+
+---
 
 ### Phase 2: Strategy
 
@@ -125,19 +152,27 @@ Based on the analysis, determine the best improvement:
 ## Phase 2: Strategy
 
 ### Selected Improvement
+
 Add exponential backoff retry logic for external API calls.
 
 ### Rationale
+
 - High impact: Improves reliability significantly
 - Low risk: Additive change, doesn't modify existing logic
 - Well-scoped: Can be done in a single PR
 
 ### Implementation Plan
+
 1. Create `src/utils/retry.ts` with generic retry function
 2. Update service files to use retry wrapper
 3. Add configuration for retry attempts and delays
 4. Update tests
 ```
+
+![Strategy Phase](images/cross-repo-multi-agent-workflows/img-05_v1.png)
+*Phase 2 - Strategy: Evaluate options, select the best improvement, document rationale. High impact, low risk, well-scoped—ready to implement.*
+
+---
 
 ### Phase 3: Implementation
 
@@ -151,29 +186,36 @@ Generate the actual code changes:
 **src/utils/retry.ts**
 \`\`\`typescript
 export async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxAttempts = 3,
-  baseDelay = 1000
+fn: () => Promise<T>,
+maxAttempts = 3,
+baseDelay = 1000
 ): Promise<T> {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (attempt === maxAttempts) throw error;
-      const delay = baseDelay * Math.pow(2, attempt - 1);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  throw new Error('Unreachable');
+for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+try {
+return await fn();
+} catch (error) {
+if (attempt === maxAttempts) throw error;
+const delay = baseDelay \* Math.pow(2, attempt - 1);
+await new Promise(resolve => setTimeout(resolve, delay));
+}
+}
+throw new Error('Unreachable');
 }
 \`\`\`
 
 ### PR Title
+
 Add exponential backoff retry logic for API calls
 
 ### PR Description
+
 This PR adds a generic retry utility with exponential backoff...
 ```
+
+![Implementation Phase](images/cross-repo-multi-agent-workflows/img-06_v1.png)
+*Phase 3 - Implementation: Generate code, prepare files, create the PR. From analysis to strategy to tangible contribution.*
+
+---
 
 ## Key Design Decisions
 
@@ -190,7 +232,7 @@ An earlier design used a dedicated `cross_repo_pipeline.py` script. This was rep
 
 Multi-phase workflows could use separate AGENCY.md files with dependencies:
 
-```
+```text
 phases/
 ├── 01-analyze/AGENCY.md
 ├── 02-strategize/AGENCY.md    # blocked_by: [01-analyze]
@@ -225,9 +267,15 @@ if target_repo and target_repo.get("url"):
 ```
 
 Key files automatically read:
+
 - `package.json` / `pyproject.toml`
 - `README.md`
 - `src/index.ts` / `src/main.py`
+
+![Single AGENCY.md Continuity](images/cross-repo-multi-agent-workflows/img-07_v1.png)
+*Single source of truth: One AGENCY.md captures all phases. Each phase reads what came before. Context flows through the entire workflow.*
+
+---
 
 ## Use Cases
 
@@ -245,7 +293,7 @@ target_repo:
 
 Manage related changes across repos:
 
-```
+```text
 projects/
 ├── api-changes/AGENCY.md           # target: api-repo
 ├── frontend-update/AGENCY.md       # target: frontend-repo, blocked_by: api-changes
@@ -261,6 +309,11 @@ target_repo:
   url: https://github.com/vendor/sdk
   branch: v2
 ```
+
+![Cross-Repo Use Cases](images/cross-repo-multi-agent-workflows/img-08_v1.png)
+*Use cases: Open source contributions, multi-repo organization changes, integration development. Same pattern—target_repo extends Agent Hive's reach.*
+
+---
 
 ## Security Considerations
 

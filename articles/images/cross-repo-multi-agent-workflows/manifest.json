@@ -1,0 +1,103 @@
+{
+  "source_md_path": "articles/prompts/11-cross-repo-multi-agent-workflows.md",
+  "generated_at": "2025-12-26T20:57:02.549Z",
+  "model": "dall-e-3",
+  "images": [
+    {
+      "index": 1,
+      "title": "Hero Image - Beyond Repository Boundaries",
+      "caption": "*Beyond single-repo limits: Agent Hive extends its reach to coordinate AI agents working across any accessible GitHub repository.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image showing AI agents breaking free from single-repository confinement to work across multiple repositories. A central Agent Hive beehive structure sits on one platform (labeled \"Your Hive\"), with glowing bridge connections extending outward to multiple distant repository islands floating in a digital space. Each distant island represents a different GitHub repository with its own codebase structure visible. Agent bees travel along these bridges carrying task packages and returning with code contributions. The scene conveys expansion, reach, and coordinated work across boundaries. Epic digital landscape illustration, floating island aesthetic, sense of connectivity and reach, warm collaborative energy against cool digital backdrop.\n\nGeneration Notes:\n**Style consistency:** Professional technical illustrations emphasizing extension and reach. Show the transition from single-repo to multi-repo as expanding horizons and breaking boundaries. Use visual metaphors of bridges, connections, and pathways between repositories.\n\n**Color palette:**\n- Agent Hive: Honey gold, warm amber\n- External repos: Various colors to show diversity, but cooler tones (blue, teal, gray)\n- GitHub: GitHub's signature colors (black, white, octocat)\n- Phase progression: Warm to cool gradient (analysis=warm, strategy=balanced, implementation=productive green)\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic multi-repo landscape\n- target_repo extension (2): 4:3 for key-and-lock concept\n- Context assembly (3): 16:9 for horizontal pipeline flow\n- Analysis phase (4): 4:3 for investigation scene\n- Strategy phase (5): 4:3 for planning board scene\n- Implementation phase (6): 4:3 for building scene\n- Single AGENCY.md (7): 16:9 for continuous scroll visualization\n- Use cases (8): 16:9 for triptych layout\n\n**Quality modifiers:** high-quality, detailed illustration, professional technical aesthetic, clear visual storytelling, expansion and connectivity themes",
+      "prompt_hash": "6702e6fd5ae963f017f41b5b7e30a4a62735a53a56838cdd7e47b417fe3640e4",
+      "output_files": [
+        "img-01_v1.png"
+      ]
+    },
+    {
+      "index": 2,
+      "title": "The target_repo Extension",
+      "caption": "*One simple extension: Add target_repo to AGENCY.md and the Dispatcher automatically clones, extracts context, and includes external repository data.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create an image showing the simplicity of the target_repo YAML extension as an elegant key unlocking external access. A glowing AGENCY.md document shows the target_repo field being added like inserting a key into a lock. The key (target_repo URL) opens a gateway portal that reveals a view into an external repository's structure (files, code, README). The concept is minimal addition, maximum new capability—just a few lines of YAML unlock entire new repositories. Clean conceptual illustration, key-and-lock metaphor, elegant simplicity, the power of a small extension.\n\nGeneration Notes:\n**Style consistency:** Professional technical illustrations emphasizing extension and reach. Show the transition from single-repo to multi-repo as expanding horizons and breaking boundaries. Use visual metaphors of bridges, connections, and pathways between repositories.\n\n**Color palette:**\n- Agent Hive: Honey gold, warm amber\n- External repos: Various colors to show diversity, but cooler tones (blue, teal, gray)\n- GitHub: GitHub's signature colors (black, white, octocat)\n- Phase progression: Warm to cool gradient (analysis=warm, strategy=balanced, implementation=productive green)\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic multi-repo landscape\n- target_repo extension (2): 4:3 for key-and-lock concept\n- Context assembly (3): 16:9 for horizontal pipeline flow\n- Analysis phase (4): 4:3 for investigation scene\n- Strategy phase (5): 4:3 for planning board scene\n- Implementation phase (6): 4:3 for building scene\n- Single AGENCY.md (7): 16:9 for continuous scroll visualization\n- Use cases (8): 16:9 for triptych layout\n\n**Quality modifiers:** high-quality, detailed illustration, professional technical aesthetic, clear visual storytelling, expansion and connectivity themes",
+      "prompt_hash": "f074be569c7a1d532d81836572f76da86ca2fa618379007292fb950ba9ec46d5",
+      "output_files": [
+        "img-02_v1.png"
+      ]
+    },
+    {
+      "index": 3,
+      "title": "Context Assembly Pipeline",
+      "caption": "*Context assembly: Clone (depth=1), extract file tree, read key files, build issue context, clean up. All automatic when target_repo is set.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image showing the context assembly pipeline for external repositories as a manufacturing assembly line. Stage 1: A git clone operation pulls a repository from the cloud (GitHub octocats visible). Stage 2: A scanning machine extracts the file tree structure. Stage 3: Key files (package.json, README.md, src/index) are read and their contents captured. Stage 4: Everything is assembled into a rich issue context package ready for the agent. Stage 5: Cleanup—the temporary clone is deleted (recycling symbol). The pipeline shows efficiency and thoroughness in preparing external repo context. Assembly line illustration, sequential process visualization, clean and efficient aesthetic.\n\nGeneration Notes:\n**Style consistency:** Professional technical illustrations emphasizing extension and reach. Show the transition from single-repo to multi-repo as expanding horizons and breaking boundaries. Use visual metaphors of bridges, connections, and pathways between repositories.\n\n**Color palette:**\n- Agent Hive: Honey gold, warm amber\n- External repos: Various colors to show diversity, but cooler tones (blue, teal, gray)\n- GitHub: GitHub's signature colors (black, white, octocat)\n- Phase progression: Warm to cool gradient (analysis=warm, strategy=balanced, implementation=productive green)\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic multi-repo landscape\n- target_repo extension (2): 4:3 for key-and-lock concept\n- Context assembly (3): 16:9 for horizontal pipeline flow\n- Analysis phase (4): 4:3 for investigation scene\n- Strategy phase (5): 4:3 for planning board scene\n- Implementation phase (6): 4:3 for building scene\n- Single AGENCY.md (7): 16:9 for continuous scroll visualization\n- Use cases (8): 16:9 for triptych layout\n\n**Quality modifiers:** high-quality, detailed illustration, professional technical aesthetic, clear visual storytelling, expansion and connectivity themes",
+      "prompt_hash": "8f223250a8366e575d317d624a87fe428c39624050cb23131a830143e8203653",
+      "output_files": [
+        "img-03_v1.png"
+      ]
+    },
+    {
+      "index": 4,
+      "title": "Multi-Phase Workflow - Analysis Phase",
+      "caption": "*Phase 1 - Analysis: Before implementing, agents thoroughly examine the target repository—architecture, stack, patterns, opportunities.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image representing Phase 1 (Analysis) of a cross-repo improvement workflow. An AI agent with an investigator/researcher aesthetic examines an external repository through a magnifying glass or detective lens. The agent is taking notes on a clipboard, identifying: architecture structure (boxes and arrows), technology stack (framework/library icons), coding patterns (code snippets in bubbles), and improvement opportunities (lightbulb icons over problem areas). The external repo is visualized as a transparent building where the agent can see inside. Investigation/analysis illustration, detective aesthetic, thorough examination visualization, discovery and understanding.\n\nGeneration Notes:\n**Style consistency:** Professional technical illustrations emphasizing extension and reach. Show the transition from single-repo to multi-repo as expanding horizons and breaking boundaries. Use visual metaphors of bridges, connections, and pathways between repositories.\n\n**Color palette:**\n- Agent Hive: Honey gold, warm amber\n- External repos: Various colors to show diversity, but cooler tones (blue, teal, gray)\n- GitHub: GitHub's signature colors (black, white, octocat)\n- Phase progression: Warm to cool gradient (analysis=warm, strategy=balanced, implementation=productive green)\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic multi-repo landscape\n- target_repo extension (2): 4:3 for key-and-lock concept\n- Context assembly (3): 16:9 for horizontal pipeline flow\n- Analysis phase (4): 4:3 for investigation scene\n- Strategy phase (5): 4:3 for planning board scene\n- Implementation phase (6): 4:3 for building scene\n- Single AGENCY.md (7): 16:9 for continuous scroll visualization\n- Use cases (8): 16:9 for triptych layout\n\n**Quality modifiers:** high-quality, detailed illustration, professional technical aesthetic, clear visual storytelling, expansion and connectivity themes",
+      "prompt_hash": "1aec3cd51cd38db7b80160da60301aa19d91c7d02a14dd4403fb0f609dc1548e",
+      "output_files": [
+        "img-04_v1.png"
+      ]
+    },
+    {
+      "index": 5,
+      "title": "Multi-Phase Workflow - Strategy Phase",
+      "caption": "*Phase 2 - Strategy: Evaluate options, select the best improvement, document rationale. High impact, low risk, well-scoped—ready to implement.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image representing Phase 2 (Strategy) of a cross-repo improvement workflow. An AI agent in an architect/strategist pose stands before a planning board or blueprint table. On the board: multiple improvement options are sketched (A, B, C), with one circled as \"SELECTED\". Decision criteria are visible: Impact gauge (HIGH), Risk meter (LOW), Scope indicator (SINGLE PR). The agent is drawing an implementation plan as a flowchart with clear steps. The mood is thoughtful decision-making and strategic planning. Strategic planning illustration, architect/designer aesthetic, decision-making visualization, focused and intentional.\n\nGeneration Notes:\n**Style consistency:** Professional technical illustrations emphasizing extension and reach. Show the transition from single-repo to multi-repo as expanding horizons and breaking boundaries. Use visual metaphors of bridges, connections, and pathways between repositories.\n\n**Color palette:**\n- Agent Hive: Honey gold, warm amber\n- External repos: Various colors to show diversity, but cooler tones (blue, teal, gray)\n- GitHub: GitHub's signature colors (black, white, octocat)\n- Phase progression: Warm to cool gradient (analysis=warm, strategy=balanced, implementation=productive green)\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic multi-repo landscape\n- target_repo extension (2): 4:3 for key-and-lock concept\n- Context assembly (3): 16:9 for horizontal pipeline flow\n- Analysis phase (4): 4:3 for investigation scene\n- Strategy phase (5): 4:3 for planning board scene\n- Implementation phase (6): 4:3 for building scene\n- Single AGENCY.md (7): 16:9 for continuous scroll visualization\n- Use cases (8): 16:9 for triptych layout\n\n**Quality modifiers:** high-quality, detailed illustration, professional technical aesthetic, clear visual storytelling, expansion and connectivity themes",
+      "prompt_hash": "ba52aeaf569240ae56a5b4398bec056d1c8f99c061bd895377e1efcbf820674d",
+      "output_files": [
+        "img-05_v1.png"
+      ]
+    },
+    {
+      "index": 6,
+      "title": "Multi-Phase Workflow - Implementation Phase",
+      "caption": "*Phase 3 - Implementation: Generate code, prepare files, create the PR. From analysis to strategy to tangible contribution.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create an image representing Phase 3 (Implementation) of a cross-repo improvement workflow. An AI agent as a builder/engineer is actively constructing code, with code blocks being assembled like building blocks. The agent creates a new file (src/utils/retry.ts), modifies existing files, and prepares a PR package. A GitHub PR preview shows \"Add exponential backoff retry logic\". The scene conveys active creation and the transition from planning to building. The final output is a complete pull request ready for submission. Builder/engineer illustration, construction aesthetic, active creation and assembly, productive and accomplished.\n\nGeneration Notes:\n**Style consistency:** Professional technical illustrations emphasizing extension and reach. Show the transition from single-repo to multi-repo as expanding horizons and breaking boundaries. Use visual metaphors of bridges, connections, and pathways between repositories.\n\n**Color palette:**\n- Agent Hive: Honey gold, warm amber\n- External repos: Various colors to show diversity, but cooler tones (blue, teal, gray)\n- GitHub: GitHub's signature colors (black, white, octocat)\n- Phase progression: Warm to cool gradient (analysis=warm, strategy=balanced, implementation=productive green)\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic multi-repo landscape\n- target_repo extension (2): 4:3 for key-and-lock concept\n- Context assembly (3): 16:9 for horizontal pipeline flow\n- Analysis phase (4): 4:3 for investigation scene\n- Strategy phase (5): 4:3 for planning board scene\n- Implementation phase (6): 4:3 for building scene\n- Single AGENCY.md (7): 16:9 for continuous scroll visualization\n- Use cases (8): 16:9 for triptych layout\n\n**Quality modifiers:** high-quality, detailed illustration, professional technical aesthetic, clear visual storytelling, expansion and connectivity themes",
+      "prompt_hash": "1f2a7793380573ce7ceeda2fbc9394f0df32bc553585010535ef18baa1cbe7eb",
+      "output_files": [
+        "img-06_v1.png"
+      ]
+    },
+    {
+      "index": 7,
+      "title": "Single AGENCY.md as Continuity Thread",
+      "caption": "*Single source of truth: One AGENCY.md captures all phases. Each phase reads what came before. Context flows through the entire workflow.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image showing a single AGENCY.md file as a continuous thread or scroll that connects all three phases of a cross-repo workflow. The document unrolls vertically or horizontally, showing Phase 1 Analysis notes flowing into Phase 2 Strategy decisions flowing into Phase 3 Implementation details. Each phase can read and build upon the previous phase's content. Contrast this with an alternative (shown as fragmented separate files that don't connect well). The single-file approach provides continuity, context, and human readability. Scroll/thread illustration, continuity visualization, single source of truth aesthetic, connected and coherent.\n\nGeneration Notes:\n**Style consistency:** Professional technical illustrations emphasizing extension and reach. Show the transition from single-repo to multi-repo as expanding horizons and breaking boundaries. Use visual metaphors of bridges, connections, and pathways between repositories.\n\n**Color palette:**\n- Agent Hive: Honey gold, warm amber\n- External repos: Various colors to show diversity, but cooler tones (blue, teal, gray)\n- GitHub: GitHub's signature colors (black, white, octocat)\n- Phase progression: Warm to cool gradient (analysis=warm, strategy=balanced, implementation=productive green)\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic multi-repo landscape\n- target_repo extension (2): 4:3 for key-and-lock concept\n- Context assembly (3): 16:9 for horizontal pipeline flow\n- Analysis phase (4): 4:3 for investigation scene\n- Strategy phase (5): 4:3 for planning board scene\n- Implementation phase (6): 4:3 for building scene\n- Single AGENCY.md (7): 16:9 for continuous scroll visualization\n- Use cases (8): 16:9 for triptych layout\n\n**Quality modifiers:** high-quality, detailed illustration, professional technical aesthetic, clear visual storytelling, expansion and connectivity themes",
+      "prompt_hash": "04a6a8395a4df0a90e8068171d044a4f67258fb554329b1241c43411b6c4eb82",
+      "output_files": [
+        "img-07_v1.png"
+      ]
+    },
+    {
+      "index": 8,
+      "title": "Cross-Repo Use Cases",
+      "caption": "*Use cases: Open source contributions, multi-repo organization changes, integration development. Same pattern—target_repo extends Agent Hive's reach.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create an image showing three diverse cross-repository use cases as three scenes in a triptych or three connected windows. Scene 1 \"Open Source Contributions\": An agent contributing improvements to a popular library (star-rated repo, community icons). Scene 2 \"Multi-Repo Organizations\": Agents coordinating changes across API, Frontend, and Docs repos with dependency arrows between them. Scene 3 \"Integration Development\": An agent studying a vendor SDK to build integrations, with the SDK repo and your app repo connected. Each scene shows the target_repo concept in action for different real-world scenarios. Triptych illustration, three use case vignettes, diverse but unified aesthetic, practical and applicable.\n\nGeneration Notes:\n**Style consistency:** Professional technical illustrations emphasizing extension and reach. Show the transition from single-repo to multi-repo as expanding horizons and breaking boundaries. Use visual metaphors of bridges, connections, and pathways between repositories.\n\n**Color palette:**\n- Agent Hive: Honey gold, warm amber\n- External repos: Various colors to show diversity, but cooler tones (blue, teal, gray)\n- GitHub: GitHub's signature colors (black, white, octocat)\n- Phase progression: Warm to cool gradient (analysis=warm, strategy=balanced, implementation=productive green)\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic multi-repo landscape\n- target_repo extension (2): 4:3 for key-and-lock concept\n- Context assembly (3): 16:9 for horizontal pipeline flow\n- Analysis phase (4): 4:3 for investigation scene\n- Strategy phase (5): 4:3 for planning board scene\n- Implementation phase (6): 4:3 for building scene\n- Single AGENCY.md (7): 16:9 for continuous scroll visualization\n- Use cases (8): 16:9 for triptych layout\n\n**Quality modifiers:** high-quality, detailed illustration, professional technical aesthetic, clear visual storytelling, expansion and connectivity themes",
+      "prompt_hash": "12060249f2ecba8c9a943d48fa215a4f67f5703ce957f2f609ec4e8a3e9d4e83",
+      "output_files": [
+        "img-08_v1.png"
+      ]
+    }
+  ]
+}

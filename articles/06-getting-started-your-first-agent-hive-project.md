@@ -1,11 +1,11 @@
 # Getting Started: Your First Agent Hive Project
 
-*This is the sixth article in a series exploring Agent Hive and AI agent orchestration.*
+_This is the sixth article in a series exploring Agent Hive and AI agent orchestration._
 
 ---
 
-![Hero: From Zero to Orchestration](images/06-hero-getting-started.png)
-*From zero to orchestration: with a few prerequisites and simple setup, you're ready to launch your first Agent Hive project.*
+![Hero: From Zero to Orchestration](images/getting-started/img-01_v1.png)
+_From zero to orchestration: with a few prerequisites and simple setup, you're ready to launch your first Agent Hive project._
 
 ---
 
@@ -56,7 +56,7 @@ HIVE_BASE_PATH=/path/to/hive-orchestrator
 
 Take a look at what's included:
 
-```
+```text
 hive-orchestrator/
 ├── projects/           # Your projects live here
 │   └── demo/
@@ -77,8 +77,8 @@ cat projects/demo/AGENCY.md
 
 This shows the AGENCY.md format in action.
 
-![Project Structure Overview](images/06-project-structure.png)
-*The Agent Hive structure: projects in folders with AGENCY.md files, source code for engine and dashboard, skills for agent guidance, GLOBAL.md for system state.*
+![Project Structure Overview](images/getting-started/img-02_v1.png)
+_The Agent Hive structure: projects in folders with AGENCY.md files, source code for engine and dashboard, skills for agent guidance, GLOBAL.md for system state._
 
 ## Step 3: Run the Dashboard
 
@@ -88,7 +88,7 @@ Launch the web interface:
 make dashboard
 ```
 
-Open http://localhost:8501 in your browser. You'll see:
+Open <http://localhost:8501> in your browser. You'll see:
 
 - **Project list** in the sidebar
 - **Project details** in the main area
@@ -97,8 +97,8 @@ Open http://localhost:8501 in your browser. You'll see:
 
 Explore the demo project to see how information is displayed.
 
-![The Dashboard Interface](images/06-dashboard.png)
-*The Dashboard: view all projects, check statuses, generate Deep Work context for agents, and monitor system health—all from a friendly web interface.*
+![The Dashboard Interface](images/getting-started/img-03_v1.png)
+_The Dashboard: view all projects, check statuses, generate Deep Work context for agents, and monitor system health—all from a friendly web interface._
 
 ## Step 4: Create Your First Project
 
@@ -136,6 +136,7 @@ dependencies:
 ## Objective
 
 Implement a configuration management system that supports:
+
 - Environment-based configuration (dev, staging, prod)
 - YAML configuration files
 - Environment variable overrides
@@ -159,7 +160,7 @@ Implement a configuration management system that supports:
 
 ## Agent Notes
 
-*No notes yet*
+_No notes yet_
 ```
 
 ### Verify It's Discovered
@@ -170,8 +171,8 @@ uv run python -m src.cortex --ready
 
 You should see your new project listed as ready work.
 
-![Creating Your First AGENCY.md](images/06-creating-agency-md.png)
-*Creating your first project: craft an AGENCY.md file with YAML frontmatter for metadata and Markdown content for objectives, tasks, and notes.*
+![Creating Your First AGENCY.md](images/getting-started/img-04_v1.png)
+_Creating your first project: craft an AGENCY.md file with YAML frontmatter for metadata and Markdown content for objectives, tasks, and notes._
 
 ## Step 5: Generate Deep Work Context
 
@@ -193,11 +194,13 @@ Edit files directly, updating AGENCY.md as you progress:
 
 ```markdown
 ## Tasks
+
 - [x] Research existing configuration libraries
 - [ ] Design configuration schema
-...
+      ...
 
 ## Agent Notes
+
 - **2025-01-15 14:30 - human**: Researched pydantic-settings, dynaconf,
   and python-dotenv. Recommending pydantic-settings for type safety.
 ```
@@ -222,6 +225,7 @@ uv run python -m hive_mcp
 ```
 
 Agents with MCP integration can then use tools like:
+
 - `claim_project("config-system", "claude-sonnet-4")`
 - `add_note("config-system", "claude-sonnet-4", "Starting research...")`
 - `update_status("config-system", "active")`
@@ -235,6 +239,7 @@ make cortex
 ```
 
 Cortex will:
+
 1. Read all AGENCY.md files
 2. Analyze project states
 3. Identify blocked tasks
@@ -243,8 +248,8 @@ Cortex will:
 
 This is what runs automatically every 4 hours via GitHub Actions.
 
-![The Workflow in Action](images/06-workflow.png)
-*The workflow cycle: create projects, generate context, work and update, handoff cleanly, let Cortex orchestrate. Repeat for continuous progress.*
+![The Workflow in Action](images/getting-started/img-05_v1.png)
+_The workflow cycle: create projects, generate context, work and update, handoff cleanly, let Cortex orchestrate. Repeat for continuous progress._
 
 ## Step 8: Add Dependencies
 
@@ -289,7 +294,7 @@ Build REST API server using the configuration system.
 
 ## Agent Notes
 
-*Waiting for config-system to complete*
+_Waiting for config-system to complete_
 ```
 
 ### Check the Dependency Graph
@@ -300,7 +305,7 @@ uv run python -m src.cortex --deps
 
 Output shows:
 
-```
+```text
 BLOCKED PROJECTS:
 ----------------------------------------
 *** api-server
@@ -316,8 +321,8 @@ UNBLOCKED PROJECTS:
 
 The api-server won't appear in ready work until config-system is completed.
 
-![Adding Dependencies](images/06-adding-dependencies.png)
-*Adding dependencies: declare that API-SERVER is blocked by CONFIG-SYSTEM. When CONFIG-SYSTEM completes, API-SERVER unlocks and becomes ready.*
+![Adding Dependencies](images/getting-started/img-06_v1.png)
+_Adding dependencies: declare that API-SERVER is blocked by CONFIG-SYSTEM. When CONFIG-SYSTEM completes, API-SERVER unlocks and becomes ready._
 
 ## Step 9: Complete and Hand Off
 
@@ -354,7 +359,7 @@ The `.github/workflows/cortex.yml` workflow runs Cortex every 4 hours, analyzing
 
 ### Pattern: Sequential Feature Development
 
-```
+```text
 research → design → implement → test → deploy
 ```
 
@@ -362,7 +367,7 @@ Create five projects with linear `blocked_by` dependencies.
 
 ### Pattern: Parallel Workstreams
 
-```
+```text
 frontend-feature (no deps)
 backend-feature (no deps)
 mobile-feature (no deps)
@@ -373,7 +378,7 @@ Three independent projects, then one that waits for all.
 
 ### Pattern: Epic with Sub-Projects
 
-```
+```text
 user-epic (parent)
 ├── user-auth (parent: user-epic)
 ├── user-profile (parent: user-epic)
@@ -396,7 +401,7 @@ OPENROUTER_API_KEY=sk-or-v1-xxxxx
 
 Ensure AGENCY.md files are in subdirectories of `projects/`:
 
-```
+```text
 projects/
 └── my-project/
     └── AGENCY.md  ← Must be named exactly this
@@ -463,11 +468,11 @@ uv run python -m src.coordinator
 uv run python -m hive_mcp
 ```
 
-![Quick Reference Poster](images/06-quick-reference.png)
-*Quick reference: the essential commands for daily Agent Hive operation. Install, dashboard, find work, view dependencies, run Cortex.*
+![Quick Reference Poster](images/getting-started/img-07_v1.png)
+_Quick reference: the essential commands for daily Agent Hive operation. Install, dashboard, find work, view dependencies, run Cortex._
 
 ---
 
-*Welcome to Agent Hive. We're excited to see what you build.*
+_Welcome to Agent Hive. We're excited to see what you build._
 
-*Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator).*
+_Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator)._

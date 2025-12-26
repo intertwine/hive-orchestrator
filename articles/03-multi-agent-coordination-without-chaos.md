@@ -1,11 +1,11 @@
 # Multi-Agent Coordination Without Chaos
 
-*This is the third article in a series exploring Agent Hive and AI agent orchestration.*
+_This is the third article in a series exploring Agent Hive and AI agent orchestration._
 
 ---
 
-![Hero: The Promise vs Reality](images/03-hero-promise-vs-reality.png)
-*The promise: agents working in parallel, completing in hours what takes days. The reality without coordination: chaos, conflicts, and corrupted work.*
+![Hero: The Promise vs Reality](images/multi-agent-coordination-without-chaos/img-01_v1.png)
+_The promise: agents working in parallel, completing in hours what takes days. The reality without coordination: chaos, conflicts, and corrupted work._
 
 ---
 
@@ -39,8 +39,8 @@ Agent A finishes "phase 1" and marks the project complete. Agent B, seeing the c
 
 Agent A makes an important architectural decision and documents it... somewhere. Agent B never sees it. Agent B makes a conflicting decision. The codebase becomes internally inconsistent.
 
-![The Four Coordination Problems](images/03-coordination-problems.png)
-*Four ways multi-agent coordination fails: race conditions, dependency violations, premature victory declarations, and communication breakdowns.*
+![The Four Coordination Problems](images/multi-agent-coordination-without-chaos/img-02_v1.png)
+_Four ways multi-agent coordination fails: race conditions, dependency violations, premature victory declarations, and communication breakdowns._
 
 ## Agent Hive's Coordination Layers
 
@@ -57,6 +57,7 @@ last_updated: "2025-01-15T14:30:00Z"
 ```
 
 When an agent wants to work on a project:
+
 1. Pull latest changes
 2. Check if `owner` is `null`
 3. Set `owner` to their identifier
@@ -81,6 +82,7 @@ The Cortex engine runs on a schedule (every 4 hours by default via GitHub Action
 ```
 
 Cortex acts as an external coordinator that can:
+
 - Detect when dependencies are satisfied and update downstream projects
 - Identify projects that have stalled (no updates for extended periods)
 - Flag inconsistencies between related projects
@@ -126,8 +128,8 @@ Claims have a TTL (time-to-live) and automatically expire. This prevents abandon
 
 **Best for**: Parallel agent sessions, real-time conflict prevention, high-throughput scenarios.
 
-![The Three Coordination Layers](images/03-coordination-layers.png)
-*Agent Hive provides three complementary coordination layers: git for foundation, Cortex for oversight, real-time coordinator for speed.*
+![The Three Coordination Layers](images/multi-agent-coordination-without-chaos/img-03_v1.png)
+_Agent Hive provides three complementary coordination layers: git for foundation, Cortex for oversight, real-time coordinator for speed._
 
 ## The Ownership Protocol
 
@@ -154,6 +156,7 @@ While working, keep the project updated:
 
 ```markdown
 ## Agent Notes
+
 - **2025-01-15 14:45 - claude-sonnet-4**: Completed research phase.
   Found three viable approaches, recommending option B.
 - **2025-01-15 14:30 - claude-sonnet-4**: Starting work on auth feature.
@@ -179,8 +182,8 @@ blocked: true
 blocking_reason: "Need database credentials from DevOps"
 ```
 
-![The Ownership Protocol](images/03-ownership-protocol.png)
-*The ownership protocol: explicitly claim before working, one owner at a time, release when done. Sacred rules that prevent coordination chaos.*
+![The Ownership Protocol](images/multi-agent-coordination-without-chaos/img-04_v1.png)
+_The ownership protocol: explicitly claim before working, one owner at a time, release when done. Sacred rules that prevent coordination chaos._
 
 ## Multi-Agent Patterns
 
@@ -188,11 +191,12 @@ blocking_reason: "Need database credentials from DevOps"
 
 Agents work one after another, each building on the previous work:
 
-```
+```text
 Claude (Research) → GPT-4 (Design) → Grok (Implementation)
 ```
 
 The protocol:
+
 1. Claude completes research, adds detailed notes, sets `owner: null`
 2. GPT-4 sees unclaimed project, claims it, reads Claude's notes
 3. GPT-4 completes design, documents decisions, sets `owner: null`
@@ -200,34 +204,35 @@ The protocol:
 
 **Key success factor**: Thorough documentation in Agent Notes. Each agent must leave enough context for the next.
 
-![Sequential Handoff Pattern](images/03-sequential-handoff.png)
-*Sequential handoff: Claude researches, GPT-4 designs, Grok implements. Each leaves thorough notes for the next runner.*
+![Sequential Handoff Pattern](images/multi-agent-coordination-without-chaos/img-05_v1.png)
+_Sequential handoff: Claude researches, GPT-4 designs, Grok implements. Each leaves thorough notes for the next runner._
 
 ### Pattern 2: Parallel Independence
 
 Multiple agents work on completely independent projects simultaneously:
 
-```
+```text
 Claude → [Project A]
 GPT-4  → [Project B]
 Grok   → [Project C]
 ```
 
 The protocol:
+
 1. Each agent claims a different project
 2. Work proceeds independently
 3. Use the coordinator to prevent accidental overlap
 
 **Key success factor**: Clear project boundaries. If projects aren't truly independent, use dependency tracking.
 
-![Parallel Independence Pattern](images/03-parallel-independence.png)
-*Parallel independence: multiple agents working simultaneously on separate projects, with coordination preventing accidental overlap.*
+![Parallel Independence Pattern](images/multi-agent-coordination-without-chaos/img-06_v1.png)
+_Parallel independence: multiple agents working simultaneously on separate projects, with coordination preventing accidental overlap._
 
 ### Pattern 3: Dependency Chain
 
 Projects have explicit ordering requirements:
 
-```
+```text
 [Database Schema] → [API Layer] → [Frontend Integration]
      Claude            GPT-4            Grok
 ```
@@ -242,6 +247,7 @@ dependencies:
 ```
 
 The protocol:
+
 1. Claude works on database-schema
 2. GPT-4 cannot start api-layer (blocked_by not satisfied)
 3. Claude completes, sets `status: completed`
@@ -263,6 +269,7 @@ Multiple agents contribute to the same project through task-level coordination:
 ```
 
 The protocol:
+
 1. Agents claim specific tasks via notes, not the whole project
 2. Multiple agents can work on different tasks simultaneously
 3. Final synthesis task waits for inputs
@@ -276,6 +283,7 @@ Since agents can't directly message each other, Agent Notes serve as the communi
 
 ```markdown
 ## Agent Notes
+
 - **2025-01-15 16:00 - grok-beta**: @claude-sonnet-4 - found an issue with
   the auth token refresh logic. See line 145 in auth.py. Implementing
   workaround but needs your review.
@@ -295,8 +303,8 @@ Since agents can't directly message each other, Agent Notes serve as the communi
 - **DECISION** - Records important choices for future agents
 - **TODO** - Items the current agent is leaving for the next
 
-![Communication Through Agent Notes](images/03-agent-notes.png)
-*Since agents can't directly message each other, Agent Notes become the communication channel—timestamped, attributed, persistent.*
+![Communication Through Agent Notes](images/multi-agent-coordination-without-chaos/img-07_v1.png)
+_Since agents can't directly message each other, Agent Notes become the communication channel—timestamped, attributed, persistent._
 
 ## Conflict Resolution
 
@@ -358,11 +366,11 @@ Agent Hive's multi-agent coordination isn't meant to enable fully autonomous age
 
 The goal is to enable agents to do more useful work in parallel while keeping humans informed and in control. Transparency—through readable AGENCY.md files and git history—makes this possible.
 
-![Human in the Loop](images/03-human-in-loop.png)
-*Multi-agent coordination isn't about autonomous swarms. Humans define boundaries, review work, break deadlocks, and intervene when needed. Transparency makes this possible.*
+![Human in the Loop](images/multi-agent-coordination-without-chaos/img-08_v1.png)
+_Multi-agent coordination isn't about autonomous swarms. Humans define boundaries, review work, break deadlocks, and intervene when needed. Transparency makes this possible._
 
 ---
 
-*Next in the series: "Dependency Graphs in Practice" - real examples of modeling complex project relationships.*
+_Next in the series: "Dependency Graphs in Practice" - real examples of modeling complex project relationships._
 
-*Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator).*
+_Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator)._

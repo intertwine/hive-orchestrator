@@ -1,6 +1,11 @@
 # Building Extensible Agent Dispatchers
 
-*This is the eighth article in a series exploring Agent Hive and AI agent orchestration.*
+_This is the eighth article in a series exploring Agent Hive and AI agent orchestration._
+
+---
+
+![Hero: One Hive, Many Agents](images/building-extensible-agent-dispatchers/img-01_v1.png)
+_The dispatcher vision: One central hive, many agent destinations. Work flows automatically to the best agent for each task—Claude, GPT-4, Gemini, or human teams._
 
 ---
 
@@ -22,7 +27,7 @@ A dispatcher is a bridge between the Hive and an agent platform. It has three re
 
 The built-in Claude Code dispatcher implements this pattern by creating GitHub issues with `@claude` mentions. But the same pattern works for any agent.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    Dispatcher Architecture                   │
 ├─────────────────────────────────────────────────────────────┤
@@ -42,11 +47,21 @@ The built-in Claude Code dispatcher implements this pattern by creating GitHub i
 └─────────────────────────────────────────────────────────────┘
 ```
 
+![The Dispatcher Pattern](images/building-extensible-agent-dispatchers/img-02_v1.png)
+_The dispatcher pattern: Find work (query Cortex), Build context (assemble what agents need), Deliver (hand off in the agent's native format)._
+
+---
+
 ## Why Dispatchers Matter
 
 ### 1. Vendor Independence
 
 Today you might use Claude Code. Tomorrow you might want to try GPT-4's code interpreter, or a self-hosted model, or a specialized coding agent. With dispatchers, switching agents doesn't require changing your project structure, task definitions, or coordination logic.
+
+![Vendor Independence](images/building-extensible-agent-dispatchers/img-03_v1.png)
+_Vendor independence: Switch agents without changing project structure. Today Claude, tomorrow GPT-4—the orchestration remains stable._
+
+---
 
 ### 2. Best-of-Breed Routing
 
@@ -58,6 +73,11 @@ Different agents excel at different tasks:
 - **Specialized models**: Domain-specific tasks, cost optimization
 
 A multi-agent dispatcher can route tasks to the best agent automatically.
+
+![Best-of-Breed Routing](images/building-extensible-agent-dispatchers/img-04_v1.png)
+_Best-of-breed routing: Research to GPT-4, complex code to Claude, docs to Haiku, review to Gemini. Each task goes to the agent that excels at it._
+
+---
 
 ### 3. Resilience
 
@@ -115,6 +135,7 @@ labels = build_issue_labels(project)
 ```
 
 The issue body includes:
+
 - Project metadata (priority, tags)
 - Full AGENCY.md content
 - Project file tree
@@ -146,20 +167,25 @@ note = f"- **{timestamp} - Agent Dispatcher**: Assigned to Claude Code. Issue: {
 
 The `owner` field is the locking mechanism. Other dispatchers (or this one running again) will skip this project until ownership is released.
 
+![Claude Code Dispatcher Deep Dive](images/building-extensible-agent-dispatchers/img-05_v1.png)
+_Inside the Claude Code dispatcher: Find ready work, select by priority, build rich context, create GitHub issue with @claude mention, claim ownership._
+
+---
+
 ## Building Your Own Dispatcher
 
 ### Step 1: Choose Your Delivery Mechanism
 
 How will your agent receive work?
 
-| Agent Platform | Delivery Mechanism |
-|----------------|-------------------|
-| Claude Code | GitHub Issue with @claude |
+| Agent Platform    | Delivery Mechanism        |
+| ----------------- | ------------------------- |
+| Claude Code       | GitHub Issue with @claude |
 | OpenAI Assistants | API call to create thread |
-| Slack Bot | Message to channel |
-| Custom Agent | Webhook POST |
-| Human Review | Email notification |
-| Task Queue | Redis/RabbitMQ message |
+| Slack Bot         | Message to channel        |
+| Custom Agent      | Webhook POST              |
+| Human Review      | Email notification        |
+| Task Queue        | Redis/RabbitMQ message    |
 
 ### Step 2: Implement the Dispatcher Class
 
@@ -341,6 +367,11 @@ class MultiAgentRouter:
             dispatcher.dispatch(project)
 ```
 
+![Multi-Agent Router](images/building-extensible-agent-dispatchers/img-06_v1.png)
+_Multi-agent routing: Rules examine project tags and route to specialized agents. Research tasks to GPT-4, reviews to Gemini, everything else to Claude._
+
+---
+
 ## Completion Callbacks
 
 When an agent finishes work, how does the Hive know? There are several patterns:
@@ -348,6 +379,7 @@ When an agent finishes work, how does the Hive know? There are several patterns:
 ### Pattern 1: Agent Updates AGENCY.md Directly
 
 The cleanest approach—used by Claude Code. The agent is instructed to:
+
 1. Mark tasks complete
 2. Add agent notes
 3. Set `owner: null`
@@ -389,11 +421,16 @@ def poll_for_completion(project_id, thread_id):
         time.sleep(60)
 ```
 
+![Completion Callbacks](images/building-extensible-agent-dispatchers/img-07_v1.png)
+_Completion patterns: Direct AGENCY.md updates (cleanest), webhook callbacks, or status polling. All ensure the Hive knows when work is done._
+
+---
+
 ## Real-World Architecture
 
 Here's how a production system might look:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                     GitHub Actions (Scheduled)                   │
 ├─────────────────────────────────────────────────────────────────┤
@@ -449,6 +486,11 @@ Here's how a production system might look:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+![Production Architecture](images/building-extensible-agent-dispatchers/img-08_v1.png)
+_Production architecture: Cortex analyzes, Router dispatches, Agents execute, AGENCY.md captures state. A complete automation cycle with human oversight._
+
+---
+
 ## Design Principles
 
 When building dispatchers, keep these principles in mind:
@@ -456,6 +498,7 @@ When building dispatchers, keep these principles in mind:
 ### 1. Idempotency
 
 Dispatchers might run multiple times. A well-designed dispatcher should handle this gracefully:
+
 - Check if work is already claimed before dispatching
 - Use the `owner` field as a lock
 - Handle "already exists" errors gracefully
@@ -463,6 +506,7 @@ Dispatchers might run multiple times. A well-designed dispatcher should handle t
 ### 2. Observability
 
 Every dispatch should be traceable:
+
 - Log what was dispatched, when, and to whom
 - Include references (issue URLs, thread IDs) in AGENCY.md
 - Use consistent agent names in the `owner` field
@@ -470,6 +514,7 @@ Every dispatch should be traceable:
 ### 3. Graceful Degradation
 
 What happens if the agent platform is down?
+
 - Validate connectivity before dispatching
 - Retry with exponential backoff
 - Fall back to alternatives if available
@@ -478,6 +523,7 @@ What happens if the agent platform is down?
 ### 4. Rate Limiting
 
 Don't overwhelm agents or platforms:
+
 - Dispatch one project at a time by default
 - Respect API rate limits
 - Leave time between dispatches for work to complete
@@ -504,4 +550,4 @@ The built-in Claude Code dispatcher is just the beginning. The architecture is r
 
 ---
 
-*Next in the series: Coming soon...*
+_Next in the series: Coming soon..._

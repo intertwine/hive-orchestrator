@@ -1,11 +1,11 @@
 # Skills and Protocols: Teaching Agents to Work in Agent Hive
 
-*This is the fifth article in a series exploring Agent Hive and AI agent orchestration.*
+_This is the fifth article in a series exploring Agent Hive and AI agent orchestration._
 
 ---
 
-![Hero: The Onboarding Problem](images/05-hero-onboarding.png)
-*Every session starts fresh—agents don't remember yesterday's onboarding. Skills and protocols provide instant orientation for effective work.*
+![Hero: The Onboarding Problem](images/skills-and-protocols/img-01_v1.png)
+_Every session starts fresh—agents don't remember yesterday's onboarding. Skills and protocols provide instant orientation for effective work._
 
 ---
 
@@ -35,13 +35,13 @@ This means an agent doesn't pay the context cost of reading all documentation up
 
 Agent Hive includes five built-in skills:
 
-| Skill | Purpose |
-|-------|---------|
-| **hive-project-management** | Managing AGENCY.md files, frontmatter, tasks |
-| **cortex-operations** | Running Cortex CLI, finding ready work |
-| **deep-work-session** | Focused work sessions with proper handoff |
+| Skill                        | Purpose                                         |
+| ---------------------------- | ----------------------------------------------- |
+| **hive-project-management**  | Managing AGENCY.md files, frontmatter, tasks    |
+| **cortex-operations**        | Running Cortex CLI, finding ready work          |
+| **deep-work-session**        | Focused work sessions with proper handoff       |
 | **multi-agent-coordination** | Working with other agents, preventing conflicts |
-| **hive-mcp** | Using MCP tools for programmatic access |
+| **hive-mcp**                 | Using MCP tools for programmatic access         |
 
 ### Skill Structure
 
@@ -61,10 +61,11 @@ Every project has an AGENCY.md file with YAML frontmatter...
 
 ## Frontmatter Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| project_id | string | Unique identifier |
-| status | enum | active, pending, blocked, completed |
+| Field      | Type   | Description                         |
+| ---------- | ------ | ----------------------------------- |
+| project_id | string | Unique identifier                   |
+| status     | enum   | active, pending, blocked, completed |
+
 ...
 
 ## Task Management
@@ -76,7 +77,7 @@ Tasks are tracked in the markdown body using checkbox syntax...
 
 Skills activate automatically based on user requests:
 
-```
+```markdown
 "Create a new project for user authentication"
 → Activates: hive-project-management
 
@@ -89,8 +90,8 @@ Skills activate automatically based on user requests:
 
 The agent recognizes which skill is relevant and loads its instructions.
 
-![Skills as Knowledge Modules](images/05-skills-modules.png)
-*Skills are modular instruction sets—only loaded when needed. Five built-in skills cover project management, Cortex CLI, deep work, coordination, and MCP tools.*
+![Skills as Knowledge Modules](images/skills-and-protocols/img-02_v1.png)
+_Skills are modular instruction sets—only loaded when needed. Five built-in skills cover project management, Cortex CLI, deep work, coordination, and MCP tools._
 
 ## The Deep Work Protocol
 
@@ -98,7 +99,7 @@ The most important protocol in Agent Hive is the Deep Work session lifecycle. Th
 
 ### The Lifecycle
 
-```
+```markdown
 1. ENTER → 2. CLAIM → 3. WORK → 4. UPDATE → 5. HANDOFF
 ```
 
@@ -142,10 +143,11 @@ During work, maintain progress markers:
 
 ```markdown
 ## Tasks
-- [x] Research existing solutions    ← Completed
-- [x] Design architecture            ← Completed
-- [ ] Implement core feature         ← In progress
-- [ ] Write tests                    ← Not started
+
+- [x] Research existing solutions ← Completed
+- [x] Design architecture ← Completed
+- [ ] Implement core feature ← In progress
+- [ ] Write tests ← Not started
 ```
 
 ### Phase 4: Update
@@ -154,6 +156,7 @@ Throughout the session, keep state current:
 
 ```markdown
 ## Agent Notes
+
 - **2025-01-15 15:45 - claude-sonnet-4**: Completed architecture design.
   Chose event-driven pattern for scalability. Implementation ready to
   begin. Key decision: using Redis for event bus (see docs/architecture.md).
@@ -166,6 +169,7 @@ Update timestamps, mark completed tasks, document decisions.
 Before ending, ensure clean state for the next agent (or human):
 
 **If completely done with the project:**
+
 ```yaml
 owner: null
 status: completed
@@ -173,6 +177,7 @@ last_updated: "2025-01-15T16:30:00Z"
 ```
 
 **If handing off to another agent:**
+
 ```yaml
 owner: null
 status: active
@@ -180,6 +185,7 @@ status: active
 ```
 
 **If blocked:**
+
 ```yaml
 owner: null
 blocked: true
@@ -195,8 +201,8 @@ Always add a final note summarizing the session:
   auth module has a known issue (see issue #45) - work around it.
 ```
 
-![The Deep Work Lifecycle](images/05-deep-work-lifecycle.png)
-*The Deep Work lifecycle: Enter → Claim → Work → Update → Handoff. A complete cycle ensures clean state for the next session.*
+![The Deep Work Lifecycle](images/skills-and-protocols/img-03_v1.png)
+_The Deep Work lifecycle: Enter → Claim → Work → Update → Handoff. A complete cycle ensures clean state for the next session._
 
 ## The Ownership Protocol
 
@@ -226,16 +232,16 @@ claim_project(project_id, my_agent_name)  # Might override!
 
 Use consistent, identifiable names:
 
-| Provider | Example |
-|----------|---------|
+| Provider  | Example                            |
+| --------- | ---------------------------------- |
 | Anthropic | `claude-sonnet-4`, `claude-opus-4` |
-| OpenAI | `gpt-4-turbo`, `gpt-4o` |
-| Google | `gemini-pro`, `gemini-ultra` |
-| X.AI | `grok-beta`, `grok-2` |
-| Custom | `my-research-agent-v1` |
+| OpenAI    | `gpt-4-turbo`, `gpt-4o`            |
+| Google    | `gemini-pro`, `gemini-ultra`       |
+| X.AI      | `grok-beta`, `grok-2`              |
+| Custom    | `my-research-agent-v1`             |
 
-![The Ownership Protocol Ceremony](images/05-ownership-protocol.png)
-*Ownership protocol is sacred: verify availability, claim formally, work with commitment, release properly. Only one owner at a time.*
+![The Ownership Protocol Ceremony](images/skills-and-protocols/img-04_v1.png)
+_Ownership protocol is sacred: verify availability, claim formally, work with commitment, release properly. Only one owner at a time._
 
 ## The Blocking Protocol
 
@@ -246,7 +252,7 @@ When an agent hits something it cannot resolve, the blocking protocol ensures th
 ```yaml
 blocked: true
 blocking_reason: "Need database credentials from DevOps team"
-status: blocked  # Optional: change status too
+status: blocked # Optional: change status too
 ```
 
 ### Documenting in Notes
@@ -263,18 +269,20 @@ status: blocked  # Optional: change status too
 Use blocked status for **external** dependencies, not internal challenges:
 
 **Do block for:**
+
 - Missing credentials or access
 - Waiting for human decisions
 - External API unavailable
 - Dependency on uncompleted project (that you can't work on)
 
 **Don't block for:**
+
 - Difficult technical problems (keep working)
 - Uncertainty about approach (make a decision and document it)
 - Need for more context (read more, ask in notes)
 
-![Blocking Protocol](images/05-blocking-protocol.png)
-*When blocked by external dependencies, don't struggle—set blocked status, document the reason clearly, and signal for help. Visibility over silence.*
+![Blocking Protocol](images/skills-and-protocols/img-05_v1.png)
+_When blocked by external dependencies, don't struggle—set blocked status, document the reason clearly, and signal for help. Visibility over silence._
 
 ## The Communication Protocol
 
@@ -287,25 +295,27 @@ Agents can't directly message each other. All communication happens through Agen
 ```
 
 Always include:
+
 - ISO timestamp (for ordering)
 - Your agent identifier (for attribution)
 - Clear, detailed message (for future agents)
 
 ### Conventions
 
-| Prefix | Meaning |
-|--------|---------|
+| Prefix        | Meaning                           |
+| ------------- | --------------------------------- |
 | `@agent-name` | Direct mention for specific agent |
-| `BLOCKED` | Signals an impediment |
-| `DECISION` | Records important choices |
-| `TODO` | Items for next agent |
-| `WARNING` | Potential issues to watch |
-| `CONTEXT` | Background information |
+| `BLOCKED`     | Signals an impediment             |
+| `DECISION`    | Records important choices         |
+| `TODO`        | Items for next agent              |
+| `WARNING`     | Potential issues to watch         |
+| `CONTEXT`     | Background information            |
 
 ### Example Communication
 
 ```markdown
 ## Agent Notes
+
 - **2025-01-15 17:00 - gpt-4-turbo**: DECISION: Changed from REST to
   GraphQL for the API. Rationale: client team requested flexible queries.
   @claude-sonnet-4 - this affects your frontend integration plan.
@@ -319,8 +329,8 @@ Always include:
   for the interface. All new data access should follow this pattern.
 ```
 
-![Communication Through Notes](images/05-communication-notes.png)
-*Agent Notes are the communication channel: timestamped, attributed, and persistent. @mentions for specific agents, DECISION for choices, BLOCKED for obstacles.*
+![Communication Through Notes](images/skills-and-protocols/img-06_v1.png)
+_Agent Notes are the communication channel: timestamped, attributed, and persistent. @mentions for specific agents, DECISION for choices, BLOCKED for obstacles._
 
 ## The MCP Protocol
 
@@ -328,17 +338,17 @@ For programmatic interaction, Agent Hive provides MCP (Model Context Protocol) t
 
 ### Available Tools
 
-| Tool | Purpose |
-|------|---------|
-| `list_projects` | List all discovered projects |
-| `get_ready_work` | Get projects ready to claim |
-| `get_project` | Get full project details |
-| `claim_project` | Set owner field |
-| `release_project` | Clear owner field |
-| `update_status` | Change project status |
-| `add_note` | Append to Agent Notes |
-| `get_dependencies` | Get project's dependency info |
-| `get_dependency_graph` | Get full system graph |
+| Tool                   | Purpose                       |
+| ---------------------- | ----------------------------- |
+| `list_projects`        | List all discovered projects  |
+| `get_ready_work`       | Get projects ready to claim   |
+| `get_project`          | Get full project details      |
+| `claim_project`        | Set owner field               |
+| `release_project`      | Clear owner field             |
+| `update_status`        | Change project status         |
+| `add_note`             | Append to Agent Notes         |
+| `get_dependencies`     | Get project's dependency info |
+| `get_dependency_graph` | Get full system graph         |
 
 ### Usage Pattern
 
@@ -362,8 +372,8 @@ await mcp.add_note(
 await mcp.release_project(project_id="auth-feature")
 ```
 
-![MCP Tools in Action](images/05-mcp-tools.png)
-*MCP tools enable programmatic interaction: list projects, find ready work, claim, update status, add notes, release—all without manual file editing.*
+![MCP Tools in Action](images/skills-and-protocols/img-07_v1.png)
+_MCP tools enable programmatic interaction: list projects, find ready work, claim, update status, add notes, release—all without manual file editing._
 
 ## Creating Custom Skills
 
@@ -392,11 +402,13 @@ This skill is relevant when...
 ## Procedures
 
 ### Procedure 1: Do Something
+
 1. First step
 2. Second step
 3. Third step
 
 ### Procedure 2: Do Something Else
+
 ...
 
 ## Common Patterns
@@ -424,11 +436,11 @@ Explicit protocols serve several purposes:
 
 The protocols aren't bureaucracy—they're the foundation that makes multi-agent coordination possible.
 
-![Why Protocols Matter](images/05-why-protocols-matter.png)
-*Protocols aren't bureaucracy—they're the foundation that makes multi-agent coordination possible. Consistency, predictability, debuggability.*
+![Why Protocols Matter](images/skills-and-protocols/img-08_v1.png)
+_Protocols aren't bureaucracy—they're the foundation that makes multi-agent coordination possible. Consistency, predictability, debuggability._
 
 ---
 
-*Next in the series: "Getting Started" - building your first Agent Hive project from scratch.*
+_Next in the series: "Getting Started" - building your first Agent Hive project from scratch._
 
-*Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator).*
+_Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator)._

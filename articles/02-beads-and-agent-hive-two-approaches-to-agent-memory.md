@@ -1,11 +1,11 @@
 # Beads and Agent Hive: Two Approaches to Agent Memory
 
-*This is the second article in a series exploring Agent Hive and the landscape of AI agent orchestration.*
+_This is the second article in a series exploring Agent Hive and the landscape of AI agent orchestration._
 
 ---
 
-![Hero: Two Approaches Diverging](images/02-hero-two-approaches.png)
-*Two valid approaches to the same problem: beads optimizes for query performance; Agent Hive optimizes for human readability.*
+![Hero: Two Approaches Diverging](images/beads-and-agent-hive/img-01_v1.png)
+_Two valid approaches to the same problem: beads optimizes for query performance; Agent Hive optimizes for human readability._
 
 ---
 
@@ -25,8 +25,8 @@ This isn't a failure of any particular model—it's a structural limitation. Con
 
 Both systems solve this through structured persistent state that survives across context windows.
 
-![Agent Amnesia Visualization](images/02-agent-amnesia.png)
-*"By phase 3 of 6, the AI has mostly forgotten where it came from." Agent amnesia isn't a bug—it's a structural limitation of context windows.*
+![Agent Amnesia Visualization](images/beads-and-agent-hive/img-02_v1.png)
+_"By phase 3 of 6, the AI has mostly forgotten where it came from." Agent amnesia isn't a bug—it's a structural limitation of context windows._
 
 ## beads: The Database Approach
 
@@ -34,7 +34,7 @@ beads treats agent memory as a database problem. Under the hood, it's a sophisti
 
 ### Storage Architecture
 
-```
+```bash
 .beads/
 ├── issues.jsonl      # Source of truth (committed to git)
 ├── deletions.jsonl   # Deletion records (committed to git)
@@ -66,16 +66,16 @@ bd list --ready --json
 bd create "Implement authentication" --blocks bd-a1b2
 ```
 
-![The Database Approach (beads)](images/02-beads-architecture.png)
-*beads treats agent memory as a database problem—JSONL for truth, SQLite for speed, Git for sync. Queries resolve in milliseconds.*
+![The Database Approach (beads)](images/beads-and-agent-hive/img-03_v1.png)
+_beads treats agent memory as a database problem—JSONL for truth, SQLite for speed, Git for sync. Queries resolve in milliseconds._
 
 ## Agent Hive: The Markdown Approach
 
 Agent Hive takes a different philosophical stance: **human readability is the primary constraint**.
 
-### Storage Architecture
+### Accessible Storage Architecture
 
-```
+```bash
 projects/
 └── my-project/
     └── AGENCY.md     # Everything in one human-readable file
@@ -101,21 +101,24 @@ dependencies:
 # Authentication Feature
 
 ## Objective
+
 Implement secure user authentication.
 
 ## Tasks
+
 - [x] Research OAuth2 providers
 - [ ] Implement login endpoints
 - [ ] Write integration tests
 
 ## Agent Notes
+
 - **2025-01-15 14:30 - claude-sonnet-4**: Starting implementation...
 ```
 
 Everything—metadata, tasks, and historical notes—lives in one file that any human (or agent) can read with a text editor.
 
-![The Markdown Approach (Agent Hive)](images/02-agent-hive-architecture.png)
-*Agent Hive takes a different stance: one Markdown file per project. No databases, no binary formats—just human-readable text.*
+![The Markdown Approach (Agent Hive)](images/beads-and-agent-hive/img-04_v1.png)
+_Agent Hive takes a different stance: one Markdown file per project. No databases, no binary formats—just human-readable text._
 
 ### Designed for Transparency
 
@@ -126,11 +129,13 @@ Agent Hive optimizes for auditability and human oversight. When something goes w
 ### 1. Query Model
 
 **beads**: SQL-style queries over a normalized database
+
 ```bash
 bd list --ready --json | jq '.[] | select(.priority == "high")'
 ```
 
 **Agent Hive**: File traversal with in-memory filtering
+
 ```bash
 uv run python -m src.cortex --ready --json
 ```
@@ -140,21 +145,29 @@ beads is faster for complex queries. Agent Hive doesn't require learning query s
 ### 2. Data Format
 
 **beads**: JSONL for machines, rendered views for humans
+
 ```json
-{"id":"bd-a1b2","title":"Implement auth","status":"open","blocks":["bd-c3d4"]}
+{
+  "id": "bd-a1b2",
+  "title": "Implement auth",
+  "status": "open",
+  "blocks": ["bd-c3d4"]
+}
 ```
 
 **Agent Hive**: Markdown for both humans and machines
+
 ```markdown
 # Implement Auth
+
 - [x] Research phase complete
 - [ ] Implementation in progress
 ```
 
 beads stores data optimally; Agent Hive stores data readably.
 
-![Storage Philosophy Comparison](images/02-storage-comparison.png)
-*beads stores data optimally for machines; Agent Hive stores data readably for humans. Different optimizations for different values.*
+![Storage Philosophy Comparison](images/beads-and-agent-hive/img-05_v1.png)
+_beads stores data optimally for machines; Agent Hive stores data readably for humans. Different optimizations for different values._
 
 ### 3. Vendor Relationship
 
@@ -216,7 +229,7 @@ beads auto-syncs via background processes. Agent Hive treats git as the sync mec
 
 ## When to Use Which
 
-### Choose beads if:
+### Choose beads if
 
 - You're working primarily with Claude/Claude Code
 - You have complex, deeply nested project hierarchies
@@ -224,7 +237,7 @@ beads auto-syncs via background processes. Agent Hive treats git as the sync mec
 - You prefer database-style thinking
 - You want minimal dependencies (single Go binary)
 
-### Choose Agent Hive if:
+### Choose Agent Hive if
 
 - You need vendor-agnostic operation (multiple LLM providers)
 - Human oversight and auditability are primary concerns
@@ -232,12 +245,12 @@ beads auto-syncs via background processes. Agent Hive treats git as the sync mec
 - You prefer Markdown-native workflows
 - You want external orchestration (Cortex) in addition to agent self-direction
 
-### Use Both if:
+### Use Both if
 
 The systems aren't mutually exclusive. You could use beads for fine-grained task tracking within a project, while Agent Hive coordinates across projects and provides human oversight. The dependency concepts are compatible enough to bridge.
 
-![When to Use Which](images/02-when-to-use-which.png)
-*Not a competition—a choice based on priorities. Speed and queries? beads. Transparency and vendor freedom? Agent Hive. Need both? Use both.*
+![When to Use Which](images/beads-and-agent-hive/img-07_v1.png)
+_Not a competition—a choice based on priorities. Speed and queries? beads. Transparency and vendor freedom? Agent Hive. Need both? Use both._
 
 ## The Deeper Pattern
 
@@ -246,15 +259,16 @@ Both beads and Agent Hive are responses to the same realization: **AI agents nee
 Traditional issue trackers (Jira, GitHub Issues, Linear) were designed for humans coordinating with humans. They assume persistent memory, continuous context, and the ability to hold complex mental models.
 
 AI agents have different characteristics:
+
 - Discrete sessions with hard memory boundaries
 - Need for explicit state on every startup
 - Tendency to one-shot or prematurely declare victory
 - Inability to "remember" informal agreements
 
-Both systems acknowledge these constraints and build memory primitives that work *with* agent limitations rather than against them.
+Both systems acknowledge these constraints and build memory primitives that work _with_ agent limitations rather than against them.
 
-![The Deeper Pattern](images/02-deeper-pattern.png)
-*Traditional tools were designed for humans with persistent memory. Agent infrastructure must work with agent limitations—discrete sessions, hard memory boundaries, fresh starts.*
+![The Deeper Pattern](images/beads-and-agent-hive/img-08_v1.png)
+_Traditional tools were designed for humans with persistent memory. Agent infrastructure must work with agent limitations—discrete sessions, hard memory boundaries, fresh starts._
 
 ## Conclusion
 
@@ -266,7 +280,7 @@ What matters is that we're collectively recognizing the need for purpose-built a
 
 ---
 
-*Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator). beads is open source at [github.com/steveyegge/beads](https://github.com/steveyegge/beads).*
+_Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator). beads is open source at [github.com/steveyegge/beads](https://github.com/steveyegge/beads)._
 
 ## Sources
 

@@ -218,7 +218,12 @@ async function generateImagesOpenAI({ prompt, model, size, imagesPerPrompt }) {
 
   if (!response.ok) {
     const text = await response.text();
-    const error = new Error(`OpenAI image generation failed (${response.status}): ${text}`);
+    const promptStr = typeof prompt === 'string' ? prompt : String(prompt);
+    const promptPreview = promptStr.slice(0, 100);
+    const error = new Error(
+      `OpenAI image generation failed (${response.status}): ${text} ` +
+      `(prompt length: ${promptStr.length}, preview: ${JSON.stringify(promptPreview)})`
+    );
     error.status = response.status;
     throw error;
   }

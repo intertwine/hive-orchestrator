@@ -18,8 +18,15 @@ const DEFAULT_TECHNICAL_ASPECT = '4:3';
 const DEFAULT_CONCEPTUAL_ASPECT = '16:9';
 
 const ASPECT_SIZES = {
-  '16:9': '1536x864',
-  '4:3': '1536x1152',
+  // Landscape-ish aspect ratios → DALL-E 3 landscape size
+  '16:9': '1792x1024',
+  '3:2': '1792x1024',
+  '4:3': '1792x1024',
+  // Portrait-ish aspect ratios → DALL-E 3 portrait size
+  '9:16': '1024x1792',
+  '2:3': '1024x1792',
+  '3:4': '1024x1792',
+  // Square aspect ratio → DALL-E 3 square size
   '1:1': '1024x1024',
 };
 

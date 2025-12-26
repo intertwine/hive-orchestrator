@@ -342,13 +342,13 @@ class TestApplyStateUpdates:
     """Test applying state updates to AGENCY.md files."""
 
     def test_apply_no_updates(self, temp_hive_dir):
-        """Test applying empty update list."""
+        """Test applying empty update list returns 0 changes."""
         cortex = Cortex(temp_hive_dir)
         result = cortex.apply_state_updates([])
-        assert result is True
+        assert result == 0
 
     def test_apply_single_update(self, temp_hive_dir, temp_project):
-        """Test applying a single state update."""
+        """Test applying a single state update returns 1 change."""
         cortex = Cortex(temp_hive_dir)
 
         updates = [
@@ -361,7 +361,7 @@ class TestApplyStateUpdates:
         ]
 
         result = cortex.apply_state_updates(updates)
-        assert result is True
+        assert result == 1
 
         # Verify the update was applied
         with open(temp_project, "r", encoding="utf-8") as f:
@@ -370,7 +370,7 @@ class TestApplyStateUpdates:
             assert "last_updated" in post.metadata
 
     def test_apply_multiple_updates(self, temp_hive_dir, temp_project, temp_blocked_project):
-        """Test applying multiple state updates."""
+        """Test applying multiple state updates returns correct count."""
         cortex = Cortex(temp_hive_dir)
 
         updates = [
@@ -389,7 +389,7 @@ class TestApplyStateUpdates:
         ]
 
         result = cortex.apply_state_updates(updates)
-        assert result is True
+        assert result == 2
 
         # Verify both updates were applied
         with open(temp_project, "r", encoding="utf-8") as f:
@@ -400,8 +400,59 @@ class TestApplyStateUpdates:
             post = frontmatter.load(f)
             assert post.metadata["blocked"] is False
 
+    def test_apply_update_skips_unchanged_values(self, temp_hive_dir, temp_project):
+        """Test that updates with unchanged values are skipped (no file modification)."""
+        cortex = Cortex(temp_hive_dir)
+
+        # The temp_project has status="active" by default
+        updates = [
+            {
+                "file": "projects/test-project/AGENCY.md",
+                "field": "status",
+                "value": "active",  # Same as current value
+                "reason": "No change needed",
+            }
+        ]
+
+        # Get the file's mtime before
+        import os
+        mtime_before = os.path.getmtime(temp_project)
+
+        result = cortex.apply_state_updates(updates)
+        assert result == 0  # No actual changes
+
+        # File should not have been modified
+        mtime_after = os.path.getmtime(temp_project)
+        assert mtime_before == mtime_after
+
+    def test_apply_update_mixed_changed_unchanged(self, temp_hive_dir, temp_project):
+        """Test mix of changed and unchanged values returns correct count."""
+        cortex = Cortex(temp_hive_dir)
+
+        updates = [
+            {
+                "file": "projects/test-project/AGENCY.md",
+                "field": "status",
+                "value": "active",  # Same as current - should be skipped
+                "reason": "No change",
+            },
+            {
+                "file": "projects/test-project/AGENCY.md",
+                "field": "priority",
+                "value": "critical",  # Different from current "high"
+                "reason": "Upgraded priority",
+            },
+        ]
+
+        result = cortex.apply_state_updates(updates)
+        assert result == 1  # Only priority changed
+
+        with open(temp_project, "r", encoding="utf-8") as f:
+            post = frontmatter.load(f)
+            assert post.metadata["priority"] == "critical"
+
     def test_apply_update_nonexistent_file(self, temp_hive_dir):
-        """Test applying update to non-existent file."""
+        """Test applying update to non-existent file returns 0 changes."""
         cortex = Cortex(temp_hive_dir)
 
         updates = [
@@ -414,8 +465,8 @@ class TestApplyStateUpdates:
         ]
 
         result = cortex.apply_state_updates(updates)
-        # Should handle gracefully and continue
-        assert result is True
+        # Should handle gracefully and return 0 (no changes made)
+        assert result == 0
 
     def test_apply_update_with_absolute_path(self, temp_hive_dir, temp_project):
         """Test applying update with absolute path."""
@@ -426,7 +477,7 @@ class TestApplyStateUpdates:
         ]
 
         result = cortex.apply_state_updates(updates)
-        assert result is True
+        assert result == 1
 
     def test_apply_update_prevents_path_traversal(self, temp_hive_dir, temp_project, tmp_path):
         """Test that updates prevent path traversal attacks."""
@@ -441,8 +492,8 @@ class TestApplyStateUpdates:
         ]
 
         result = cortex.apply_state_updates(updates)
-        # Should complete but skip the external file
-        assert result is True
+        # Should complete but skip the external file (0 changes)
+        assert result == 0
 
         # Verify external file wasn't modified
         content = external_file.read_text()
@@ -473,9 +524,14 @@ class TestCortexRun:
     def test_run_success(
         self, temp_hive_dir, temp_project, mock_env_vars, sample_api_response, monkeypatch
     ):
-        """Test successful cortex run."""
+        """Test successful cortex run with no state changes."""
         monkeypatch.setenv("WEAVE_DISABLED", "true")
         cortex = Cortex(temp_hive_dir)
+
+        # Get the initial GLOBAL.md content
+        global_file = Path(temp_hive_dir) / "GLOBAL.md"
+        with open(global_file, "r", encoding="utf-8") as f:
+            initial_content = f.read()
 
         with patch("tracing.requests.post") as mock_post:
             mock_response = Mock()
@@ -486,11 +542,10 @@ class TestCortexRun:
             result = cortex.run()
             assert result is True
 
-            # Verify GLOBAL.md was updated with last_cortex_run
-            global_file = Path(temp_hive_dir) / "GLOBAL.md"
+            # Verify GLOBAL.md was NOT updated (no state changes occurred)
             with open(global_file, "r", encoding="utf-8") as f:
-                post = frontmatter.load(f)
-                assert post.metadata["last_cortex_run"] is not None
+                final_content = f.read()
+            assert initial_content == final_content
 
     def test_run_with_state_updates(
         self, temp_hive_dir, temp_project, mock_env_vars, sample_llm_response, monkeypatch
@@ -525,6 +580,12 @@ class TestCortexRun:
             with open(temp_project, "r", encoding="utf-8") as f:
                 post = frontmatter.load(f)
                 assert post.metadata["status"] == "completed"
+
+            # Verify GLOBAL.md was updated with last_cortex_run (because changes occurred)
+            global_file = Path(temp_hive_dir) / "GLOBAL.md"
+            with open(global_file, "r", encoding="utf-8") as f:
+                post = frontmatter.load(f)
+                assert post.metadata["last_cortex_run"] is not None
 
     def test_run_handles_llm_failure(self, temp_hive_dir, temp_project, mock_env_vars, monkeypatch):
         """Test cortex run handles LLM call failures gracefully."""

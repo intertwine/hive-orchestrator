@@ -836,14 +836,21 @@ Return ONLY valid JSON, no markdown formatting or additional text.
             print(f"❌ ERROR in LLM call: {e}")
             return None
 
-    def apply_state_updates(self, updates: List[Dict[str, Any]]) -> bool:
-        """Apply state updates to AGENCY.md files using safe YAML handling."""
+    def apply_state_updates(self, updates: List[Dict[str, Any]]) -> int:
+        """Apply state updates to AGENCY.md files using safe YAML handling.
+
+        Returns:
+            Number of actual changes applied (0 if no real changes needed).
+            Returns -1 on error.
+        """
 
         if not updates:
             print("No state updates needed")
-            return True
+            return 0
 
-        print(f"\nApplying {len(updates)} state update(s)...")
+        print(f"\nProcessing {len(updates)} proposed state update(s)...")
+
+        changes_applied = 0
 
         for update in updates:
             try:
@@ -868,9 +875,16 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 # Read the file using safe loading
                 parsed = safe_load_agency_md(file_path)
 
-                # Update the frontmatter field
+                # Check if value actually differs from current
                 field = update["field"]
                 value = update["value"]
+                current_value = parsed.metadata.get(field)
+
+                if current_value == value:
+                    print(f"   Skipped {file_path.name}: {field} already equals '{value}'")
+                    continue
+
+                # Apply the change
                 parsed.metadata[field] = value
 
                 # Also update last_updated
@@ -880,14 +894,18 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(safe_dump_agency_md(parsed.metadata, parsed.content))
 
-                print(f"   Updated {file_path.name}: {field} = {value}")
+                print(f"   Updated {file_path.name}: {field} = {value} (was: {current_value})")
                 print(f"     Reason: {update.get('reason', 'N/A')}")
+                changes_applied += 1
 
             except Exception as e:
                 print(f"   ERROR updating {update['file']}: {e}")
-                return False
+                return -1
 
-        return True
+        if changes_applied == 0:
+            print("   No actual changes needed (all values already current)")
+
+        return changes_applied
 
     def run(self) -> bool:
         """Main Cortex execution loop."""
@@ -960,10 +978,11 @@ Return ONLY valid JSON, no markdown formatting or additional text.
 
         # Apply state updates
         updates = analysis.get("state_updates", [])
+        changes_applied = 0
         if updates:
             print(f"\n📝 STATE UPDATES ({len(updates)}):")
-            success = self.apply_state_updates(updates)
-            if not success:
+            changes_applied = self.apply_state_updates(updates)
+            if changes_applied < 0:  # Error occurred
                 return False
 
         # Notes
@@ -971,15 +990,19 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         if notes:
             print(f"\n📌 NOTES:\n{notes}")
 
-        # Update GLOBAL.md with last run time (using safe loading)
-        try:
-            parsed = safe_load_agency_md(self.global_file)
-            parsed.metadata["last_cortex_run"] = datetime.utcnow().isoformat() + "Z"
-            with open(self.global_file, "w", encoding="utf-8") as f:
-                f.write(safe_dump_agency_md(parsed.metadata, parsed.content))
-            print("\nUpdated GLOBAL.md last_cortex_run timestamp")
-        except Exception as e:
-            print(f"\nWARNING: Could not update GLOBAL.md timestamp: {e}")
+        # Only update GLOBAL.md if actual changes were made
+        # This prevents noisy commits when nothing meaningful changed
+        if changes_applied > 0:
+            try:
+                parsed = safe_load_agency_md(self.global_file)
+                parsed.metadata["last_cortex_run"] = datetime.utcnow().isoformat() + "Z"
+                with open(self.global_file, "w", encoding="utf-8") as f:
+                    f.write(safe_dump_agency_md(parsed.metadata, parsed.content))
+                print(f"\n📝 Updated GLOBAL.md (last_cortex_run) - {changes_applied} change(s) applied")
+            except Exception as e:
+                print(f"\nWARNING: Could not update GLOBAL.md timestamp: {e}")
+        else:
+            print("\n📭 No changes to commit (system state unchanged)")
 
         print("\n" + "=" * 60)
         print("✅ CORTEX RUN COMPLETED")

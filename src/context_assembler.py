@@ -327,12 +327,13 @@ def build_issue_body(
         # Clone and get context
         cloned_repo_path = clone_external_repo(repo_url, repo_branch)
         if cloned_repo_path:
-            ext_tree, ext_files = get_external_repo_context(cloned_repo_path)
-            # Use urllib.parse for robust URL parsing
-            parsed_url = urlparse(repo_url)
-            repo_name = parsed_url.path.rstrip("/").split("/")[-1].replace(".git", "")
+            try:
+                ext_tree, ext_files = get_external_repo_context(cloned_repo_path)
+                # Use urllib.parse for robust URL parsing
+                parsed_url = urlparse(repo_url)
+                repo_name = parsed_url.path.rstrip("/").split("/")[-1].replace(".git", "")
 
-            external_repo_section = f"""
+                external_repo_section = f"""
 ### Target Repository
 
 **URL**: {repo_url}
@@ -354,8 +355,9 @@ def build_issue_body(
 
 </details>''' if ext_files else ''}
 """
-            # Clean up after getting context
-            cleanup_external_repo(cloned_repo_path)
+            finally:
+                # Clean up after getting context (or on exception)
+                cleanup_external_repo(cloned_repo_path)
 
     # Build task focus section
     task_section = ""

@@ -608,3 +608,87 @@ class TestBuildIssueBodyWithExternalRepo:
         )
         # The metadata dump should include target_repo
         assert "target_repo" in body or "https://github.com/example/repo" in body
+
+    def test_external_repo_cleanup_on_exception(self):
+        """
+        Test that if get_external_repo_context raises an exception,
+        the cloned repository is still cleaned up.
+
+        This test verifies the fix for the resource leak bug where
+        temporary directories were not cleaned up on exceptions.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            project_dir = temp_path / "projects" / "test"
+            project_dir.mkdir(parents=True)
+
+            content = """# Test Project
+
+## Tasks
+- [ ] First task
+"""
+            post = frontmatter.Post(
+                content,
+                project_id="test-project",
+                status="active",
+                priority="high",
+                tags=["test"],
+                target_repo={
+                    "url": "https://github.com/example/repo",
+                    "branch": "main",
+                },
+            )
+
+            agency_file = project_dir / "AGENCY.md"
+            with open(agency_file, "w", encoding="utf-8") as f:
+                f.write(frontmatter.dumps(post))
+
+            project = {
+                "path": str(agency_file),
+                "project_id": "test-project",
+                "metadata": post.metadata,
+                "content": content,
+            }
+
+            cloned_path = None
+            cleanup_called = False
+
+            def mock_clone(url, branch):
+                nonlocal cloned_path
+                # Create a temp directory to simulate cloned repo
+                cloned_path = Path(tempfile.mkdtemp(prefix="hive_external_"))
+                return cloned_path
+
+            def mock_get_context(repo_path, key_files=None):
+                # Simulate an exception during context extraction
+                raise RuntimeError("Simulated error during context extraction")
+
+            def mock_cleanup(repo_path):
+                nonlocal cleanup_called
+                cleanup_called = True
+                if repo_path and repo_path.exists():
+                    import shutil
+                    shutil.rmtree(repo_path, ignore_errors=True)
+
+            with patch("context_assembler.clone_external_repo", side_effect=mock_clone):
+                with patch(
+                    "context_assembler.get_external_repo_context",
+                    side_effect=mock_get_context,
+                ):
+                    with patch(
+                        "context_assembler.cleanup_external_repo", side_effect=mock_cleanup
+                    ):
+                        # Should raise RuntimeError but cleanup should still be called
+                        with pytest.raises(RuntimeError, match="Simulated error"):
+                            build_issue_body(project, temp_path)
+
+                        # Verify cleanup was called despite the exception
+                        assert cleanup_called, (
+                            "cleanup_external_repo was NOT called - RESOURCE LEAK!"
+                        )
+
+                        # Verify the temp directory was actually cleaned up
+                        if cloned_path:
+                            assert not cloned_path.exists(), (
+                                f"Cloned repo still exists at {cloned_path} - RESOURCE LEAK!"
+                            )

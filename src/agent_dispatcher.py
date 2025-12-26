@@ -201,10 +201,10 @@ class AgentDispatcher:
 
             # Update metadata
             parsed.metadata["owner"] = self.AGENT_NAME
-            parsed.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
+            parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat() + "Z"
 
             # Add agent note with issue link
-            timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
             note = (
                 f"\n- **{timestamp} - Agent Dispatcher**: "
                 f"Assigned to Claude Code. Issue: {issue_url}"
@@ -424,7 +424,7 @@ class AgentDispatcher:
         print("=" * 60)
         print(" AGENT HIVE DISPATCHER")
         print("=" * 60)
-        print(f"Timestamp: {datetime.utcnow().isoformat()}")
+        print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
         print(f"Base Path: {self.base_path}")
         print(f"Dry Run: {self.dry_run}")
         print(f"Max Dispatches: {max_dispatches}")

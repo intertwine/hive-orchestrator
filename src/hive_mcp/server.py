@@ -13,7 +13,7 @@ import os
 import sys
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -93,7 +93,7 @@ def update_project_field(project_path: str, field: str, value: Any, base_path: s
         parsed.metadata[field] = value
 
         # Update last_updated timestamp
-        parsed.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
+        parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat() + "Z"
 
         # Write back using safe dump
         with open(file_path, "w", encoding="utf-8") as f:
@@ -135,7 +135,7 @@ def add_agent_note(project_path: str, agent: str, note: str, base_path: str = No
         parsed = safe_load_agency_md(file_path)
 
         # Get current timestamp
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
 
         # Format the note (truncate to prevent abuse)
         truncated_note = note[:2000] if len(note) > 2000 else note
@@ -159,7 +159,7 @@ def add_agent_note(project_path: str, agent: str, note: str, base_path: str = No
             content = f"{content}\n\n## Agent Notes\n{new_note}"
 
         # Update last_updated
-        parsed.metadata["last_updated"] = datetime.utcnow().isoformat() + "Z"
+        parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat() + "Z"
 
         # Write back using safe dump
         with open(file_path, "w", encoding="utf-8") as f:

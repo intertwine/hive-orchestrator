@@ -11,7 +11,7 @@ attacks from malicious AGENCY.md content.
 import os
 import glob
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import streamlit as st
 from src.cortex import Cortex
 from src.security import safe_load_agency_md, safe_dump_agency_md
@@ -91,7 +91,7 @@ def generate_deep_work_context(project_path: str, base_path: Path):
     # Build the context
     context = f"""# DEEP WORK SESSION CONTEXT
 # Project: {project_id}
-# Generated: {datetime.utcnow().isoformat()}
+# Generated: {datetime.now(timezone.utc).isoformat()}
 
 ---
 

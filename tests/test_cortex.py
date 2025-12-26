@@ -314,7 +314,7 @@ class TestCallLLM:
 
         # Single-line markdown format (no newlines)
         single_line_markdown = f"```{json.dumps(sample_llm_response)}```"
-        
+
         markdown_response = {
             "choices": [
                 {"message": {"content": single_line_markdown}}
@@ -345,7 +345,7 @@ class TestCallLLM:
 
         # Single-line markdown with language tag
         single_line_markdown = f"```json{json.dumps(sample_llm_response)}```"
-        
+
         markdown_response = {
             "choices": [
                 {"message": {"content": single_line_markdown}}

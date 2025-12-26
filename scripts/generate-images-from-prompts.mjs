@@ -365,7 +365,7 @@ async function main() {
       }
 
       // Check MAX_IMAGES limit before processing the prompt
-      if (!dryRun && generatedImageCount + imagesPerPrompt > maxImages) {
+      if (generatedImageCount + imagesPerPrompt > maxImages) {
         console.warn('Reached MAX_IMAGES limit.');
         break;
       }
@@ -377,6 +377,7 @@ async function main() {
 
       if (dryRun) {
         console.log(`[DRY RUN] Would generate ${outputFiles.join(', ')} for ${filePath}`);
+        generatedImageCount += imagesPerPrompt;
       } else {
         const imagesBase64 = await generateWithRetry({
           prompt: finalPrompt,

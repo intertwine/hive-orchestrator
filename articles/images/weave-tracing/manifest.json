@@ -1,0 +1,103 @@
+{
+  "source_md_path": "articles/prompts/10-weave-tracing.md",
+  "generated_at": "2025-12-26T19:56:42.102Z",
+  "model": "dall-e-3",
+  "images": [
+    {
+      "index": 1,
+      "title": "Hero Image - The Observability Dashboard",
+      "caption": "*Complete visibility: Weave tracing shows every LLM call, its latency, token usage, and success status. No more black-box AI operations.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image of a futuristic monitoring dashboard for AI agents. A large curved display shows real-time traces of LLM calls flowing through a beehive-shaped system. Individual call traces appear as golden light trails connecting nodes. Metrics panels show latency histograms, token usage graphs, and success/failure indicators. The Weights & Biases (W&B) logo appears subtly integrated. An operator (human or robot) observes the dashboard, gaining insight into the system's behavior. The atmosphere is professional and high-tech, like a mission control center for AI orchestration. Epic monitoring dashboard illustration, observability theme, data visualization aesthetic.\n\nGeneration Notes:\n**Style consistency:** Data-rich, observability-focused illustrations. Clean, modern aesthetic like a SaaS monitoring platform. Use the Weights & Biases orange/coral accent color where appropriate alongside Agent Hive's gold/honey tones.\n\n**Visual elements:**\n- Timelines and trace flows\n- Metrics charts and graphs\n- Data cards and panels\n- Golden light trails for traces\n- Beehive motifs integrated with monitoring\n- W&B brand colors (coral/orange) as accent\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for dashboard scene\n- Architecture (2): 16:9 for flow diagram\n- Metadata card (3): Square 1:1 for data card\n- Sanitization (4): 16:9 for before/after\n- Degradation (5): 16:9 for highway metaphor\n- Trace view (6): 16:9 for interface mockup\n- Decorator (7): Square 1:1 for code concept\n- Debugging (8): 16:9 for investigation scene\n\n**Quality modifiers:** high-quality, data visualization style, modern SaaS aesthetic, professional monitoring theme, clean and informative",
+      "prompt_hash": "f8b1167519240f680bf0eb16be6634fc54889bd861aca9cdf7064649965b0fe6",
+      "output_files": [
+        "img-01_v1.png"
+      ]
+    },
+    {
+      "index": 2,
+      "title": "Tracing Architecture Flow",
+      "caption": "*Tracing architecture: All LLM calls flow through traced_llm_call(), which captures metrics and sends them to Weave for analysis.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create an architectural diagram showing how Weave tracing integrates with Agent Hive. On the left, three components (Cortex, Dashboard, Dispatcher) send requests through a central \"traced_llm_call()\" function. The function captures metadata (latency, tokens, success) while the request flows to an OpenRouter API on the right. Below the traced_llm_call, a Weave collector gathers the trace data and sends it to a W&B cloud icon at the bottom. Arrows show the flow of data and traces. Clean architecture diagram style, data flow visualization, integration concept.\n\nGeneration Notes:\n**Style consistency:** Data-rich, observability-focused illustrations. Clean, modern aesthetic like a SaaS monitoring platform. Use the Weights & Biases orange/coral accent color where appropriate alongside Agent Hive's gold/honey tones.\n\n**Visual elements:**\n- Timelines and trace flows\n- Metrics charts and graphs\n- Data cards and panels\n- Golden light trails for traces\n- Beehive motifs integrated with monitoring\n- W&B brand colors (coral/orange) as accent\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for dashboard scene\n- Architecture (2): 16:9 for flow diagram\n- Metadata card (3): Square 1:1 for data card\n- Sanitization (4): 16:9 for before/after\n- Degradation (5): 16:9 for highway metaphor\n- Trace view (6): 16:9 for interface mockup\n- Decorator (7): Square 1:1 for code concept\n- Debugging (8): 16:9 for investigation scene\n\n**Quality modifiers:** high-quality, data visualization style, modern SaaS aesthetic, professional monitoring theme, clean and informative",
+      "prompt_hash": "809d55ea817b3d22be217eb2b3f3f8ac29f08047d8a232f87aa59050eb7c0667",
+      "output_files": [
+        "img-02_v1.png"
+      ]
+    },
+    {
+      "index": 3,
+      "title": "LLMCallMetadata Visualization",
+      "caption": "*Rich metadata for every call: Model, latency, token counts, success status, and timestamps - all captured automatically.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an illustration of the LLMCallMetadata object as a detailed information card or data panel. The card shows fields displayed beautifully: \"model: claude-haiku-4.5\" with a brain icon, \"latency_ms: 847\" with a stopwatch, \"prompt_tokens: 1,234\" with input arrows, \"completion_tokens: 567\" with output arrows, \"total_tokens: 1,801\" with a sum symbol, \"success: true\" with a green checkmark, \"timestamp\" with a clock. The card floats in a digital space, representing structured metadata from an LLM call. Data card illustration, clean information design, metadata visualization.\n\nGeneration Notes:\n**Style consistency:** Data-rich, observability-focused illustrations. Clean, modern aesthetic like a SaaS monitoring platform. Use the Weights & Biases orange/coral accent color where appropriate alongside Agent Hive's gold/honey tones.\n\n**Visual elements:**\n- Timelines and trace flows\n- Metrics charts and graphs\n- Data cards and panels\n- Golden light trails for traces\n- Beehive motifs integrated with monitoring\n- W&B brand colors (coral/orange) as accent\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for dashboard scene\n- Architecture (2): 16:9 for flow diagram\n- Metadata card (3): Square 1:1 for data card\n- Sanitization (4): 16:9 for before/after\n- Degradation (5): 16:9 for highway metaphor\n- Trace view (6): 16:9 for interface mockup\n- Decorator (7): Square 1:1 for code concept\n- Debugging (8): 16:9 for investigation scene\n\n**Quality modifiers:** high-quality, data visualization style, modern SaaS aesthetic, professional monitoring theme, clean and informative",
+      "prompt_hash": "b8354193fd05dd88919b293de653f491821de5cff5cc6b5bee220c1e4ffa02fb",
+      "output_files": [
+        "img-03_v1.png"
+      ]
+    },
+    {
+      "index": 4,
+      "title": "Automatic Header Sanitization",
+      "caption": "*Security by default: API keys and sensitive headers are automatically redacted before being sent to Weave traces.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create a before/after comparison showing API key sanitization. Left side shows raw headers with a visible API key: \"Authorization: Bearer sk-or-v1-actual-key-here\" highlighted in red with warning symbols. Right side shows the same headers after sanitization, with the key replaced by \"***REDACTED***\" in green/safe color. An arrow between them shows the sanitization process. The message is clear: sensitive data never reaches the logs. Split comparison illustration, security-focused, privacy protection concept.\n\nGeneration Notes:\n**Style consistency:** Data-rich, observability-focused illustrations. Clean, modern aesthetic like a SaaS monitoring platform. Use the Weights & Biases orange/coral accent color where appropriate alongside Agent Hive's gold/honey tones.\n\n**Visual elements:**\n- Timelines and trace flows\n- Metrics charts and graphs\n- Data cards and panels\n- Golden light trails for traces\n- Beehive motifs integrated with monitoring\n- W&B brand colors (coral/orange) as accent\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for dashboard scene\n- Architecture (2): 16:9 for flow diagram\n- Metadata card (3): Square 1:1 for data card\n- Sanitization (4): 16:9 for before/after\n- Degradation (5): 16:9 for highway metaphor\n- Trace view (6): 16:9 for interface mockup\n- Decorator (7): Square 1:1 for code concept\n- Debugging (8): 16:9 for investigation scene\n\n**Quality modifiers:** high-quality, data visualization style, modern SaaS aesthetic, professional monitoring theme, clean and informative",
+      "prompt_hash": "eb565e0a5b8f65f117643ccec9bd7854a2b00a1c07aae9153d7b58b281a48755",
+      "output_files": [
+        "img-04_v1.png"
+      ]
+    },
+    {
+      "index": 5,
+      "title": "Graceful Degradation",
+      "caption": "*Graceful degradation: If Weave isn't available, isn't configured, or fails to initialize, Agent Hive continues working normally.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an illustration showing graceful degradation as a highway with alternate routes. The main highway is labeled \"Weave Tracing Enabled\" with monitoring towers along the route. Three exit ramps show fallback scenarios: (1) \"Weave Not Installed\" - the road continues smoothly without monitoring, (2) \"No API Key\" - local-only operation, (3) \"Initialization Failed\" - a warning sign but the road continues. The destination \"Application Works\" is reached regardless of which path is taken. The message: tracing is optional and never breaks the application. Highway/route illustration, fallback concept, reliability theme.\n\nGeneration Notes:\n**Style consistency:** Data-rich, observability-focused illustrations. Clean, modern aesthetic like a SaaS monitoring platform. Use the Weights & Biases orange/coral accent color where appropriate alongside Agent Hive's gold/honey tones.\n\n**Visual elements:**\n- Timelines and trace flows\n- Metrics charts and graphs\n- Data cards and panels\n- Golden light trails for traces\n- Beehive motifs integrated with monitoring\n- W&B brand colors (coral/orange) as accent\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for dashboard scene\n- Architecture (2): 16:9 for flow diagram\n- Metadata card (3): Square 1:1 for data card\n- Sanitization (4): 16:9 for before/after\n- Degradation (5): 16:9 for highway metaphor\n- Trace view (6): 16:9 for interface mockup\n- Decorator (7): Square 1:1 for code concept\n- Debugging (8): 16:9 for investigation scene\n\n**Quality modifiers:** high-quality, data visualization style, modern SaaS aesthetic, professional monitoring theme, clean and informative",
+      "prompt_hash": "f7b04b7bc2c541e50495bb3c95427c42eadb7ca02b59b5245c823ecf1ca5373c",
+      "output_files": [
+        "img-05_v1.png"
+      ]
+    },
+    {
+      "index": 6,
+      "title": "Trace Inspection View",
+      "caption": "*Drilling into traces: See the full request, response, token breakdown, and timing for any LLM call.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create a detailed illustration of inspecting a single trace in the W&B interface. A expanded trace card shows: a timeline bar with start and end markers, request payload section (with redacted auth header), response section with completion text, token breakdown chart (prompt vs completion), latency measurement with milliseconds display, and error details section (empty for successful call). The interface looks modern and data-rich, like a premium debugging tool. Interface mockup illustration, trace inspection concept, detailed data view.\n\nGeneration Notes:\n**Style consistency:** Data-rich, observability-focused illustrations. Clean, modern aesthetic like a SaaS monitoring platform. Use the Weights & Biases orange/coral accent color where appropriate alongside Agent Hive's gold/honey tones.\n\n**Visual elements:**\n- Timelines and trace flows\n- Metrics charts and graphs\n- Data cards and panels\n- Golden light trails for traces\n- Beehive motifs integrated with monitoring\n- W&B brand colors (coral/orange) as accent\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for dashboard scene\n- Architecture (2): 16:9 for flow diagram\n- Metadata card (3): Square 1:1 for data card\n- Sanitization (4): 16:9 for before/after\n- Degradation (5): 16:9 for highway metaphor\n- Trace view (6): 16:9 for interface mockup\n- Decorator (7): Square 1:1 for code concept\n- Debugging (8): 16:9 for investigation scene\n\n**Quality modifiers:** high-quality, data visualization style, modern SaaS aesthetic, professional monitoring theme, clean and informative",
+      "prompt_hash": "4e0f38d1579e78af5ba2395029a8b7c93aec2046abb9265588d7a6ac1442b410",
+      "output_files": [
+        "img-06_v1.png"
+      ]
+    },
+    {
+      "index": 7,
+      "title": "Custom Operation Tracing",
+      "caption": "*Trace any operation: Use @trace_op to add observability to your own functions, creating hierarchical trace records.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an illustration showing the @trace_op decorator in action. A Python function definition is shown with @trace_op(\"process_project\") decorating it. From the function, a trace record extends like a filing card, capturing: function name, input arguments, return value, duration, and success status. Multiple decorated functions are shown creating a hierarchy of nested trace records. The concept of wrapping any function in observability is clear. Code-meets-visualization illustration, decorator concept, function tracing aesthetic.\n\nGeneration Notes:\n**Style consistency:** Data-rich, observability-focused illustrations. Clean, modern aesthetic like a SaaS monitoring platform. Use the Weights & Biases orange/coral accent color where appropriate alongside Agent Hive's gold/honey tones.\n\n**Visual elements:**\n- Timelines and trace flows\n- Metrics charts and graphs\n- Data cards and panels\n- Golden light trails for traces\n- Beehive motifs integrated with monitoring\n- W&B brand colors (coral/orange) as accent\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for dashboard scene\n- Architecture (2): 16:9 for flow diagram\n- Metadata card (3): Square 1:1 for data card\n- Sanitization (4): 16:9 for before/after\n- Degradation (5): 16:9 for highway metaphor\n- Trace view (6): 16:9 for interface mockup\n- Decorator (7): Square 1:1 for code concept\n- Debugging (8): 16:9 for investigation scene\n\n**Quality modifiers:** high-quality, data visualization style, modern SaaS aesthetic, professional monitoring theme, clean and informative",
+      "prompt_hash": "4e571b4eae4262f120b562a98a527bdabd3dfffec1b88d1734f37bef78f34bb3",
+      "output_files": [
+        "img-07_v1.png"
+      ]
+    },
+    {
+      "index": 8,
+      "title": "Debugging with Traces",
+      "caption": "*Debug with data: Filter by latency, success status, or model to identify issues. Traces provide the evidence you need.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create an illustration showing a detective or analyst using traces to debug issues. Three investigation scenarios are shown: (1) \"Slow Calls\" - a magnifying glass on latency spikes in a timeline, (2) \"Failed Calls\" - filtering to show only red/failed entries with error messages visible, (3) \"Token Analysis\" - grouping calls by model to analyze token consumption. The overall scene suggests using data to solve problems, with traces as the evidence. Detective/investigation illustration, debugging concept, data-driven problem solving aesthetic.\n\nGeneration Notes:\n**Style consistency:** Data-rich, observability-focused illustrations. Clean, modern aesthetic like a SaaS monitoring platform. Use the Weights & Biases orange/coral accent color where appropriate alongside Agent Hive's gold/honey tones.\n\n**Visual elements:**\n- Timelines and trace flows\n- Metrics charts and graphs\n- Data cards and panels\n- Golden light trails for traces\n- Beehive motifs integrated with monitoring\n- W&B brand colors (coral/orange) as accent\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for dashboard scene\n- Architecture (2): 16:9 for flow diagram\n- Metadata card (3): Square 1:1 for data card\n- Sanitization (4): 16:9 for before/after\n- Degradation (5): 16:9 for highway metaphor\n- Trace view (6): 16:9 for interface mockup\n- Decorator (7): Square 1:1 for code concept\n- Debugging (8): 16:9 for investigation scene\n\n**Quality modifiers:** high-quality, data visualization style, modern SaaS aesthetic, professional monitoring theme, clean and informative",
+      "prompt_hash": "af312248b2d43aa4b9826ce5a5dfcd3007f3e009177aa8ec305ad1f0b2b3170b",
+      "output_files": [
+        "img-08_v1.png"
+      ]
+    }
+  ]
+}

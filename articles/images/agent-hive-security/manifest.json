@@ -1,0 +1,103 @@
+{
+  "source_md_path": "articles/prompts/09-agent-hive-security.md",
+  "generated_at": "2025-12-26T19:48:08.737Z",
+  "model": "dall-e-3",
+  "images": [
+    {
+      "index": 1,
+      "title": "Hero Image - Defense in Depth",
+      "caption": "*Defense in depth: Multiple security layers protect Agent Hive. No single layer is perfect, but together they significantly raise the bar for attackers.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image depicting a layered security fortress protecting a glowing beehive at the center. Multiple concentric walls surround the hive, each representing a different security layer: the outermost wall labeled \"Authentication\" with key symbols, the next \"Input Validation\" with filter gates, then \"YAML Safety\" with a locked scroll, then \"Prompt Sanitization\" with cleaned documents, and the innermost \"Core System\" protecting the golden beehive. The fortress sits in a digital landscape with potential threats (shadowy figures representing attackers) being stopped at various perimeter layers. Epic digital fortress illustration, security-focused, dramatic lighting with the hive glowing warmly at center.\n\nGeneration Notes:\n**Style consistency:** Security-focused illustrations with clear threat/protection contrasts. Use red for threats/vulnerabilities and green/gold for protections. Maintain the Agent Hive beehive branding where appropriate.\n\n**Visual elements:**\n- Shields and barriers for protection\n- Red/warning colors for threats\n- Green/gold for secure states\n- Lock and key symbols for authentication\n- Filter/gateway imagery for validation\n- Beehive golden glow for protected core\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic scene\n- Attack surface (2): 16:9 for tactical map\n- YAML security (3): 16:9 for split comparison\n- Prompt injection (4): 16:9 for pipeline flow\n- Authentication (5): Square 1:1 for checkpoint\n- Path traversal (6): Square 1:1 for file system\n- GitHub Actions (7): 16:9 for pipeline\n- Checklist (8): Square 1:1 for dashboard\n\n**Quality modifiers:** high-quality, security-themed illustration, professional infographic style, clear visual hierarchy, informative and technical",
+      "prompt_hash": "b89551a69b3e2a58bc80fbfdf26c3e96a3eab31ed0cdcd88698708ae0e0f531f",
+      "output_files": [
+        "img-01_v1.png"
+      ]
+    },
+    {
+      "index": 2,
+      "title": "Attack Surface Overview",
+      "caption": "*Understanding the attack surface: YAML files, LLM APIs, Coordinator server, GitHub Actions, and Agent Dispatcher each require specific protections.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create a tactical map-style illustration showing the attack surface of Agent Hive. Five distinct zones are highlighted: (1) YAML FILES zone with document icons and warning symbols about deserialization, (2) LLM API zone with key and arrow symbols showing API calls, (3) COORDINATOR SERVER zone with a server and network connections, (4) GITHUB ACTIONS zone with workflow diagram symbols, (5) AGENT DISPATCHER zone with dispatch arrows and issue tickets. Each zone has shield icons showing protective measures. The map uses a military-tactical aesthetic with clear zone delineation. Security architecture diagram, tactical map style, organized zones with threat indicators.\n\nGeneration Notes:\n**Style consistency:** Security-focused illustrations with clear threat/protection contrasts. Use red for threats/vulnerabilities and green/gold for protections. Maintain the Agent Hive beehive branding where appropriate.\n\n**Visual elements:**\n- Shields and barriers for protection\n- Red/warning colors for threats\n- Green/gold for secure states\n- Lock and key symbols for authentication\n- Filter/gateway imagery for validation\n- Beehive golden glow for protected core\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic scene\n- Attack surface (2): 16:9 for tactical map\n- YAML security (3): 16:9 for split comparison\n- Prompt injection (4): 16:9 for pipeline flow\n- Authentication (5): Square 1:1 for checkpoint\n- Path traversal (6): Square 1:1 for file system\n- GitHub Actions (7): 16:9 for pipeline\n- Checklist (8): Square 1:1 for dashboard\n\n**Quality modifiers:** high-quality, security-themed illustration, professional infographic style, clear visual hierarchy, informative and technical",
+      "prompt_hash": "03d45e4fda240fe818fbad380453f6d8c7cfbf639de3335094f336d235915fcb",
+      "output_files": [
+        "img-02_v1.png"
+      ]
+    },
+    {
+      "index": 3,
+      "title": "YAML Deserialization Attack Prevention",
+      "caption": "*YAML deserialization attacks can execute arbitrary code. Agent Hive's safe_load() function blocks all dangerous YAML tags.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create a split-image showing before and after YAML security. Left side \"VULNERABLE\": A YAML document with glowing red dangerous tags (!!python/object) that transform into a snake or malicious creature emerging from the file, threatening a computer system. Right side \"PROTECTED\": The same YAML document being filtered through a golden safety barrier labeled \"safe_load()\", with the dangerous tags being blocked and only safe data passing through to a protected system. Dramatic contrast between danger and safety, security transformation illustration.\n\nGeneration Notes:\n**Style consistency:** Security-focused illustrations with clear threat/protection contrasts. Use red for threats/vulnerabilities and green/gold for protections. Maintain the Agent Hive beehive branding where appropriate.\n\n**Visual elements:**\n- Shields and barriers for protection\n- Red/warning colors for threats\n- Green/gold for secure states\n- Lock and key symbols for authentication\n- Filter/gateway imagery for validation\n- Beehive golden glow for protected core\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic scene\n- Attack surface (2): 16:9 for tactical map\n- YAML security (3): 16:9 for split comparison\n- Prompt injection (4): 16:9 for pipeline flow\n- Authentication (5): Square 1:1 for checkpoint\n- Path traversal (6): Square 1:1 for file system\n- GitHub Actions (7): 16:9 for pipeline\n- Checklist (8): Square 1:1 for dashboard\n\n**Quality modifiers:** high-quality, security-themed illustration, professional infographic style, clear visual hierarchy, informative and technical",
+      "prompt_hash": "28a826a2cb540174c0887fd12d23b11a6eddaac776165f8b9d99b5964566fbcd",
+      "output_files": [
+        "img-03_v1.png"
+      ]
+    },
+    {
+      "index": 4,
+      "title": "Prompt Injection Defense",
+      "caption": "*Prompt injection defense: Sanitize content, use clear delimiters, and instruct the LLM to treat file content as data, not instructions.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an illustration showing prompt injection defense as a document processing pipeline. A Markdown file with hidden malicious instructions (shown as red text: \"ignore previous instructions\") enters from the left. It passes through three stages: (1) \"Content Sanitization\" where red text is filtered out, (2) \"XML Delimiters\" where the content is wrapped in clear boundary tags, (3) \"Security Preamble\" where a shield-like header is attached. The output on the right shows a clean, safe prompt going to an LLM brain icon, with the malicious instructions neutralized. Pipeline/flow diagram style, security processing visualization.\n\nGeneration Notes:\n**Style consistency:** Security-focused illustrations with clear threat/protection contrasts. Use red for threats/vulnerabilities and green/gold for protections. Maintain the Agent Hive beehive branding where appropriate.\n\n**Visual elements:**\n- Shields and barriers for protection\n- Red/warning colors for threats\n- Green/gold for secure states\n- Lock and key symbols for authentication\n- Filter/gateway imagery for validation\n- Beehive golden glow for protected core\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic scene\n- Attack surface (2): 16:9 for tactical map\n- YAML security (3): 16:9 for split comparison\n- Prompt injection (4): 16:9 for pipeline flow\n- Authentication (5): Square 1:1 for checkpoint\n- Path traversal (6): Square 1:1 for file system\n- GitHub Actions (7): 16:9 for pipeline\n- Checklist (8): Square 1:1 for dashboard\n\n**Quality modifiers:** high-quality, security-themed illustration, professional infographic style, clear visual hierarchy, informative and technical",
+      "prompt_hash": "168d3cc102311b742c0836abfa84c02c64227874b43b95588cf07af1acf2beae",
+      "output_files": [
+        "img-04_v1.png"
+      ]
+    },
+    {
+      "index": 5,
+      "title": "API Authentication Flow",
+      "caption": "*Coordinator API authentication: Bearer tokens validated with constant-time comparison, localhost binding by default, HTTPS for production.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image showing the Coordinator server authentication flow as a secure checkpoint. A request arrow approaches a server checkpoint labeled \"Coordinator\". The checkpoint has: (1) A slot for \"Bearer Token\" showing a key card being inserted, (2) A constant-time comparison lock mechanism with matching patterns, (3) A \"127.0.0.1\" binding showing local-only access by default. Successful authentication leads to a green checkmark and access to project data. Failed authentication shows a red X with a 401 response. Clear security checkpoint illustration, authentication flow diagram.\n\nGeneration Notes:\n**Style consistency:** Security-focused illustrations with clear threat/protection contrasts. Use red for threats/vulnerabilities and green/gold for protections. Maintain the Agent Hive beehive branding where appropriate.\n\n**Visual elements:**\n- Shields and barriers for protection\n- Red/warning colors for threats\n- Green/gold for secure states\n- Lock and key symbols for authentication\n- Filter/gateway imagery for validation\n- Beehive golden glow for protected core\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic scene\n- Attack surface (2): 16:9 for tactical map\n- YAML security (3): 16:9 for split comparison\n- Prompt injection (4): 16:9 for pipeline flow\n- Authentication (5): Square 1:1 for checkpoint\n- Path traversal (6): Square 1:1 for file system\n- GitHub Actions (7): 16:9 for pipeline\n- Checklist (8): Square 1:1 for dashboard\n\n**Quality modifiers:** high-quality, security-themed illustration, professional infographic style, clear visual hierarchy, informative and technical",
+      "prompt_hash": "7d09165d41acd7a5df1b9e4704f69799b1c01f05340b6ed8bdc84a1b8c4583e3",
+      "output_files": [
+        "img-05_v1.png"
+      ]
+    },
+    {
+      "index": 6,
+      "title": "Path Traversal Prevention",
+      "caption": "*Path traversal prevention: All file paths are validated to ensure they stay within the allowed base directory.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create an illustration showing path traversal attack prevention. A file system tree is shown with a clearly marked \"Allowed Zone\" containing the agent-hive directory with projects inside. Outside the zone are sensitive system files (/etc/passwd, ~/.ssh). An attacker arrow tries to use \"../../../\" path manipulation to escape the allowed zone, but a shield barrier labeled \"validate_path_within_base()\" blocks the attempt, keeping access contained within the safe zone. The protected zone glows green while the blocked attempt shows red. File system security illustration, path validation concept.\n\nGeneration Notes:\n**Style consistency:** Security-focused illustrations with clear threat/protection contrasts. Use red for threats/vulnerabilities and green/gold for protections. Maintain the Agent Hive beehive branding where appropriate.\n\n**Visual elements:**\n- Shields and barriers for protection\n- Red/warning colors for threats\n- Green/gold for secure states\n- Lock and key symbols for authentication\n- Filter/gateway imagery for validation\n- Beehive golden glow for protected core\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic scene\n- Attack surface (2): 16:9 for tactical map\n- YAML security (3): 16:9 for split comparison\n- Prompt injection (4): 16:9 for pipeline flow\n- Authentication (5): Square 1:1 for checkpoint\n- Path traversal (6): Square 1:1 for file system\n- GitHub Actions (7): 16:9 for pipeline\n- Checklist (8): Square 1:1 for dashboard\n\n**Quality modifiers:** high-quality, security-themed illustration, professional infographic style, clear visual hierarchy, informative and technical",
+      "prompt_hash": "a0f79139297f4331bcaad522f3eec370e329111a72c524b1293101ab0572dd36",
+      "output_files": [
+        "img-06_v1.png"
+      ]
+    },
+    {
+      "index": 7,
+      "title": "GitHub Actions Security",
+      "caption": "*GitHub Actions hardening: Explicit minimal permissions, secret masking in logs, and safe installer patterns.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image showing GitHub Actions security measures as a secure CI/CD pipeline. A workflow pipeline shows several security checkpoints: (1) \"Minimal Permissions\" showing a restricted access badge, (2) \"Secret Masking\" showing API keys being replaced with asterisks in logs, (3) \"Safe Installer\" showing a download-then-verify process instead of direct pipe to shell. The pipeline is protected by shields at each stage. The GitHub Actions logo anchors the scene. CI/CD security illustration, pipeline protection concept.\n\nGeneration Notes:\n**Style consistency:** Security-focused illustrations with clear threat/protection contrasts. Use red for threats/vulnerabilities and green/gold for protections. Maintain the Agent Hive beehive branding where appropriate.\n\n**Visual elements:**\n- Shields and barriers for protection\n- Red/warning colors for threats\n- Green/gold for secure states\n- Lock and key symbols for authentication\n- Filter/gateway imagery for validation\n- Beehive golden glow for protected core\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic scene\n- Attack surface (2): 16:9 for tactical map\n- YAML security (3): 16:9 for split comparison\n- Prompt injection (4): 16:9 for pipeline flow\n- Authentication (5): Square 1:1 for checkpoint\n- Path traversal (6): Square 1:1 for file system\n- GitHub Actions (7): 16:9 for pipeline\n- Checklist (8): Square 1:1 for dashboard\n\n**Quality modifiers:** high-quality, security-themed illustration, professional infographic style, clear visual hierarchy, informative and technical",
+      "prompt_hash": "e0350e0629bee0a9a2b70d5d6c071929273138827595ad6b9357338858fa82db",
+      "output_files": [
+        "img-07_v1.png"
+      ]
+    },
+    {
+      "index": 8,
+      "title": "Secure Deployment Checklist",
+      "caption": "*Secure deployment checklist: Environment variables, HTTPS, key rotation, monitoring, and testing - all essential for production.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create an image styled as an illustrated security checklist or dashboard. A central display shows a deployment readiness meter. Around it, checklist items are visualized: (1) Environment variables with lock icons, (2) HTTPS proxy showing an SSL certificate, (3) API key rotation with a refresh symbol, (4) Monitoring enabled with an eye icon, (5) Tests passing with a green checkmark. The overall aesthetic is a mission control or security operations center, with all systems showing green/ready status. Security dashboard illustration, deployment checklist concept, professional operations aesthetic.\n\nGeneration Notes:\n**Style consistency:** Security-focused illustrations with clear threat/protection contrasts. Use red for threats/vulnerabilities and green/gold for protections. Maintain the Agent Hive beehive branding where appropriate.\n\n**Visual elements:**\n- Shields and barriers for protection\n- Red/warning colors for threats\n- Green/gold for secure states\n- Lock and key symbols for authentication\n- Filter/gateway imagery for validation\n- Beehive golden glow for protected core\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for epic scene\n- Attack surface (2): 16:9 for tactical map\n- YAML security (3): 16:9 for split comparison\n- Prompt injection (4): 16:9 for pipeline flow\n- Authentication (5): Square 1:1 for checkpoint\n- Path traversal (6): Square 1:1 for file system\n- GitHub Actions (7): 16:9 for pipeline\n- Checklist (8): Square 1:1 for dashboard\n\n**Quality modifiers:** high-quality, security-themed illustration, professional infographic style, clear visual hierarchy, informative and technical",
+      "prompt_hash": "d18f5fcd8c79106196633721316c54e2ea69cdf9fa22a5ab1f2d6dfdc30435f0",
+      "output_files": [
+        "img-08_v1.png"
+      ]
+    }
+  ]
+}

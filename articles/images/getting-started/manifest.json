@@ -1,0 +1,91 @@
+{
+  "source_md_path": "articles/prompts/06-getting-started.md",
+  "generated_at": "2025-12-26T19:47:27.766Z",
+  "model": "dall-e-3",
+  "images": [
+    {
+      "index": 1,
+      "title": "Hero Image - From Zero to Orchestration",
+      "caption": "*From zero to orchestration: with a few prerequisites and simple setup, you're ready to launch your first Agent Hive project.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image showing a rocket launch pad preparation sequence, where the rocket represents an Agent Hive project ready for liftoff. A friendly robot technician stands at a control console, going through a startup checklist. The rocket has a hexagonal beehive pattern on its exterior and the Agent Hive logo. The launch pad is surrounded by the essential components floating as labeled icons: \"Python 3.11+\", \"Git\", \"uv\", \"OpenRouter API\". A progress bar at the bottom shows \"READY FOR LAUNCH\". The atmosphere is exciting but approachable—not intimidating, but aspirational. Retro space program poster aesthetic meets modern tech illustration, warm optimistic colors.\n\nGeneration Notes:\n**Style consistency:** Welcoming, approachable tutorial aesthetic. The imagery should feel like a friendly guide, not intimidating documentation. Combine technical precision with warm, inviting illustration.\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for aspirational opener\n- Structure overview (2): 4:3 or 16:9 for architectural clarity\n- Dashboard mockup (3): 16:9 landscape for screen aspect\n- Creation activity (4): 4:3 or square for focused workspace\n- Workflow diagram (5): Square 1:1 or 4:3 for cycle clarity\n- Dependencies (6): 16:9 landscape for relationship illustration\n- Reference poster (7): Portrait 3:4 or 2:3 for poster format\n\n**Color palette:** Warm, welcoming colors. Use honey-gold Agent Hive branding accents throughout.\n\n**Quality modifiers:** high-quality, detailed illustration, welcoming and approachable, clean modern aesthetic, tutorial-friendly",
+      "prompt_hash": "57d31126960ac6b05a58dcef0d9011f1c4970b9af3fa168d4fdb6dd0ddfc21be",
+      "output_files": [
+        "img-01_v1.png"
+      ]
+    },
+    {
+      "index": 2,
+      "title": "Project Structure Overview",
+      "caption": "*The Agent Hive structure: projects in folders with AGENCY.md files, source code for engine and dashboard, skills for agent guidance, GLOBAL.md for system state.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create an image showing the Agent Hive file structure as an organized, well-lit storage facility or library. Different sections are clearly labeled: A \"PROJECTS\" wing shows a row of project folders each containing glowing AGENCY.md documents. A \"SRC\" wing shows code modules (cortex.py, dashboard.py, hive_mcp/) as distinct equipment stations. A \"GLOBAL.md\" file floats prominently as the central registry. A \".claude/skills/\" section shows the skill modules on display. Small robot figures navigate the well-organized space easily, finding what they need. Clean architectural illustration style, organized and intuitive, satisfying spatial logic.\n\nGeneration Notes:\n**Style consistency:** Welcoming, approachable tutorial aesthetic. The imagery should feel like a friendly guide, not intimidating documentation. Combine technical precision with warm, inviting illustration.\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for aspirational opener\n- Structure overview (2): 4:3 or 16:9 for architectural clarity\n- Dashboard mockup (3): 16:9 landscape for screen aspect\n- Creation activity (4): 4:3 or square for focused workspace\n- Workflow diagram (5): Square 1:1 or 4:3 for cycle clarity\n- Dependencies (6): 16:9 landscape for relationship illustration\n- Reference poster (7): Portrait 3:4 or 2:3 for poster format\n\n**Color palette:** Warm, welcoming colors. Use honey-gold Agent Hive branding accents throughout.\n\n**Quality modifiers:** high-quality, detailed illustration, welcoming and approachable, clean modern aesthetic, tutorial-friendly",
+      "prompt_hash": "377784d3e87886e7e184e53be6dba3d9d996b0034cfa874404cc32e997c9e538",
+      "output_files": [
+        "img-02_v1.png"
+      ]
+    },
+    {
+      "index": 3,
+      "title": "The Dashboard Interface",
+      "caption": "*The Dashboard: view all projects, check statuses, generate Deep Work context for agents, and monitor system health—all from a friendly web interface.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image showing a sleek dashboard interface displayed on a large modern monitor at a comfortable workstation. The screen shows the Streamlit-based dashboard: a sidebar with project listings (some with status indicators), a main panel showing project details with visible task checkboxes, a \"Generate Context\" button glowing invitingly, and system status indicators showing the last Cortex run time. A human figure sits comfortably at the workstation, reviewing the dashboard with a satisfied expression. A robot assistant stands nearby, ready to claim work. Modern UI design illustration, clean dark mode interface, professional but welcoming.\n\nGeneration Notes:\n**Style consistency:** Welcoming, approachable tutorial aesthetic. The imagery should feel like a friendly guide, not intimidating documentation. Combine technical precision with warm, inviting illustration.\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for aspirational opener\n- Structure overview (2): 4:3 or 16:9 for architectural clarity\n- Dashboard mockup (3): 16:9 landscape for screen aspect\n- Creation activity (4): 4:3 or square for focused workspace\n- Workflow diagram (5): Square 1:1 or 4:3 for cycle clarity\n- Dependencies (6): 16:9 landscape for relationship illustration\n- Reference poster (7): Portrait 3:4 or 2:3 for poster format\n\n**Color palette:** Warm, welcoming colors. Use honey-gold Agent Hive branding accents throughout.\n\n**Quality modifiers:** high-quality, detailed illustration, welcoming and approachable, clean modern aesthetic, tutorial-friendly",
+      "prompt_hash": "54e799d91235ba04becc3f0ecd8c4119f2c2581fd30c23a5f6bdc75520797bd7",
+      "output_files": [
+        "img-03_v1.png"
+      ]
+    },
+    {
+      "index": 4,
+      "title": "Creating Your First AGENCY.md",
+      "caption": "*Creating your first project: craft an AGENCY.md file with YAML frontmatter for metadata and Markdown content for objectives, tasks, and notes.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image showing the creation of an AGENCY.md file as a crafting or blueprint-building activity. A robot carefully places components onto a glowing document template: a YAML frontmatter section at top with fields like \"project_id\", \"status\", \"priority\" visible as discrete labeled blocks being positioned. Below, the markdown content section shows an \"Objective\" heading and a task checklist being assembled. The workspace has a creative, maker-space feel—tools for building the perfect project file. A \"CONFIG-SYSTEM\" label floats above the work-in-progress. Crafting/maker illustration style, satisfying assembly process, warm workshop lighting.\n\nGeneration Notes:\n**Style consistency:** Welcoming, approachable tutorial aesthetic. The imagery should feel like a friendly guide, not intimidating documentation. Combine technical precision with warm, inviting illustration.\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for aspirational opener\n- Structure overview (2): 4:3 or 16:9 for architectural clarity\n- Dashboard mockup (3): 16:9 landscape for screen aspect\n- Creation activity (4): 4:3 or square for focused workspace\n- Workflow diagram (5): Square 1:1 or 4:3 for cycle clarity\n- Dependencies (6): 16:9 landscape for relationship illustration\n- Reference poster (7): Portrait 3:4 or 2:3 for poster format\n\n**Color palette:** Warm, welcoming colors. Use honey-gold Agent Hive branding accents throughout.\n\n**Quality modifiers:** high-quality, detailed illustration, welcoming and approachable, clean modern aesthetic, tutorial-friendly",
+      "prompt_hash": "619f30bb30fc2505a0228d28063bc72c8690d3667c745f51ee5de629a771ef25",
+      "output_files": [
+        "img-04_v1.png"
+      ]
+    },
+    {
+      "index": 5,
+      "title": "The Workflow in Action",
+      "caption": "*The workflow cycle: create projects, generate context, work and update, handoff cleanly, let Cortex orchestrate. Repeat for continuous progress.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image showing the complete Agent Hive workflow as a flowing cycle diagram with illustrated stages. Stage 1: \"CREATE PROJECT\" (robot creating AGENCY.md). Stage 2: \"GENERATE CONTEXT\" (dashboard creating a context package). Stage 3: \"CLAIM & WORK\" (robot with context entering a work pod). Stage 4: \"UPDATE & HANDOFF\" (robot documenting work, releasing ownership). Stage 5: \"CORTEX RUNS\" (orchestrator analyzing and updating system state). Arrows connect all stages in a continuous cycle. The center shows the AGENCY.md as the persistent state that connects everything. Clean workflow diagram illustration, modern infographic style, clear directional flow.\n\nGeneration Notes:\n**Style consistency:** Welcoming, approachable tutorial aesthetic. The imagery should feel like a friendly guide, not intimidating documentation. Combine technical precision with warm, inviting illustration.\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for aspirational opener\n- Structure overview (2): 4:3 or 16:9 for architectural clarity\n- Dashboard mockup (3): 16:9 landscape for screen aspect\n- Creation activity (4): 4:3 or square for focused workspace\n- Workflow diagram (5): Square 1:1 or 4:3 for cycle clarity\n- Dependencies (6): 16:9 landscape for relationship illustration\n- Reference poster (7): Portrait 3:4 or 2:3 for poster format\n\n**Color palette:** Warm, welcoming colors. Use honey-gold Agent Hive branding accents throughout.\n\n**Quality modifiers:** high-quality, detailed illustration, welcoming and approachable, clean modern aesthetic, tutorial-friendly",
+      "prompt_hash": "63bdfa5c2e9e42413ff403f56b179c3bd6416b77dfe00da039ce202109edad27",
+      "output_files": [
+        "img-05_v1.png"
+      ]
+    },
+    {
+      "index": 6,
+      "title": "Adding Dependencies",
+      "caption": "*Adding dependencies: declare that API-SERVER is blocked by CONFIG-SYSTEM. When CONFIG-SYSTEM completes, API-SERVER unlocks and becomes ready.*\n\n---",
+      "aspect": "4:3",
+      "size": "1792x1024",
+      "prompt": "Create an image showing the establishment of project dependencies as a construction or planning scenario. Two project buildings are being built: \"CONFIG-SYSTEM\" is partially complete with active construction. \"API-SERVER\" is in blueprint phase, waiting. A visible \"blocked_by\" beam connects them, showing that API-SERVER cannot start until CONFIG-SYSTEM finishes. A robot project manager reviews the dependency diagram on a tablet, nodding approvingly at the orderly sequence. When CONFIG-SYSTEM shows a \"COMPLETED\" badge, the blocking beam transforms into a green \"READY\" light for API-SERVER. Construction planning illustration style, clear cause-and-effect relationship, satisfying unlock moment.\n\nGeneration Notes:\n**Style consistency:** Welcoming, approachable tutorial aesthetic. The imagery should feel like a friendly guide, not intimidating documentation. Combine technical precision with warm, inviting illustration.\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for aspirational opener\n- Structure overview (2): 4:3 or 16:9 for architectural clarity\n- Dashboard mockup (3): 16:9 landscape for screen aspect\n- Creation activity (4): 4:3 or square for focused workspace\n- Workflow diagram (5): Square 1:1 or 4:3 for cycle clarity\n- Dependencies (6): 16:9 landscape for relationship illustration\n- Reference poster (7): Portrait 3:4 or 2:3 for poster format\n\n**Color palette:** Warm, welcoming colors. Use honey-gold Agent Hive branding accents throughout.\n\n**Quality modifiers:** high-quality, detailed illustration, welcoming and approachable, clean modern aesthetic, tutorial-friendly",
+      "prompt_hash": "72fb243a4ba70af2b7544bbb85843209000642a1a05819d828ced486c9ac1729",
+      "output_files": [
+        "img-06_v1.png"
+      ]
+    },
+    {
+      "index": 7,
+      "title": "Quick Reference Poster",
+      "caption": "*Quick reference: the essential commands for daily Agent Hive operation. Install, dashboard, find work, view dependencies, run Cortex.*\n\n---",
+      "aspect": "16:9",
+      "size": "1792x1024",
+      "prompt": "Create an image styled as a beautiful command-line reference poster or cheat sheet suitable for a developer's wall. The poster shows essential Agent Hive commands in clean typography: \"make install\" (setup), \"make dashboard\" (launch UI), \"make ready\" (find work), \"make deps\" (view dependencies), \"make cortex\" (run orchestrator). Each command has a small icon and brief description. The design is modern developer aesthetic—dark background with syntax-highlighted commands, clean sans-serif fonts, subtle grid layout. A small Agent Hive logo and bee icon in the corner. Developer cheat sheet / poster art style, functional and beautiful, something you'd want on your wall.\n\nGeneration Notes:\n**Style consistency:** Welcoming, approachable tutorial aesthetic. The imagery should feel like a friendly guide, not intimidating documentation. Combine technical precision with warm, inviting illustration.\n\n**Aspect ratios:**\n- Hero image (1): 16:9 landscape for aspirational opener\n- Structure overview (2): 4:3 or 16:9 for architectural clarity\n- Dashboard mockup (3): 16:9 landscape for screen aspect\n- Creation activity (4): 4:3 or square for focused workspace\n- Workflow diagram (5): Square 1:1 or 4:3 for cycle clarity\n- Dependencies (6): 16:9 landscape for relationship illustration\n- Reference poster (7): Portrait 3:4 or 2:3 for poster format\n\n**Color palette:** Warm, welcoming colors. Use honey-gold Agent Hive branding accents throughout.\n\n**Quality modifiers:** high-quality, detailed illustration, welcoming and approachable, clean modern aesthetic, tutorial-friendly",
+      "prompt_hash": "65a839a068e9950a6a1307716fc5b843c8ec016a0a44a8d8d1521e58e0c447bf",
+      "output_files": [
+        "img-07_v1.png"
+      ]
+    }
+  ]
+}

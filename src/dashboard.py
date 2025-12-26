@@ -91,7 +91,7 @@ def generate_deep_work_context(project_path: str, base_path: Path):
     # Build the context
     context = f"""# DEEP WORK SESSION CONTEXT
 # Project: {project_id}
-# Generated: {datetime.utcnow().isoformat()}
+# Generated: {datetime.utcnow().isoformat()}Z
 
 ---
 

@@ -299,15 +299,25 @@ class TestGenerateDeepWorkContext:
         assert "owner: null" in context
 
     def test_generate_context_includes_timestamp(self, temp_hive_dir, temp_project):
-        """Test that context includes generation timestamp."""
+        """Test that context includes generation timestamp with Z suffix."""
         base_path = Path(temp_hive_dir)
 
         context = generate_deep_work_context(temp_project, base_path)
 
         assert "Generated:" in context
-        # Check for ISO timestamp format (YYYY-MM-DDTHH:MM:SS)
-        iso_pattern = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
-        assert re.search(iso_pattern, context), "Should contain ISO format timestamp"
+        # Check for ISO timestamp format (YYYY-MM-DDTHH:MM:SS) with Z suffix for UTC
+        iso_pattern = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z"
+        assert re.search(iso_pattern, context), (
+            "Should contain ISO format timestamp with Z suffix"
+        )
+
+        # Extract the timestamp line and verify it ends with Z
+        lines = context.split('\n')
+        generated_line = [line for line in lines if line.startswith("# Generated:")][0]
+        timestamp_str = generated_line.replace("# Generated:", "").strip()
+        assert timestamp_str.endswith('Z'), (
+            f"Timestamp should end with 'Z' for UTC. Got: {timestamp_str}"
+        )
 
     def test_generate_context_nonexistent_project(self, temp_hive_dir):
         """Test generating context for non-existent project."""

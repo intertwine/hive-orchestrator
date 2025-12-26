@@ -40,8 +40,10 @@ function getEnvString(name, fallback) {
 function getEnvBoolean(name, fallback) {
   const value = process.env[name];
   if (value === undefined || value === '') return fallback;
+  // Ensure value is a string before processing
+  const strValue = String(value).toLowerCase();
   // Treat "false", "0", "no", "off" as false, everything else as true
-  return !['false', '0', 'no', 'off'].includes(value.toLowerCase());
+  return !['false', '0', 'no', 'off'].includes(strValue);
 }
 
 function normalizeNewlines(text) {

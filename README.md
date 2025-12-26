@@ -142,7 +142,8 @@ agent-hive/
 │   └── */                      # Your project workspaces
 │       └── AGENCY.md           # Project shared memory
 ├── scripts/
-│   └── start_session.sh        # Deep Work session bootstrap
+│   ├── start_session.sh        # Deep Work session bootstrap
+│   └── generate-images-from-prompts.mjs # Prompt-to-image generator
 ├── src/
 │   ├── cortex.py               # Orchestration logic
 │   ├── agent_dispatcher.py     # Automated agent work assignment
@@ -164,6 +165,38 @@ agent-hive/
 ├── SECURITY.md                 # Security policy and hardening documentation
 └── README.md                   # This file
 ```
+
+## 🖼️ Article Image Generation
+
+The repo includes a prompt-to-image generator for markdown prompts in `articles/prompts/`.
+
+### Run locally
+
+```bash
+OPENAI_API_KEY=... node scripts/generate-images-from-prompts.mjs
+```
+
+Optional environment variables:
+
+- `PROMPTS_GLOB` (default: `articles/prompts/*.md`)
+- `OUTPUT_ROOT` (default: `articles/images`)
+- `MODEL` (default: `gpt-image-1`)
+- `IMAGES_PER_PROMPT` (default: `1`)
+- `MAX_PROMPTS`, `MAX_IMAGES` (safety limits)
+- `DRY_RUN=1` (skip API calls, still writes manifest)
+- `FORCE=1` (regenerate even if manifest matches)
+- `TECHNICAL_ASPECT_PREFERENCE` (default: `4:3`)
+- `CONCEPTUAL_ASPECT_PREFERENCE` (default: `16:9`)
+
+### Parse test
+
+```bash
+node scripts/test-parse.mjs
+```
+
+### GitHub Actions workflow
+
+Run the `Generate Article Images` workflow manually with `workflow_dispatch` inputs to generate images and open a PR by default.
 
 ## 🧩 Core Components
 

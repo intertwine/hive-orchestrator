@@ -294,6 +294,75 @@ class TestCallLLM:
             assert result is not None
             assert result["summary"] == "System is running well with 2 active projects"
 
+    def test_call_llm_with_single_line_markdown_json(
+        self, temp_hive_dir, mock_env_vars, sample_llm_response, monkeypatch
+    ):
+        """Test LLM call with JSON wrapped in single-line markdown code blocks.
+        
+        This test reproduces a bug where single-line markdown like:
+            ```{"key":"value"}```
+        
+        Was incorrectly parsed as an empty string because the logic:
+            lines = llm_response.split("\n")
+            llm_response = "\n".join(lines[1:-1])
+        
+        For a single line, produces: lines = ['```{"key":"value"}```']
+        And lines[1:-1] = [] (empty list), resulting in an empty string.
+        """
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
+        cortex = Cortex(temp_hive_dir)
+
+        # Single-line markdown format (no newlines)
+        single_line_markdown = f"```{json.dumps(sample_llm_response)}```"
+
+        markdown_response = {
+            "choices": [
+                {"message": {"content": single_line_markdown}}
+            ]
+        }
+
+        with patch("tracing.requests.post") as mock_post:
+            mock_response = Mock()
+            mock_response.json.return_value = markdown_response
+            mock_response.raise_for_status = Mock()
+            mock_post.return_value = mock_response
+
+            result = cortex.call_llm("Test prompt")
+
+            # This should work and does work with the fixed implementation
+            assert result is not None
+            assert result["summary"] == "System is running well with 2 active projects"
+
+    def test_call_llm_with_single_line_markdown_json_with_language(
+        self, temp_hive_dir, mock_env_vars, sample_llm_response, monkeypatch
+    ):
+        """Test LLM call with JSON wrapped in single-line markdown with language tag.
+        
+        Tests the edge case: ```json{"key":"value"}```
+        """
+        monkeypatch.setenv("WEAVE_DISABLED", "true")
+        cortex = Cortex(temp_hive_dir)
+
+        # Single-line markdown with language tag
+        single_line_markdown = f"```json{json.dumps(sample_llm_response)}```"
+
+        markdown_response = {
+            "choices": [
+                {"message": {"content": single_line_markdown}}
+            ]
+        }
+
+        with patch("tracing.requests.post") as mock_post:
+            mock_response = Mock()
+            mock_response.json.return_value = markdown_response
+            mock_response.raise_for_status = Mock()
+            mock_post.return_value = mock_response
+
+            result = cortex.call_llm("Test prompt")
+
+            assert result is not None
+            assert result["summary"] == "System is running well with 2 active projects"
+
     def test_call_llm_network_error(self, temp_hive_dir, mock_env_vars, monkeypatch):
         """Test LLM call with network error."""
         monkeypatch.setenv("WEAVE_DISABLED", "true")

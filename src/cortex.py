@@ -12,6 +12,7 @@ import os
 import sys
 import json
 import glob
+import re
 from pathlib import Path
 from datetime import datetime, date, timezone
 from typing import List, Dict, Any, Optional
@@ -823,8 +824,17 @@ Return ONLY valid JSON, no markdown formatting or additional text.
             # Remove markdown code blocks if present
             llm_response = llm_response.strip()
             if llm_response.startswith("```"):
-                lines = llm_response.split("\n")
-                llm_response = "\n".join(lines[1:-1])
+                # Use regex to extract content between ``` markers
+                # This handles both single-line and multi-line markdown
+                # Matches: ```json\n{...}\n``` or ```{...}``` or ```json{...}```
+                # The pattern allows optional language tags (json, JSON, javascript)
+                match = re.search(
+                    r'^```(?:json|JSON|javascript)?\s*(.+?)\s*```$',
+                    llm_response,
+                    re.DOTALL
+                )
+                if match:
+                    llm_response = match.group(1).strip()
 
             return json.loads(llm_response)
 

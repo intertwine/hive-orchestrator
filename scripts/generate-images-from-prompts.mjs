@@ -173,7 +173,7 @@ async function ensureDir(dir) {
 }
 
 function globToRegex(glob) {
-  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  const escaped = glob.replace(/[\\.+^${}()|[\]]/g, '\\$&');
   const regexText = `^${escaped.replace(/\*/g, '[^/]*')}$`;
   return new RegExp(regexText);
 }

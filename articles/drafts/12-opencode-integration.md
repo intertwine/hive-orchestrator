@@ -139,7 +139,7 @@ opencode
 That's it. Skills load from `.opencode/skill/`. MCP tools configure from `.opencode/opencode.json`.
 
 ![Quick Setup Flow](images/opencode-integration/img-04_v1.png)
-*Three commands to full integration: install OpenCode, clone Agent Hive, start coding with any model.*
+*Three commands to full integration: install OpenCode, clone Agent Hive, start coding.*
 
 ---
 

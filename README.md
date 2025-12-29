@@ -982,11 +982,14 @@ The `.opencode/opencode.json` file configures the Hive MCP server:
 
 | Feature | Claude Code | OpenCode |
 |---------|-------------|----------|
-| Skill Location | `.claude/skills/` | `.opencode/skill/` |
+| Model | Claude only | Any provider |
+| Skills Location | `.claude/skills/` | `.opencode/skill/` |
+| Skills Format | SKILL.md | SKILL.md (identical) |
+| MCP Support | Native | Native |
 | Config File | `claude.json` | `opencode.json` |
-| Model Support | Claude only | Any provider (Claude, GPT, Gemini, local) |
-| MCP Support | Yes | Yes |
-| Skills Format | SKILL.md | SKILL.md (same format) |
+| Built-in Agents | Single | Build/Plan (Tab toggle) |
+| Price | Anthropic API | Free + any API |
+| Open Source | No | Yes (MIT) |
 
 Both tools use the same SKILL.md format, so Agent Hive skills work identically across both platforms.
 

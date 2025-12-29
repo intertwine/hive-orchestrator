@@ -123,9 +123,10 @@ export const sessionStartHook = async (context: PluginContext, config: AgentHive
   if (readyWork.length > 0) {
     console.log(`\n🐝 Agent Hive: ${readyWork.length} project(s) ready for work:\n`)
     readyWork.forEach(p => {
-      const priority = p.priority === 'critical' ? '🔴' :
-                       p.priority === 'high' ? '🟠' :
-                       p.priority === 'medium' ? '🟡' : '🟢'
+      const priority =
+        p.priority === 'critical' ? '🔴' :
+        p.priority === 'high' ? '🟠' :
+        p.priority === 'medium' ? '🟡' : '🟢'
       console.log(`   ${priority} ${p.project_id} (${p.priority})`)
     })
     console.log(`\nUse "claim <project>" or ask me to work on one.\n`)
@@ -197,9 +198,10 @@ export const toolExecuteAfterHook = async (
   if (!project || project.owner !== config.agentName) return
 
   // Add note about the action
-  const action = input.tool === 'edit' ? 'Modified' :
-                 input.tool === 'write' ? 'Created' :
-                 input.tool === 'bash' ? 'Executed command in' : 'Updated'
+  const action =
+    input.tool === 'edit' ? 'Modified' :
+    input.tool === 'write' ? 'Created' :
+    input.tool === 'bash' ? 'Executed command in' : 'Updated'
 
   const note = `${action} ${input.args.filePath || 'files'}`
   await addAgentNote(project.project_id, config.agentName, note, config.basePath)

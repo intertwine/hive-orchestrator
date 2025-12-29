@@ -1,0 +1,9 @@
+# Only include built files in npm package
+src/
+tests/
+tsconfig.json
+tsup.config.ts
+.gitignore
+*.test.ts
+*.spec.ts
+vitest.config.ts

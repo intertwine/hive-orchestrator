@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "hive": {
+      "type": "local",
+      "command": ["uv", "run", "python", "-m", "src.hive_mcp"],
+      "enabled": true,
+      "environment": {
+        "HIVE_BASE_PATH": "."
+      }
+    }
+  }
+}

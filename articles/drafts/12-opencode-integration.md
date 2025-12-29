@@ -26,7 +26,7 @@ What happens when these two projects align? A fully open, fully flexible AI deve
 
 OpenCode is an open-source AI coding agent from SST. It runs in your terminal, IDE, or as a desktop app:
 
-- **Multi-model support**: Works with Claude, GPT-4, Gemini, local models, and more
+- **Multi-model support**: Works with Claude, GPT-5, Gemini, local models, and more
 - **Skills system**: Loads specialized instructions via SKILL.md files
 - **MCP integration**: Connects to external tools through Model Context Protocol
 - **Built-in agents**: Pre-configured Build and Plan agents with Tab switching
@@ -45,7 +45,7 @@ The integration delivers three benefits.
 
 With Claude Code, you get excellent orchestration—but you're locked to Claude. With OpenCode + Agent Hive:
 
-- Use GPT-4 for coding while Claude handles Cortex analysis
+- Use GPT-5 for coding while Claude handles Cortex analysis
 - Run Gemini locally for cost-sensitive projects
 - Switch providers based on task requirements without rewriting workflows
 

@@ -16,6 +16,7 @@ const DEFAULT_MAX_RETRIES = 5;
 const DEFAULT_RETRY_BASE_MS = 500;
 const DEFAULT_TECHNICAL_ASPECT = '4:3';
 const DEFAULT_CONCEPTUAL_ASPECT = '16:9';
+const DEFAULT_PARALLEL = 1;
 
 const ASPECT_SIZES = {
   // Landscape-ish aspect ratios → 1536x1024
@@ -211,6 +212,29 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Process items in parallel with a concurrency limit
+ * @param {Array} items - Items to process
+ * @param {Function} fn - Async function to process each item
+ * @param {number} concurrency - Max concurrent operations
+ * @returns {Promise<Array>} Results in same order as items
+ */
+async function parallelMap(items, fn, concurrency) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await fn(items[index], index);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
 async function generateImagesOpenAI({ prompt, model, size, imagesPerPrompt }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -321,12 +345,11 @@ async function main() {
   const maxImages = getEnvNumber('MAX_IMAGES', DEFAULT_MAX_IMAGES);
   const dryRun = getEnvBoolean('DRY_RUN', false);
   const force = getEnvBoolean('FORCE', false);
-  const sleepMin = getEnvNumber('SLEEP_MIN_MS', DEFAULT_SLEEP_MIN_MS);
-  const sleepMax = getEnvNumber('SLEEP_MAX_MS', DEFAULT_SLEEP_MAX_MS);
   const maxRetries = getEnvNumber('MAX_RETRIES', DEFAULT_MAX_RETRIES);
   const retryBaseMs = getEnvNumber('RETRY_BASE_MS', DEFAULT_RETRY_BASE_MS);
   const technicalAspect = getEnvString('TECHNICAL_ASPECT_PREFERENCE', DEFAULT_TECHNICAL_ASPECT);
   const conceptualAspect = getEnvString('CONCEPTUAL_ASPECT_PREFERENCE', DEFAULT_CONCEPTUAL_ASPECT);
+  const parallel = getEnvNumber('PARALLEL', DEFAULT_PARALLEL);
 
   const files = await expandGlob(promptsGlob);
   if (files.length === 0) {
@@ -334,15 +357,11 @@ async function main() {
     return;
   }
 
-  let processedPromptCount = 0;
-  let generatedImageCount = 0;
+  // Collect all pending image generation tasks across all files
+  const pendingTasks = [];
+  const fileManifests = new Map(); // filePath -> { outputDir, manifestPath, manifestImages, existingEntries }
 
   for (const filePath of files) {
-    if (processedPromptCount >= maxPrompts) {
-      console.warn('Reached MAX_PROMPTS limit.');
-      break;
-    }
-
     const content = await fs.readFile(filePath, 'utf8');
     const { generationNotes, images } = parsePromptFile(content, {
       technicalAspect,
@@ -359,10 +378,11 @@ async function main() {
     );
     const manifestImages = [];
 
+    fileManifests.set(filePath, { outputDir, manifestPath, manifestImages, existingEntries });
+
     for (const image of images) {
-      if (processedPromptCount >= maxPrompts) {
-        break;
-      }
+      if (pendingTasks.length >= maxPrompts) break;
+
       const imageHint = `img-${String(image.index).padStart(2, '0')}`;
       const aspect = image.aspect || '16:9';
       const size = getAspectSize(aspect);
@@ -383,12 +403,10 @@ async function main() {
       if (canSkip) {
         manifestImages.push(existingEntry);
         console.log(`Skipping ${filePath} ${imageHint} (already generated).`);
-        processedPromptCount += 1;
         continue;
       }
 
-      // Check MAX_IMAGES limit before processing the prompt
-      if (generatedImageCount + imagesPerPrompt > maxImages) {
+      if (pendingTasks.length >= maxImages) {
         console.warn('Reached MAX_IMAGES limit.');
         break;
       }
@@ -398,10 +416,39 @@ async function main() {
         return `${imageHint}_v${version}.png`;
       });
 
+      pendingTasks.push({
+        filePath,
+        image,
+        imageHint,
+        aspect,
+        size,
+        finalPrompt,
+        promptHash,
+        outputFiles,
+        outputDir,
+      });
+    }
+  }
+
+  if (pendingTasks.length === 0) {
+    console.log('No images to generate.');
+    return;
+  }
+
+  console.log(`Generating ${pendingTasks.length} images with concurrency ${parallel}...`);
+
+  // Generate images in parallel
+  const results = await parallelMap(
+    pendingTasks,
+    async (task) => {
+      const { filePath, image, imageHint, aspect, size, finalPrompt, promptHash, outputFiles, outputDir } = task;
+
       if (dryRun) {
         console.log(`[DRY RUN] Would generate ${outputFiles.join(', ')} for ${filePath}`);
-        generatedImageCount += imagesPerPrompt;
-      } else {
+        return { success: true, task, imagesCount: imagesPerPrompt };
+      }
+
+      try {
         const imagesBase64 = await generateWithRetry({
           prompt: finalPrompt,
           model,
@@ -411,27 +458,43 @@ async function main() {
           retryBaseMs,
         });
         await writeImages(outputDir, imageHint, imagesBase64, dryRun);
-        generatedImageCount += imagesBase64.length;
+        console.log(`Generated ${outputFiles.join(', ')}`);
+        return { success: true, task, imagesCount: imagesBase64.length };
+      } catch (error) {
+        console.error(`Failed to generate ${imageHint}: ${error.message}`);
+        return { success: false, task, error };
       }
+    },
+    parallel
+  );
 
-      manifestImages.push({
-        index: image.index,
-        title: image.title,
-        caption: image.caption,
-        aspect,
-        size,
-        prompt: finalPrompt,
-        prompt_hash: promptHash,
-        output_files: outputFiles,
-      });
+  // Update manifests with results
+  let generatedImageCount = 0;
+  for (const result of results) {
+    if (!result.success) continue;
 
-      processedPromptCount += 1;
+    const { task, imagesCount } = result;
+    const { filePath, image, aspect, size, finalPrompt, promptHash, outputFiles } = task;
+    const fileData = fileManifests.get(filePath);
 
-      const sleepDuration = sleepMin + Math.floor(Math.random() * (sleepMax - sleepMin + 1));
-      if (!dryRun) {
-        await sleep(sleepDuration);
-      }
-    }
+    fileData.manifestImages.push({
+      index: image.index,
+      title: image.title,
+      caption: image.caption,
+      aspect,
+      size,
+      prompt: finalPrompt,
+      prompt_hash: promptHash,
+      output_files: outputFiles,
+    });
+
+    generatedImageCount += imagesCount;
+  }
+
+  // Write manifests
+  for (const [filePath, fileData] of fileManifests) {
+    const { manifestPath, manifestImages } = fileData;
+    if (manifestImages.length === 0) continue;
 
     const manifest = {
       source_md_path: filePath,
@@ -443,6 +506,8 @@ async function main() {
       await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
     }
   }
+
+  console.log(`\nGenerated ${generatedImageCount} images.`);
 }
 
 const isMain = process.argv[1]

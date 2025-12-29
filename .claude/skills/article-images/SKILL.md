@@ -1,15 +1,15 @@
 ---
 name: article-images
 description: This skill should be used when the user asks to "generate article images", "create images for an article", "run image generation", "generate illustrations from prompts", or mentions article hero images, prompt markdown files, or batch image generation.
-version: 0.3.0
+version: 0.4.0
 ---
 
 # Article Image Generation
 
-Generate high-quality images for articles using AI image generation. Supports multiple providers with **automatic fallback** when rate limits are hit:
+Generate high-quality images for articles using AI image generation. Supports multiple providers with **automatic fallback** when rate limits are hit and **parallel generation** for faster batch processing:
 
 - **Google Gemini** (default) - Gemini 3 Pro Image / 2.5 Flash Image
-- **OpenAI** - DALL-E 3
+- **OpenAI** - gpt-image-1.5
 
 ## Quick Start
 
@@ -17,11 +17,14 @@ Generate high-quality images for articles using AI image generation. Supports mu
 # Generate with Gemini (default)
 .claude/skills/article-images/scripts/generate-images.sh
 
-# Generate with OpenAI DALL-E
+# Generate with OpenAI gpt-image-1.5
 .claude/skills/article-images/scripts/generate-images.sh --provider openai
 
 # Generate specific article
 .claude/skills/article-images/scripts/generate-images.sh --glob "articles/prompts/01-*.md"
+
+# Generate in parallel (4 concurrent images)
+.claude/skills/article-images/scripts/generate-images.sh --parallel 4
 
 # Preview without generating (dry run)
 .claude/skills/article-images/scripts/generate-images.sh --dry-run
@@ -70,10 +73,10 @@ Automatically handles rate limits and falls back between models.
 
 ### OpenAI
 
-Uses DALL-E 3 with automatic size conversion:
+Uses gpt-image-1.5 with automatic size conversion:
 
-- 16:9 → 1792x1024
-- 4:3 → 1792x1024
+- 16:9 → 1536x1024
+- 4:3 → 1536x1024
 - 1:1 → 1024x1024
 
 ## Auto-Fallback
@@ -101,6 +104,7 @@ When one provider hits rate limits (429), the script **automatically switches to
 | `--dry-run`        | Preview without API calls                         |
 | `--force`          | Regenerate even if already exists                 |
 | `--count N`        | Variants per prompt (default: 1)                  |
+| `--parallel N`     | Number of images to generate concurrently (default: 1) |
 | `--no-fallback`    | Disable automatic provider fallback on rate limit |
 | `--help`           | Show help message                                 |
 
@@ -207,10 +211,22 @@ The script automatically selects aspect ratios based on image index:
 .claude/skills/article-images/scripts/generate-images.sh
 ```
 
-### Generate with OpenAI DALL-E
+### Generate with OpenAI gpt-image-1.5
 
 ```bash
 .claude/skills/article-images/scripts/generate-images.sh --provider openai
+```
+
+### Generate in Parallel (Faster)
+
+```bash
+# Generate 4 images concurrently
+.claude/skills/article-images/scripts/generate-images.sh --parallel 4
+
+# Parallel with specific article
+.claude/skills/article-images/scripts/generate-images.sh \
+  --glob "articles/prompts/01-*.md" \
+  --parallel 4
 ```
 
 ### Regenerate Specific Article
@@ -359,10 +375,10 @@ If both providers hit rate limits:
 
 ### Script Files
 
-- **`scripts/generate-images.sh`** - Wrapper script with provider selection
-- **`scripts/generate-images-gemini.mjs`** - Google Gemini image generation
-- **`scripts/generate-images-from-prompts.mjs`** - OpenAI DALL-E image generation
-- **`scripts/package.json`** - Node.js dependencies for Gemini
+- **`scripts/generate-images.sh`** - Wrapper script with provider selection and parallel support
+- **`scripts/generate-images-gemini.mjs`** - Google Gemini image generation with parallel support
+- **`scripts/generate-images-from-prompts.mjs`** - OpenAI gpt-image-1.5 generation with parallel support
+- **`scripts/package.json`** - Node.js dependencies
 
 ## Integration with Articles
 

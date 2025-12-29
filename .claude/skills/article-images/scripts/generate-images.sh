@@ -44,6 +44,7 @@ FORCE="${FORCE:-false}"
 IMAGES_PER_PROMPT="${IMAGES_PER_PROMPT:-1}"
 PROVIDER="${PROVIDER:-gemini}"
 ENABLE_FALLBACK=true
+PARALLEL="${PARALLEL:-1}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -71,6 +72,10 @@ while [[ $# -gt 0 ]]; do
             ENABLE_FALLBACK=false
             shift
             ;;
+        --parallel)
+            PARALLEL="$2"
+            shift 2
+            ;;
         --help)
             echo "Usage: $0 [options]"
             echo ""
@@ -80,12 +85,13 @@ while [[ $# -gt 0 ]]; do
             echo "  --dry-run         Preview without generating images"
             echo "  --force           Regenerate even if manifest exists"
             echo "  --count N         Number of image variants per prompt (default: 1)"
+            echo "  --parallel N      Number of images to generate in parallel (default: 1)"
             echo "  --no-fallback     Disable automatic fallback to alternate provider on rate limit"
             echo "  --help            Show this help message"
             echo ""
             echo "Providers:"
             echo "  gemini   - Google Gemini (requires GOOGLE_CLOUD_PROJECT)"
-            echo "  openai   - OpenAI DALL-E (requires OPENAI_API_KEY)"
+            echo "  openai   - OpenAI gpt-image-1.5 (requires OPENAI_API_KEY)"
             echo ""
             echo "Auto-fallback:"
             echo "  When rate limits (429) are hit, automatically retries with the alternate"
@@ -138,11 +144,11 @@ setup_provider() {
                 return 1
             fi
             SCRIPT_NAME="generate-images-from-prompts.mjs"
-            # Set DALL-E compatible sizes if not already set
-            export MODEL="${MODEL:-dall-e-3}"
-            export SIZE_16_9="${SIZE_16_9:-1792x1024}"
-            export SIZE_4_3="${SIZE_4_3:-1792x1024}"
-            export SIZE_3_2="${SIZE_3_2:-1792x1024}"
+            # Set gpt-image-1.5 compatible sizes if not already set
+            export MODEL="${MODEL:-gpt-image-1.5}"
+            export SIZE_16_9="${SIZE_16_9:-1536x1024}"
+            export SIZE_4_3="${SIZE_4_3:-1536x1024}"
+            export SIZE_3_2="${SIZE_3_2:-1536x1024}"
             ;;
         *)
             echo "Error: Unknown provider '$provider'. Use 'gemini' or 'openai'." >&2
@@ -166,6 +172,7 @@ run_generation() {
     echo "  Dry run: $DRY_RUN"
     echo "  Force: $FORCE"
     echo "  Variants per prompt: $IMAGES_PER_PROMPT"
+    echo "  Parallel: $PARALLEL"
     echo ""
 
     # Run and capture both output and exit code
@@ -196,6 +203,7 @@ export PROMPTS_GLOB
 export DRY_RUN
 export FORCE
 export IMAGES_PER_PROMPT
+export PARALLEL
 
 # Run from repo root so paths resolve correctly
 cd "$REPO_ROOT"

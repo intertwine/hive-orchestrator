@@ -27,6 +27,7 @@ const DEFAULT_SLEEP_MIN_MS = 500;
 const DEFAULT_SLEEP_MAX_MS = 1500;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_BASE_MS = 1000;
+const DEFAULT_PARALLEL = 1;
 
 // Gemini models for image generation
 const PRIMARY_MODEL = 'gemini-3-pro-image-preview';
@@ -223,6 +224,29 @@ function sleep(ms) {
 }
 
 /**
+ * Process items in parallel with a concurrency limit
+ * @param {Array} items - Items to process
+ * @param {Function} fn - Async function to process each item
+ * @param {number} concurrency - Max concurrent operations
+ * @returns {Promise<Array>} Results in same order as items
+ */
+async function parallelMap(items, fn, concurrency) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await fn(items[index], index);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
+/**
  * Get Google Cloud access token using Application Default Credentials
  */
 async function getAccessToken() {
@@ -385,12 +409,11 @@ async function main() {
   const maxImages = getEnvNumber('MAX_IMAGES', DEFAULT_MAX_IMAGES);
   const dryRun = getEnvBoolean('DRY_RUN', false);
   const force = getEnvBoolean('FORCE', false);
-  const sleepMin = getEnvNumber('SLEEP_MIN_MS', DEFAULT_SLEEP_MIN_MS);
-  const sleepMax = getEnvNumber('SLEEP_MAX_MS', DEFAULT_SLEEP_MAX_MS);
   const maxRetries = getEnvNumber('MAX_RETRIES', DEFAULT_MAX_RETRIES);
   const retryBaseMs = getEnvNumber('RETRY_BASE_MS', DEFAULT_RETRY_BASE_MS);
   const technicalAspect = getEnvString('TECHNICAL_ASPECT_PREFERENCE', '4:3');
   const conceptualAspect = getEnvString('CONCEPTUAL_ASPECT_PREFERENCE', '16:9');
+  const parallel = getEnvNumber('PARALLEL', DEFAULT_PARALLEL);
 
   const files = await expandGlob(promptsGlob);
   if (files.length === 0) {
@@ -398,15 +421,11 @@ async function main() {
     return;
   }
 
-  let processedPromptCount = 0;
-  let generatedImageCount = 0;
+  // Collect all pending image generation tasks across all files
+  const pendingTasks = [];
+  const fileManifests = new Map(); // filePath -> { outputDir, manifestPath, manifestImages, existingEntries }
 
   for (const filePath of files) {
-    if (processedPromptCount >= maxPrompts) {
-      console.warn('Reached MAX_PROMPTS limit.');
-      break;
-    }
-
     const content = await fs.readFile(filePath, 'utf8');
     const { generationNotes, images } = parsePromptFile(content, {
       technicalAspect,
@@ -423,10 +442,10 @@ async function main() {
     );
     const manifestImages = [];
 
+    fileManifests.set(filePath, { outputDir, manifestPath, manifestImages, existingEntries });
+
     for (const image of images) {
-      if (processedPromptCount >= maxPrompts) {
-        break;
-      }
+      if (pendingTasks.length >= maxPrompts) break;
 
       const imageHint = `img-${String(image.index).padStart(2, '0')}`;
       const aspect = image.aspect || '16:9';
@@ -444,21 +463,48 @@ async function main() {
       if (canSkip) {
         manifestImages.push(existingEntry);
         console.log(`Skipping ${filePath} ${imageHint} (already generated).`);
-        processedPromptCount += 1;
         continue;
       }
 
-      if (generatedImageCount + 1 > maxImages) {
+      if (pendingTasks.length >= maxImages) {
         console.warn('Reached MAX_IMAGES limit.');
         break;
       }
 
       const outputFile = `${imageHint}_v1.png`;
 
+      pendingTasks.push({
+        filePath,
+        image,
+        imageHint,
+        aspect,
+        finalPrompt,
+        promptHash,
+        outputFile,
+        outputDir,
+      });
+    }
+  }
+
+  if (pendingTasks.length === 0) {
+    console.log('No images to generate.');
+    return;
+  }
+
+  console.log(`Generating ${pendingTasks.length} images with concurrency ${parallel}...`);
+
+  // Generate images in parallel
+  const results = await parallelMap(
+    pendingTasks,
+    async (task) => {
+      const { filePath, image, imageHint, aspect, finalPrompt, promptHash, outputFile, outputDir } = task;
+
       if (dryRun) {
         console.log(`[DRY RUN] Would generate ${outputFile} for ${filePath}`);
-        generatedImageCount += 1;
-      } else {
+        return { success: true, task };
+      }
+
+      try {
         const imageBase64 = await generateWithFallback({
           prompt: finalPrompt,
           aspect,
@@ -467,28 +513,43 @@ async function main() {
         });
         await writeImage(outputDir, imageHint, imageBase64);
         console.log(`Generated ${outputFile}`);
-        generatedImageCount += 1;
+        return { success: true, task };
+      } catch (error) {
+        console.error(`Failed to generate ${imageHint}: ${error.message}`);
+        return { success: false, task, error };
       }
+    },
+    parallel
+  );
 
-      manifestImages.push({
-        index: image.index,
-        title: image.title,
-        caption: image.caption,
-        aspect,
-        prompt: finalPrompt,
-        prompt_hash: promptHash,
-        output_files: [outputFile],
-        provider: 'gemini',
-        model: PRIMARY_MODEL,
-      });
+  // Update manifests with results
+  let generatedImageCount = 0;
+  for (const result of results) {
+    if (!result.success) continue;
 
-      processedPromptCount += 1;
+    const { task } = result;
+    const { filePath, image, aspect, finalPrompt, promptHash, outputFile } = task;
+    const fileData = fileManifests.get(filePath);
 
-      const sleepDuration = sleepMin + Math.floor(Math.random() * (sleepMax - sleepMin + 1));
-      if (!dryRun) {
-        await sleep(sleepDuration);
-      }
-    }
+    fileData.manifestImages.push({
+      index: image.index,
+      title: image.title,
+      caption: image.caption,
+      aspect,
+      prompt: finalPrompt,
+      prompt_hash: promptHash,
+      output_files: [outputFile],
+      provider: 'gemini',
+      model: PRIMARY_MODEL,
+    });
+
+    generatedImageCount += 1;
+  }
+
+  // Write manifests
+  for (const [filePath, fileData] of fileManifests) {
+    const { manifestPath, manifestImages } = fileData;
+    if (manifestImages.length === 0) continue;
 
     const manifest = {
       source_md_path: filePath,
@@ -502,7 +563,7 @@ async function main() {
     }
   }
 
-  console.log(`\nGenerated ${generatedImageCount} images from ${processedPromptCount} prompts.`);
+  console.log(`\nGenerated ${generatedImageCount} images.`);
 }
 
 const isMain = process.argv[1]

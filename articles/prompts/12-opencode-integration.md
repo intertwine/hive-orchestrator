@@ -1,0 +1,102 @@
+# Image Prompts: Agent Hive OpenCode Integration
+
+*These prompts are designed for image generation models. Generate 8 images for the article.*
+
+---
+
+## Image 1: Hero Image - OpenCode + Agent Hive Integration
+
+**Prompt:**
+Create an image showing two open-source projects merging into a unified whole. On the left, an OpenCode terminal interface (green/teal colored, open-source vibes) with multiple model provider icons orbiting it (Claude, GPT, Gemini logos as abstract shapes). On the right, Agent Hive's signature beehive structure (honey gold, warm amber). The two connect via a glowing bridge of shared protocols (SKILL.md files and MCP connections visualized as data streams). The scene conveys unity, interoperability, and the power of open standards. Epic digital illustration, two systems becoming one, open-source aesthetic, collaborative energy.
+
+**Caption:** *Two open philosophies unite: Agent Hive's vendor-agnostic orchestration meets OpenCode's model-independent coding agent.*
+
+---
+
+## Image 2: OpenCode Architecture Overview
+
+**Prompt:**
+Create a diagram-style illustration showing OpenCode's architecture as a hub-and-spoke system. The central hub is a stylized terminal/code editor interface. Extending outward are connections to: multiple AI model providers (represented as distinct cloud shapes - Anthropic purple, OpenAI green, Google blue, local server gray), input methods (terminal, desktop app, IDE icons), and output channels (code files, PRs, chat). The architecture emphasizes flexibility and choice - arrows flow in both directions. Clean technical illustration, architecture diagram aesthetic, multiple pathways and options visible.
+
+**Caption:** *OpenCode's architecture: Terminal, desktop, or IDE interface connecting to any model provider through a unified API.*
+
+---
+
+## Image 3: Skills and MCP Parity
+
+**Prompt:**
+Create an image showing a single SKILL.md document that casts shadows onto two platforms simultaneously. The SKILL.md file floats in the center, glowing with instructional content. Below it on the left, a Claude Code interface receives the skill. Below it on the right, an OpenCode interface receives the identical skill. Both interfaces show the same capability unlocking. An MCP connection (visualized as a standardized plug/socket) works with both. The concept is write-once, use-anywhere interoperability. Symmetrical composition, mirror effect, standardization and portability emphasized.
+
+**Caption:** *One skill format, one MCP server, multiple agents: Agent Hive achieves true interoperability across AI coding platforms.*
+
+---
+
+## Image 4: Quick Setup Flow
+
+**Prompt:**
+Create an image showing a three-step setup process as an ascending staircase or pathway. Step 1: A download/install icon with the OpenCode logo and a terminal curl command visualized. Step 2: A git clone operation pulling Agent Hive from a GitHub-style repository cloud. Step 3: A developer at a terminal with OpenCode running, multiple model options available (shown as selectable cards). The path is simple, direct, and quick - no obstacles or complexity. Bright, optimistic illustration, easy onboarding aesthetic, progression from left to right.
+
+**Caption:** *Three commands to full integration: install OpenCode, clone Agent Hive, start coding with any model you choose.*
+
+---
+
+## Image 5: Five Skills Overview
+
+**Prompt:**
+Create an image showing five skill modules arranged as interconnected puzzle pieces or a skill tree. Each piece represents one skill: 1) Cortex Operations (brain/analysis icon), 2) Hive Project Management (file/document icon), 3) Deep Work Session (focus/clock icon), 4) Multi-Agent Coordination (multiple agents icon), 5) Hive MCP (tools/API icon). The pieces connect to show workflow from finding work → managing projects → focused sessions → coordination → tool usage. The complete puzzle forms a workflow cycle. Modular design illustration, skill tree aesthetic, interconnected capabilities.
+
+**Caption:** *Five skills, one complete workflow: From finding ready work to multi-agent coordination, OpenCode learns the full Agent Hive protocol.*
+
+---
+
+## Image 6: MCP Tools in Action
+
+**Prompt:**
+Create an image showing a conversation interface where natural language transforms into structured API calls. On top, a chat bubble says "Find projects ready for me to work on." Below, this transforms (visualized as a processing step with gears/circuits) into an MCP tool call (shown as a structured JSON-like block). The result flows back as a formatted project list. The scene shows the magic of natural language to programmatic action. Conversation-to-code illustration, transformation visualization, seamless translation between human and machine.
+
+**Caption:** *Natural language meets structured tools: Ask for ready work, claim projects, update status—all through conversational interaction.*
+
+---
+
+## Image 7: Platform Decision Tree
+
+**Prompt:**
+Create an image showing a decision flowchart or crossroads with two paths. At the fork, a developer considers options. Path A (left) leads to Claude Code - showing tight Anthropic integration, single-vendor simplicity. Path B (right) leads to OpenCode - showing model flexibility, open-source badges, multiple provider options. Both paths converge at a destination labeled "Agent Hive Orchestration" - showing that either choice leads to successful orchestration. The message is that both are valid paths to the same goal. Decision tree illustration, two roads metaphor, both leading to success.
+
+**Caption:** *Choose your path: Both roads lead to effective Agent Hive orchestration—pick the one that fits your constraints.*
+
+---
+
+## Image 8: Complete Workflow Diagram
+
+**Prompt:**
+Create an image showing a complete Agent Hive workflow cycle using OpenCode. Stage 1: Discovery - OpenCode queries for ready work (magnifying glass over projects). Stage 2: Review - project details displayed (document with metadata). Stage 3: Claim - ownership taken (lock icon, owner field set). Stage 4: Work - agent analyzes code and adds findings (code review in progress). Stage 5: Complete - task marked done, notes added (checkmark). Stage 6: Handoff - project released for next agent (hand passing baton). The cycle is circular, showing continuous orchestration. Workflow cycle illustration, process diagram aesthetic, clear progression through stages.
+
+**Caption:** *From discovery to handoff: A complete work cycle using OpenCode with Agent Hive's orchestration primitives.*
+
+---
+
+## Generation Notes
+
+**Style consistency:** Professional technical illustrations with a focus on integration and interoperability. Use visual metaphors of connection, compatibility, and choice. Show the harmony between two open-source philosophies merging into unified workflows.
+
+**Color palette:**
+- OpenCode: Teal, green, open-source vibes
+- Agent Hive: Honey gold, warm amber (established palette)
+- Claude Code: Anthropic purple/coral
+- OpenAI: Green
+- Google: Blue, red, yellow, green
+- MCP/Standards: Neutral silver, white, clean lines
+- Success/Integration: Bright gradients where systems meet
+
+**Aspect ratios:**
+- Hero image (1): 16:9 for epic wide scene
+- Architecture (2): 4:3 for diagram layout
+- Skills/MCP parity (3): 4:3 for symmetrical composition
+- Quick setup (4): 16:9 for horizontal progression
+- Five skills (5): 4:3 for modular layout
+- MCP tools (6): 4:3 for conversation-to-code flow
+- Decision tree (7): 4:3 for crossroads composition
+- Workflow diagram (8): 16:9 for circular cycle layout
+
+**Quality modifiers:** high-quality, detailed illustration, professional technical aesthetic, clear visual storytelling, integration and interoperability themes, open-source aesthetic, choice and flexibility emphasized

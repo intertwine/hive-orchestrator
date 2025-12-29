@@ -128,6 +128,14 @@ agent-hive/
 │       ├── deep-work-session/
 │       ├── multi-agent-coordination/
 │       └── hive-mcp/
+├── .opencode/
+│   ├── skill/                  # OpenCode skills (same as Claude Code)
+│   │   ├── cortex-operations/
+│   │   ├── deep-work-session/
+│   │   ├── hive-mcp/
+│   │   ├── hive-project-management/
+│   │   └── multi-agent-coordination/
+│   └── opencode.json           # OpenCode MCP configuration
 ├── .devcontainer/
 │   └── devcontainer.json       # DevContainer config (Codespaces/Cursor ready)
 ├── .github/
@@ -910,6 +918,90 @@ Instructions for Claude to follow...
 EOF
 ```
 
+## 🌐 OpenCode Integration
+
+Agent Hive provides full support for [OpenCode](https://opencode.ai/), the open-source AI coding agent. OpenCode users get the same skills and MCP integration as Claude Code users.
+
+### OpenCode Skills
+
+All Agent Hive skills are available in `.opencode/skill/`:
+
+| Skill                        | Description                                                    |
+| ---------------------------- | -------------------------------------------------------------- |
+| **cortex-operations**        | Running Cortex CLI, dependency analysis, ready work detection  |
+| **deep-work-session**        | Focused work sessions, handoff protocol, session lifecycle     |
+| **hive-mcp**                 | MCP server tools, programmatic project access                  |
+| **hive-project-management**  | Managing AGENCY.md files, frontmatter fields, task tracking    |
+| **multi-agent-coordination** | Multi-agent patterns, conflict prevention, coordination server |
+
+Skills load automatically when OpenCode detects a relevant request.
+
+### OpenCode MCP Configuration
+
+The `.opencode/opencode.json` file configures the Hive MCP server:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "hive": {
+      "type": "local",
+      "command": ["uv", "run", "python", "-m", "src.hive_mcp"],
+      "enabled": true,
+      "environment": {
+        "HIVE_BASE_PATH": "."
+      }
+    }
+  }
+}
+```
+
+### Using OpenCode with Agent Hive
+
+1. **Install OpenCode**:
+   ```bash
+   curl -fsSL https://opencode.ai/install | bash
+   ```
+
+2. **Navigate to Agent Hive repository**:
+   ```bash
+   cd /path/to/agent-hive
+   ```
+
+3. **Start OpenCode**:
+   ```bash
+   opencode
+   ```
+
+4. **Skills and MCP tools are available automatically**:
+   - Skills load from `.opencode/skill/`
+   - MCP tools are configured in `.opencode/opencode.json`
+   - Use Tab to switch between OpenCode's built-in agents (Build/Plan)
+
+### OpenCode vs Claude Code
+
+| Feature | Claude Code | OpenCode |
+|---------|-------------|----------|
+| Skill Location | `.claude/skills/` | `.opencode/skill/` |
+| Config File | `claude.json` | `opencode.json` |
+| Model Support | Claude only | Any provider (Claude, GPT, Gemini, local) |
+| MCP Support | Yes | Yes |
+| Skills Format | SKILL.md | SKILL.md (same format) |
+
+Both tools use the same SKILL.md format, so Agent Hive skills work identically across both platforms.
+
+### Global OpenCode Configuration
+
+For system-wide access to Agent Hive skills, copy to your global config:
+
+```bash
+# Copy skills globally
+cp -r .opencode/skill/* ~/.config/opencode/skill/
+
+# Or symlink for automatic updates
+ln -s $(pwd)/.opencode/skill/hive-project-management ~/.config/opencode/skill/
+```
+
 ## 📚 Philosophy
 
 Agent Hive is built on these principles:
@@ -977,6 +1069,7 @@ lsof -i :8501
 - [x] Security hardening (YAML RCE, prompt injection, auth)
 - [x] Weave tracing integration (LLM observability)
 - [x] Multi-repository support
+- [x] OpenCode integration (skills + MCP)
 
 **Planned:**
 

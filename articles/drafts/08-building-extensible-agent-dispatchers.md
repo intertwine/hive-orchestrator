@@ -5,27 +5,27 @@ _This is the eighth article in a series exploring Agent Hive and AI agent orches
 ---
 
 ![Hero: One Hive, Many Agents](images/building-extensible-agent-dispatchers/img-01_v1.png)
-_The dispatcher vision: One central hive, many agent destinations. Work flows automatically to the best agent for each task, whether Claude, GPT-5, Gemini, or human teams._
+_The dispatcher vision: One central hive, many agent destinations. Work flows automatically to the best agent for each task—Claude, GPT-4, Gemini, or human teams._
 
 ---
 
 ## The Vision: One Hive, Many Agents
 
-Imagine a development team where work flows automatically to the best agent for each task. Research tasks go to GPT-5 with web browsing. Coding tasks go to Claude Code. Documentation goes to a fine-tuned model that knows your style guide. Review tasks go to a multi-agent ensemble.
+Imagine a development team where work flows automatically to the best agent for each task. Research tasks go to GPT-4 with web browsing. Coding tasks go to Claude Code. Documentation goes to a fine-tuned model that knows your style guide. Review tasks go to a multi-agent ensemble.
 
-Agent Hive's architecture makes this possible today.
+This isn't science fiction—it's the natural extension of Agent Hive's architecture.
 
-The key insight: Agent Hive separates **work management** (finding and organizing tasks) from **work execution** (actually doing the tasks). This separation creates a powerful extension point called the agent dispatcher.
+The key insight is that Agent Hive separates **work management** (finding and organizing tasks) from **work execution** (actually doing the tasks). This separation creates a powerful extension point: the agent dispatcher.
 
 ## The Dispatcher Pattern
 
-A dispatcher bridges the Hive and an agent platform. It has three responsibilities:
+A dispatcher is a bridge between the Hive and an agent platform. It has three responsibilities:
 
 1. **Find work** - Query Cortex for ready projects
 2. **Build context** - Assemble everything the agent needs
 3. **Deliver work** - Hand off to the agent in its native format
 
-The built-in Claude Code dispatcher implements this pattern by creating GitHub issues with `@claude` mentions. The same pattern works for any agent.
+The built-in Claude Code dispatcher implements this pattern by creating GitHub issues with `@claude` mentions. But the same pattern works for any agent.
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -56,10 +56,10 @@ _The dispatcher pattern: Find work (query Cortex), Build context (assemble what 
 
 ### 1. Vendor Independence
 
-Today you might use Claude Code. Tomorrow you might want to try GPT-5's code interpreter, or a self-hosted model, or a specialized coding agent. With dispatchers, switching agents doesn't require changing your project structure, task definitions, or coordination logic. Your orchestration stays stable.
+Today you might use Claude Code. Tomorrow you might want to try GPT-4's code interpreter, or a self-hosted model, or a specialized coding agent. With dispatchers, switching agents doesn't require changing your project structure, task definitions, or coordination logic.
 
 ![Vendor Independence](images/building-extensible-agent-dispatchers/img-03_v1.png)
-_Vendor independence: Switch agents without changing project structure. Today Claude, tomorrow GPT-5._
+_Vendor independence: Switch agents without changing project structure. Today Claude, tomorrow GPT-4—the orchestration remains stable._
 
 ---
 
@@ -68,28 +68,28 @@ _Vendor independence: Switch agents without changing project structure. Today Cl
 Different agents excel at different tasks:
 
 - **Claude**: Deep reasoning, complex code, nuanced analysis
-- **GPT-5**: Web browsing, DALL-E integration, function calling
+- **GPT-4**: Web browsing, DALL-E integration, function calling
 - **Gemini**: Large context windows, multimodal understanding
 - **Specialized models**: Domain-specific tasks, cost optimization
 
-A multi-agent dispatcher can route tasks to the best agent automatically. Match the tool to the job.
+A multi-agent dispatcher can route tasks to the best agent automatically.
 
 ![Best-of-Breed Routing](images/building-extensible-agent-dispatchers/img-04_v1.png)
-_Best-of-breed routing: Research to GPT-5, complex code to Claude, docs to Haiku, review to Gemini. Each task goes to the agent that excels at it._
+_Best-of-breed routing: Research to GPT-4, complex code to Claude, docs to Haiku, review to Gemini. Each task goes to the agent that excels at it._
 
 ---
 
 ### 3. Resilience
 
-If one agent platform is down or rate-limited, a dispatcher can fall back to alternatives. Work doesn't stop because one service is unavailable.
+If one agent platform is down or rate-limited, a dispatcher can fall back to alternatives. The work doesn't stop just because one service is unavailable.
 
 ### 4. Human-in-the-Loop Options
 
-Dispatchers don't have to send work only to AI agents. A Slack dispatcher might post work for human review. An email dispatcher might notify stakeholders. Same pattern, different destination.
+Dispatchers don't have to send work only to AI agents. A Slack dispatcher might post work for human review. An email dispatcher might notify stakeholders. The pattern is the same.
 
 ## The Claude Code Dispatcher: A Deep Dive
 
-Let me walk through the built-in dispatcher to show how the pattern works:
+Let's examine the built-in dispatcher to understand the pattern:
 
 ### Finding Work
 
@@ -103,7 +103,7 @@ Let me walk through the built-in dispatcher to show how the pattern works:
 ready_projects = self.cortex.ready_work()
 ```
 
-This is intentionally a black box. Dispatchers don't need to understand blocking rules, dependency graphs, or priority algorithms. They call `ready_work()` and get a list of actionable projects. Simple.
+This is intentionally a black box. Dispatchers don't need to understand blocking rules, dependency graphs, or priority algorithms. They just call `ready_work()` and get a list of actionable projects.
 
 ### Selecting Work
 
@@ -122,7 +122,7 @@ def select_work(self, projects):
     return sorted(projects, key=sort_key)[0]
 ```
 
-You can customize this logic per dispatcher. A cost-sensitive dispatcher might prefer medium-priority tasks for cheaper models. A time-sensitive dispatcher might prioritize recently-updated projects.
+This logic could be customized per dispatcher. A cost-sensitive dispatcher might prefer medium-priority tasks for cheaper models. A time-sensitive dispatcher might prioritize recently-updated projects.
 
 ### Building Context
 
@@ -368,17 +368,17 @@ class MultiAgentRouter:
 ```
 
 ![Multi-Agent Router](images/building-extensible-agent-dispatchers/img-06_v1.png)
-_Multi-agent routing: Rules examine project tags and route to specialized agents. Research tasks to GPT-5, reviews to Gemini, everything else to Claude._
+_Multi-agent routing: Rules examine project tags and route to specialized agents. Research tasks to GPT-4, reviews to Gemini, everything else to Claude._
 
 ---
 
 ## Completion Callbacks
 
-When an agent finishes work, how does the Hive know? Several patterns work:
+When an agent finishes work, how does the Hive know? There are several patterns:
 
 ### Pattern 1: Agent Updates AGENCY.md Directly
 
-The cleanest approach. Claude Code uses this. The agent is instructed to:
+The cleanest approach—used by Claude Code. The agent is instructed to:
 
 1. Mark tasks complete
 2. Add agent notes
@@ -497,7 +497,7 @@ When building dispatchers, keep these principles in mind:
 
 ### 1. Idempotency
 
-Dispatchers might run multiple times. Design for this:
+Dispatchers might run multiple times. A well-designed dispatcher should handle this gracefully:
 
 - Check if work is already claimed before dispatching
 - Use the `owner` field as a lock
@@ -530,14 +530,14 @@ Don't overwhelm agents or platforms:
 
 ## Conclusion
 
-Agent Hive's dispatcher architecture transforms a simple orchestration system into a flexible agent routing layer. Separate work detection from work delivery and you can:
+Agent Hive's dispatcher architecture transforms a simple orchestration system into a flexible agent routing layer. By separating work detection from work delivery, you can:
 
 - Use different agents for different tasks
 - Switch agents without changing project structure
 - Build resilient multi-agent systems
 - Keep humans in the loop when needed
 
-The built-in Claude Code dispatcher is just the starting point. The architecture is ready for whatever agents come next.
+The built-in Claude Code dispatcher is just the beginning. The architecture is ready for whatever agents come next.
 
 ---
 

@@ -11,7 +11,7 @@ How Agent Hive extends beyond single repositories to coordinate AI agents workin
 
 ## The Challenge
 
-Modern software development rarely happens in isolation. Organizations maintain multiple repositories, contribute to open source projects, and integrate with third-party systems. Traditional AI coding assistants are confined to a single repository context. That limits their ability to:
+Modern software development rarely happens in isolation. Organizations maintain multiple repositories, contribute to open source projects, and integrate with third-party systems. Traditional AI coding assistants are typically confined to a single repository context, limiting their ability to:
 
 - Contribute improvements to external projects
 - Coordinate changes across multiple repositories
@@ -104,7 +104,7 @@ The agent then has full context to work on the external repository while using A
 
 ## Multi-Phase Workflows
 
-Cross-repository improvements benefit from a phased approach.
+Cross-repository improvements often benefit from a phased approach:
 
 ### Phase 1: Analysis
 
@@ -140,7 +140,7 @@ The repository follows a standard TypeScript/Node.js structure:
 ```
 
 ![Analysis Phase](images/cross-repo-multi-agent-workflows/img-04_v1.png)
-*Phase 1 - Analysis: Before implementing, agents thoroughly examine the target repository. Architecture, stack, patterns, opportunities.*
+*Phase 1 - Analysis: Before implementing, agents thoroughly examine the target repository—architecture, stack, patterns, opportunities.*
 
 ---
 
@@ -170,7 +170,7 @@ Add exponential backoff retry logic for external API calls.
 ```
 
 ![Strategy Phase](images/cross-repo-multi-agent-workflows/img-05_v1.png)
-*Phase 2 - Strategy: Evaluate options, select the best improvement, document rationale. High impact, low risk, well-scoped. Ready to implement.*
+*Phase 2 - Strategy: Evaluate options, select the best improvement, document rationale. High impact, low risk, well-scoped—ready to implement.*
 
 ---
 
@@ -239,7 +239,7 @@ phases/
 └── 03-implement/AGENCY.md     # blocked_by: [02-strategize]
 ```
 
-A single file works better because:
+However, a single file is preferred because:
 
 1. **Single source of truth**: All context in one place
 2. **Simpler coordination**: No dependency graph to manage
@@ -311,7 +311,7 @@ target_repo:
 ```
 
 ![Cross-Repo Use Cases](images/cross-repo-multi-agent-workflows/img-08_v1.png)
-*Use cases: Open source contributions, multi-repo organization changes, integration development. Same pattern. target_repo extends Agent Hive's reach.*
+*Use cases: Open source contributions, multi-repo organization changes, integration development. Same pattern—target_repo extends Agent Hive's reach.*
 
 ---
 
@@ -346,7 +346,7 @@ target_repo:
 
 Cross-repository workflows extend Agent Hive's reach beyond a single codebase. By using the same file-based protocol with a simple `target_repo` extension, agents can analyze, plan, and implement improvements to any accessible GitHub repository.
 
-The key insight: **the AGENCY.md file is the orchestration**. No special scripts or commands needed. Add `target_repo` to your metadata and let the standard Cortex/Dispatcher cycle handle the rest.
+The key insight is that **the AGENCY.md file is the orchestration**. No special scripts or commands are needed—just add `target_repo` to your metadata and let the standard Cortex/Dispatcher cycle handle the rest.
 
 ## Further Reading
 

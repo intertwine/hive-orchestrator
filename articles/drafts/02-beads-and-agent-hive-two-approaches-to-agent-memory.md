@@ -1,6 +1,6 @@
 # Beads and Agent Hive: Two Approaches to Agent Memory
 
-_This is the second article in a series exploring Agent Hive and the broader field of AI agent orchestration._
+_This is the second article in a series exploring Agent Hive and the landscape of AI agent orchestration._
 
 ---
 
@@ -11,9 +11,9 @@ _Two valid approaches to the same problem: beads optimizes for query performance
 
 ## Standing on the Shoulders of Giants
 
-When I released Agent Hive, I acknowledged upfront that several patterns were inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project. beads emerged from hard-won lessons about what AI agents actually need to work effectively over long time horizons.
+When we released Agent Hive, we acknowledged upfront that several patterns were inspired by Steve Yegge's [beads](https://github.com/steveyegge/beads) project. This wasn't a coincidence—beads emerged from hard-won lessons about what AI agents actually need to work effectively over long time horizons.
 
-This article explores both systems: what they share, where they differ, and why you might choose one over the other. Or use both.
+In this article, we'll explore both systems: what they share, where they differ, and why you might choose one over the other (or use both).
 
 ## The Shared Problem: Agent Amnesia
 
@@ -21,16 +21,16 @@ Both beads and Agent Hive tackle the same fundamental challenge that Steve Yegge
 
 > "By the start of phase 3 (out of 6), the AI has mostly forgotten where it came from. It wakes up, reads about phase 3, then declares it's going to break it into five phases and create a markdown plan. It begins working on 'phase 1' with no mention of the six outer phases."
 
-This isn't a failure of any particular model. Context windows are finite. Complex projects are not. Without persistent memory, agents become increasingly confused as projects grow.
+This isn't a failure of any particular model—it's a structural limitation. Context windows are finite. Complex projects are not. Without persistent memory, agents become increasingly confused as projects grow.
 
 Both systems solve this through structured persistent state that survives across context windows.
 
 ![Agent Amnesia Visualization](images/beads-and-agent-hive/img-02_v1.png)
-_"By phase 3 of 6, the AI has mostly forgotten where it came from." Agent amnesia isn't a bug. It's a structural limitation of context windows._
+_"By phase 3 of 6, the AI has mostly forgotten where it came from." Agent amnesia isn't a bug—it's a structural limitation of context windows._
 
 ## beads: The Database Approach
 
-beads treats agent memory as a database problem. Under the hood, it's a distributed database that happens to use git for synchronization:
+beads treats agent memory as a database problem. Under the hood, it's a sophisticated distributed database that happens to use git for synchronization:
 
 ### Storage Architecture
 
@@ -52,11 +52,11 @@ beads provides rich dependency modeling with four distinct relationship types:
 3. **Parent-Child** - Hierarchical decomposition of work
 4. **Discovered-From** - Provenance tracking for issues found during other work
 
-This graph structure enables agents to query for "ready work" (issues with no open blockers) and navigate complex task streams reliably.
+This graph structure enables agents to query for "ready work"—issues with no open blockers—and navigate complex task streams reliably.
 
 ### Designed for Speed
 
-beads is optimized for performance. Written in Go as a single binary, it starts instantly and queries resolve in milliseconds. The SQLite cache means agents don't need to parse files or traverse git history. They just query a local database.
+beads is optimized for performance. Written in Go as a single binary, it starts instantly and queries resolve in milliseconds. The SQLite cache means agents don't need to parse files or traverse git history—they just query a local database.
 
 ```bash
 # Find ready work instantly
@@ -67,7 +67,7 @@ bd create "Implement authentication" --blocks bd-a1b2
 ```
 
 ![The Database Approach (beads)](images/beads-and-agent-hive/img-03_v1.png)
-_beads treats agent memory as a database problem: JSONL for truth, SQLite for speed, Git for sync. Queries resolve in milliseconds._
+_beads treats agent memory as a database problem—JSONL for truth, SQLite for speed, Git for sync. Queries resolve in milliseconds._
 
 ## Agent Hive: The Markdown Approach
 
@@ -115,14 +115,14 @@ Implement secure user authentication.
 - **2025-01-15 14:30 - claude-sonnet-4**: Starting implementation...
 ```
 
-Everything lives in one file: metadata, tasks, historical notes. Any human or agent can read it with a text editor.
+Everything—metadata, tasks, and historical notes—lives in one file that any human (or agent) can read with a text editor.
 
 ![The Markdown Approach (Agent Hive)](images/beads-and-agent-hive/img-04_v1.png)
-_Agent Hive takes a different stance: one Markdown file per project. No databases, no binary formats. Just human-readable text._
+_Agent Hive takes a different stance: one Markdown file per project. No databases, no binary formats—just human-readable text._
 
 ### Designed for Transparency
 
-Agent Hive optimizes for auditability and human oversight. When something goes wrong, you can read the Markdown. When you need to intervene, you edit text. When you want to understand what happened, you have git history of human-readable documents. No database archaeology required.
+Agent Hive optimizes for auditability and human oversight. When something goes wrong, you can read the Markdown. When you need to intervene, you edit text. When you want to understand what happened, you have git history of human-readable documents.
 
 ## The Key Differences
 
@@ -140,7 +140,7 @@ bd list --ready --json | jq '.[] | select(.priority == "high")'
 uv run python -m src.cortex --ready --json
 ```
 
-beads is faster for complex queries. Agent Hive doesn't require learning query syntax. You can always just read the files.
+beads is faster for complex queries. Agent Hive doesn't require learning query syntax—you can always just read the files.
 
 ### 2. Data Format
 
@@ -164,16 +164,16 @@ beads is faster for complex queries. Agent Hive doesn't require learning query s
 - [ ] Implementation in progress
 ```
 
-beads stores data optimally; Agent Hive stores data readably. Different optimizations, same goal.
+beads stores data optimally; Agent Hive stores data readably.
 
 ![Storage Philosophy Comparison](images/beads-and-agent-hive/img-05_v1.png)
 _beads stores data optimally for machines; Agent Hive stores data readably for humans. Different optimizations for different values._
 
 ### 3. Vendor Relationship
 
-**beads**: Designed for Steve Yegge's agent workflows, with MCP integration for Claude
+**beads**: Primarily designed for Steve Yegge's agent workflows, with MCP integration for Claude
 
-**Agent Hive**: Vendor-agnostic from day one. Works equally well with Claude, GPT-5, Grok, Gemini, or manual human operation
+**Agent Hive**: Explicitly vendor-agnostic from day one—works equally well with Claude, GPT-4, Grok, Gemini, or manual human operation
 
 ### 4. Orchestration Model
 
@@ -189,7 +189,7 @@ _beads stores data optimally for machines; Agent Hive stores data readably for h
 
 ## What Agent Hive Borrowed
 
-I adopted several patterns from beads:
+We explicitly adopted several patterns from beads:
 
 ### Ready Work Detection
 
@@ -197,7 +197,7 @@ The ability to query for actionable work without LLM calls. Both systems let age
 
 ### Dependency Tracking
 
-The `blocked_by` and `blocks` patterns for modeling task relationships. I support the same four relationship types, though with slightly different naming.
+The `blocked_by` and `blocks` patterns for modeling task relationships. We support the same four relationship types, though with slightly different naming.
 
 ### MCP Integration
 
@@ -209,15 +209,15 @@ The `--json` flag pattern for programmatic access to all commands.
 
 ## What Agent Hive Didn't Borrow
 
-I diverged on several points:
+We consciously diverged on several points:
 
 ### JSONL Storage
 
-I kept Markdown as the storage format. The tradeoff (slower queries, larger files) was worth it for human readability.
+We kept Markdown as the storage format. The tradeoff—slower queries, larger files—was worth it for human readability.
 
 ### SQLite Caching
 
-At current scale, in-memory operations are fast enough. I may add caching if projects grow to thousands of items.
+At current scale, in-memory operations are fast enough. We may add caching if projects grow to thousands of items.
 
 ### Single Binary
 
@@ -225,7 +225,7 @@ Agent Hive is Python-based, using the broader ecosystem (Streamlit for dashboard
 
 ### Required Daemon
 
-beads auto-syncs via background processes. Agent Hive treats git as the sync mechanism and makes the coordinator optional.
+beads auto-syncs via background processes. Agent Hive treats git as the sync mechanism and makes the coordinator explicitly optional.
 
 ## When to Use Which
 
@@ -250,7 +250,7 @@ beads auto-syncs via background processes. Agent Hive treats git as the sync mec
 The systems aren't mutually exclusive. You could use beads for fine-grained task tracking within a project, while Agent Hive coordinates across projects and provides human oversight. The dependency concepts are compatible enough to bridge.
 
 ![When to Use Which](images/beads-and-agent-hive/img-07_v1.png)
-_Not a competition. A choice based on priorities. Speed and queries? beads. Transparency and vendor freedom? Agent Hive. Need both? Use both._
+_Not a competition—a choice based on priorities. Speed and queries? beads. Transparency and vendor freedom? Agent Hive. Need both? Use both._
 
 ## The Deeper Pattern
 
@@ -268,15 +268,15 @@ AI agents have different characteristics:
 Both systems acknowledge these constraints and build memory primitives that work _with_ agent limitations rather than against them.
 
 ![The Deeper Pattern](images/beads-and-agent-hive/img-08_v1.png)
-_Traditional tools were designed for humans with persistent memory. Agent infrastructure must work with agent limitations: discrete sessions, hard memory boundaries, fresh starts._
+_Traditional tools were designed for humans with persistent memory. Agent infrastructure must work with agent limitations—discrete sessions, hard memory boundaries, fresh starts._
 
 ## Conclusion
 
 beads and Agent Hive represent two valid approaches to the same problem. beads optimizes for query performance and agent autonomy. Agent Hive optimizes for transparency and human oversight.
 
-I'm grateful to Steve Yegge for open-sourcing beads and articulating the agent amnesia problem so clearly. The AI agent space benefits from multiple approaches. No single solution fits all contexts.
+We're grateful to Steve Yegge for open-sourcing beads and articulating the agent amnesia problem so clearly. The AI agent ecosystem benefits from multiple approaches—no single solution fits all contexts.
 
-What matters is that we're collectively recognizing the need for purpose-built agent infrastructure. The era of "just give the agent a TODO file" is ending. Structured agent memory is here.
+What matters is that we're collectively recognizing the need for purpose-built agent infrastructure. The era of "just give the agent a TODO file" is ending. The era of structured agent memory is beginning.
 
 ---
 

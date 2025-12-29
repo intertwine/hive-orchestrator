@@ -11,13 +11,13 @@ _The promise: agents working in parallel, completing in hours what takes days. T
 
 ## The Promise and the Problem
 
-The vision is compelling: multiple AI agents working in parallel, each contributing their strengths, completing in hours what would take days with a single agent. Claude researches the architecture. GPT-5 drafts the documentation. Grok implements the edge cases. A symphony of artificial intelligence.
+The vision is compelling: multiple AI agents working in parallel, each contributing their strengths, completing in hours what would take days with a single agent. Claude researches the architecture. GPT-4 drafts the documentation. Grok implements the edge cases. A symphony of artificial intelligence.
 
-Without coordination, though? Chaos.
+The reality, without coordination, is chaos.
 
-Two agents modify the same file simultaneously. One agent "completes" work another agent was depending on, but does it wrong. A third agent spins in circles, unable to find work because everything appears claimed. The git history becomes an archaeological disaster.
+Two agents modify the same file simultaneously. One agent "completes" work another agent was depending on—but does it wrong. A third agent spins in circles, unable to find work because everything appears claimed. The git history becomes an archaeological disaster.
 
-I built Agent Hive to make multi-agent coordination actually work.
+Agent Hive was built to make multi-agent coordination actually work.
 
 ## The Coordination Problem
 
@@ -33,7 +33,7 @@ Agent A is supposed to complete the database schema before Agent B starts the AP
 
 ### 3. Premature Claims of Victory
 
-Agent A finishes "phase 1" and marks the project complete. Agent B, seeing the completion, starts the downstream work. But Agent A's "phase 1" was actually "phase 1 of their internal plan." The real phase 1 has three more tasks that nobody will ever complete.
+Agent A finishes "phase 1" and marks the project complete. Agent B, seeing the completion, starts the downstream work. But Agent A's "phase 1" was actually "phase 1 of their internal plan"—the real phase 1 has three more tasks that nobody will ever complete.
 
 ### 4. Communication Breakdown
 
@@ -44,7 +44,7 @@ _Four ways multi-agent coordination fails: race conditions, dependency violation
 
 ## Agent Hive's Coordination Layers
 
-Agent Hive provides three complementary coordination mechanisms, each appropriate for different scenarios.
+Agent Hive provides three complementary coordination mechanisms, each appropriate for different scenarios:
 
 ### Layer 1: Git-Based Coordination (Always Available)
 
@@ -64,7 +64,7 @@ When an agent wants to work on a project:
 4. Commit and push
 5. If push fails (someone else pushed first), pull and check again
 
-This is optimistic locking. It works, but it's slow. Every coordination decision requires a git round-trip.
+This is optimistic locking. It works, but it's slow—every coordination decision requires a git round-trip.
 
 **Best for**: Asynchronous workflows, single-agent-at-a-time scenarios, environments where git is the only shared resource.
 
@@ -133,7 +133,7 @@ _Agent Hive provides three complementary coordination layers: git for foundation
 
 ## The Ownership Protocol
 
-Regardless of which coordination layer you use, Agent Hive enforces a consistent ownership protocol.
+Regardless of which coordination layer you use, Agent Hive enforces a consistent ownership protocol:
 
 ### Claiming Work
 
@@ -183,7 +183,7 @@ blocking_reason: "Need database credentials from DevOps"
 ```
 
 ![The Ownership Protocol](images/multi-agent-coordination-without-chaos/img-04_v1.png)
-_The ownership protocol: explicitly claim before working, one owner at a time, release when done. These rules prevent coordination chaos._
+_The ownership protocol: explicitly claim before working, one owner at a time, release when done. Sacred rules that prevent coordination chaos._
 
 ## Multi-Agent Patterns
 
@@ -192,20 +192,20 @@ _The ownership protocol: explicitly claim before working, one owner at a time, r
 Agents work one after another, each building on the previous work:
 
 ```text
-Claude (Research) → GPT-5 (Design) → Grok (Implementation)
+Claude (Research) → GPT-4 (Design) → Grok (Implementation)
 ```
 
 The protocol:
 
 1. Claude completes research, adds detailed notes, sets `owner: null`
-2. GPT-5 sees unclaimed project, claims it, reads Claude's notes
-3. GPT-5 completes design, documents decisions, sets `owner: null`
+2. GPT-4 sees unclaimed project, claims it, reads Claude's notes
+3. GPT-4 completes design, documents decisions, sets `owner: null`
 4. Grok claims, implements based on accumulated context
 
-**Key success factor**: Thorough documentation in Agent Notes. Each agent must leave enough context for the next. No notes, no handoff.
+**Key success factor**: Thorough documentation in Agent Notes. Each agent must leave enough context for the next.
 
 ![Sequential Handoff Pattern](images/multi-agent-coordination-without-chaos/img-05_v1.png)
-_Sequential handoff: Claude researches, GPT-5 designs, Grok implements. Each leaves thorough notes for the next runner._
+_Sequential handoff: Claude researches, GPT-4 designs, Grok implements. Each leaves thorough notes for the next runner._
 
 ### Pattern 2: Parallel Independence
 
@@ -213,7 +213,7 @@ Multiple agents work on completely independent projects simultaneously:
 
 ```text
 Claude → [Project A]
-GPT-5  → [Project B]
+GPT-4  → [Project B]
 Grok   → [Project C]
 ```
 
@@ -234,7 +234,7 @@ Projects have explicit ordering requirements:
 
 ```text
 [Database Schema] → [API Layer] → [Frontend Integration]
-     Claude            GPT-5            Grok
+     Claude            GPT-4            Grok
 ```
 
 Configured in AGENCY.md:
@@ -249,10 +249,10 @@ dependencies:
 The protocol:
 
 1. Claude works on database-schema
-2. GPT-5 cannot start api-layer (blocked_by not satisfied)
+2. GPT-4 cannot start api-layer (blocked_by not satisfied)
 3. Claude completes, sets `status: completed`
 4. Cortex detects completion, api-layer becomes ready
-5. GPT-5 claims and starts api-layer
+5. GPT-4 claims and starts api-layer
 
 **Key success factor**: Accurate dependency declarations. Missing dependencies cause coordination failures.
 
@@ -304,11 +304,11 @@ Since agents can't directly message each other, Agent Notes serve as the communi
 - **TODO** - Items the current agent is leaving for the next
 
 ![Communication Through Agent Notes](images/multi-agent-coordination-without-chaos/img-07_v1.png)
-_Since agents can't directly message each other, Agent Notes become the communication channel. Timestamped. Attributed. Persistent._
+_Since agents can't directly message each other, Agent Notes become the communication channel—timestamped, attributed, persistent._
 
 ## Conflict Resolution
 
-Despite best efforts, conflicts happen. Agent Hive provides mechanisms for resolution.
+Despite best efforts, conflicts happen. Agent Hive provides mechanisms for resolution:
 
 ### Git Merge Conflicts
 
@@ -320,7 +320,7 @@ When two agents modify the same AGENCY.md:
 4. Merge task completions and metadata sensibly
 5. Commit resolved version
 
-The Markdown format makes conflicts relatively easy to resolve. You can usually accept both sets of changes.
+The Markdown format makes conflicts relatively easy to resolve—you can usually accept both sets of changes.
 
 ### Coordinator Conflicts
 
@@ -343,7 +343,7 @@ uv run python -m src.cortex --deps
     project-a -> project-b -> project-c -> project-a
 ```
 
-Resolution requires human intervention to break the cycle by removing or redefining dependencies. The system can detect the problem but can't solve it.
+Resolution requires human intervention to break the cycle by removing or redefining dependencies.
 
 ## Best Practices
 
@@ -357,17 +357,17 @@ Resolution requires human intervention to break the cycle by removing or redefin
 
 ## The Human in the Loop
 
-Multi-agent coordination here doesn't mean fully autonomous agent swarms. Humans remain essential:
+Agent Hive's multi-agent coordination isn't meant to enable fully autonomous agent swarms. Humans remain essential:
 
 - **Defining project boundaries** and dependencies
 - **Reviewing agent work** before it affects production
 - **Breaking deadlocks** when agents get stuck
 - **Intervening** when coordination fails
 
-The goal is to enable agents to do more useful work in parallel while keeping humans informed and in control. Transparency through readable AGENCY.md files and git history makes this possible. Agents coordinate. Humans orchestrate.
+The goal is to enable agents to do more useful work in parallel while keeping humans informed and in control. Transparency—through readable AGENCY.md files and git history—makes this possible.
 
 ![Human in the Loop](images/multi-agent-coordination-without-chaos/img-08_v1.png)
-_Multi-agent coordination doesn't mean autonomous swarms. Humans define boundaries, review work, break deadlocks, and intervene when needed. Transparency makes this possible._
+_Multi-agent coordination isn't about autonomous swarms. Humans define boundaries, review work, break deadlocks, and intervene when needed. Transparency makes this possible._
 
 ---
 

@@ -13,7 +13,7 @@ _From zero to orchestration: with a few prerequisites and simple setup, you're r
 
 You've read about the theory. You understand why agent memory matters, how dependencies work, and what protocols to follow. Now let's build something.
 
-This guide walks through setting up Agent Hive from scratch and creating your first orchestrated project.
+In this guide, we'll set up Agent Hive from scratch and create your first orchestrated project.
 
 ## Prerequisites
 
@@ -98,11 +98,11 @@ Open <http://localhost:8501> in your browser. You'll see:
 Explore the demo project to see how information is displayed.
 
 ![The Dashboard Interface](images/getting-started/img-03_v1.png)
-_The Dashboard: view all projects, check statuses, generate Deep Work context for agents, and monitor system health from a friendly web interface._
+_The Dashboard: view all projects, check statuses, generate Deep Work context for agents, and monitor system health—all from a friendly web interface._
 
 ## Step 4: Create Your First Project
 
-Let's create a real project. I'll walk through a simple one: implementing a configuration system.
+Let's create a real project. We'll make a simple one: implementing a configuration system.
 
 ### Create the Directory
 
@@ -207,7 +207,7 @@ Edit files directly, updating AGENCY.md as you progress:
 
 ### Option B: Use an AI Agent
 
-Paste the Deep Work context into Claude, GPT-5, or your agent of choice. The context instructs the agent to:
+Paste the Deep Work context into Claude, GPT-4, or your agent of choice. The context instructs the agent to:
 
 1. Claim ownership
 2. Work on highest priority tasks
@@ -243,10 +243,10 @@ Cortex will:
 1. Read all AGENCY.md files
 2. Analyze project states
 3. Identify blocked tasks
-4. Update metadata as needed
+4. Update metadata where appropriate
 5. Report findings
 
-This runs automatically every 4 hours via GitHub Actions.
+This is what runs automatically every 4 hours via GitHub Actions.
 
 ![The Workflow in Action](images/getting-started/img-05_v1.png)
 _The workflow cycle: create projects, generate context, work and update, handoff cleanly, let Cortex orchestrate. Repeat for continuous progress._
@@ -429,7 +429,7 @@ Break the cycle by removing or restructuring dependencies.
 
 ### Agent not following protocol
 
-Ensure the Deep Work context was fully copied. The protocol instructions tell the agent how to behave. Without them, agents may not know to update AGENCY.md.
+Ensure the Deep Work context was fully copied. The protocol instructions tell the agent how to behave—without them, agents may not know to update AGENCY.md.
 
 ## Next Steps
 
@@ -473,6 +473,6 @@ _Quick reference: the essential commands for daily Agent Hive operation. Install
 
 ---
 
-_Welcome to Agent Hive. Build something great._
+_Welcome to Agent Hive. We're excited to see what you build._
 
 _Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator)._

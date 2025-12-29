@@ -13,7 +13,7 @@ _One project needs no tracking. Five you can manage. Fifty? Implicit dependencie
 
 When you have one project, you don't need dependency tracking. You just work on it until it's done.
 
-When you have five projects, you can keep the relationships in your head. Project B needs the database schema from Project A. Project D can wait until C is done. You manage.
+When you have five projects, you can probably keep the relationships in your head. Project B needs the database schema from Project A. Project D can wait until C is done. You manage.
 
 When you have fifty projects across multiple agents and humans, implicit dependencies become a liability. Work starts on things that aren't ready. Critical blockers sit unnoticed while downstream teams wonder why they're stuck. The left hand doesn't know what the right hand needs.
 
@@ -49,7 +49,7 @@ dependencies:
 
 This is informational from the current project's perspective, but critical for understanding impact. If database-schema is delayed, three other projects are affected.
 
-You can define relationships from either direction. `A.blocked_by: [B]` and `B.blocks: [A]` are equivalent. Agent Hive normalizes both into a unified graph.
+Note: You can define relationships from either direction. `A.blocked_by: [B]` and `B.blocks: [A]` are equivalent. Agent Hive normalizes both into a unified graph.
 
 ### 3. parent: "I'm part of something bigger"
 
@@ -85,7 +85,7 @@ dependencies:
   related: [api-v1, deprecation-plan, client-migration]
 ```
 
-When working on api-v2, an agent might benefit from reading the related projects for context. But nothing blocks.
+When working on api-v2, an agent might benefit from reading the related projects for context—but they're not required to wait for anything.
 
 ![The Four Dependency Types](images/dependency-graphs-in-practice/img-02_v1.png)
 _Four dependency types for different relationships: blocked_by (must wait), blocks (others waiting), parent (hierarchy), related (context only)._
@@ -223,10 +223,10 @@ A project is "ready" when:
 - `owner` is `null` (unclaimed)
 - All `blocked_by` dependencies are `completed`
 
-This query runs without any LLM calls. Pure graph traversal.
+This query runs without any LLM calls—it's pure graph traversal.
 
 ![Ready Work Detection](images/dependency-graphs-in-practice/img-03_v1.png)
-_Finding ready work requires no LLM calls. Just graph traversal. Projects with all blockers cleared light up as claimable._
+_Finding ready work requires no LLM calls—just pure graph traversal. Projects with all blockers cleared light up as claimable._
 
 ## Cycle Detection
 
@@ -258,7 +258,7 @@ uv run python -m src.cortex --deps
     project-a -> project-b -> project-c -> project-a
 ```
 
-The dashboard shows cycle warnings prominently. Resolving cycles requires human intervention to restructure the dependencies. No algorithm can decide which dependency is wrong.
+The dashboard shows cycle warnings prominently. Resolving cycles requires human intervention to restructure the dependencies.
 
 ![Cycle Detection](images/dependency-graphs-in-practice/img-04_v1.png)
 _Circular dependencies are deadlocks that can never resolve. Each project waits for something that's waiting for it. Cortex detects these cycles automatically._
@@ -308,10 +308,10 @@ dependencies:
   blocked_by: [test-auth]
 ```
 
-Query result: Only `implement-auth` shows as ready work. Everything else is either done or waiting.
+Query result: Only `implement-auth` shows as ready work.
 
 ![Feature Development Pipeline](images/dependency-graphs-in-practice/img-05_v1.png)
-_A typical feature pipeline: research, design, implement, test, deploy. Each stage blocked by the previous, creating orderly progression._
+_A typical feature pipeline: research → design → implement → test → deploy. Each stage blocked by the previous, creating orderly progression._
 
 ### Example 2: Platform Migration
 
@@ -367,7 +367,7 @@ dependencies:
   blocks: [cutover]
 ```
 
-The three migration projects can run in parallel once planning completes. Integration testing waits for all three. Three teams working independently, then reconverging.
+The three migration projects can run in parallel once planning completes. Integration testing waits for all three.
 
 ![Platform Migration Diagram](images/dependency-graphs-in-practice/img-06_v1.png)
 _Platform migration: planning unlocks three parallel workstreams, integration testing waits for all three, then cutover can proceed. Complex coordination made visible._
@@ -412,11 +412,11 @@ dependencies:
 
 ### 1. Be Explicit
 
-If project B needs something from project A, declare it. Don't rely on "everyone knows" or implied ordering. Write it down.
+If project B needs something from project A, declare it. Don't rely on "everyone knows" or implied ordering.
 
 ### 2. Minimize Dependencies
 
-Every dependency is a delay waiting to happen. Only declare true blockers. Things that genuinely cannot proceed without the prerequisite.
+Every dependency is a potential delay. Only declare true blockers—things that genuinely cannot proceed without the prerequisite.
 
 ### 3. Use Related for Context
 
@@ -424,7 +424,7 @@ Not every connection is a blocker. If two projects are conceptually related but 
 
 ### 4. Review for Cycles Early
 
-Before adding dependencies, think through whether you're creating a cycle. Prevention beats resolution.
+Before adding dependencies, think through whether you're creating a cycle. It's easier to prevent cycles than to resolve them.
 
 ### 5. Keep Granularity Consistent
 
@@ -432,7 +432,7 @@ Dependencies work best when projects are similarly sized. A tiny bug fix dependi
 
 ### 6. Update Status Promptly
 
-Downstream projects remain blocked until the blocker is marked `completed`. Don't leave finished work in `active` status. Mark it done.
+Downstream projects remain blocked until the blocker is marked `completed`. Don't leave completed work in `active` status.
 
 ![Dependency Best Practices](images/dependency-graphs-in-practice/img-07_v1.png)
 _Dependency management rules: be explicit, minimize dependencies, use related for context, watch for cycles, keep consistent granularity, update status promptly._
@@ -471,13 +471,13 @@ cycles = cortex.detect_cycles()
 ```
 
 ![The Full Dependency Graph View](images/dependency-graphs-in-practice/img-08_v1.png)
-_The full dependency graph: every project, every relationship, every status. Visible and queryable._
+_The full dependency graph: every project, every relationship, every status—visible and queryable. Complexity becomes clarity._
 
 ## Conclusion
 
-Dependency tracking transforms project coordination from implicit tribal knowledge to explicit, queryable structure. Agents can find ready work instantly. Humans can see why things are blocked. Cycles get detected before they cause deadlocks.
+Dependency tracking transforms project coordination from implicit tribal knowledge to explicit, queryable structure. Agents can find ready work instantly. Humans can see why things are blocked. Cycles are detected before they cause deadlocks.
 
-The investment is small: a few lines of YAML in each AGENCY.md file. The return is clarity about what can proceed and what's waiting.
+The investment is small—a few lines of YAML in each AGENCY.md file. The return is clarity about what can proceed and what's waiting.
 
 ---
 

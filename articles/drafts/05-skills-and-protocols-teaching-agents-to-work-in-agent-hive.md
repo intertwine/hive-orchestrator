@@ -5,7 +5,7 @@ _This is the fifth article in a series exploring Agent Hive and AI agent orchest
 ---
 
 ![Hero: The Onboarding Problem](images/skills-and-protocols/img-01_v1.png)
-_Every session starts fresh. Agents don't remember yesterday's onboarding. Skills and protocols provide instant orientation for effective work._
+_Every session starts fresh—agents don't remember yesterday's onboarding. Skills and protocols provide instant orientation for effective work._
 
 ---
 
@@ -19,7 +19,7 @@ Agent Hive addresses this through two complementary mechanisms: **Skills** (teac
 
 ## What Are Skills?
 
-Skills are modular instruction sets that teach agents how to work effectively within specific domains. In Agent Hive, I've created skills that teach Claude (and other agents) how to interact with the orchestration system.
+Skills are modular instruction sets that teach agents how to work effectively within specific domains. In Agent Hive, we've created skills that teach Claude (and potentially other agents) how to interact with the orchestration system.
 
 ### How Skills Work
 
@@ -29,7 +29,7 @@ Skills use progressive disclosure to stay context-efficient:
 2. **When relevant**: The full skill instructions are loaded on-demand
 3. **During execution**: The agent follows the skill's guidance
 
-This means an agent doesn't pay the context cost of reading all documentation upfront. It only loads what's needed when it's needed.
+This means an agent doesn't pay the context cost of reading all documentation upfront—it only loads what's needed when it's needed.
 
 ### Agent Hive Skills
 
@@ -91,11 +91,11 @@ Skills activate automatically based on user requests:
 The agent recognizes which skill is relevant and loads its instructions.
 
 ![Skills as Knowledge Modules](images/skills-and-protocols/img-02_v1.png)
-_Skills are modular instruction sets, only loaded when needed. Five built-in skills cover project management, Cortex CLI, deep work, coordination, and MCP tools._
+_Skills are modular instruction sets—only loaded when needed. Five built-in skills cover project management, Cortex CLI, deep work, coordination, and MCP tools._
 
 ## The Deep Work Protocol
 
-The Deep Work session lifecycle is central to Agent Hive. This defines how an agent should behave from the moment it starts working to the moment it hands off.
+The most important protocol in Agent Hive is the Deep Work session lifecycle. This defines how an agent should behave from the moment it starts working to the moment it hands off.
 
 ### The Lifecycle
 
@@ -158,7 +158,7 @@ Throughout the session, keep state current:
 ## Agent Notes
 
 - **2025-01-15 15:45 - claude-sonnet-4**: Completed architecture design.
-  Chose event-driven pattern for scale. Implementation ready to
+  Chose event-driven pattern for scalability. Implementation ready to
   begin. Key decision: using Redis for event bus (see docs/architecture.md).
 ```
 
@@ -202,7 +202,7 @@ Always add a final note summarizing the session:
 ```
 
 ![The Deep Work Lifecycle](images/skills-and-protocols/img-03_v1.png)
-_The Deep Work lifecycle: Enter, Claim, Work, Update, Handoff. A complete cycle ensures clean state for the next session._
+_The Deep Work lifecycle: Enter → Claim → Work → Update → Handoff. A complete cycle ensures clean state for the next session._
 
 ## The Ownership Protocol
 
@@ -241,7 +241,7 @@ Use consistent, identifiable names:
 | Custom    | `my-research-agent-v1`             |
 
 ![The Ownership Protocol Ceremony](images/skills-and-protocols/img-04_v1.png)
-_Ownership protocol is sacred: verify availability, claim formally, work with commitment, release properly. One owner at a time._
+_Ownership protocol is sacred: verify availability, claim formally, work with commitment, release properly. Only one owner at a time._
 
 ## The Blocking Protocol
 
@@ -282,7 +282,7 @@ Use blocked status for **external** dependencies, not internal challenges:
 - Need for more context (read more, ask in notes)
 
 ![Blocking Protocol](images/skills-and-protocols/img-05_v1.png)
-_When blocked by external dependencies, don't struggle. Set blocked status, document the reason clearly, and signal for help. Visibility over silence._
+_When blocked by external dependencies, don't struggle—set blocked status, document the reason clearly, and signal for help. Visibility over silence._
 
 ## The Communication Protocol
 
@@ -330,7 +330,7 @@ Always include:
 ```
 
 ![Communication Through Notes](images/skills-and-protocols/img-06_v1.png)
-_Agent Notes are the communication channel: timestamped, attributed, and persistent. Use @mentions for specific agents, DECISION for choices, BLOCKED for obstacles._
+_Agent Notes are the communication channel: timestamped, attributed, and persistent. @mentions for specific agents, DECISION for choices, BLOCKED for obstacles._
 
 ## The MCP Protocol
 
@@ -373,7 +373,7 @@ await mcp.release_project(project_id="auth-feature")
 ```
 
 ![MCP Tools in Action](images/skills-and-protocols/img-07_v1.png)
-_MCP tools enable programmatic interaction: list projects, find ready work, claim, update status, add notes, release. No manual file editing required._
+_MCP tools enable programmatic interaction: list projects, find ready work, claim, update status, add notes, release—all without manual file editing._
 
 ## Creating Custom Skills
 
@@ -434,10 +434,10 @@ Explicit protocols serve several purposes:
 4. **Coordination**: Multiple agents can work together because they share expectations
 5. **Onboarding**: New agents (or humans) can learn the system quickly
 
-Protocols are the foundation that makes multi-agent coordination possible. Without them, agents would step on each other's work constantly.
+The protocols aren't bureaucracy—they're the foundation that makes multi-agent coordination possible.
 
 ![Why Protocols Matter](images/skills-and-protocols/img-08_v1.png)
-_Protocols are the foundation that makes multi-agent coordination possible. They bring consistency, predictability, and debuggability._
+_Protocols aren't bureaucracy—they're the foundation that makes multi-agent coordination possible. Consistency, predictability, debuggability._
 
 ---
 

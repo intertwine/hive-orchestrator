@@ -1,22 +1,26 @@
 ---
-project_id: opencode-plugin
-status: active
-owner: null
-last_updated: 2025-12-29T00:00:00Z
 blocked: false
 blocking_reason: null
-priority: high
-tags: [plugin, opencode, integration, typescript]
 dependencies:
   blocked_by: []
   blocks: []
   parent: null
   related: []
+last_updated: '2025-12-29T07:47:20.305682Z'
+owner: claude-code
+priority: high
+project_id: opencode-plugin
 relevant_files:
-  - .opencode/opencode.json
-  - .opencode/skill/hive-mcp/SKILL.md
-  - src/hive_mcp/server.py
-  - README.md
+- .opencode/opencode.json
+- .opencode/skill/hive-mcp/SKILL.md
+- src/hive_mcp/server.py
+- README.md
+status: active
+tags:
+- plugin
+- opencode
+- integration
+- typescript
 ---
 
 # OpenCode Plugin for Agent Hive
@@ -421,5 +425,6 @@ export const chatMessageHook = async (
 ---
 
 ## Agent Notes
+- **2025-12-29 07:47 - Agent Dispatcher**: Assigned to Claude Code. Issue: https://github.com/intertwine/hive-orchestrator/issues/71
 
 - **2025-12-29 00:00 - human**: Project created with full specification for OpenCode plugin development. Ready for implementation.

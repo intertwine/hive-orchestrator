@@ -70,6 +70,18 @@ This directory contains a series of articles explaining the design philosophy, f
 
 **Key topics:** target_repo metadata, context assembly, multi-phase improvements, external repository analysis, cross-repo PR workflows, security considerations.
 
+### 12. [OpenCode Integration](12-opencode-integration.md)
+
+*Model-agnostic execution.* How to integrate Agent Hive with OpenCode to run workflows across providers while preserving Agent Hive’s coordination model.
+
+**Key topics:** OpenCode setup, MCP tools, skills parity, multi-model support, integration architecture, decision paths.
+
+### 13. [Ralph Wiggum and Loom YOLO Loops](13-ralph-wiggum-and-loom-yolo-loops.md)
+
+*Continuous dispatching.* How to run opt-in YOLO loops for long-running, multi-agent work across models and integrations.
+
+**Key topics:** YOLO loop styles, dispatch profiles, routing across agents, safe long-running loop practices.
+
 ## Reading Order
 
 For newcomers, we recommend reading in order:
@@ -82,6 +94,8 @@ For newcomers, we recommend reading in order:
 6. **Article 9** - Security best practices (important for production)
 7. **Article 10** - Observability and monitoring
 8. **Article 11** - Cross-repository workflows for external projects
+9. **Article 12** - OpenCode integration for model-agnostic execution
+10. **Article 13** - YOLO loops for continuous dispatching
 
 ## Contributing
 

@@ -335,7 +335,10 @@ class YoloLoop:
         print()
 
         try:
-            for iteration in range(1, self.config.max_iterations + 1):
+            iteration = 0
+            while iteration < self.config.max_iterations:
+                iteration += 1
+
                 # Check for stop request
                 with self._lock:
                     if self._stop_requested:
@@ -343,10 +346,23 @@ class YoloLoop:
                         print("Loop cancelled by user request.")
                         break
 
-                # Check safety limits
-                if not self._check_rate_limit():
-                    time.sleep(60)  # Wait a minute and retry
-                    continue
+                # Check rate limit - wait without consuming iteration
+                while not self._check_rate_limit():
+                    print("Rate limit reached. Waiting 60s...")
+                    time.sleep(60)
+                    # Re-check stop request while waiting
+                    with self._lock:
+                        if self._stop_requested:
+                            self.state.status = LoopStatus.CANCELLED
+                            print("Loop cancelled by user request during rate limit wait.")
+                            break
+                    # Also check timeout while waiting
+                    if time.time() - self.state.start_time > self.config.timeout_seconds:
+                        break
+
+                # Exit outer loop if cancelled during rate limit wait
+                if self.state.status == LoopStatus.CANCELLED:
+                    break
 
                 if not self._check_circuit_breaker():
                     self.state.status = LoopStatus.CIRCUIT_BREAK
@@ -395,11 +411,10 @@ class YoloLoop:
                 if iteration < self.config.max_iterations:
                     time.sleep(self.config.cooldown_seconds)
 
-            else:
-                # Reached max iterations without completion
-                if self.state.status == LoopStatus.RUNNING:
-                    self.state.status = LoopStatus.FAILED
-                    print(f"Max iterations ({self.config.max_iterations}) reached without completion.")
+            # Reached max iterations without completion (exited while loop normally)
+            if self.state.status == LoopStatus.RUNNING:
+                self.state.status = LoopStatus.FAILED
+                print(f"Max iterations ({self.config.max_iterations}) reached without completion.")
 
         except KeyboardInterrupt:
             self.state.status = LoopStatus.CANCELLED
@@ -761,11 +776,18 @@ class YoloRunner:
         loop = weaver.create_loop_for_project(project, max_iterations)
         loop.config.timeout_seconds = timeout_seconds
 
-        # Claim, run, release
-        weaver.claim_project(project, loop.loop_id)
+        # Claim, run, release - abort if claim fails
+        if not weaver.claim_project(project, loop.loop_id):
+            raise RuntimeError(
+                f"Could not claim project '{project['project_id']}'. "
+                f"Current owner: {project['metadata'].get('owner', 'unknown')}"
+            )
+
+        state = None
         try:
             state = loop.run()
         finally:
+            # Only release if we successfully claimed
             weaver.release_project(project, loop.loop_id, state.status if state else LoopStatus.FAILED)
 
         return state

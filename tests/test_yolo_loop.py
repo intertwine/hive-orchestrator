@@ -422,6 +422,14 @@ class TestYoloRunner:
         assert "loop-1" in results
         mock_weave.assert_called_once()
 
+    def test_run_project_claim_failure(self, temp_hive_dir, temp_claimed_project):
+        """Test that run_project fails if project is already claimed."""
+        with pytest.raises(RuntimeError, match="Could not claim project"):
+            YoloRunner.run_project(
+                project_path=temp_claimed_project,
+                max_iterations=5,
+            )
+
 
 class TestExecutionBackend:
     """Test ExecutionBackend enum."""

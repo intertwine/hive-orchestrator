@@ -32,6 +32,12 @@ from security import (  # pylint: disable=wrong-import-position
     safe_dump_agency_md,
     validate_path_within_base,
 )
+from yolo_loop import (  # pylint: disable=wrong-import-position
+    YoloLoop,
+    LoopConfig,
+    ExecutionBackend,
+    LoomWeaver,
+)
 
 
 def get_base_path() -> str:
@@ -322,6 +328,76 @@ async def list_tools() -> list[Tool]:
             description="Get all active reservations from the coordination server",
             inputSchema={"type": "object", "properties": {}},
         ),
+        # YOLO Loop tools
+        Tool(
+            name="yolo_start",
+            description="Start a YOLO loop (Ralph Wiggum style autonomous agent loop) "
+            "with a prompt. The loop runs iterations until completion or limits.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "The task prompt for the agent to work on",
+                    },
+                    "max_iterations": {
+                        "type": "integer",
+                        "description": "Maximum iterations (default: 50)",
+                        "default": 50,
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "description": "Timeout in seconds (default: 3600)",
+                        "default": 3600,
+                    },
+                    "backend": {
+                        "type": "string",
+                        "description": "Execution backend: subprocess or docker",
+                        "enum": ["subprocess", "docker"],
+                        "default": "subprocess",
+                    },
+                },
+                "required": ["prompt"],
+            },
+        ),
+        Tool(
+            name="yolo_project",
+            description="Start a YOLO loop on a specific project by project_id",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "description": "The project ID to run the loop on",
+                    },
+                    "max_iterations": {
+                        "type": "integer",
+                        "description": "Maximum iterations (default: 50)",
+                        "default": 50,
+                    },
+                },
+                "required": ["project_id"],
+            },
+        ),
+        Tool(
+            name="yolo_hive",
+            description="Start Loom-style parallel YOLO loops on all ready Hive projects",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "max_parallel": {
+                        "type": "integer",
+                        "description": "Max parallel agents (default: 3)",
+                        "default": 3,
+                    },
+                    "max_iterations_per_loop": {
+                        "type": "integer",
+                        "description": "Max iterations per loop (default: 50)",
+                        "default": 50,
+                    },
+                },
+            },
+        ),
     ]
 
 
@@ -607,6 +683,97 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     result = format_response(success=True, data=reservations)
                 except CoordinatorUnavailable as e:
                     result = format_response(success=False, error=f"Coordinator unavailable: {e}")
+
+        elif name == "yolo_start":
+            prompt = arguments.get("prompt")
+            max_iterations = arguments.get("max_iterations", 50)
+            timeout_seconds = arguments.get("timeout_seconds", 3600)
+            backend_str = arguments.get("backend", "subprocess")
+
+            if not prompt:
+                result = format_response(success=False, error="prompt is required")
+            else:
+                try:
+                    backend = ExecutionBackend(backend_str)
+                    config = LoopConfig(
+                        prompt=prompt,
+                        max_iterations=max_iterations,
+                        timeout_seconds=timeout_seconds,
+                        backend=backend,
+                        working_dir=base_path,
+                    )
+                    loop = YoloLoop(config)
+                    state = loop.run()
+                    result = format_response(
+                        success=True,
+                        data={
+                            "loop_id": state.loop_id,
+                            "status": state.status.value,
+                            "iterations": state.current_iteration,
+                            "elapsed_seconds": (
+                                (state.end_time or 0) - (state.start_time or 0)
+                            ),
+                        },
+                    )
+                except Exception as e:  # pylint: disable=broad-except
+                    result = format_response(success=False, error=f"YOLO loop error: {e}")
+
+        elif name == "yolo_project":
+            project_id = arguments.get("project_id")
+            max_iterations = arguments.get("max_iterations", 50)
+
+            if not project_id:
+                result = format_response(success=False, error="project_id is required")
+            else:
+                projects = cortex.discover_projects()
+                project = next((p for p in projects if p["project_id"] == project_id), None)
+
+                if not project:
+                    result = format_response(
+                        success=False, error=f"Project '{project_id}' not found"
+                    )
+                else:
+                    try:
+                        weaver = LoomWeaver(base_path=base_path, max_parallel_agents=1)
+                        loop = weaver.create_loop_for_project(project, max_iterations)
+                        weaver.claim_project(project, loop.loop_id)
+                        state = loop.run()
+                        weaver.release_project(project, loop.loop_id, state.status)
+                        result = format_response(
+                            success=True,
+                            data={
+                                "loop_id": state.loop_id,
+                                "project_id": project_id,
+                                "status": state.status.value,
+                                "iterations": state.current_iteration,
+                            },
+                        )
+                    except Exception as e:  # pylint: disable=broad-except
+                        result = format_response(success=False, error=f"YOLO project error: {e}")
+
+        elif name == "yolo_hive":
+            max_parallel = arguments.get("max_parallel", 3)
+            max_iterations_per_loop = arguments.get("max_iterations_per_loop", 50)
+
+            try:
+                weaver = LoomWeaver(base_path=base_path, max_parallel_agents=max_parallel)
+                results = weaver.weave(max_iterations_per_loop=max_iterations_per_loop)
+                loop_summaries = {
+                    loop_id: {
+                        "status": state.status.value,
+                        "iterations": state.current_iteration,
+                    }
+                    for loop_id, state in results.items()
+                }
+                result = format_response(
+                    success=True,
+                    data={
+                        "total_loops": len(results),
+                        "loops": loop_summaries,
+                    },
+                )
+            except Exception as e:  # pylint: disable=broad-except
+                result = format_response(success=False, error=f"YOLO hive error: {e}")
 
         else:
             result = format_response(success=False, error=f"Unknown tool: {name}")

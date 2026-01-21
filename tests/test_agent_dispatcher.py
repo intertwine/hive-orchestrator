@@ -217,6 +217,39 @@ class TestIsAlreadyAssigned:
 
         assert dispatcher.is_already_assigned(project) is False
 
+
+class TestDispatchProfile:
+    """Tests for dispatch profile resolution."""
+
+    def test_uses_defaults(self, temp_hive_dir):
+        """Test default profile values are used."""
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir)
+        profile = dispatcher.resolve_dispatch_profile({"metadata": {}})
+        assert profile.agent_name == dispatcher.agent_name
+        assert profile.mention == dispatcher.agent_mention
+        assert dispatcher.agent_mention in profile.comment
+
+    def test_overrides_from_metadata(self, temp_hive_dir):
+        """Test metadata overrides agent name, mention, and labels."""
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, extra_labels=["base:label"])
+        project = {
+            "metadata": {
+                "dispatch": {
+                    "agent_name": "gpt-5",
+                    "mention": "opencode",
+                    "labels": ["model:gpt-5", "integration:mcp"],
+                }
+            }
+        }
+
+        profile = dispatcher.resolve_dispatch_profile(project)
+
+        assert profile.agent_name == "gpt-5"
+        assert profile.mention == "@opencode"
+        assert "model:gpt-5" in profile.labels
+        assert "integration:mcp" in profile.labels
+        assert "base:label" in profile.labels
+
     def test_returns_false_when_owner_missing(self, temp_hive_dir):
         """Test returns False when owner field is missing."""
         dispatcher = AgentDispatcher(base_path=temp_hive_dir)
@@ -244,7 +277,9 @@ class TestClaimProject:
             "metadata": {"owner": None},
         }
 
-        result = dispatcher.claim_project(project, "https://github.com/test/issue/1")
+        result = dispatcher.claim_project(
+            project, "https://github.com/test/issue/1", "claude-code"
+        )
         assert result is True
 
         # Verify file wasn't modified
@@ -261,13 +296,33 @@ class TestClaimProject:
             "metadata": {"owner": None},
         }
 
-        result = dispatcher.claim_project(project, "https://github.com/test/issue/1")
+        result = dispatcher.claim_project(
+            project, "https://github.com/test/issue/1", "claude-code"
+        )
         assert result is True
 
         # Verify owner was set
         with open(temp_project, "r", encoding="utf-8") as f:
             post = frontmatter.load(f)
         assert post.metadata["owner"] == "claude-code"
+
+    def test_sets_custom_owner(self, temp_hive_dir, temp_project):
+        """Test that claiming sets a custom owner name."""
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+
+        project = {
+            "path": temp_project,
+            "metadata": {"owner": None},
+        }
+
+        result = dispatcher.claim_project(
+            project, "https://github.com/test/issue/1", "gpt-5-search"
+        )
+        assert result is True
+
+        with open(temp_project, "r", encoding="utf-8") as f:
+            post = frontmatter.load(f)
+        assert post.metadata["owner"] == "gpt-5-search"
 
     def test_adds_issue_link(self, temp_hive_dir, temp_project):
         """Test that claiming adds issue link to agent notes."""
@@ -279,7 +334,7 @@ class TestClaimProject:
         }
 
         issue_url = "https://github.com/test/issue/123"
-        result = dispatcher.claim_project(project, issue_url)
+        result = dispatcher.claim_project(project, issue_url, "claude-code")
         assert result is True
 
         # Verify issue link was added
@@ -296,7 +351,9 @@ class TestClaimProject:
             "metadata": {"owner": None, "last_updated": "2020-01-01T00:00:00Z"},
         }
 
-        result = dispatcher.claim_project(project, "https://github.com/test/issue/1")
+        result = dispatcher.claim_project(
+            project, "https://github.com/test/issue/1", "claude-code"
+        )
         assert result is True
 
         # Verify timestamp was updated
@@ -396,18 +453,23 @@ class TestCreateGitHubIssue:
         assert result == "https://github.com/owner/repo/issues/1"
 
 
-class TestAddClaudeComment:
-    """Tests for add_claude_comment method."""
+class TestAddAgentComment:
+    """Tests for add_agent_comment method."""
 
     def test_dry_run_returns_true(self, temp_hive_dir):
         """Test dry run mode returns True without calling gh."""
         dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=True)
 
-        result = dispatcher.add_claude_comment(
-            "https://github.com/owner/repo/issues/123"
+        result = dispatcher.add_agent_comment(
+            "https://github.com/owner/repo/issues/123", "@claude Please work on this issue."
         )
 
         assert result is True
+
+    def test_skips_when_comment_missing(self, temp_hive_dir):
+        """Test that missing comment skips gh call."""
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
+        assert dispatcher.add_agent_comment("https://github.com/owner/repo/issues/123", None) is True
 
     @patch("subprocess.run")
     def test_successful_comment_addition(self, mock_run, temp_hive_dir):
@@ -419,8 +481,8 @@ class TestAddClaudeComment:
         )
 
         dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
-        result = dispatcher.add_claude_comment(
-            "https://github.com/owner/repo/issues/42"
+        result = dispatcher.add_agent_comment(
+            "https://github.com/owner/repo/issues/42", "@opencode Please work on this issue."
         )
 
         assert result is True
@@ -430,7 +492,7 @@ class TestAddClaudeComment:
         assert "issue" in call_args
         assert "comment" in call_args
         assert "42" in call_args
-        assert "@claude" in call_args[call_args.index("--body") + 1]
+        assert "@opencode" in call_args[call_args.index("--body") + 1]
 
     @patch("subprocess.run")
     def test_handles_trailing_slash_in_url(self, mock_run, temp_hive_dir):
@@ -442,8 +504,8 @@ class TestAddClaudeComment:
         )
 
         dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
-        result = dispatcher.add_claude_comment(
-            "https://github.com/owner/repo/issues/99/"
+        result = dispatcher.add_agent_comment(
+            "https://github.com/owner/repo/issues/99/", "@claude Please work on this issue."
         )
 
         assert result is True
@@ -460,8 +522,8 @@ class TestAddClaudeComment:
         )
 
         dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
-        result = dispatcher.add_claude_comment(
-            "https://github.com/owner/repo/issues/123"
+        result = dispatcher.add_agent_comment(
+            "https://github.com/owner/repo/issues/123", "@claude Please work on this issue."
         )
 
         assert result is False
@@ -472,8 +534,8 @@ class TestAddClaudeComment:
         mock_run.side_effect = subprocess.TimeoutExpired("gh", 30)
 
         dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
-        result = dispatcher.add_claude_comment(
-            "https://github.com/owner/repo/issues/123"
+        result = dispatcher.add_agent_comment(
+            "https://github.com/owner/repo/issues/123", "@claude Please work on this issue."
         )
 
         assert result is False
@@ -484,8 +546,8 @@ class TestAddClaudeComment:
         mock_run.side_effect = OSError("Network error")
 
         dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=False)
-        result = dispatcher.add_claude_comment(
-            "https://github.com/owner/repo/issues/123"
+        result = dispatcher.add_agent_comment(
+            "https://github.com/owner/repo/issues/123", "@claude Please work on this issue."
         )
 
         assert result is False
@@ -672,3 +734,39 @@ class TestRun:
 
         # Should succeed (dry run, so issues aren't actually created)
         assert result is True
+
+
+class TestRunLoop:
+    """Tests for run_loop method."""
+
+    @patch("agent_dispatcher.time.sleep")
+    @patch.object(AgentDispatcher, "run_cycle")
+    def test_stops_after_max_cycles(self, mock_run_cycle, mock_sleep, temp_hive_dir):
+        """Test that run_loop stops after the configured max cycles."""
+        mock_run_cycle.return_value = 0
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=True)
+
+        result = dispatcher.run_loop(max_dispatches=1, max_cycles=1, sleep_seconds=1)
+
+        assert result is True
+        mock_run_cycle.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    @patch("agent_dispatcher.time.sleep")
+    @patch.object(AgentDispatcher, "run_cycle")
+    def test_writes_heartbeat_file(self, mock_run_cycle, mock_sleep, temp_hive_dir, tmp_path):
+        """Test that run_loop writes heartbeat JSON when configured."""
+        mock_run_cycle.return_value = 0
+        dispatcher = AgentDispatcher(base_path=temp_hive_dir, dry_run=True)
+        heartbeat_path = tmp_path / "heartbeat.json"
+
+        dispatcher.run_loop(
+            max_dispatches=1,
+            max_cycles=1,
+            sleep_seconds=1,
+            heartbeat_path=heartbeat_path,
+        )
+
+        assert heartbeat_path.exists()
+        payload = heartbeat_path.read_text(encoding="utf-8")
+        assert "\"cycle\": 1" in payload

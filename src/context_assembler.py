@@ -276,6 +276,8 @@ def build_issue_body(
     project: Dict[str, Any],
     base_path: Path,
     next_task: Optional[str] = None,
+    agent_name: Optional[str] = None,
+    agent_mention: Optional[str] = "@claude",
 ) -> str:
     """
     Build a comprehensive GitHub issue body for agent assignment.
@@ -416,14 +418,22 @@ Focus on completing this task first:
 - [ ] AGENCY.md updated with progress
 - [ ] PR created and linked to this issue"""
 
+    mention_line = (
+        f"{agent_mention} Please work on this Agent Hive project."
+        if agent_mention
+        else "Please work on this Agent Hive project."
+    )
+    agent_label = agent_name or "unassigned"
+
     # Build the issue body
-    body = f"""@claude Please work on this Agent Hive project.
+    body = f"""{mention_line}
 
 ## Task Assignment
 
 | Field | Value |
 |-------|-------|
 | **Project** | `{project_id}` |
+| **Agent** | {agent_label} |
 | **Priority** | {priority} |
 | **Tags** | {', '.join(tags) if tags else 'none'} |
 | **Path** | `{project_path.relative_to(base_path)}` |
@@ -464,7 +474,9 @@ When you complete your work:
     return body
 
 
-def build_issue_labels(project: Dict[str, Any]) -> List[str]:
+def build_issue_labels(
+    project: Dict[str, Any], extra_labels: Optional[List[str]] = None
+) -> List[str]:
     """
     Build labels for the GitHub issue.
 
@@ -485,4 +497,7 @@ def build_issue_labels(project: Dict[str, Any]) -> List[str]:
     project_id = metadata.get("project_id", "unknown")
     labels.append(f"project:{project_id}")
 
-    return labels
+    if extra_labels:
+        labels.extend(extra_labels)
+
+    return list(dict.fromkeys(labels))

@@ -275,12 +275,34 @@ class TestBuildIssueBody:
             }
 
     def test_includes_claude_mention(self, sample_project):
-        """Test that issue body includes @claude mention."""
+        """Test that issue body includes default @claude mention."""
         body = build_issue_body(
             sample_project,
             sample_project["base_path"],
         )
         assert "@claude" in body
+
+    def test_custom_agent_metadata_in_body(self, sample_project):
+        """Test that agent name and mention are injected into body."""
+        body = build_issue_body(
+            sample_project,
+            sample_project["base_path"],
+            agent_name="gpt-5-search",
+            agent_mention="@opencode",
+        )
+        assert "@opencode" in body
+        assert "gpt-5-search" in body
+
+    def test_allows_disabling_mentions(self, sample_project):
+        """Test that mentions can be disabled in the body."""
+        body = build_issue_body(
+            sample_project,
+            sample_project["base_path"],
+            agent_name="local-agent",
+            agent_mention=None,
+        )
+        assert "@claude" not in body
+        assert "local-agent" in body
 
     def test_includes_project_info(self, sample_project):
         """Test that issue body includes project information."""
@@ -365,6 +387,18 @@ class TestBuildIssueLabels:
         }
         labels = build_issue_labels(project)
         assert "project:my-project" in labels
+
+    def test_includes_extra_labels(self):
+        """Test that extra labels are included."""
+        project = {"metadata": {"project_id": "test", "priority": "medium"}}
+        labels = build_issue_labels(project, extra_labels=["model:gpt-5"])
+        assert "model:gpt-5" in labels
+
+    def test_dedupes_labels(self):
+        """Test that labels are de-duplicated."""
+        project = {"metadata": {"project_id": "test", "priority": "medium"}}
+        labels = build_issue_labels(project, extra_labels=["agent-hive"])
+        assert labels.count("agent-hive") == 1
 
 
 class TestExternalRepoContext:

@@ -1,0 +1,59 @@
+{
+  "name": "@agent-hive/opencode-plugin",
+  "version": "0.1.0",
+  "description": "OpenCode plugin for Agent Hive orchestration system integration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "agent-hive",
+    "opencode",
+    "plugin",
+    "ai",
+    "orchestration",
+    "agents",
+    "multi-agent",
+    "coordination"
+  ],
+  "author": "Agent Hive Community",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intertwine/hive-orchestrator.git",
+    "directory": "packages/opencode-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/intertwine/hive-orchestrator/issues"
+  },
+  "homepage": "https://github.com/intertwine/hive-orchestrator/tree/main/packages/opencode-plugin#readme",
+  "peerDependencies": {
+    "@opencode-ai/plugin": "^1.0.0"
+  },
+  "dependencies": {
+    "yaml": "^2.3.0",
+    "glob": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

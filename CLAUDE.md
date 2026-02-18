@@ -118,6 +118,12 @@ make clean            # Clean __pycache__ and temp files
 
 # Deep Work sessions
 make session PROJECT=projects/demo
+
+# YOLO Loop commands (autonomous agent loops)
+make yolo PROMPT='Fix all type errors'   # Single loop
+make yolo-hive                           # Parallel loops on ready projects
+make yolo-daemon                         # Continuous daemon mode
+make yolo-docker PROMPT='...'            # Docker sandbox isolation
 ```
 
 ### Using uv Directly
@@ -259,6 +265,67 @@ relevant_files:
   - src/models/user.py
   - tests/test_api.py
 ---
+```
+
+### 6. YOLO Loop - Autonomous Agent Loops
+
+`src/yolo_loop.py` implements Ralph Wiggum-style infinite agentic loops for autonomous, unattended operation:
+
+1. **Ralph Wiggum Pattern** - Persistent iteration until completion or safety limits
+2. **Loom-style Weaving** - Parallel agent orchestration across multiple projects
+3. **Safety Mechanisms** - Iteration limits, timeouts, circuit breakers, rate limiting
+4. **Docker Sandbox** - Isolated execution without host system access
+
+**Key features:**
+- Multiple execution backends (subprocess, Docker)
+- Completion detection via markers (LOOP_COMPLETE, EXIT_SIGNAL)
+- Integration with Cortex for work discovery
+- Daemon mode for 24/7 operation without GitHub Actions
+- State persistence via AGENCY.md files
+
+**Usage:**
+
+```bash
+# Run a single YOLO loop with a prompt
+make yolo PROMPT="Fix all TypeScript errors in src/"
+
+# Run parallel loops on all ready Hive projects (Loom mode)
+make yolo-hive PARALLEL=3 MAX_ITER=50
+
+# Run in Docker sandbox (isolated)
+make yolo-docker PROMPT="Implement the new API"
+
+# Start daemon for continuous operation
+make yolo-daemon POLL_INTERVAL=300
+
+# Check/stop daemon
+make yolo-status
+make yolo-stop
+```
+
+**Safety best practices:**
+- Always set `MAX_ITER` (iteration limit) - start small (5-10) until you trust your prompts
+- Use Docker backend for untrusted code
+- Include explicit completion criteria in prompts
+- Monitor token usage in your API dashboard
+
+**Programmatic usage:**
+
+```python
+from src.yolo_loop import YoloLoop, LoopConfig, LoomWeaver
+
+# Single loop
+config = LoopConfig(
+    prompt="Fix all bugs",
+    max_iterations=50,
+    timeout_seconds=3600,
+)
+loop = YoloLoop(config)
+state = loop.run()
+
+# Parallel weaving
+weaver = LoomWeaver(base_path=".", max_parallel_agents=3)
+results = weaver.weave(max_iterations_per_loop=50)
 ```
 
 ## Development Workflows

@@ -1,4 +1,4 @@
-.PHONY: help install install-dev run dashboard cortex ready ready-json deps deps-json session clean test lint format sync verify-claude
+.PHONY: help install install-dev run dashboard cortex ready ready-json deps deps-json session clean test lint format sync verify-claude yolo yolo-hive yolo-daemon yolo-status yolo-stop yolo-docker
 
 # Default target
 help:
@@ -22,7 +22,15 @@ help:
 	@echo "  make session        Start a Deep Work session (requires PROJECT=...)"
 	@echo "  make verify-claude  Verify Claude Code GitHub App setup"
 	@echo ""
-	@echo "Development Commands:"
+	@echo "YOLO Loop Commands (Autonomous Agent Loops):"
+	@echo "  make yolo PROMPT='...'   Run a single YOLO loop with a prompt"
+	@echo "  make yolo-hive           Run YOLO loops on all ready projects (Loom mode)"
+	@echo "  make yolo-daemon         Start YOLO daemon for continuous operation"
+	@echo "  make yolo-status         Check YOLO daemon status"
+	@echo "  make yolo-stop           Stop YOLO daemon"
+	@echo "  make yolo-docker         Run YOLO loop in Docker sandbox"
+	@echo ""
+	@echo "Development Commands:
 	@echo "  make lint           Run code linting (pylint)"
 	@echo "  make format         Format code with black"
 	@echo "  make test           Run tests (if available)"
@@ -148,3 +156,57 @@ quickstart: install setup-env
 	@echo "2. Run: make dashboard"
 	@echo "3. Or run: make cortex"
 	@echo ""
+
+# ═══════════════════════════════════════════════════════════════════
+# YOLO LOOP COMMANDS - Autonomous Agent Loop Orchestration
+# ═══════════════════════════════════════════════════════════════════
+
+# Run a single YOLO loop with a prompt (Ralph Wiggum style)
+yolo:
+	@if [ -z "$(PROMPT)" ]; then \
+		echo "❌ Error: PROMPT variable not set"; \
+		echo "Usage: make yolo PROMPT='Fix all type errors in src/'"; \
+		exit 1; \
+	fi
+	@echo "🔄 Starting YOLO loop..."
+	uv run python -m src.yolo_loop --prompt "$(PROMPT)" --max-iterations $(or $(MAX_ITER),50)
+
+# Run YOLO loops on all ready Hive projects (Loom mode)
+yolo-hive:
+	@echo "🕸️  Starting Loom Weaver (parallel YOLO loops)..."
+	uv run python -m src.yolo_loop --hive --parallel $(or $(PARALLEL),3) --max-iterations $(or $(MAX_ITER),50)
+
+# Start YOLO daemon for continuous unattended operation
+yolo-daemon:
+	@echo "🌙 Starting YOLO daemon (continuous operation)..."
+	@echo "   Press Ctrl+C to stop"
+	uv run python -m src.sandbox_runner daemon --poll-interval $(or $(POLL_INTERVAL),300)
+
+# Check YOLO daemon status
+yolo-status:
+	@uv run python -m src.sandbox_runner status
+
+# Stop YOLO daemon
+yolo-stop:
+	@uv run python -m src.sandbox_runner stop
+
+# Run YOLO loop in Docker sandbox (isolated execution)
+yolo-docker:
+	@if [ -z "$(PROMPT)" ]; then \
+		echo "❌ Error: PROMPT variable not set"; \
+		echo "Usage: make yolo-docker PROMPT='Fix all bugs'"; \
+		exit 1; \
+	fi
+	@echo "🐳 Starting YOLO loop in Docker sandbox..."
+	uv run python -m src.yolo_loop --prompt "$(PROMPT)" --backend docker --max-iterations $(or $(MAX_ITER),50)
+
+# Generate docker-compose.yml for cloud/VM deployment
+yolo-compose:
+	@echo "📝 Generating docker-compose.yml for YOLO deployment..."
+	uv run python -m src.sandbox_runner compose --output docker-compose.yolo.yml
+	@echo "✅ Generated docker-compose.yolo.yml"
+	@echo ""
+	@echo "To deploy:"
+	@echo "  1. Copy docker-compose.yolo.yml to your server"
+	@echo "  2. Set ANTHROPIC_API_KEY environment variable"
+	@echo "  3. Run: docker-compose -f docker-compose.yolo.yml up -d"

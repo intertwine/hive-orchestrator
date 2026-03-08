@@ -6,7 +6,7 @@ dependencies:
   blocks: []
   parent: null
   related: []
-last_updated: '2026-02-21T08:02:26.534952Z'
+last_updated: '2026-03-08T00:02:24.981460Z'
 owner: claude-code
 priority: high
 project_id: opencode-plugin

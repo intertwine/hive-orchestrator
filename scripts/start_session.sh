@@ -36,8 +36,12 @@ WORKSPACE_ROOT="${HIVE_BASE_PATH:-$REPO_ROOT}"
 export PROJECT_REF
 export WORKSPACE_ROOT
 
-PROJECT_INFO=$(cd "$REPO_ROOT" && uv run python - <<'PY'
+PYTHON_STDERR="$(mktemp)"
+trap 'rm -f "$PYTHON_STDERR"' EXIT
+
+if ! PROJECT_INFO=$(cd "$REPO_ROOT" && uv run python - <<'PY' 2>"$PYTHON_STDERR"
 import os
+import sys
 from pathlib import Path
 
 from src.hive.store.projects import discover_projects, get_project
@@ -57,13 +61,23 @@ if candidate.exists():
             break
 
 if project is None:
-    project = get_project(root, project_ref)
+    try:
+        project = get_project(root, project_ref)
+    except FileNotFoundError as exc:
+        print(f"PROJECT_LOOKUP_ERROR:{exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
 print(f"{project.id}\t{project.agency_path.parent.resolve()}")
 PY
-)
+); then
+    echo -e "${RED}Error: Could not resolve project '$PROJECT_REF'${NC}"
+    if ! grep -q '^PROJECT_LOOKUP_ERROR:' "$PYTHON_STDERR" && [ -s "$PYTHON_STDERR" ]; then
+        cat "$PYTHON_STDERR" >&2
+    fi
+    exit 1
+fi
 
-if [ $? -ne 0 ] || [ -z "$PROJECT_INFO" ]; then
+if [ -z "$PROJECT_INFO" ]; then
     echo -e "${RED}Error: Could not resolve project '$PROJECT_REF'${NC}"
     exit 1
 fi

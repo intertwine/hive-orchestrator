@@ -638,6 +638,48 @@ class TestHiveV2Memory:
         assert any(run_summary["id"] == run.id for run_summary in results["recent_runs"])
         assert any(hit["kind"] == "run_summary" for hit in memory_hits)
 
+    def test_memory_search_and_context_resolve_relative_run_summary_paths(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Accepted run summaries should load when metadata stores relative artifact paths."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, auto_close=False),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare relative summary run workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        eval_run(temp_hive_dir, run.id)
+        accept_run(temp_hive_dir, run.id)
+        summary_path = Path(run.summary_path)
+        summary_path.write_text("# Summary\n\nrelative-orchid continuity\n", encoding="utf-8")
+        metadata_path = Path(temp_hive_dir) / ".hive" / "runs" / run.id / "metadata.json"
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata["summary_path"] = str(Path(".hive") / "runs" / run.id / "summary.md")
+        metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+        rebuild_cache(temp_hive_dir)
+
+        results = startup_context(
+            temp_hive_dir,
+            project_id=project.id,
+            profile="default",
+            query="relative-orchid",
+        )
+        memory_hits = search_memory(
+            temp_hive_dir,
+            "relative-orchid",
+            scope="all",
+            project_id=project.id,
+            limit=8,
+        )
+
+        assert any(run_summary["id"] == run.id for run_summary in results["recent_runs"])
+        assert any(hit["kind"] == "run_summary" for hit in memory_hits)
+
     def test_cache_rebuild_keeps_memory_docs_unique_per_scope_key(
         self, temp_hive_dir, temp_project
     ):

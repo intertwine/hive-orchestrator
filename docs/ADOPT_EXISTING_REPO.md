@@ -26,7 +26,10 @@ Create the first task:
 hive task create \
   --project-id app \
   --title "Describe the first real task for this repo" \
-  --summary "Keep it small enough to finish in one session."
+  --label setup \
+  --relevant-file src/app.py \
+  --acceptance "The task is small enough to finish in one session." \
+  --summary "Keep the first slice narrow and concrete."
 ```
 
 Then run the normal loop:
@@ -35,6 +38,14 @@ Then run the normal loop:
 hive task ready --project-id app
 hive task claim <task-id> --owner <your-name> --ttl-minutes 60
 hive context startup --project app --task <task-id>
+hive run start <task-id>
+```
+
+If this repository is brand new or you want governed runs immediately after adding Hive, create a first commit for
+the workspace state:
+
+```bash
+hive workspace checkpoint --message "Bootstrap Hive workspace"
 ```
 
 ## Case 2: Your Repo Has Older Hive Checklists
@@ -67,7 +78,14 @@ Once Hive is in the repo, the daily path is the same everywhere:
 hive task ready
 hive task claim <task-id> --owner <your-name> --ttl-minutes 60
 hive context startup --project <project-id> --task <task-id>
-hive sync projections
+hive run start <task-id>
+```
+
+When the run is ready to land, the cleanest supported finish is:
+
+```bash
+hive run eval <run-id>
+hive run accept <run-id> --promote --cleanup-worktree
 ```
 
 The short mental model is simple:

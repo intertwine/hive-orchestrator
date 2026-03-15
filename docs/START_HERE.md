@@ -60,7 +60,9 @@ If you want the shortest path to a real Hive workspace:
 ```bash
 mkdir my-hive
 cd my-hive
+git init
 hive quickstart demo --title "Demo project"
+hive workspace checkpoint --message "Bootstrap Hive workspace"
 hive task ready --project-id demo
 ```
 
@@ -87,6 +89,8 @@ git clone https://github.com/intertwine/hive-orchestrator.git
 cd hive-orchestrator
 make install-dev
 make install-tool
+hive --version
+python -m hive --version
 ```
 
 From that point on, stay in the maintainer docs:

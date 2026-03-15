@@ -51,7 +51,9 @@ Start in an empty directory:
 ```bash
 mkdir my-hive
 cd my-hive
+git init
 hive quickstart demo --title "Demo project"
+hive workspace checkpoint --message "Bootstrap Hive workspace"
 hive task ready --project-id demo
 hive task claim <task-id> --owner <your-name> --ttl-minutes 60
 hive context startup --project demo --task <task-id>
@@ -59,6 +61,14 @@ hive context startup --project demo --task <task-id>
 
 That gives you a real workspace, a starter project, a conservative `PROGRAM.md`, and a first task chain with one
 ready task.
+
+If you want the governed run loop right away, continue with:
+
+```bash
+hive run start <task-id>
+hive run eval <run-id>
+hive run accept <run-id> --promote --cleanup-worktree
+```
 
 ## Choose The Right Guide
 

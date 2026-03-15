@@ -38,7 +38,9 @@ Make a clean directory and run:
 ```bash
 mkdir my-hive
 cd my-hive
+git init
 hive quickstart demo --title "Demo project"
+hive workspace checkpoint --message "Bootstrap Hive workspace"
 ```
 
 Use a fresh directory for this walkthrough. If you run these commands inside the Hive repository checkout, `hive task ready` will also see the maintainer tasks that ship with this repo.
@@ -53,6 +55,9 @@ That command:
 - syncs projections and cache
 
 You do not need to hand-write any of that to begin.
+
+The `git init` and first `hive workspace checkpoint` are worth doing up front. Hive can manage tasks without Git,
+but governed runs and promotion work much more smoothly once the workspace has an initial commit.
 
 ## Find Work
 
@@ -87,6 +92,68 @@ Once you have more than one project and want the cross-project queue, drop `--pr
 If you are working from a source checkout and want a saved prompt bundle, `make session PROJECT=demo`
 writes the same startup context to `projects/demo/SESSION_CONTEXT.md`. Treat that as a maintainer
 convenience, not the normal installed-user path.
+
+## Create Better Tasks From The CLI
+
+You do not need to drop into raw Markdown to define useful work. Hive task records already support labels,
+relevant files, acceptance criteria, and summary sections:
+
+```bash
+hive task create \
+  --project-id demo \
+  --title "Add a launch hero section" \
+  --label launch \
+  --label website \
+  --relevant-file src/App.jsx \
+  --acceptance "The hero explains what Hive is in one screen." \
+  --acceptance "The page still passes lint and tests." \
+  --summary "Keep the first version small and shippable."
+```
+
+You can refine the task later without editing the task file by hand:
+
+```bash
+hive task update <task-id> \
+  --label copy \
+  --relevant-file src/styles.css \
+  --acceptance "The mobile layout stays readable." \
+  --notes "Tighten the copy after the structure is in place."
+```
+
+Use `--clear-labels`, `--clear-relevant-files`, `--clear-acceptance`, or `--clear-parent` when you want to replace
+those fields cleanly.
+
+## Governed Runs
+
+When a task should run through the governed worktree flow, the shortest path is:
+
+```bash
+hive run start <task-id>
+hive run eval <run-id>
+hive run accept <run-id> --promote --cleanup-worktree
+```
+
+That sequence:
+
+- opens a dedicated run worktree and branch
+- captures evaluator output and patch data
+- marks the run accepted
+- merges the accepted run back into your main branch
+- prunes the run worktree when you pass `--cleanup-worktree`
+- deletes the merged local run branch after that cleanup step
+
+If you want to separate acceptance from merge, keep them separate:
+
+```bash
+hive run accept <run-id>
+hive run promote <run-id>
+```
+
+If you want to clear old terminal worktrees later, run:
+
+```bash
+hive run cleanup --terminal
+```
 
 ## The Files That Matter
 

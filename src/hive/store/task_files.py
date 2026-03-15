@@ -183,6 +183,8 @@ def create_task(
     history_md: str = "",
 ) -> TaskRecord:
     """Create and persist a canonical task file."""
+    if parent_id is not None:
+        get_task(path, parent_id)
     task = TaskRecord(
         id=new_id("task"),
         project_id=project_id,
@@ -206,6 +208,8 @@ def create_task(
 def update_task(path: str | Path | None, task_id: str, patch: dict[str, Any]) -> TaskRecord:
     """Apply an in-place patch to a task file."""
     task = get_task(path, task_id)
+    if "parent_id" in patch and patch["parent_id"] is not None:
+        get_task(path, patch["parent_id"])
     for key, value in patch.items():
         if hasattr(task, key):
             setattr(task, key, value)

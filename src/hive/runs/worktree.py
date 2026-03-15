@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path, PurePosixPath
+from fnmatch import fnmatch
+from pathlib import Path
 import subprocess
 
 STATE_PATTERNS = (
@@ -41,8 +42,8 @@ def ensure_git_repo(path: str | Path | None) -> Path:
 
 
 def _matches_any(path: str, patterns: tuple[str, ...]) -> bool:
-    candidate = PurePosixPath(path)
-    return any(candidate.match(pattern) for pattern in patterns)
+    normalized = path.strip().strip('"')
+    return any(fnmatch(normalized, pattern) for pattern in patterns)
 
 
 def ensure_clean_repo(path: str | Path | None) -> None:

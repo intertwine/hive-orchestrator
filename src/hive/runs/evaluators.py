@@ -32,7 +32,9 @@ def _append_command_log(
         "step_type": "eval",
         "status": (
             "failed"
-            if step_result.returncode not in {0, None} or step_result.timed_out
+            if step_result.returncode is None
+            or step_result.returncode != 0
+            or step_result.timed_out
             else "succeeded"
         ),
         "summary": f"Evaluator {evaluator_id}",

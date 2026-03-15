@@ -53,6 +53,7 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
         projects = discover_projects(root)
         tasks = list_tasks(root)
         task_by_id = {task.id: task for task in tasks}
+        search_docs: list[tuple[str, Path, str, str]] = []
 
         for project in projects:
             connection.execute(
@@ -162,6 +163,11 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                 metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
                 if metadata.get("task_id") not in task_by_id:
                     continue
+                summary_path = Path(metadata["summary_path"]) if metadata.get("summary_path") else None
+                if summary_path and summary_path.exists():
+                    search_docs.append(
+                        ("run_summary", summary_path, summary_path.name, summary_path.read_text(encoding="utf-8"))
+                    )
                 connection.execute(
                     """
                     INSERT INTO runs
@@ -236,6 +242,7 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                 if kind not in KNOWN_MEMORY_KINDS:
                     continue
                 content = file_path.read_text(encoding="utf-8")
+                search_docs.append(("memory", file_path, f"{scope_key}/{kind}", content))
                 connection.execute(
                     """
                     INSERT INTO memory_docs
@@ -254,7 +261,6 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                     ),
                 )
 
-        search_docs = []
         global_path = root / "GLOBAL.md"
         if global_path.exists():
             search_docs.append(("global", global_path, "GLOBAL.md", global_path.read_text(encoding="utf-8")))

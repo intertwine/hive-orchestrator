@@ -478,6 +478,31 @@ class TestHiveV2Runs:
 
         assert result["promotion_decision"]["decision"] == "escalate"
 
+    def test_accept_run_allows_nested_paths_matching_program_globs(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Recursive path policies should match nested files on Python 3.11."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, allow_paths=["src/**"]),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare nested path run workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        nested_path = Path(run.worktree_path) / "src" / "hive" / "nested.py"
+        nested_path.parent.mkdir(parents=True, exist_ok=True)
+        nested_path.write_text("print('nested')\n", encoding="utf-8")
+
+        result = eval_run(temp_hive_dir, run.id)
+        accepted = accept_run(temp_hive_dir, run.id)
+
+        assert "src/hive/nested.py" in result["run"]["metadata_json"]["touched_paths"]
+        assert accepted["status"] == "accepted"
+
     def test_eval_run_uses_executor_stub_for_github_actions(
         self, temp_hive_dir, temp_project, commit_workspace
     ):

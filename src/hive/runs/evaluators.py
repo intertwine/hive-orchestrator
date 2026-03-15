@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.hive.runs.executors import CommandResult
+from src.hive.runs.executors import CommandResult, Executor
 
 
 def validate_evaluator_command(command: str, commands_policy: dict | None) -> None:
@@ -52,7 +52,7 @@ def _append_command_log(
 
 
 def run_evaluator(
-    executor,
+    executor: Executor,
     command: str,
     cwd: Path,
     output_dir: Path,

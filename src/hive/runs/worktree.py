@@ -9,6 +9,7 @@ import subprocess
 STATE_PATTERNS = (
     ".hive/tasks/**",
     ".hive/events/**",
+    ".hive/runs/**",
     "GLOBAL.md",
     "AGENTS.md",
     "projects/**/AGENCY.md",

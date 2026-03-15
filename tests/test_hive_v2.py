@@ -14,7 +14,8 @@ from src.hive.projections.agency_md import RUN_BEGIN, RUN_END, TASK_BEGIN, TASK_
 from src.hive.projections.global_md import BEGIN as GLOBAL_BEGIN
 from src.hive.projections.global_md import END as GLOBAL_END
 from src.hive.runs import accept_run, eval_run, start_run
-from src.hive.scheduler.query import ready_tasks
+from src.hive.runs.engine import escalate_run, reject_run
+from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.cache import _memory_scope_parts, rebuild_cache
 from src.hive.store.layout import ensure_layout, tasks_dir
 from src.hive.store.projects import discover_projects
@@ -261,6 +262,44 @@ class TestHiveV2Runs:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected accept without evaluation to fail")
 
+    def test_reject_run_rejects_terminal_statuses(self, temp_hive_dir, temp_project):
+        """Rejected runs should not overwrite already-finalized outcomes."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        eval_run(temp_hive_dir, run.id)
+        accept_run(temp_hive_dir, run.id)
+
+        try:
+            reject_run(temp_hive_dir, run.id)
+        except ValueError as exc:
+            assert "Cannot reject run" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected rejecting an accepted run to fail")
+
+    def test_escalate_run_rejects_terminal_statuses(self, temp_hive_dir, temp_project):
+        """Escalation should not reopen finalized runs or tasks."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        eval_run(temp_hive_dir, run.id)
+        accept_run(temp_hive_dir, run.id)
+
+        try:
+            escalate_run(temp_hive_dir, run.id)
+        except ValueError as exc:
+            assert "Cannot escalate run" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected escalating an accepted run to fail")
+
     def test_expired_claimed_task_returns_to_ready_queue(self, temp_hive_dir, temp_project):
         """Expired claimed tasks should be surfaced by ready detection again."""
         migrate_v1_to_v2(temp_hive_dir)
@@ -356,6 +395,33 @@ class TestHiveV2Memory:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected unsupported memory scope to fail")
 
+    def test_cache_rebuild_skips_orphaned_runs(self, temp_hive_dir, temp_project):
+        """Run metadata pointing at missing tasks should not abort cache rebuild."""
+        migrate_v1_to_v2(temp_hive_dir)
+        runs_dir = Path(temp_hive_dir) / ".hive" / "runs" / "run_orphaned"
+        runs_dir.mkdir(parents=True, exist_ok=True)
+        (runs_dir / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "id": "run_orphaned",
+                    "project_id": discover_projects(temp_hive_dir)[0].id,
+                    "task_id": "task_missing",
+                    "status": "running",
+                    "started_at": "2026-03-15T00:00:00Z",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        db_path = rebuild_cache(temp_hive_dir)
+        connection = sqlite3.connect(db_path)
+        try:
+            run_ids = [row[0] for row in connection.execute("SELECT id FROM runs")]
+        finally:
+            connection.close()
+
+        assert "run_orphaned" not in run_ids
+
 
 class TestHiveV2Cli:
     """Tests for the CLI JSON surface."""
@@ -430,3 +496,22 @@ class TestHiveV2Cli:
         assert exit_code == 0
         payload = json.loads(captured.out)
         assert payload["run"]["id"] == run.id
+
+
+class TestHiveV2Scheduler:
+    """Tests for scheduler summaries."""
+
+    def test_project_summary_counts_expired_claims_as_ready(self, temp_hive_dir, temp_project):
+        """Expired claimed tasks should align between ready queue and project summary."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        baseline = next(item for item in project_summary(temp_hive_dir) if item["id"] == project.id)
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        task = get_task(temp_hive_dir, task_id)
+        task.status = "claimed"
+        task.owner = "codex"
+        task.claimed_until = "2000-01-01T00:00:00Z"
+        save_task(temp_hive_dir, task)
+
+        summary = next(item for item in project_summary(temp_hive_dir) if item["id"] == project.id)
+        assert summary["ready"] == baseline["ready"]

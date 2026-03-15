@@ -114,9 +114,11 @@ def project_summary(path: str | Path | None = None) -> list[dict[str, object]]:
                 "priority": project.priority,
                 "owner": project.owner,
                 "path": str(project.agency_path),
-                "ready": len([task for task in project_tasks if task.status in {"proposed", "ready"}]),
+                "ready": len(
+                    [task for task in project_tasks if _effective_status(task) in {"proposed", "ready"}]
+                ),
                 "in_progress": len(
-                    [task for task in project_tasks if task.status in {"claimed", "in_progress"}]
+                    [task for task in project_tasks if _effective_status(task) in {"claimed", "in_progress"}]
                 ),
                 "blocked": len([task for task in project_tasks if task.status == "blocked"]),
             }

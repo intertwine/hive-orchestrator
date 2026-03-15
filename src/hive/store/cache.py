@@ -160,6 +160,8 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
         if runs_root.exists():
             for metadata_path in sorted(runs_root.glob("*/metadata.json")):
                 metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                if metadata.get("task_id") not in task_by_id:
+                    continue
                 connection.execute(
                     """
                     INSERT INTO runs

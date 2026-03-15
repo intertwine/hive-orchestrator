@@ -241,6 +241,8 @@ def accept_run(path: str | Path | None, run_id: str) -> dict:
 def reject_run(path: str | Path | None, run_id: str, reason: str | None = None) -> dict:
     """Reject a run."""
     metadata = load_run(path, run_id)
+    if metadata.get("status") not in {"running", "evaluating"}:
+        raise ValueError(f"Cannot reject run with status {metadata.get('status')!r}")
     metadata["status"] = "rejected"
     metadata["finished_at"] = utc_now_iso()
     metadata["exit_reason"] = reason
@@ -250,6 +252,8 @@ def reject_run(path: str | Path | None, run_id: str, reason: str | None = None) 
 def escalate_run(path: str | Path | None, run_id: str, reason: str | None = None) -> dict:
     """Escalate a run for human review."""
     metadata = load_run(path, run_id)
+    if metadata.get("status") not in {"running", "evaluating"}:
+        raise ValueError(f"Cannot escalate run with status {metadata.get('status')!r}")
     metadata["status"] = "escalated"
     metadata["finished_at"] = utc_now_iso()
     metadata["exit_reason"] = reason

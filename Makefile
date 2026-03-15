@@ -1,4 +1,4 @@
-.PHONY: help install install-dev run dashboard cortex ready ready-json deps deps-json hive hive-init hive-doctor sync-projections migrate-v2 session clean test lint format sync verify-claude
+.PHONY: help install install-dev run dashboard ready ready-json deps deps-json hive hive-init hive-doctor sync-projections migrate-v2 session clean test lint format sync verify-claude
 
 # Default target
 help:
@@ -14,14 +14,13 @@ help:
 	@echo ""
 	@echo "Runtime Commands:"
 	@echo "  make dashboard      Launch Streamlit dashboard (UI)"
-	@echo "  make cortex         Compatibility alias for v2 projection sync"
 	@echo "  make ready          Find ready canonical tasks"
 	@echo "  make ready-json     Find ready work as JSON"
-	@echo "  make deps           Show dependency graph (compatibility view)"
+	@echo "  make deps           Show dependency graph"
 	@echo "  make deps-json      Show dependency graph as JSON"
 	@echo "  make hive           Show Hive 2.0 doctor output"
 	@echo "  make hive-init      Initialize the Hive 2.0 layout"
-	@echo "  make sync-projections  Refresh GLOBAL/AGENCY/AGENTS generated sections"
+	@echo "  make sync-projections  Rebuild cache and refresh generated sections"
 	@echo "  make migrate-v2     Import v1 projects into the v2 substrate"
 	@echo "  make session        Start a Hive v2 session (requires PROJECT=...)"
 	@echo "  make verify-claude  Verify Claude Code GitHub App setup"
@@ -34,7 +33,7 @@ help:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make dashboard"
-	@echo "  make cortex"
+	@echo "  make sync-projections"
 	@echo "  make session PROJECT=projects/demo"
 	@echo ""
 
@@ -62,10 +61,13 @@ sync:
 setup-env:
 	@if [ ! -f .env ]; then \
 		echo "Creating .env template..."; \
-		echo "OPENROUTER_API_KEY=your-api-key-here" > .env; \
-		echo "OPENROUTER_MODEL=anthropic/claude-haiku-4.5" >> .env; \
-		echo "HIVE_BASE_PATH=$(shell pwd)" >> .env; \
-		echo "✅ .env file created. Please edit it and add your API key."; \
+		echo "HIVE_BASE_PATH=$(shell pwd)" > .env; \
+		echo "# Optional: real-time coordination" >> .env; \
+		echo "# COORDINATOR_URL=http://localhost:8080" >> .env; \
+		echo "# Optional: Weave tracing" >> .env; \
+		echo "# WANDB_API_KEY=your-wandb-api-key" >> .env; \
+		echo "# WEAVE_PROJECT=agent-hive" >> .env; \
+		echo "✅ .env file created. Edit it only if you want custom paths or optional services."; \
 	else \
 		echo "⚠️  .env file already exists. Not overwriting."; \
 	fi
@@ -77,12 +79,6 @@ dashboard:
 	@echo ""
 	uv run streamlit run src/dashboard.py
 
-# Compatibility alias for v2 projection sync
-cortex:
-	@echo "🧠 Running Hive v2 projection sync..."
-	@uv run hive cache rebuild --json
-	@uv run hive sync projections --json
-
 # Find ready work
 ready:
 	@uv run hive task ready
@@ -93,11 +89,11 @@ ready-json:
 
 # Show dependency graph
 deps:
-	@uv run python src/cortex.py --deps
+	@uv run hive deps
 
 # Show dependency graph as JSON (for programmatic use)
 deps-json:
-	@uv run python src/cortex.py --deps --json
+	@uv run hive deps --json
 
 hive:
 	@uv run hive doctor --json
@@ -109,6 +105,7 @@ hive-doctor:
 	@uv run hive doctor --json
 
 sync-projections:
+	@uv run hive cache rebuild --json
 	@uv run hive sync projections --json
 
 migrate-v2:
@@ -164,7 +161,7 @@ quickstart: install setup-env
 	@echo "✅ .env template created"
 	@echo ""
 	@echo "Next steps:"
-	@echo "1. Edit .env and add your OPENROUTER_API_KEY"
+	@echo "1. Edit .env if you want custom paths or optional services"
 	@echo "2. Run: make dashboard"
 	@echo "3. Or run: make sync-projections"
 	@echo ""

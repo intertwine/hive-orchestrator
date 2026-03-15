@@ -74,7 +74,7 @@ def check_git_remote() -> bool:
 def check_workflow_files() -> bool:
     """Check if required workflow files exist."""
     workflows_dir = Path(".github/workflows")
-    required_files = ["cortex.yml", "agent-assignment.yml"]
+    required_files = ["projection-sync.yml", "agent-assignment.yml"]
 
     all_exist = True
     for filename in required_files:

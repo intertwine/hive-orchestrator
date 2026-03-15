@@ -199,10 +199,7 @@ def _sanitize_headers(headers: Dict[str, str]) -> Dict[str, str]:
         A new dictionary with sensitive values redacted.
     """
     sensitive_keys = {"authorization", "api-key", "x-api-key", "bearer"}
-    return {
-        k: "***REDACTED***" if k.lower() in sensitive_keys else v
-        for k, v in headers.items()
-    }
+    return {k: "***REDACTED***" if k.lower() in sensitive_keys else v for k, v in headers.items()}
 
 
 def _extract_token_usage(response_json: Dict[str, Any]) -> Dict[str, Optional[int]]:
@@ -337,6 +334,7 @@ if _weave_available:
         # Use original headers for the actual request, fall back to sanitized if not provided
         actual_headers = _original_headers if _original_headers else headers
         return _untraced_llm_call_impl(api_url, actual_headers, payload, model, timeout)
+
 else:
     # Fallback if weave is not available
     def _traced_llm_call_impl(
@@ -352,11 +350,8 @@ else:
         return _untraced_llm_call_impl(api_url, actual_headers, payload, model, timeout)
 
 
-def traced_cortex_run(func: F) -> F:
-    """Decorator to trace a full Cortex run.
-
-    This decorator wraps the Cortex.run() method to provide end-to-end
-    tracing of the orchestration cycle.
+def traced_workspace_run(func: F) -> F:
+    """Backward-compatible decorator to trace a full workspace sync or run.
 
     Args:
         func: The function to trace.
@@ -372,15 +367,19 @@ def traced_cortex_run(func: F) -> F:
         if _tracing_initialized and _weave_available:
             # Use weave.op for the wrapper
             traced = weave.op(func)
-            traced.name = "cortex_run"
+            traced.name = "workspace_run"
             return traced(*args, **kwargs)
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore
 
 
+# Backward-compatible alias for older integrations.
+traced_cortex_run = traced_workspace_run
+
+
 def traced_analysis(func: F) -> F:
-    """Decorator to trace analysis prompt building.
+    """Decorator to trace context or prompt-building helpers.
 
     Args:
         func: The function to trace.
@@ -395,7 +394,7 @@ def traced_analysis(func: F) -> F:
     def wrapper(*args, **kwargs):
         if _tracing_initialized and _weave_available:
             traced = weave.op(func)
-            traced.name = "build_analysis_prompt"
+            traced.name = "context_build"
             return traced(*args, **kwargs)
         return func(*args, **kwargs)
 

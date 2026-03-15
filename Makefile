@@ -282,4 +282,4 @@ dev-quickstart: install setup-env
 quickstart:
 	@echo "⚠️  make quickstart is a maintainer shortcut from a source checkout."
 	@echo "Use the installed product path for everyday work: hive quickstart demo --title \"Demo project\""
-	@$(MAKE) dev-quickstart
+	@echo "Maintainers can use: make dev-quickstart"

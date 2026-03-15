@@ -18,6 +18,8 @@ def test_package_metadata_points_users_at_public_start_here_docs():
         "content-type": "text/markdown",
     }
     assert pyproject["project"]["urls"]["Documentation"].endswith("/docs/START_HERE.md")
+    assert "docs/PYPI_README.md" in pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["only-include"]
+    assert "docs" not in pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["only-include"]
 
 
 def test_public_readmes_surface_three_clear_entry_points():
@@ -67,6 +69,7 @@ def test_makefile_marks_itself_as_a_checkout_surface():
     assert "Installed users should use the `hive` CLI directly." in makefile
     assert "dev-quickstart:" in makefile
     assert "make quickstart is a maintainer shortcut from a source checkout." in makefile
+    assert "Maintainers can use: make dev-quickstart" in makefile
 
 
 def test_claude_app_doc_keeps_dispatcher_diagnostics_in_checkout_only_section():
@@ -89,4 +92,6 @@ def test_release_guide_uses_throwaway_dirs_for_public_install_verification():
     assert "Do not run these" in release_doc
     assert "maintainer checkout" in release_doc
     assert "workspace_dir=$(mktemp -d)" in release_doc
+    assert "./pip-verify/bin/hive --version" in release_doc
+    assert "./pip-verify/bin/hive doctor --json" in release_doc
     assert "hive quickstart demo --title \"Demo project\"" in release_doc

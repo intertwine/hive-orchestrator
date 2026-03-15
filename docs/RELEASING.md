@@ -98,8 +98,8 @@ hive doctor
 
 python -m venv pip-verify
 ./pip-verify/bin/python -m pip install --upgrade agent-hive
-./pip-verify/bin/python -m hive --version
-./pip-verify/bin/python -m hive doctor --json
+./pip-verify/bin/hive --version
+./pip-verify/bin/hive doctor --json
 
 pipx install --force agent-hive
 pipx run --spec agent-hive hive --version

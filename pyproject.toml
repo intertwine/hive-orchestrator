@@ -92,7 +92,7 @@ only-include = [
     "README.md",
     "LICENSE",
     "pyproject.toml",
-    "docs",
+    "docs/PYPI_README.md",
     "src",
     "hive",
     "hive_mcp",

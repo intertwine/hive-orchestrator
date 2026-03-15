@@ -151,11 +151,13 @@ def _search_cache(root: Path, query: str, scopes: set[str], limit: int) -> list[
     for doc_type, path, title, body, metadata_json in rows:
         title_score = _score(title, query)
         body_score = _score(body, query)
+        # Weight title hits heavily, then use a small post-filter boost so canonical tasks
+        # outrank tied projection docs without letting zero-match tasks into the result set.
         score = (title_score * 4) + body_score
-        if doc_type == "task":
-            score += 2
         if not score:
             continue
+        if doc_type == "task":
+            score += 2
         metadata = json.loads(metadata_json or "{}")
         snippet = _snippet(body, query)
         results.append(

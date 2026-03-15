@@ -763,6 +763,7 @@ def main(argv: list[str] | None = None) -> int:
                     profile=args.profile,
                     query=args.query,
                     task_id=args.task,
+                    refresh=False,
                 )
                 if args.output:
                     output_path = Path(args.output).expanduser().resolve()
@@ -786,7 +787,12 @@ def main(argv: list[str] | None = None) -> int:
                     return _emit({"ok": True, "context": bundle["context"]}, args.json)
                 return _emit({"ok": True, "rendered_context": bundle["rendered"]}, args.json)
             if args.context_command == "handoff":
-                bundle = build_context_bundle(root, project_ref=args.project, mode="handoff")
+                bundle = build_context_bundle(
+                    root,
+                    project_ref=args.project,
+                    mode="handoff",
+                    refresh=False,
+                )
                 if args.output:
                     output_path = Path(args.output).expanduser().resolve()
                     output_path.parent.mkdir(parents=True, exist_ok=True)

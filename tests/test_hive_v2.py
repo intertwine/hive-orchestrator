@@ -1933,6 +1933,15 @@ class TestHiveV2Search:
         assert results
         assert results[0]["kind"] == "task"
 
+    def test_search_workspace_excludes_zero_match_tasks(self, tmp_path):
+        """Irrelevant queries should not return every canonical task just because tasks are boosted."""
+        workspace = tmp_path / "search-zero-match"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "launch/demo"])
+
+        results = search_workspace(workspace, "ultraviolet narwhal", scopes=["workspace"], limit=20)
+
+        assert all(item["kind"] != "task" for item in results)
+
     def test_search_workspace_rebuilds_missing_cache_on_demand(self, temp_hive_dir, temp_project):
         """Search should rebuild the cache when no derived index exists yet."""
         migrate_v1_to_v2(temp_hive_dir)

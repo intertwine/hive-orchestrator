@@ -113,6 +113,7 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
         if temp_db_path.exists():
             temp_db_path.unlink()
 
+        connection = None
         try:
             connection = sqlite3.connect(temp_db_path)
             connection.executescript(_schema_sql())
@@ -424,9 +425,8 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
             connection = None
             os.replace(temp_db_path, db_path)
         finally:
-            if "connection" in locals():
-                if connection is not None:
-                    connection.close()
+            if connection is not None:
+                connection.close()
             if temp_db_path.exists():
                 temp_db_path.unlink()
     return db_path

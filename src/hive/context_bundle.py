@@ -98,10 +98,12 @@ def build_context_bundle(
     profile: str = "light",
     query: str | None = None,
     task_id: str | None = None,
+    refresh: bool = True,
 ) -> dict[str, object]:  # pylint: disable=too-many-arguments
     """Build a rendered startup or handoff bundle for a project."""
     root = Path(path or Path.cwd()).resolve()
-    sync_workspace(root)
+    if refresh:
+        sync_workspace(root)
     project = get_project(root, project_ref)
     ready = ready_tasks(root, project_id=project.id, limit=5)
     context = (

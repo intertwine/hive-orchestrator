@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS memory_docs (
 
 CREATE TABLE IF NOT EXISTS search_docs (
   id TEXT PRIMARY KEY,
-  doc_type TEXT NOT NULL CHECK(doc_type IN ('task','run_summary','memory','program','agency','global')),
+  doc_type TEXT NOT NULL CHECK(doc_type IN ('task','run_summary','memory','workspace_doc','program','agency','global')),
   path TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
   body TEXT NOT NULL,

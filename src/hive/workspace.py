@@ -57,3 +57,12 @@ def sync_workspace(path: str | Path | None = None) -> None:
         sync_agency_md(root)
         sync_agents_md(root)
         rebuild_cache(root)
+
+
+def resolve_workspace_path(path: str | Path | None, target: str | Path) -> Path:
+    """Resolve a user-supplied path relative to the workspace root when needed."""
+    root = Path(path or Path.cwd()).resolve()
+    candidate = Path(target).expanduser()
+    if candidate.is_absolute():
+        return candidate.resolve()
+    return (root / candidate).resolve()

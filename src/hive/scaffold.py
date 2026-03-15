@@ -32,6 +32,7 @@ commands:
 evaluators: []
 promotion:
   allow_unsafe_without_evaluators: false
+  allow_accept_without_changes: false
   requires_all: []
   review_required_when_paths_match: []
   auto_close_task: false
@@ -51,6 +52,8 @@ Define the autonomous work contract for this project.
 - If you intentionally want a manual or low-governance project, set
   `promotion.allow_unsafe_without_evaluators: true` explicitly so the risk is visible in code
   review.
+- If you intentionally want report-only or no-op runs to promote, set
+  `promotion.allow_accept_without_changes: true` explicitly so that policy is obvious in review.
 - Commands in `commands.allow` must match evaluator commands exactly.
 """
 

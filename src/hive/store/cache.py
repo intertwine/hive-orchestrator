@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import os
 import json
+import re
 import sqlite3
 from hashlib import sha256
 from importlib.resources import files
@@ -17,11 +18,13 @@ except ImportError:  # pragma: no cover
     fcntl = None  # type: ignore[assignment]
 
 from src.hive.store.events import load_events
-from src.hive.store.layout import cache_dir
+from src.hive.store.layout import cache_dir, global_memory_dir
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import list_tasks
 
 KNOWN_MEMORY_KINDS = {"observations", "reflections", "profile", "active", "summary"}
+WORKSPACE_DOC_SUFFIXES = {".md", ".markdown", ".rst", ".txt"}
+WORKSPACE_ROOT_DOC_STEMS = {"README", "CHANGELOG", "CONTRIBUTING", "RELEASING", "RELEASE_NOTES"}
 
 
 class CacheBusyError(RuntimeError):
@@ -71,7 +74,10 @@ def _memory_scope_parts(relative_path: Path) -> tuple[str, str]:
     scope = parts[0]
     if scope not in {"project", "global", "run", "agent"}:
         raise ValueError(f"Unsupported memory scope: {scope}")
-    scope_key = "/".join(parts[1:-1]) or scope
+    if len(parts) == 2:
+        scope_key = "workspace" if scope == "project" else scope
+    else:
+        scope_key = "/".join(parts[1:-1])
     return scope, scope_key
 
 
@@ -100,6 +106,224 @@ def _resolve_run_artifact_path(metadata_path: Path, value: str | None, root: Pat
     return (metadata_dir / candidate).resolve()
 
 
+def _task_search_body(task) -> str:
+    acceptance = "\n".join(f"- {item}" for item in task.acceptance)
+    relevant_files = "\n".join(f"- {item}" for item in task.relevant_files)
+    labels = ", ".join(task.labels)
+    parts = [
+        f"# {task.title}",
+        "",
+        f"Status: {task.status}",
+        f"Kind: {task.kind}",
+        f"Priority: {task.priority}",
+    ]
+    if labels:
+        parts.extend(["", "Labels:", labels])
+    if task.summary_md.strip():
+        parts.extend(["", "Summary:", task.summary_md.strip()])
+    if acceptance:
+        parts.extend(["", "Acceptance:", acceptance])
+    if relevant_files:
+        parts.extend(["", "Relevant Files:", relevant_files])
+    if task.notes_md.strip():
+        parts.extend(["", "Notes:", task.notes_md.strip()])
+    if task.history_md.strip():
+        parts.extend(["", "History:", task.history_md.strip()])
+    return "\n".join(parts).strip()
+
+
+def _task_search_metadata(task) -> dict[str, object]:
+    return {
+        "project_id": task.project_id,
+        "task_id": task.id,
+        "status": task.status,
+        "priority": task.priority,
+        "labels": task.labels,
+        "relevant_files": task.relevant_files,
+        "acceptance": task.acceptance,
+        "summary": task.summary_md,
+        "notes": task.notes_md,
+        "history": task.history_md,
+    }
+
+
+def _project_search_metadata(project) -> dict[str, object]:
+    return {
+        "project_id": project.id,
+        "project_slug": project.slug,
+        "status": project.status,
+        "priority": project.priority,
+        "owner": project.owner,
+    }
+
+
+def _memory_search_metadata(scope: str, scope_key: str, kind: str, relative_path: Path) -> dict[str, object]:
+    project_id = None
+    shared = False
+    if scope == "project":
+        if scope_key == "workspace":
+            shared = True
+        else:
+            project_id = scope_key.split("/", 1)[0]
+    elif scope == "global":
+        shared = True
+    return {
+        "entity_id": f"{scope}:{scope_key}:{kind}",
+        "scope": scope,
+        "scope_key": scope_key,
+        "kind": kind,
+        "relative_path": relative_path.as_posix(),
+        "project_id": project_id,
+        "shared_project_memory": shared,
+    }
+
+
+def _workspace_doc_paths(root: Path) -> list[Path]:
+    """Return project-facing docs worth indexing for generic workspace search."""
+    seen: set[Path] = set()
+    paths: list[Path] = []
+
+    for file_path in sorted(root.iterdir()):
+        if not file_path.is_file():
+            continue
+        if file_path.name in {"GLOBAL.md", "AGENTS.md"}:
+            continue
+        if file_path.suffix.lower() not in WORKSPACE_DOC_SUFFIXES:
+            continue
+        if file_path.stem.upper() not in WORKSPACE_ROOT_DOC_STEMS:
+            continue
+        resolved = file_path.resolve()
+        seen.add(resolved)
+        paths.append(file_path)
+
+    docs_root = root / "docs"
+    if not docs_root.exists():
+        return paths
+
+    for file_path in sorted(docs_root.rglob("*")):
+        if not file_path.is_file():
+            continue
+        if file_path.suffix.lower() not in WORKSPACE_DOC_SUFFIXES:
+            continue
+        relative_to_docs = file_path.relative_to(docs_root)
+        if relative_to_docs.parts and relative_to_docs.parts[0] == "hive-v2-spec":
+            continue
+        resolved = file_path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        paths.append(file_path)
+    return paths
+
+
+def _workspace_doc_metadata(root: Path, file_path: Path) -> dict[str, object]:
+    """Return search metadata for generic workspace documents."""
+    try:
+        relative_path = file_path.relative_to(root).as_posix()
+    except ValueError:  # pragma: no cover - defensive
+        relative_path = file_path.name
+    return {
+        "entity_id": relative_path,
+        "entity_key": f"workspace_doc:{relative_path}",
+        "relative_path": relative_path,
+        "scope": "workspace",
+    }
+
+
+def _memory_search_title(scope: str, relative_path: Path) -> str:
+    """Return a human-facing title for indexed memory docs."""
+    if scope == "project" and relative_path.parts and relative_path.parts[0] == "project":
+        if len(relative_path.parts) > 2:
+            return "/".join(relative_path.parts[1:])
+        return f"workspace/{relative_path.name}"
+    return relative_path.as_posix()
+
+
+def _slugify_heading(value: str) -> str:
+    """Return a stable slug for chunked search entities."""
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "section"
+
+
+def _chunk_markdown_sections(content: str, *, observations: bool) -> list[tuple[str, str]]:
+    """Split markdown into coherent top-level search chunks."""
+    pattern = r"(?=^## \d{4}-\d{2}-\d{2})" if observations else r"(?=^## )"
+    sections = [section.strip() for section in re.split(pattern, content, flags=re.MULTILINE)]
+    chunks: list[tuple[str, str]] = []
+    for index, section in enumerate(sections, start=1):
+        if not section:
+            continue
+        heading_match = re.match(r"^##\s+(.+)$", section, flags=re.MULTILINE)
+        heading = heading_match.group(1).strip() if heading_match else f"Section {index}"
+        chunks.append((heading, section))
+    return chunks
+
+
+def _memory_search_docs(
+    scope: str,
+    scope_key: str,
+    kind: str,
+    relative_path: Path,
+    file_path: Path,
+    content: str,
+) -> list[tuple[str, Path, str, str, dict]]:
+    """Build memory search docs using section-level chunks when possible."""
+    base_title = _memory_search_title(scope, relative_path)
+    base_metadata = _memory_search_metadata(scope, scope_key, kind, relative_path)
+    chunks = _chunk_markdown_sections(content, observations=(kind == "observations"))
+    if not chunks:
+        return [
+            _search_doc_payload(
+                doc_type="memory",
+                file_path=_search_doc_chunk_path(file_path),
+                title=base_title,
+                body=content,
+                metadata={"entity_key": f"memory:{scope}:{scope_key}:{kind}"} | base_metadata,
+            )
+        ]
+
+    search_docs: list[tuple[str, Path, str, str, dict]] = []
+    for heading, body in chunks:
+        chunk_slug = _slugify_heading(heading)
+        search_docs.append(
+            _search_doc_payload(
+                doc_type="memory",
+                file_path=_search_doc_chunk_path(file_path, chunk_slug),
+                title=f"{base_title} :: {heading}",
+                body=body,
+                metadata={
+                    "entity_key": f"memory:{scope}:{scope_key}:{kind}:{chunk_slug}",
+                    "memory_heading": heading,
+                }
+                | base_metadata,
+            )
+        )
+    return search_docs
+
+
+def _search_doc_payload(
+    *,
+    doc_type: str,
+    file_path: Path,
+    title: str,
+    body: str,
+    metadata: dict | None = None,
+) -> tuple[str, Path, str, str, dict]:
+    return (doc_type, file_path, title, body, metadata or {})
+
+
+def _search_doc_chunk_path(file_path: Path, fragment: str | None = None) -> Path:
+    """Return a unique cache path for a document, optionally with a chunk fragment."""
+    if not fragment:
+        return file_path
+    return Path(f"{file_path}#{fragment}")
+
+
+def _search_doc_stat_path(file_path: Path) -> Path:
+    """Return the underlying file path used for timestamps when cache paths carry fragments."""
+    return Path(str(file_path).split("#", 1)[0])
+
+
 def rebuild_cache(path: str | Path | None = None) -> Path:
     """Rebuild the derived SQLite cache from canonical files."""
     root = Path(path or Path.cwd())
@@ -121,7 +345,7 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
             tasks = list_tasks(root)
             task_by_id = {task.id: task for task in tasks}
             pending_edges: list[tuple[str, str, str, str, str, str]] = []
-            search_docs: list[tuple[str, Path, str, str]] = []
+            search_docs: list[tuple[str, Path, str, str, dict]] = []
 
             for project in projects:
                 connection.execute(
@@ -239,11 +463,19 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                     )
                     if summary_path and summary_path.exists():
                         search_docs.append(
-                            (
-                                "run_summary",
-                                summary_path,
-                                summary_path.name,
-                                summary_path.read_text(encoding="utf-8"),
+                            _search_doc_payload(
+                                doc_type="run_summary",
+                                file_path=summary_path,
+                                title=summary_path.name,
+                                body=summary_path.read_text(encoding="utf-8"),
+                                metadata={
+                                    "entity_key": f"run:{metadata['id']}",
+                                    "entity_id": metadata["id"],
+                                    "run_id": metadata["id"],
+                                    "project_id": metadata.get("project_id"),
+                                    "task_id": metadata.get("task_id"),
+                                    "status": metadata.get("status"),
+                                },
                             )
                         )
                     connection.execute(
@@ -344,10 +576,20 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                     except ValueError:
                         continue
                     kind = file_path.stem
+                    content = file_path.read_text(encoding="utf-8")
+                    search_metadata = _memory_search_metadata(scope, scope_key, kind, relative_path)
+                    search_docs.extend(
+                        _memory_search_docs(
+                            scope,
+                            scope_key,
+                            kind,
+                            relative_path,
+                            file_path,
+                            content,
+                        )
+                    )
                     if kind not in KNOWN_MEMORY_KINDS:
                         continue
-                    content = file_path.read_text(encoding="utf-8")
-                    search_docs.append(("memory", file_path, f"{scope_key}/{kind}", content))
                     connection.execute(
                         """
                         INSERT INTO memory_docs
@@ -362,29 +604,111 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                             str(file_path),
                             file_path.stat().st_mtime_ns,
                             sha256(content.encode("utf-8")).hexdigest(),
-                            _json({"relative_path": relative_path.as_posix()}),
+                            _json(search_metadata),
+                        ),
+                    )
+            global_memory_root = global_memory_dir()
+            if global_memory_root.exists():
+                for file_path in sorted(global_memory_root.glob("**/*.md")):
+                    relative_path = file_path.relative_to(global_memory_root)
+                    kind = file_path.stem
+                    content = file_path.read_text(encoding="utf-8")
+                    scope_key = "/".join(relative_path.parts[:-1]) or "global"
+                    search_metadata = _memory_search_metadata("global", scope_key, kind, relative_path)
+                    search_docs.extend(
+                        _memory_search_docs(
+                            "global",
+                            scope_key,
+                            kind,
+                            relative_path,
+                            file_path,
+                            content,
+                        )
+                    )
+                    if kind not in KNOWN_MEMORY_KINDS:
+                        continue
+                    connection.execute(
+                        """
+                        INSERT INTO memory_docs
+                        (id, scope, scope_key, kind, path, updated_at, source_hash, metadata_json)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            f"global:{scope_key}:{kind}",
+                            "global",
+                            scope_key,
+                            kind,
+                            str(file_path),
+                            file_path.stat().st_mtime_ns,
+                            sha256(content.encode("utf-8")).hexdigest(),
+                            _json(search_metadata),
                         ),
                     )
 
             global_path = root / "GLOBAL.md"
             if global_path.exists():
                 search_docs.append(
-                    ("global", global_path, "GLOBAL.md", global_path.read_text(encoding="utf-8"))
+                    _search_doc_payload(
+                        doc_type="global",
+                        file_path=global_path,
+                        title="GLOBAL.md",
+                        body=global_path.read_text(encoding="utf-8"),
+                        metadata={"entity_key": "global:workspace"},
+                    )
                 )
             for project in projects:
-                search_docs.append(("agency", project.agency_path, project.title, project.content))
+                search_docs.append(
+                    _search_doc_payload(
+                        doc_type="agency",
+                        file_path=project.agency_path,
+                        title=project.title,
+                        body=project.content,
+                        metadata={
+                            "entity_key": f"agency:{project.id}",
+                            "entity_id": project.id,
+                        }
+                        | _project_search_metadata(project),
+                    )
+                )
                 if project.program_path.exists():
                     search_docs.append(
-                        (
-                            "program",
-                            project.program_path,
-                            project.program_path.name,
-                            project.program_path.read_text(encoding="utf-8"),
+                        _search_doc_payload(
+                            doc_type="program",
+                            file_path=project.program_path,
+                            title=project.program_path.name,
+                            body=project.program_path.read_text(encoding="utf-8"),
+                            metadata={
+                                "entity_key": f"program:{project.id}",
+                                "entity_id": project.id,
+                            }
+                            | _project_search_metadata(project),
                         )
                     )
+            for file_path in _workspace_doc_paths(root):
+                relative_path = file_path.relative_to(root)
+                search_docs.append(
+                    _search_doc_payload(
+                        doc_type="workspace_doc",
+                        file_path=file_path,
+                        title=relative_path.as_posix(),
+                        body=file_path.read_text(encoding="utf-8"),
+                        metadata=_workspace_doc_metadata(root, file_path),
+                    )
+                )
             for task in tasks:
-                search_docs.append(("task", task.path or Path(task.id), task.title, task.summary_md))
-            for doc_type, file_path, title, body in search_docs:
+                search_docs.append(
+                    _search_doc_payload(
+                        doc_type="task",
+                        file_path=task.path or Path(task.id),
+                        title=task.title,
+                        body=_task_search_body(task),
+                        metadata={"entity_key": f"task:{task.id}", "entity_id": task.id}
+                        | _task_search_metadata(task)
+                        | {"task_kind": task.kind},
+                    )
+                )
+            for doc_type, file_path, title, body, metadata in search_docs:
+                stat_path = _search_doc_stat_path(file_path)
                 connection.execute(
                     """
                     INSERT INTO search_docs (id, doc_type, path, title, body, metadata_json, updated_at)
@@ -396,8 +720,8 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                         str(file_path),
                         title,
                         body,
-                        "{}",
-                        file_path.stat().st_mtime_ns if file_path.exists() else 0,
+                        _json(metadata),
+                        stat_path.stat().st_mtime_ns if stat_path.exists() else 0,
                     ),
                 )
 

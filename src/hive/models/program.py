@@ -40,6 +40,11 @@ class ProgramRecord:
         promotion = self.metadata.get("promotion", {})
         return bool(promotion.get("allow_unsafe_without_evaluators", False))
 
+    def allow_accept_without_changes(self) -> bool:
+        """Return whether this program explicitly opts into accepting no-op runs."""
+        promotion = self.metadata.get("promotion", {})
+        return bool(promotion.get("allow_accept_without_changes", False))
+
     def evaluator_ids(self) -> list[str]:
         """Return declared evaluator IDs in definition order."""
         return [str(evaluator["id"]) for evaluator in self.metadata.get("evaluators", [])]
@@ -107,6 +112,8 @@ class ProgramRecord:
             raise ValueError(
                 "PROGRAM.md promotion.allow_unsafe_without_evaluators must be a boolean"
             )
+        if not isinstance(promotion.setdefault("allow_accept_without_changes", False), bool):
+            raise ValueError("PROGRAM.md promotion.allow_accept_without_changes must be a boolean")
         _require_string_list(promotion.setdefault("requires_all", []), "promotion.requires_all")
         _require_string_list(
             promotion.setdefault("review_required_when_paths_match", []),

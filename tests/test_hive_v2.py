@@ -62,6 +62,7 @@ def _program_markdown(
     evaluators: list[dict[str, object]] | None = None,
     requires_all: list[str] | None = None,
     allow_unsafe_without_evaluators: bool = False,
+    allow_accept_without_changes: bool = False,
 ) -> str:
     allowed = allow_commands if allow_commands is not None else [command]
     allowed_paths = allow_paths if allow_paths is not None else ["src/**", "tests/**", "docs/**"]
@@ -137,6 +138,7 @@ commands:
 evaluators:{evaluators_block}
 promotion:
   allow_unsafe_without_evaluators: {str(allow_unsafe_without_evaluators).lower()}
+  allow_accept_without_changes: {str(allow_accept_without_changes).lower()}
   requires_all:{requires_all_block}
   review_required_when_paths_match:{review_paths_block}
   auto_close_task: {str(auto_close).lower()}
@@ -429,6 +431,40 @@ depends on Build foundation
         )
         assert tasks["Ship docs"].status == "ready"
 
+    def test_migration_infers_parenthetical_inline_dependency_hints(self, temp_hive_dir):
+        """Checklist titles with parenthetical dependency hints should import cleanly."""
+        agency_path = Path(temp_hive_dir) / "projects" / "parenthetical-relations" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: parenthetical-relations
+status: active
+priority: medium
+---
+# Parenthetical Relations Project
+
+## Tasks
+- [ ] Define the launch outline
+- [ ] Implement the launch page (depends on: Define the launch outline)
+""",
+            encoding="utf-8",
+        )
+
+        report = migrate_v1_to_v2(temp_hive_dir)
+        tasks = {
+            task.title: task
+            for task in list_tasks(temp_hive_dir)
+            if task.project_id == "parenthetical-relations"
+        }
+
+        assert report.edges_inferred == 1
+        assert "Implement the launch page" in tasks
+        assert "Implement the launch page (depends on: Define the launch outline)" not in tasks
+        assert tasks["Define the launch outline"].edges["blocks"] == [
+            tasks["Implement the launch page"].id
+        ]
+        assert tasks["Implement the launch page"].status == "blocked"
+
     def test_migration_infers_dependency_section_relations(self, temp_hive_dir):
         """Dependency sections should map plain-English relation lines into canonical edges."""
         agency_path = Path(temp_hive_dir) / "projects" / "dependency-section" / "AGENCY.md"
@@ -630,7 +666,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -729,6 +768,7 @@ class TestHiveV2Runs:
                 requires_all=[],
                 allow_commands=[],
                 allow_unsafe_without_evaluators=True,
+                allow_accept_without_changes=True,
             ),
             encoding="utf-8",
         )
@@ -751,7 +791,8 @@ class TestHiveV2Runs:
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False), encoding="utf-8"
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
+            encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
@@ -764,6 +805,48 @@ class TestHiveV2Runs:
         task = get_task(temp_hive_dir, task_id)
         assert accepted["status"] == "accepted"
         assert task.status == "review"
+
+    def test_eval_run_rejects_noop_runs_by_default(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Passing evaluators should not accept runs that made no workspace changes by default."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare no-op workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        result = eval_run(temp_hive_dir, run.id)
+
+        assert result["promotion_decision"]["decision"] == "reject"
+        assert any(
+            "did not produce workspace changes" in reason
+            for reason in result["promotion_decision"]["reasons"]
+        )
+
+    def test_eval_run_allows_noop_runs_when_program_explicitly_opts_in(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Report-only flows can still opt into no-op acceptance explicitly."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare explicit no-op workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        result = eval_run(temp_hive_dir, run.id)
+
+        assert result["promotion_decision"]["decision"] == "accept"
 
     def test_eval_run_rejects_commands_outside_allow_list(
         self, temp_hive_dir, temp_project, commit_workspace
@@ -794,7 +877,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare program drift workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -833,7 +919,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -854,7 +943,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -874,7 +966,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -922,7 +1017,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -1073,7 +1171,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare cleanup workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -1281,7 +1382,7 @@ class TestHiveV2Memory:
         results = search_memory(temp_hive_dir, "nested-aurora", scope="global", limit=8)
 
         assert any(hit["scope"] == "global" for hit in results)
-        assert any(str(hit["title"]).endswith("work/notes.md") for hit in results)
+        assert any(str(hit["title"]).startswith("work/notes.md") for hit in results)
 
     def test_memory_search_and_context_include_recent_accepted_runs(
         self, temp_hive_dir, temp_project, commit_workspace
@@ -1291,7 +1392,7 @@ class TestHiveV2Memory:
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False),
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare memory run workspace")
@@ -1332,7 +1433,7 @@ class TestHiveV2Memory:
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False),
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare relative summary run workspace")
@@ -1374,7 +1475,7 @@ class TestHiveV2Memory:
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False),
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare acceptance order workspace")
@@ -1387,7 +1488,7 @@ class TestHiveV2Memory:
         commit_workspace(temp_hive_dir, "snapshot first accepted run")
         project = discover_projects(temp_hive_dir)[0]
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False),
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "restore program after snapshot")
@@ -1428,7 +1529,7 @@ class TestHiveV2Memory:
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False),
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare workspace search run workspace")
@@ -1977,7 +2078,7 @@ class TestHiveV2Cli:
                 "--project",
                 "projects/launch/demo",
                 "--output",
-                str(output_path),
+                "SESSION_CONTEXT.md",
             ]
         )
         captured = capsys.readouterr()
@@ -2312,7 +2413,10 @@ class TestHiveV2Cli:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         project.program_path.write_text(
-            _program_markdown("python -c \"print('ok')\""),
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare CLI promote workspace")
@@ -2363,7 +2467,10 @@ class TestHiveV2Cli:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         project.program_path.write_text(
-            _program_markdown("python -c \"print('ok')\""),
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare CLI standalone promote workspace")
@@ -2419,7 +2526,10 @@ class TestHiveV2Cli:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         project.program_path.write_text(
-            _program_markdown("python -c \"print('ok')\""),
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare CLI terminal cleanup workspace")

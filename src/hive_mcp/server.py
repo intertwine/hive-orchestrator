@@ -60,13 +60,18 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="execute",
-            description="Execute bounded Python against a typed local Hive client",
+            description=(
+                "Execute bounded local Python against a typed Hive client. "
+                "This is not a full sandbox."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "language": {
                         "type": "string",
-                        "description": "Execution language. MVP currently supports python.",
+                        "description": (
+                            "Execution language. Bounded local execute currently supports python."
+                        ),
                         "default": "python",
                     },
                     "profile": {

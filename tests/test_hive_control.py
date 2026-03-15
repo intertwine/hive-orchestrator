@@ -181,7 +181,7 @@ class TestHiveControlPlane:
                 "--owner",
                 "manager",
                 "--output",
-                str(context_path),
+                "SESSION_CONTEXT.md",
             ],
         )
         run = work_payload["run"]
@@ -211,6 +211,7 @@ class TestHiveControlPlane:
         )
 
         assert work_payload["run"]["status"] == "running"
+        assert work_payload["output_path"] == str(context_path.resolve())
         assert context_path.exists()
         assert finish_payload["action"] == "promote"
         assert finish_payload["run"]["status"] == "accepted"

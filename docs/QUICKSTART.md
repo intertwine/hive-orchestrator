@@ -68,11 +68,11 @@ hive next --project-id demo
 If you want the manager-style happy path, take the recommended task straight into work:
 
 ```bash
-hive work <task-id> --owner <your-name>
+hive work <task-id> --owner <your-name> --output SESSION_CONTEXT.md
 ```
 
 That one command checkpoints the repo when needed, claims the task, starts the governed run, and assembles fresh
-startup context.
+startup context. If you pass `--output`, Hive writes a reusable bundle for Claude, Codex, or another agent session.
 
 If you want to see or save the bundle yourself, use the lower-level commands:
 
@@ -176,8 +176,8 @@ The short version is:
 - Use `hive next`, `hive work`, and `hive finish` if you want the manager-style happy path
 - Use `hive memory observe --note "..."` to preserve useful decisions
 - Use `hive sync projections` after task, run, or memory changes
-- Install `agent-hive[dashboard]` and run `hive dashboard` if you want a visual workspace view
-- Install `agent-hive[mcp]` and run `hive-mcp` if you want the thin MCP server
+- Install `agent-hive[dashboard]` and run `hive dashboard` if you want a visual observe-and-steer view
+- Install `agent-hive[mcp]` and run `hive-mcp` if you want the thin `search` + bounded local `execute` adapter
 - If you installed through Homebrew and want dashboard or MCP support, add those extras through `uv tool`, `pipx`,
   or `pip` as described in [docs/START_HERE.md](./START_HERE.md)
 

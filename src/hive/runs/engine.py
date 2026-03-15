@@ -180,6 +180,7 @@ def _promotion_decision(program: ProgramRecord, metadata: dict) -> dict[str, obj
     evaluation_by_id = {entry["evaluator_id"]: entry for entry in evaluations}
     touched_paths = list(metadata_json.get("touched_paths", []))
     commands = list(metadata_json.get("commands", []))
+    has_changes = bool(metadata_json.get("has_changes", False))
     reject_reasons: list[str] = []
     escalate_reasons: list[str] = []
 
@@ -187,6 +188,11 @@ def _promotion_decision(program: ProgramRecord, metadata: dict) -> dict[str, obj
         reject_reasons.append("summary.md is missing or empty")
     if not _artifact_exists(metadata.get("review_path")):
         reject_reasons.append("review.md is missing or empty")
+    if not has_changes and not program.allow_accept_without_changes():
+        reject_reasons.append(
+            "Run did not produce workspace changes. Add a real change or set "
+            "promotion.allow_accept_without_changes: true for deliberate no-op flows."
+        )
     if not evaluations and not program.unsafe_without_evaluators():
         reject_reasons.append(
             "No evaluator results recorded. Add required evaluators to PROGRAM.md or opt into "

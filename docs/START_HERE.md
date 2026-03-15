@@ -53,6 +53,9 @@ uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git a
 | `pip` | `python -m pip install agent-hive` | `python -m pip install 'agent-hive[dashboard]'` | `python -m pip install 'agent-hive[mcp]'` | Best when you manage your own virtualenv |
 | Homebrew | `brew install intertwine/tap/agent-hive` | use one of the Python package installs above | use one of the Python package installs above | Homebrew currently ships the base CLI |
 
+`agent-hive[mcp]` keeps the adapter deliberately small: `search` and `execute` only. `execute` is a bounded local
+Python helper, not a full sandbox.
+
 ## Fresh Workspace
 
 If you want the shortest path to a real Hive workspace:
@@ -75,6 +78,8 @@ hive next
 hive work --owner <your-name>
 hive finish <run-id>
 ```
+
+Install `agent-hive[dashboard]` when you want a human-facing observe-and-steer surface on top of that loop.
 
 ## Existing Repo
 

@@ -82,19 +82,13 @@ cd my-hive
 git init
 hive quickstart demo --title "Demo project"
 hive workspace checkpoint --message "Bootstrap Hive workspace"
-hive task ready --project-id demo
-hive task claim <task-id> --owner <your-name> --ttl-minutes 60
-hive context startup --project demo --task <task-id>
-```
-
-If you want a reusable bundle for Claude, Codex, or another agent session, write it directly:
-
-```bash
-hive context startup --project demo --task <task-id> --output SESSION_CONTEXT.md
+hive next --project-id demo
+hive work --project-id demo --owner <your-name> --output SESSION_CONTEXT.md
 ```
 
 That gives you a real workspace with `.hive/`, a starter project, a conservative `PROGRAM.md`, and a small task
-chain that teaches the normal claim-and-context loop. The longer walkthrough lives in
+chain that teaches the normal manager loop. `hive work` checkpoints the repo when needed, claims the task, starts a
+governed run, and writes a reusable context bundle when you pass `--output`. The longer walkthrough lives in
 [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
@@ -158,6 +152,9 @@ These are useful, but the base CLI works fine without them:
 - `hive dashboard` after installing `agent-hive[dashboard]`
 - `hive-mcp` after installing `agent-hive[mcp]`
 - the optional Claude Code GitHub App flow in [docs/INSTALL_CLAUDE_APP.md](docs/INSTALL_CLAUDE_APP.md)
+
+The MCP surface stays intentionally small: `search` and `execute`. `execute` is a bounded local Python helper, not a
+full sandbox.
 
 ## Core Model
 

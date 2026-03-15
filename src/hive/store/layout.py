@@ -75,9 +75,12 @@ def runs_dir(path: str | Path | None = None) -> Path:
     return hive_dir(path) / "runs"
 
 
-def memory_project_dir(path: str | Path | None = None) -> Path:
-    """Return the project-memory directory."""
-    return memory_dir(path) / "project"
+def memory_project_dir(path: str | Path | None = None, *, project_id: str | None = None) -> Path:
+    """Return the project-memory directory or a specific project memory root."""
+    root = memory_dir(path) / "project"
+    if project_id:
+        return root / project_id
+    return root
 
 
 def memory_transcripts_dir(path: str | Path | None = None) -> Path:
@@ -94,13 +97,33 @@ def global_memory_dir() -> Path:
     return xdg_data_home / "hive" / "global-memory"
 
 
-def memory_scope_dir(path: str | Path | None = None, *, scope: str = "project") -> Path:
+def memory_scope_dir(
+    path: str | Path | None = None,
+    *,
+    scope: str = "project",
+    project_id: str | None = None,
+) -> Path:
     """Resolve a memory directory for a supported scope."""
     if scope == "project":
-        return memory_project_dir(path)
+        return memory_project_dir(path, project_id=project_id)
     if scope == "global":
         return global_memory_dir()
     raise ValueError(f"Unsupported memory scope: {scope}")
+
+
+def project_memory_candidates(
+    path: str | Path | None = None,
+    *,
+    project_id: str | None = None,
+) -> list[Path]:
+    """Return project-memory directories from most-specific to legacy fallback."""
+    candidates: list[Path] = []
+    if project_id:
+        candidates.append(memory_project_dir(path, project_id=project_id))
+    legacy = memory_project_dir(path)
+    if legacy not in candidates:
+        candidates.append(legacy)
+    return candidates
 
 
 def memory_harness_dir(path: str | Path | None = None, *, harness: str) -> Path:

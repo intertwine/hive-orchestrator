@@ -33,7 +33,7 @@ make release-check
 
 Useful local commands:
 
-- `make dashboard` opens the dashboard from this checkout
+- `make dashboard` opens the dashboard from this checkout for observation and steering
 - `make session PROJECT=demo` writes a startup bundle into the project directory
 - `make verify-claude` checks the optional GitHub App setup against the current workspace
 - `make brew-formula` regenerates the Homebrew formula from the current package metadata
@@ -55,6 +55,9 @@ If you need optional extras while testing:
 uv tool install --force --from . 'agent-hive[dashboard]'
 uv tool install --force --from . 'agent-hive[mcp]'
 ```
+
+The MCP extra intentionally stays thin. It exposes `search` plus bounded local `execute`, not a large tool catalog
+or a full sandbox.
 
 For local checkout smoke tests, prefer `uv tool install --force --from . ...` or a throwaway
 virtualenv install over `uv tool run --from . ...`. The install path reliably rebuilds the local

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 import getpass
 import json
 import os
@@ -25,7 +25,7 @@ from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.events import emit_event, load_events
 from src.hive.store.projects import discover_projects, get_project, save_project
 from src.hive.store.task_files import claim_task, get_task
-from src.hive.workspace import sync_workspace
+from src.hive.workspace import resolve_workspace_path, sync_workspace
 
 
 STEERING_DEFAULTS = {
@@ -49,6 +49,8 @@ def _default_owner() -> str:
         return getpass.getuser() or "operator"
     except OSError:  # pragma: no cover - defensive
         return "operator"
+
+
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -148,7 +150,7 @@ def portfolio_status(path: str | Path | None = None) -> dict[str, Any]:
 def _candidate_reasons(task: dict[str, Any], project) -> tuple[float, list[str]]:
     steering = steering_state(project)
     score = float(task.get("score", 0.0))
-    reasons: list[str] = []
+    reasons: list[str] = list(task.get("reasons") or [])
     if steering["paused"]:
         reasons.append(f"Skipped because project {project.id} is paused")
         return -1000000.0, reasons
@@ -202,6 +204,8 @@ def recommend_next_task(
     )
     recommendation = ranked[0] if ranked else None
     if recommendation and emit_decision_event:
+        recommendation_payload = cast(dict[str, Any], recommendation)
+        recommendation_task = cast(dict[str, Any], recommendation_payload["task"])
         emit_event(
             root,
             actor="hive",
@@ -210,9 +214,9 @@ def recommend_next_task(
             event_type="portfolio.recommended",
             source="portfolio.next",
             payload={
-                "task_id": recommendation["task"]["id"],
-                "project_id": recommendation["task"]["project_id"],
-                "reasons": recommendation["reasons"],
+                "task_id": recommendation_task["id"],
+                "project_id": recommendation_task["project_id"],
+                "reasons": recommendation_payload["reasons"],
             },
         )
     return recommendation
@@ -284,7 +288,8 @@ def work_on_task(
         recommendation = recommend_next_task(root, project_id=project_id)
         if recommendation is None:
             raise ValueError("No ready task is available for `hive work`.")
-        task_id = recommendation["task"]["id"]
+        recommendation_payload = cast(dict[str, Any], recommendation)
+        task_id = str(cast(dict[str, Any], recommendation_payload["task"])["id"])
 
     checkpoint_payload = None
     if checkpoint:
@@ -310,7 +315,7 @@ def work_on_task(
     rendered_context = str(bundle["rendered"])
     written_output = None
     if output_path:
-        target = Path(output_path).expanduser().resolve()
+        target = resolve_workspace_path(root, output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(rendered_context, encoding="utf-8")
         written_output = str(target)

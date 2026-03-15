@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import shutil
+import re
 from pathlib import Path
 
 from src.hive.clock import utc_now_iso
 from src.hive.ids import new_id
+from src.hive.memory.common import project_memory_scope_dir
 from src.hive.store.layout import memory_harness_dir, memory_scope_dir
 
 
@@ -24,6 +26,11 @@ def _copy_transcript(
     return target_path
 
 
+def _compact_observation_text(text: str) -> str:
+    cleaned = re.sub(r"\s+", " ", text.strip())
+    return cleaned[:2000]
+
+
 def observe(
     path: str | Path | None = None,
     *,
@@ -31,9 +38,15 @@ def observe(
     note: str | None = None,
     scope: str = "project",
     harness: str | None = None,
+    project_id: str | None = None,
 ) -> Path:
     """Append a compressed observation entry."""
-    directory = memory_scope_dir(path, scope=scope)
+    if scope == "project" and project_id:
+        directory = project_memory_scope_dir(path, project_id)
+    elif scope == "project":
+        directory = project_memory_scope_dir(path)
+    else:
+        directory = memory_scope_dir(path, scope=scope)
     directory.mkdir(parents=True, exist_ok=True)
     observations_path = directory / "observations.md"
     if transcript_path:
@@ -43,10 +56,10 @@ def observe(
             else Path(transcript_path)
         )
         raw = source_path.read_text(encoding="utf-8")
-        snippet = raw[:1000].strip()
+        snippet = _compact_observation_text(raw)
         source = f"{harness}:{source_path}" if harness else str(source_path)
     else:
-        snippet = (note or "Manual observation checkpoint.").strip()
+        snippet = _compact_observation_text(note or "Manual observation checkpoint.")
         source = harness or "manual"
     with open(observations_path, "a", encoding="utf-8") as handle:
         handle.write(f"- **{utc_now_iso()}** ({source}): {snippet}\n")

@@ -9,6 +9,7 @@ import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 from src.hive import __version__
 from src.hive.cli.render import render_payload
@@ -53,7 +54,7 @@ from src.hive.store.task_files import (
     release_task,
     update_task,
 )
-from src.hive.workspace import WorkspaceBusyError, sync_workspace
+from src.hive.workspace import WorkspaceBusyError, resolve_workspace_path, sync_workspace
 
 
 def _emit(payload: dict, as_json: bool) -> int:
@@ -356,9 +357,11 @@ def build_parser() -> argparse.ArgumentParser:
     memory_observe.add_argument("--transcript-path")
     memory_observe.add_argument("--note")
     memory_observe.add_argument("--scope", choices=["project", "global"], default="project")
+    memory_observe.add_argument("--project")
     memory_observe.add_argument("--harness")
     memory_reflect = memory_subparsers.add_parser("reflect")
     memory_reflect.add_argument("--scope", choices=["project", "global"], default="project")
+    memory_reflect.add_argument("--project")
     memory_search = memory_subparsers.add_parser("search")
     memory_search.add_argument("query")
     memory_search.add_argument("--scope", choices=["project", "global", "all"], default="all")
@@ -592,19 +595,21 @@ def main(argv: list[str] | None = None) -> int:
                     },
                     args.json,
                 )
+            recommendation_payload = cast(dict[str, Any], recommendation)
+            recommendation_task = cast(dict[str, Any], recommendation_payload["task"])
             return _emit(
                 {
                     "ok": True,
                     "message": (
                         "Recommended next task "
-                        f"{recommendation['task']['id']} for project "
-                        f"{recommendation['task']['project_id']}"
+                        f"{recommendation_task['id']} for project "
+                        f"{recommendation_task['project_id']}"
                     ),
-                    "task": recommendation["task"],
-                    "project": recommendation["project"],
-                    "recommendation": recommendation,
+                    "task": recommendation_task,
+                    "project": recommendation_payload["project"],
+                    "recommendation": recommendation_payload,
                     "next_steps": [
-                        f"hive work {recommendation['task']['id']} --owner <your-name>",
+                        f"hive work {recommendation_task['id']} --owner <your-name>",
                     ],
                 },
                 args.json,
@@ -1000,6 +1005,7 @@ def main(argv: list[str] | None = None) -> int:
                     note=args.note,
                     scope=args.scope,
                     harness=args.harness,
+                    project_id=args.project,
                 )
                 rebuild_cache(root)
                 return _emit(
@@ -1012,7 +1018,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if args.memory_command == "reflect":
                 output_paths = {
-                    key: str(value) for key, value in reflect(root, scope=args.scope).items()
+                    key: str(value)
+                    for key, value in reflect(root, scope=args.scope, project_id=args.project).items()
                 }
                 rebuild_cache(root)
                 return _emit(
@@ -1055,7 +1062,7 @@ def main(argv: list[str] | None = None) -> int:
                     refresh=True,
                 )
                 if args.output:
-                    output_path = Path(args.output).expanduser().resolve()
+                    output_path = resolve_workspace_path(root, args.output)
                     output_path.parent.mkdir(parents=True, exist_ok=True)
                     output_path.write_text(str(bundle["rendered"]), encoding="utf-8")
                     return _emit(
@@ -1083,7 +1090,7 @@ def main(argv: list[str] | None = None) -> int:
                     refresh=True,
                 )
                 if args.output:
-                    output_path = Path(args.output).expanduser().resolve()
+                    output_path = resolve_workspace_path(root, args.output)
                     output_path.parent.mkdir(parents=True, exist_ok=True)
                     output_path.write_text(str(bundle["rendered"]), encoding="utf-8")
                     return _emit(

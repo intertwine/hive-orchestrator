@@ -100,6 +100,9 @@ def _render_results(results: list[dict[str, object]]) -> str:
         snippet = result.get("summary") or result.get("snippet")
         if snippet:
             lines.append(f"  {str(snippet).strip()}")
+        why = result.get("why") or result.get("matches")
+        if isinstance(why, list) and why:
+            lines.append(f"  why: {', '.join(str(item) for item in why)}")
     return "\n".join(lines)
 
 

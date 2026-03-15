@@ -50,7 +50,14 @@ def _sync_global_metadata(root: Path) -> None:
     global_path = root / "GLOBAL.md"
     if not global_path.exists():
         return
-    parsed = safe_load_agency_md(global_path)
+    try:
+        parsed = safe_load_agency_md(global_path)
+    except Exception as exc:  # pylint: disable=broad-except
+        print(
+            f"Warning: skipping GLOBAL.md timestamp refresh due to parse error: {exc}",
+            file=sys.stderr,
+        )
+        return
     timestamp = isoformat_z()
     # Keep the legacy key for compatibility while making the newer meaning explicit.
     parsed.metadata["last_cortex_run"] = timestamp

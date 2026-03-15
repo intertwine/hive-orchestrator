@@ -226,6 +226,25 @@ class TestProjectionSync:
         assert post.metadata["last_cortex_run"] is not None
         assert post.metadata["last_sync"] is not None
 
+    def test_run_projection_sync_tolerates_malformed_global_metadata(
+        self, temp_hive_dir, temp_project, capsys
+    ):
+        """Malformed GLOBAL.md frontmatter should not abort projection sync."""
+        migrate_v1_to_v2(temp_hive_dir)
+        (Path(temp_hive_dir) / "GLOBAL.md").write_text(
+            "---\nstatus: [\n---\n# Broken Global\n",
+            encoding="utf-8",
+        )
+
+        result = run_v2_projection_sync(temp_hive_dir, output_json=False)
+
+        captured = capsys.readouterr()
+        assert result is True
+        assert "Warning: skipping GLOBAL.md timestamp refresh" in captured.err
+        assert "<!-- hive:begin projects -->" in (Path(temp_hive_dir) / "GLOBAL.md").read_text(
+            encoding="utf-8"
+        )
+
     def test_cortex_run_uses_projection_sync(self, temp_hive_dir, temp_project):
         """Cortex.run now delegates to the v2 projection sync."""
         migrate_v1_to_v2(temp_hive_dir)

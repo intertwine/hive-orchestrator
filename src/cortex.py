@@ -34,6 +34,10 @@ from src.tracing import (
 )
 from src.hive.common import isoformat_z
 from src.hive.layout import get_paths
+from src.hive.projections.agency_md import sync_agency_md
+from src.hive.projections.agents_md import sync_agents_md
+from src.hive.projections.global_md import sync_global_md
+from src.hive.store.cache import rebuild_cache
 from src.hive.store.tasks import dependency_summary, ready_tasks
 
 
@@ -112,9 +116,7 @@ class Cortex:
             print(f"WARNING: Projects directory not found at {self.projects_dir}")
             return projects
 
-        agency_files = glob.glob(
-            str(self.projects_dir / "**" / "AGENCY.md"), recursive=True
-        )
+        agency_files = glob.glob(str(self.projects_dir / "**" / "AGENCY.md"), recursive=True)
 
         for agency_file in agency_files:
             try:
@@ -678,12 +680,12 @@ class Cortex:
         combined_content_parts = []
 
         # Add global content (sanitized - GLOBAL.md is also user-editable)
-        sanitized_global = sanitize_untrusted_content(global_ctx['content'])
+        sanitized_global = sanitize_untrusted_content(global_ctx["content"])
         combined_content_parts.append(f"# GLOBAL CONTEXT\n{sanitized_global}")
 
         # Add each project content (sanitized)
         for i, project in enumerate(projects, 1):
-            sanitized_content = sanitize_untrusted_content(project['content'])
+            sanitized_content = sanitize_untrusted_content(project["content"])
             combined_content_parts.append(
                 f"\n## Project {i}: {project['project_id']}\n{sanitized_content}"
             )
@@ -692,15 +694,11 @@ class Cortex:
 
         # Build combined metadata
         combined_metadata = {
-            "global": global_ctx['metadata'],
+            "global": global_ctx["metadata"],
             "projects": [
-                {
-                    "project_id": p['project_id'],
-                    "path": p['path'],
-                    **p['metadata']
-                }
+                {"project_id": p["project_id"], "path": p["path"], **p["metadata"]}
                 for p in projects
-            ]
+            ],
         }
 
         # Use secure prompt builder with additional task instructions
@@ -746,7 +744,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         return build_secure_llm_prompt(
             metadata=combined_metadata,
             content=combined_content,
-            additional_context=additional_context
+            additional_context=additional_context,
         )
 
     def call_llm(self, prompt: str) -> Optional[Dict[str, Any]]:
@@ -832,9 +830,7 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 # Matches: ```json\n{...}\n``` or ```{...}``` or ```json{...}```
                 # The pattern allows optional language tags (json, JSON, javascript)
                 match = re.search(
-                    r'^```(?:json|JSON|javascript)?\s*(.+?)\s*```$',
-                    llm_response,
-                    re.DOTALL
+                    r"^```(?:json|JSON|javascript)?\s*(.+?)\s*```$", llm_response, re.DOTALL
                 )
                 if match:
                     llm_response = match.group(1).strip()
@@ -901,7 +897,9 @@ Return ONLY valid JSON, no markdown formatting or additional text.
                 parsed.metadata[field] = value
 
                 # Also update last_updated
-                parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                parsed.metadata["last_updated"] = (
+                    datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                )
 
                 # Write back using safe dump
                 with open(file_path, "w", encoding="utf-8") as f:
@@ -1008,10 +1006,14 @@ Return ONLY valid JSON, no markdown formatting or additional text.
         if changes_applied > 0:
             try:
                 parsed = safe_load_agency_md(self.global_file)
-                parsed.metadata["last_cortex_run"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                parsed.metadata["last_cortex_run"] = (
+                    datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                )
                 with open(self.global_file, "w", encoding="utf-8") as f:
                     f.write(safe_dump_agency_md(parsed.metadata, parsed.content))
-                print(f"\n📝 Updated GLOBAL.md (last_cortex_run) - {changes_applied} change(s) applied")
+                print(
+                    f"\n📝 Updated GLOBAL.md (last_cortex_run) - {changes_applied} change(s) applied"
+                )
             except Exception as e:
                 print(f"\nWARNING: Could not update GLOBAL.md timestamp: {e}")
         else:
@@ -1031,7 +1033,10 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run full LLM-based analysis (default)
+  # Run v2 projection sync (default when .hive/tasks exists)
+  python -m src.cortex
+
+  # Run full legacy LLM-based analysis (only when no v2 substrate exists)
   python -m src.cortex
 
   # Find ready work (fast, no LLM)
@@ -1075,6 +1080,34 @@ Examples:
     return parser.parse_args()
 
 
+def run_v2_projection_sync(base_path: str | Path | None, output_json: bool = False) -> bool:
+    """Run the canonical v2 cache rebuild and projection sync sequence."""
+    root = Path(base_path or os.getcwd())
+    rebuild_cache(root)
+    sync_global_md(root)
+    sync_agency_md(root)
+    sync_agents_md(root)
+
+    payload = {
+        "action": "projection_sync",
+        "generated_at": isoformat_z(),
+        "ok": True,
+        "path": str(root),
+        "version": "2.0",
+    }
+
+    if output_json:
+        print(json.dumps(payload, cls=DateTimeEncoder, indent=2))
+    else:
+        print("=" * 60)
+        print("HIVE V2 PROJECTION SYNC")
+        print("=" * 60)
+        print(f"Path: {root}")
+        print("Rebuilt cache and synced GLOBAL.md / AGENCY.md / AGENTS.md projections")
+        print("=" * 60)
+    return True
+
+
 def main():
     """CLI entry point for Cortex."""
     args = parse_args()
@@ -1112,7 +1145,11 @@ def main():
             success = cortex.run_ready(output_json=args.json)
     elif args.deps:
         if v2_tasks_present:
-            payload = {"version": "2.0", "generated_at": isoformat_z(), **dependency_summary(hive_paths)}
+            payload = {
+                "version": "2.0",
+                "generated_at": isoformat_z(),
+                **dependency_summary(hive_paths),
+            }
             if args.json:
                 print(json.dumps(payload, cls=DateTimeEncoder, indent=2))
             else:
@@ -1131,11 +1168,17 @@ def main():
             # Dependency graph: no LLM required
             success = cortex.run_deps(output_json=args.json)
     else:
-        # Full LLM-based analysis
-        if args.json:
-            print('{"error": "JSON output only supported with --ready or --deps"}', file=sys.stderr)
-            sys.exit(1)
-        success = cortex.run()
+        if v2_tasks_present:
+            success = run_v2_projection_sync(args.path or os.getcwd(), output_json=args.json)
+        else:
+            # Full LLM-based analysis
+            if args.json:
+                print(
+                    '{"error": "JSON output only supported with --ready or --deps"}',
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            success = cortex.run()
 
     sys.exit(0 if success else 1)
 

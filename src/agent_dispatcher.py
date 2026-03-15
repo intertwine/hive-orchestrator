@@ -2,34 +2,35 @@
 """
 Agent Hive Agent Dispatcher
 
-Finds ready work, assembles context, creates GitHub issues, and assigns
-work to Claude Code for autonomous execution.
+Optional manual compatibility command that turns canonical Hive v2 ready
+tasks into GitHub issues for Claude Code.
 """
+
+from __future__ import annotations
 
 import argparse
 import os
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
+
 from dotenv import load_dotenv
 
-from src.cortex import Cortex
 from src.context_assembler import (
-    build_issue_title,
     build_issue_body,
     build_issue_labels,
-    get_next_task,
+    build_issue_title,
 )
-from src.security import (
-    safe_load_agency_md,
-    safe_dump_agency_md,
-    sanitize_issue_body,
-    validate_max_dispatches,
-)
+from src.hive.projections.agency_md import sync_agency_md
+from src.hive.projections.agents_md import sync_agents_md
+from src.hive.projections.global_md import sync_global_md
+from src.hive.scheduler.query import ready_tasks
+from src.hive.store.cache import rebuild_cache
+from src.hive.store.task_files import get_task, save_task
+from src.security import sanitize_issue_body, validate_max_dispatches
 
-# Load environment variables
 load_dotenv()
 
 
@@ -37,41 +38,69 @@ class DispatcherError(Exception):
     """Base exception for Dispatcher-related errors."""
 
 
+def _parse_timestamp(value: object) -> datetime:
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            return datetime.max.replace(tzinfo=None)
+    return datetime.max.replace(tzinfo=None)
+
+
+def _candidate_identifier(candidate: dict[str, Any]) -> str:
+    metadata = candidate.get("metadata", {})
+    return str(
+        candidate.get("task_id")
+        or candidate.get("id")
+        or candidate.get("project_id")
+        or metadata.get("project_id", "unknown")
+    )
+
+
+def _candidate_priority(candidate: dict[str, Any]) -> int:
+    priority = candidate.get("priority", candidate.get("metadata", {}).get("priority", 2))
+    if isinstance(priority, int):
+        return priority
+    mapping = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    if isinstance(priority, str):
+        return mapping.get(priority.lower(), 2)
+    return 2
+
+
+def _candidate_timestamp(candidate: dict[str, Any]) -> datetime:
+    metadata = candidate.get("metadata", {})
+    for key in ("created_at", "updated_at", "last_updated"):
+        if key in candidate:
+            return _parse_timestamp(candidate[key])
+        if key in metadata:
+            return _parse_timestamp(metadata[key])
+    return datetime.max.replace(tzinfo=None)
+
+
 class AgentDispatcher:
     """
-    The Agent Dispatcher for Agent Hive.
+    Optional manual dispatcher for Agent Hive.
 
     Responsibilities:
-    - Find ready work using Cortex
-    - Select highest priority project
-    - Build rich context for agent assignment
-    - Create GitHub issue with @claude mention
-    - Update AGENCY.md to claim ownership
+    - Find ready canonical tasks
+    - Select the highest priority task
+    - Build rich v2 context for a GitHub issue
+    - Claim the canonical task for Claude Code
     """
 
-    # Agent name used when claiming projects
     AGENT_NAME = "claude-code"
+    CLAIM_TTL_MINUTES = 120
 
-    def __init__(self, base_path: str = None, dry_run: bool = False):
-        """
-        Initialize the Agent Dispatcher.
-
-        Args:
-            base_path: Base path for the hive (defaults to current directory)
-            dry_run: If True, don't actually create issues or modify files
-        """
+    def __init__(self, base_path: str | None = None, dry_run: bool = False):
         self.base_path = Path(base_path or os.getcwd())
         self.dry_run = dry_run
-        self.cortex = Cortex(str(self.base_path))
 
     def validate_environment(self) -> bool:
-        """
-        Validate that required tools are available.
-
-        Returns:
-            True if environment is valid, False otherwise
-        """
-        # Check if gh CLI is available
+        """Validate that required tools are available."""
         try:
             result = subprocess.run(
                 ["gh", "--version"],
@@ -90,7 +119,6 @@ class AgentDispatcher:
             print("   gh CLI timed out")
             return False
 
-        # Check gh auth status
         try:
             result = subprocess.run(
                 ["gh", "auth", "status"],
@@ -107,144 +135,116 @@ class AgentDispatcher:
 
         return True
 
-    def select_work(self, projects: List[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    def ready_work(self) -> list[dict[str, Any]]:
+        """Return canonical ready tasks."""
+        return ready_tasks(self.base_path)
+
+    def select_work(
+        self, projects: Optional[list[dict[str, Any]]] = None
+    ) -> Optional[dict[str, Any]]:
         """
-        Select the highest priority project ready for work.
+        Select the highest priority ready task.
 
         Priority ordering:
         1. Priority level (critical > high > medium > low)
-        2. Age (oldest last_updated first)
-
-        Args:
-            projects: Optional list of ready projects. If None, discovers them.
-
-        Returns:
-            Selected project dict, or None if no work available
+        2. Age (oldest created/updated timestamp first)
+        3. Title / identifier for stable ordering
         """
-        if projects is None:
-            projects = self.cortex.ready_work()
-
-        if not projects:
+        candidates = projects if projects is not None else self.ready_work()
+        if not candidates:
             return None
 
-        # Priority ordering
-        priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        return sorted(
+            candidates,
+            key=lambda item: (
+                _candidate_priority(item),
+                _candidate_timestamp(item),
+                str(item.get("title", "")).lower(),
+                _candidate_identifier(item),
+            ),
+        )[0]
 
-        def sort_key(project):
-            metadata = project.get("metadata", {})
-            priority = metadata.get("priority", "medium")
-            last_updated = metadata.get("last_updated", "")
+    def is_already_assigned(self, project: dict[str, Any]) -> bool:
+        """Check whether a task is actively assigned."""
+        metadata = project.get("metadata", {})
+        owner = project.get("owner", metadata.get("owner"))
+        status = project.get("status", metadata.get("status"))
+        claimed_until = project.get("claimed_until", metadata.get("claimed_until"))
 
-            # Parse last_updated for age-based sorting (older = higher priority)
-            # Normalize all timestamps to naive UTC for consistent comparison
+        if status == "in_progress":
+            return True
+        if status == "claimed" and owner and claimed_until:
             try:
-                if last_updated:
-                    # Handle both datetime objects (from YAML parser) and strings
-                    if isinstance(last_updated, datetime):
-                        timestamp = last_updated
-                    else:
-                        # ISO format string timestamp
-                        timestamp = datetime.fromisoformat(str(last_updated).replace("Z", "+00:00"))
-                    # Normalize to naive UTC datetime for consistent comparison
-                    # Convert to UTC first, then strip timezone info
-                    if timestamp.tzinfo is not None:
-                        timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
-                else:
-                    timestamp = datetime.max.replace(tzinfo=None)
-            except (ValueError, TypeError):
-                timestamp = datetime.max.replace(tzinfo=None)
+                expires_at = datetime.fromisoformat(claimed_until.replace("Z", "+00:00"))
+            except ValueError:
+                return bool(owner)
+            return expires_at > datetime.now(timezone.utc)
+        return False
 
-            return (priority_order.get(priority, 2), timestamp)
+    def _sync_views(self) -> None:
+        sync_global_md(self.base_path)
+        sync_agency_md(self.base_path)
+        sync_agents_md(self.base_path)
+        rebuild_cache(self.base_path)
 
-        sorted_projects = sorted(projects, key=sort_key)
-        return sorted_projects[0] if sorted_projects else None
-
-    def is_already_assigned(self, project: Dict[str, Any]) -> bool:
+    def claim_project(self, project: dict[str, Any], issue_url: str) -> bool:
         """
-        Check if a project is already assigned (has an owner).
+        Claim a canonical task and record the created GitHub issue URL.
 
-        This is the primary duplicate prevention mechanism.
-
-        Args:
-            project: Project to check
-
-        Returns:
-            True if already assigned, False otherwise
-        """
-        owner = project.get("metadata", {}).get("owner")
-        return owner is not None
-
-    def claim_project(self, project: Dict[str, Any], issue_url: str) -> bool:
-        """
-        Claim a project by setting owner and adding issue link to AGENCY.md.
-
-        Uses safe YAML loading to prevent deserialization attacks.
-
-        Args:
-            project: Project to claim
-            issue_url: URL of the created GitHub issue
-
-        Returns:
-            True on success, False on failure
+        The method name is preserved for compatibility with existing callers.
         """
         if self.dry_run:
-            print(f"   [DRY RUN] Would claim project and add issue link: {issue_url}")
+            print(f"   [DRY RUN] Would claim task and record issue link: {issue_url}")
             return True
 
-        try:
-            project_path = Path(project["path"])
-
-            # Use safe loading to prevent YAML deserialization attacks
-            parsed = safe_load_agency_md(project_path)
-
-            # Update metadata
-            parsed.metadata["owner"] = self.AGENT_NAME
-            parsed.metadata["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-            # Add agent note with issue link
-            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
-            note = (
-                f"\n- **{timestamp} - Agent Dispatcher**: "
-                f"Assigned to Claude Code. Issue: {issue_url}"
-            )
-
-            # Find or create Agent Notes section
-            content = parsed.content
-            if "## Agent Notes" in content:
-                # Append to existing section
-                content = content.replace("## Agent Notes", f"## Agent Notes{note}", 1)
-            else:
-                # Add new section at the end
-                content += f"\n\n## Agent Notes{note}"
-
-            # Write back using safe dump
-            with open(project_path, "w", encoding="utf-8") as f:
-                f.write(safe_dump_agency_md(parsed.metadata, content))
-
-            return True
-
-        except Exception as e:
-            print(f"   ERROR claiming project: {e}")
+        task_id = project.get("task_id") or project.get("id")
+        if not task_id:
+            print("   ERROR claiming task: no canonical task id available")
             return False
 
-    def create_github_issue(self, title: str, body: str, labels: List[str]) -> Optional[str]:
-        """
-        Create a GitHub issue using the gh CLI.
+        try:
+            task = get_task(self.base_path, str(task_id))
+            if self.is_already_assigned(
+                {
+                    "owner": task.owner,
+                    "status": task.status,
+                    "claimed_until": task.claimed_until,
+                }
+            ):
+                print(f"   Task already assigned: {task.id}")
+                return False
 
-        Sanitizes title and body to prevent injection attacks via issue content.
+            now = datetime.now(timezone.utc)
+            expires_at = now + timedelta(minutes=self.CLAIM_TTL_MINUTES)
+            task.owner = self.AGENT_NAME
+            task.claimed_until = expires_at.isoformat().replace("+00:00", "Z")
+            if task.status in {"proposed", "ready"}:
+                task.status = "claimed"
+            task.metadata["dispatch_issue_url"] = issue_url
 
-        Args:
-            title: Issue title
-            body: Issue body (markdown)
-            labels: List of labels to apply
+            note = (
+                f"- {now.strftime('%Y-%m-%d %H:%M')} - Agent Dispatcher: "
+                f"Assigned to Claude Code. Issue: {issue_url}"
+            )
+            history = task.history_md.strip()
+            task.history_md = f"{history}\n{note}".strip() if history else note
 
-        Returns:
-            Issue URL on success, None on failure
-        """
-        # Sanitize title (truncate and strip dangerous patterns)
+            save_task(self.base_path, task)
+
+            try:
+                self._sync_views()
+            except Exception as exc:  # pragma: no cover - best-effort sync
+                print(f"   Warning: task claimed but projection sync failed: {exc}")
+
+            return True
+
+        except Exception as exc:
+            print(f"   ERROR claiming task: {exc}")
+            return False
+
+    def create_github_issue(self, title: str, body: str, labels: list[str]) -> Optional[str]:
+        """Create a GitHub issue using the gh CLI."""
         safe_title = title[:200] if title else "Agent Hive Task"
-
-        # Sanitize body to prevent injection attacks
         safe_body = sanitize_issue_body(body)
 
         if self.dry_run:
@@ -253,13 +253,9 @@ class AgentDispatcher:
             return "https://github.com/example/repo/issues/999"
 
         try:
-            # Build gh command with sanitized inputs
             cmd = ["gh", "issue", "create", "--title", safe_title, "--body", safe_body]
-
-            # Add labels
             for label in labels:
-                # Sanitize label names (alphanumeric, dashes, colons only)
-                safe_label = "".join(c for c in label if c.isalnum() or c in "-:_")
+                safe_label = "".join(char for char in label if char.isalnum() or char in "-:_")
                 if safe_label:
                     cmd.extend(["--label", safe_label])
 
@@ -272,13 +268,10 @@ class AgentDispatcher:
             )
 
             if result.returncode != 0:
-                # Check if it's a label error (labels might not exist)
                 if "label" in result.stderr.lower():
                     print("   Warning: Label issue, retrying without labels...")
-                    # Retry without labels
-                    cmd = ["gh", "issue", "create", "--title", safe_title, "--body", safe_body]
                     result = subprocess.run(
-                        cmd,
+                        ["gh", "issue", "create", "--title", safe_title, "--body", safe_body],
                         capture_output=True,
                         text=True,
                         timeout=60,
@@ -289,129 +282,88 @@ class AgentDispatcher:
                     print(f"   ERROR creating issue: {result.stderr}")
                     return None
 
-            # gh issue create outputs the issue URL
-            issue_url = result.stdout.strip()
-            return issue_url
+            return result.stdout.strip()
 
         except subprocess.TimeoutExpired:
             print("   ERROR: gh command timed out")
             return None
-        except Exception as e:
-            print(f"   ERROR creating issue: {e}")
+        except Exception as exc:
+            print(f"   ERROR creating issue: {exc}")
             return None
 
     def add_claude_comment(self, issue_url: str) -> bool:
-        """
-        Add a comment to the issue to trigger Claude Code.
-
-        GitHub API-created issues don't trigger notifications from @mentions
-        in the initial body. A separate comment is needed to invoke Claude.
-
-        Args:
-            issue_url: URL of the GitHub issue
-
-        Returns:
-            True on success, False on failure
-        """
+        """Add a comment to trigger Claude Code."""
         if self.dry_run:
             print("   [DRY RUN] Would add @claude comment to trigger assignment")
             return True
 
         try:
-            # Extract issue number from URL
-            # URL format: https://github.com/owner/repo/issues/123
             issue_number = issue_url.rstrip("/").split("/")[-1]
-
-            comment = "@claude Please work on this issue."
-
-            cmd = ["gh", "issue", "comment", issue_number, "--body", comment]
-
             result = subprocess.run(
-                cmd,
+                [
+                    "gh",
+                    "issue",
+                    "comment",
+                    issue_number,
+                    "--body",
+                    "@claude Please work on this issue.",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=30,
                 check=False,
             )
-
             if result.returncode != 0:
                 print(f"   Warning: Failed to add Claude comment: {result.stderr}")
                 return False
-
             return True
-
         except subprocess.TimeoutExpired:
             print("   Warning: gh comment command timed out")
             return False
-        except Exception as e:
-            print(f"   Warning: Failed to add Claude comment: {e}")
+        except Exception as exc:
+            print(f"   Warning: Failed to add Claude comment: {exc}")
             return False
 
-    def dispatch(self, project: Dict[str, Any]) -> bool:
-        """
-        Dispatch a single project to Claude Code.
+    def dispatch(self, project: dict[str, Any]) -> bool:
+        """Dispatch a single canonical task to Claude Code."""
+        project_id = project.get("project_id", "unknown")
+        task_id = project.get("task_id") or project.get("id", "unknown")
+        task_title = project.get("task_title") or project.get("title")
 
-        Args:
-            project: Project to dispatch
+        print(f"\n   Dispatching: {project_id} / {task_id}")
 
-        Returns:
-            True on success, False on failure
-        """
-        metadata = project.get("metadata", {})
-        project_id = project.get("project_id", metadata.get("project_id", "unknown"))
-        print(f"\n   Dispatching: {project_id}")
-
-        # Check if already assigned
         if self.is_already_assigned(project):
-            print(f"   Skipping: already assigned to {project['metadata'].get('owner')}")
+            print(f"   Skipping: already assigned to {project.get('owner')}")
             return False
 
-        # Get the next task
-        next_task = get_next_task(project.get("content", ""))
-
-        # Build issue content
-        title = build_issue_title(project_id, next_task)
-        body = build_issue_body(project, self.base_path, next_task)
+        title = build_issue_title(project_id, task_title)
+        body = build_issue_body(project, self.base_path, task_title)
         labels = build_issue_labels(project)
 
         print(f"   Title: {title}")
-        print(f"   Next task: {next_task or 'none identified'}")
+        print(f"   Task: {task_title or 'none identified'}")
 
-        # Create the issue
         print("   Creating GitHub issue...")
         issue_url = self.create_github_issue(title, body, labels)
-
         if not issue_url:
             print("   Failed to create issue")
             return False
 
         print(f"   Issue created: {issue_url}")
-
-        # Add a comment to trigger Claude Code
-        # GitHub doesn't trigger notifications from @mentions in the initial body
         print("   Adding @claude comment to trigger assignment...")
         if not self.add_claude_comment(issue_url):
             print("   Warning: Could not add Claude comment, but issue was created")
 
-        # Claim the project
-        print("   Claiming project...")
+        print("   Claiming task...")
         if not self.claim_project(project, issue_url):
-            print("   Failed to claim project (issue was created)")
+            print("   Failed to claim task (issue was created)")
             return False
 
-        print(f"   Successfully dispatched {project_id}")
+        print(f"   Successfully dispatched {project_id} / {task_id}")
         return True
 
     def run(self, max_dispatches: int = 1) -> bool:
-        """
-        Main dispatcher execution.
-
-        Args:
-            max_dispatches: Maximum number of projects to dispatch (default: 1)
-
-        Returns:
-            True if at least one project was dispatched, False otherwise
-        """
+        """Run the dispatcher."""
         print("=" * 60)
         print(" AGENT HIVE DISPATCHER")
         print("=" * 60)
@@ -421,77 +373,67 @@ class AgentDispatcher:
         print(f"Max Dispatches: {max_dispatches}")
         print()
 
-        # Validate environment
         print(" Validating environment...")
         if not self.dry_run and not self.validate_environment():
             print("   Environment validation failed")
             return False
         print("   Environment OK")
 
-        # Find ready work
         print("\n Finding ready work...")
-        ready_projects = self.cortex.ready_work()
-        print(f"   Found {len(ready_projects)} project(s) ready for work")
+        ready = self.ready_work()
+        print(f"   Found {len(ready)} task(s) ready for work")
 
-        if not ready_projects:
+        if not ready:
             print("\n No work available to dispatch")
             print("=" * 60)
-            return True  # No work is not an error, just nothing to do
+            return True
 
-        # Display candidates
         print("\n Candidates:")
-        for proj in ready_projects:
-            meta = proj.get("metadata", {})
-            proj_id = meta.get("project_id", "unknown")
-            priority = meta.get("priority", "medium")
-            print(f"   - {proj_id} (priority: {priority})")
+        for candidate in ready:
+            print(
+                f"   - {candidate['project_id']} / {candidate['id']} "
+                f"(p{candidate['priority']}: {candidate['title']})"
+            )
 
-        # Dispatch projects
         dispatched = 0
-        attempted_paths = set()  # Track projects already attempted in this run
+        attempted_ids: set[str] = set()
         print(f"\n Dispatching (max {max_dispatches})...")
 
         for _ in range(max_dispatches):
-            # Re-check ready work each iteration (in case state changed)
-            if dispatched > 0:
-                ready_projects = self.cortex.ready_work()
-
-            # Filter out already-attempted projects
-            available_projects = [p for p in ready_projects if p.get("path") not in attempted_paths]
-
-            project = self.select_work(available_projects)
+            available = [
+                item
+                for item in self.ready_work()
+                if _candidate_identifier(item) not in attempted_ids
+            ]
+            project = self.select_work(available)
             if not project:
-                print("   No more projects to dispatch")
+                print("   No more tasks to dispatch")
                 break
 
-            # Mark as attempted before dispatching
-            attempted_paths.add(project.get("path"))
-
+            attempted_ids.add(_candidate_identifier(project))
             if self.dispatch(project):
                 dispatched += 1
 
-        # Summary
         print("\n" + "=" * 60)
-        print(f" DISPATCH COMPLETE: {dispatched} project(s) dispatched")
+        print(f" DISPATCH COMPLETE: {dispatched} task(s) dispatched")
         print("=" * 60)
-
-        return True  # Successful completion, regardless of dispatch count
+        return True
 
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Agent Hive Dispatcher - Assign work to Claude Code",
+        description="Agent Hive Dispatcher - Manually assign ready Hive v2 tasks to Claude Code",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run dispatcher (dispatch 1 project)
+  # Run dispatcher (dispatch 1 task)
   python -m src.agent_dispatcher
 
   # Dry run (no actual changes)
   python -m src.agent_dispatcher --dry-run
 
-  # Dispatch up to 3 projects
+  # Dispatch up to 3 tasks
   python -m src.agent_dispatcher --max 3
 
   # Specify custom base path
@@ -505,15 +447,13 @@ Examples:
         action="store_true",
         help="Preview what would be done without making changes",
     )
-
     parser.add_argument(
         "--max",
         "-m",
         type=int,
         default=1,
-        help="Maximum number of projects to dispatch (default: 1)",
+        help="Maximum number of tasks to dispatch (default: 1)",
     )
-
     parser.add_argument(
         "--path",
         "-p",
@@ -521,24 +461,20 @@ Examples:
         default=None,
         help="Base path for the hive (default: current directory)",
     )
-
     return parser.parse_args()
 
 
-def main():
+def main() -> None:
     """CLI entry point for Agent Dispatcher."""
     args = parse_args()
-
-    # Validate max_dispatches to prevent DoS via unbounded dispatch requests
     try:
         max_dispatches = validate_max_dispatches(args.max)
-    except ValueError as e:
-        print(f"ERROR: {e}")
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
         sys.exit(1)
 
     dispatcher = AgentDispatcher(base_path=args.path, dry_run=args.dry_run)
     success = dispatcher.run(max_dispatches=max_dispatches)
-
     sys.exit(0 if success else 1)
 
 

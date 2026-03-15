@@ -135,7 +135,8 @@ def print_installation_guide():
     print("\n" + "=" * 60)
     print("Claude Code GitHub App Installation Guide")
     print("=" * 60)
-    print("""
+    print(
+        """
 To install the Claude Code GitHub App:
 
 1. Visit: https://github.com/apps/claude
@@ -156,14 +157,13 @@ To install the Claude Code GitHub App:
 
 For detailed instructions, see:
   docs/INSTALL_CLAUDE_APP.md
-""")
+"""
+    )
 
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Verify Claude Code GitHub App installation"
-    )
+    parser = argparse.ArgumentParser(description="Verify Claude Code GitHub App installation")
     parser.add_argument(
         "--repo",
         help="Repository in owner/repo format (auto-detected if not provided)",
@@ -218,7 +218,9 @@ def main():
         print("\nNext steps:")
         print("1. Install the Claude Code app (if not already):")
         print("   https://github.com/apps/claude")
-        print("\n2. Test by running the dispatcher:")
+        print("\n2. Inspect canonical ready work:")
+        print("   uv run hive task ready --json")
+        print("\n3. Optional: preview manual GitHub issue dispatch:")
         print("   uv run python -m src.agent_dispatcher --dry-run")
     else:
         print("\n✗ Some checks failed. Review the issues above.")

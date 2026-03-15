@@ -52,19 +52,18 @@ Claude should respond within a few minutes.
 
 ## How It Works with Agent Hive
 
-1. **Cortex** runs every 4 hours to analyze project state
-2. **Agent Dispatcher** runs 15 minutes after Cortex
-3. Dispatcher finds ready work (unblocked, unowned projects)
-4. Creates a GitHub issue with `@claude` mention
-5. Claude Code app picks up the issue and works on it
-6. Claude creates a PR with the changes
+1. **Hive projections/cache** can be refreshed on demand with `uv run hive sync projections --json`
+2. **Ready work** is available from `uv run hive task ready --json` and the dashboard
+3. **Optional manual dispatch** can open a GitHub issue with `@claude` if you want issue-based assignment
+4. **Claude Code** also responds directly to `@claude` mentions on issues and PR comments
+5. Claude creates a PR with the changes when it completes the requested work
 
 ### Workflow Diagram
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   Cortex        │────▶│  Agent Dispatcher │────▶│  GitHub Issue   │
-│ (analyze state) │     │  (find ready work)│     │  (@claude)      │
+│  Ready Work     │────▶│ Optional Manual   │────▶│  GitHub Issue   │
+│  (`hive task`)  │     │ Dispatcher        │     │  (@claude)      │
 └─────────────────┘     └──────────────────┘     └────────┬────────┘
                                                           │
                                                           ▼
@@ -105,7 +104,7 @@ permissions:
 ### Agent Dispatcher issues not created
 
 1. Run manually to debug: `uv run python -m src.agent_dispatcher --dry-run`
-2. Check for projects with `status: active`, `blocked: false`, `owner: null`
+2. Check canonical ready work: `uv run hive task ready --json`
 3. Verify `GITHUB_TOKEN` is set with `issues: write` permission
 
 ### Claude creates PR but can't push
@@ -126,6 +125,9 @@ permissions:
 To manually trigger agent assignment:
 
 ```bash
+# Inspect canonical ready tasks first
+uv run hive task ready --json
+
 # Dry run (preview without changes)
 uv run python -m src.agent_dispatcher --dry-run
 
@@ -136,7 +138,7 @@ uv run python -m src.agent_dispatcher
 Or via GitHub Actions:
 
 1. Go to **Actions** tab
-2. Select **"Agent Assignment"** workflow
+2. Select **"Ready Work Snapshot"** workflow
 3. Click **"Run workflow"**
 
 ## Additional Resources

@@ -18,7 +18,10 @@ from dashboard import (
     discover_projects,
     generate_file_tree,
     generate_deep_work_context,
+    generate_hive_context,
+    list_project_ready_tasks,
 )
+from src.hive.migrate import migrate_v1_to_v2
 
 
 class TestLoadProject:
@@ -132,7 +135,8 @@ class TestDiscoverProjects:
         nested_dir = projects_dir / "external" / "nested-project"
         nested_dir.mkdir(parents=True)
         nested_agency = nested_dir / "AGENCY.md"
-        nested_agency.write_text("""---
+        nested_agency.write_text(
+            """---
 project_id: nested-project
 status: active
 owner: null
@@ -144,13 +148,15 @@ tags:
 # Nested Project
 
 A project in a nested directory.
-""")
+"""
+        )
 
         # Also create a regular project
         regular_dir = projects_dir / "regular-project"
         regular_dir.mkdir(parents=True)
         regular_agency = regular_dir / "AGENCY.md"
-        regular_agency.write_text("""---
+        regular_agency.write_text(
+            """---
 project_id: regular-project
 status: active
 owner: null
@@ -158,7 +164,8 @@ priority: medium
 ---
 
 # Regular Project
-""")
+"""
+        )
 
         with patch("streamlit.error"):
             projects = discover_projects(base_path)
@@ -247,14 +254,17 @@ class TestGenerateDeepWorkContext:
     def test_generate_context_success(self, temp_hive_dir, temp_project):
         """Test successfully generating Deep Work context."""
         base_path = Path(temp_hive_dir)
+        migrate_v1_to_v2(temp_hive_dir)
 
         context = generate_deep_work_context(temp_project, base_path)
 
         assert context is not None
-        assert "DEEP WORK SESSION CONTEXT" in context
+        assert "HIVE STARTUP CONTEXT" in context
         assert "test-project" in context
         assert "YOUR ROLE" in context
-        assert "AGENCY.md CONTENT" in context
+        assert "READY TASKS" in context
+        assert "AGENCY.md" in context
+        assert "HIVE CONTEXT" in context
         assert "PROJECT FILE STRUCTURE" in context
         assert "HANDOFF PROTOCOL" in context
 
@@ -271,6 +281,7 @@ class TestGenerateDeepWorkContext:
     def test_generate_context_includes_tasks(self, temp_hive_dir, temp_project):
         """Test that context includes task list."""
         base_path = Path(temp_hive_dir)
+        migrate_v1_to_v2(temp_hive_dir)
 
         context = generate_deep_work_context(temp_project, base_path)
 
@@ -294,9 +305,8 @@ class TestGenerateDeepWorkContext:
         context = generate_deep_work_context(temp_project, base_path)
 
         assert "HANDOFF PROTOCOL" in context
-        assert "Update all completed tasks" in context
-        assert "last_updated" in context
-        assert "owner: null" in context
+        assert ".hive/tasks/" in context
+        assert "hive sync projections" in context
 
     def test_generate_context_includes_timestamp(self, temp_hive_dir, temp_project):
         """Test that context includes generation timestamp with Z suffix."""
@@ -307,17 +317,15 @@ class TestGenerateDeepWorkContext:
         assert "Generated:" in context
         # Check for ISO timestamp format (YYYY-MM-DDTHH:MM:SS) with Z suffix for UTC
         iso_pattern = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z"
-        assert re.search(iso_pattern, context), (
-            "Should contain ISO format timestamp with Z suffix"
-        )
+        assert re.search(iso_pattern, context), "Should contain ISO format timestamp with Z suffix"
 
         # Extract the timestamp line and verify it ends with Z
-        lines = context.split('\n')
+        lines = context.split("\n")
         generated_line = [line for line in lines if line.startswith("# Generated:")][0]
         timestamp_str = generated_line.replace("# Generated:", "").strip()
-        assert timestamp_str.endswith('Z'), (
-            f"Timestamp should end with 'Z' for UTC. Got: {timestamp_str}"
-        )
+        assert timestamp_str.endswith(
+            "Z"
+        ), f"Timestamp should end with 'Z' for UTC. Got: {timestamp_str}"
 
     def test_generate_context_nonexistent_project(self, temp_hive_dir):
         """Test generating context for non-existent project."""
@@ -337,10 +345,28 @@ class TestGenerateDeepWorkContext:
         context = generate_deep_work_context(temp_project, base_path)
 
         assert "YOUR ROLE" in context
-        assert "responsibilities:" in context.lower()
-        assert "Read and understand" in context
-        assert "Work on the assigned tasks" in context
-        assert "blocked: true" in context
+        assert "canonical tasks" in context
+        assert "source of truth" in context
+
+    def test_generate_handoff_context(self, temp_hive_dir, temp_project):
+        """Test generating the explicit handoff context variant."""
+        base_path = Path(temp_hive_dir)
+        migrate_v1_to_v2(temp_hive_dir)
+
+        context = generate_hive_context(temp_project, base_path, mode="handoff", profile="light")
+
+        assert context is not None
+        assert "HIVE HANDOFF CONTEXT" in context
+
+    def test_list_project_ready_tasks_returns_canonical_queue(self, temp_hive_dir, temp_project):
+        """Ready task helper should read the canonical `.hive/tasks` queue."""
+        migrate_v1_to_v2(temp_hive_dir)
+
+        tasks = list_project_ready_tasks(Path(temp_hive_dir), "test-project", limit=10)
+
+        titles = [task["title"] for task in tasks]
+        assert "Task 1" in titles
+        assert "Task 2" in titles
 
 
 class TestDashboardIntegration:
@@ -349,6 +375,7 @@ class TestDashboardIntegration:
     def test_full_workflow(self, temp_hive_dir, temp_project):
         """Test complete workflow: discover -> load -> generate context."""
         base_path = Path(temp_hive_dir)
+        migrate_v1_to_v2(temp_hive_dir)
 
         with patch("streamlit.error"):
             # 1. Discover projects
@@ -368,6 +395,7 @@ class TestDashboardIntegration:
     def test_multiple_projects_workflow(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test workflow with multiple projects."""
         base_path = Path(temp_hive_dir)
+        migrate_v1_to_v2(temp_hive_dir)
 
         with patch("streamlit.error"):
             # Discover all projects

@@ -9,11 +9,13 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch
 import frontmatter
+import pytest
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from cortex import Cortex
+from cortex import Cortex, main
+from src.hive.migrate import migrate_v1_to_v2
 
 
 class TestCortexInitialization:
@@ -148,7 +150,8 @@ class TestDiscoverProjects:
         nested_dir = Path(temp_hive_dir) / "projects" / "external" / "nested-project"
         nested_dir.mkdir(parents=True)
         nested_agency = nested_dir / "AGENCY.md"
-        nested_agency.write_text("""---
+        nested_agency.write_text(
+            """---
 project_id: nested-project
 status: active
 owner: null
@@ -161,13 +164,15 @@ target_repo:
 # Nested External Project
 
 A project in a nested directory for cross-repo work.
-""")
+"""
+        )
 
         # Also create a regular project
         regular_dir = Path(temp_hive_dir) / "projects" / "regular-project"
         regular_dir.mkdir(parents=True)
         regular_agency = regular_dir / "AGENCY.md"
-        regular_agency.write_text("""---
+        regular_agency.write_text(
+            """---
 project_id: regular-project
 status: active
 owner: null
@@ -175,7 +180,8 @@ priority: medium
 ---
 
 # Regular Project
-""")
+"""
+        )
 
         cortex = Cortex(temp_hive_dir)
         projects = cortex.discover_projects()
@@ -298,14 +304,14 @@ class TestCallLLM:
         self, temp_hive_dir, mock_env_vars, sample_llm_response, monkeypatch
     ):
         """Test LLM call with JSON wrapped in single-line markdown code blocks.
-        
+
         This test reproduces a bug where single-line markdown like:
             ```{"key":"value"}```
-        
+
         Was incorrectly parsed as an empty string because the logic:
             lines = llm_response.split("\n")
             llm_response = "\n".join(lines[1:-1])
-        
+
         For a single line, produces: lines = ['```{"key":"value"}```']
         And lines[1:-1] = [] (empty list), resulting in an empty string.
         """
@@ -315,11 +321,7 @@ class TestCallLLM:
         # Single-line markdown format (no newlines)
         single_line_markdown = f"```{json.dumps(sample_llm_response)}```"
 
-        markdown_response = {
-            "choices": [
-                {"message": {"content": single_line_markdown}}
-            ]
-        }
+        markdown_response = {"choices": [{"message": {"content": single_line_markdown}}]}
 
         with patch("tracing.requests.post") as mock_post:
             mock_response = Mock()
@@ -337,7 +339,7 @@ class TestCallLLM:
         self, temp_hive_dir, mock_env_vars, sample_llm_response, monkeypatch
     ):
         """Test LLM call with JSON wrapped in single-line markdown with language tag.
-        
+
         Tests the edge case: ```json{"key":"value"}```
         """
         monkeypatch.setenv("WEAVE_DISABLED", "true")
@@ -346,11 +348,7 @@ class TestCallLLM:
         # Single-line markdown with language tag
         single_line_markdown = f"```json{json.dumps(sample_llm_response)}```"
 
-        markdown_response = {
-            "choices": [
-                {"message": {"content": single_line_markdown}}
-            ]
-        }
+        markdown_response = {"choices": [{"message": {"content": single_line_markdown}}]}
 
         with patch("tracing.requests.post") as mock_post:
             mock_response = Mock()
@@ -485,6 +483,7 @@ class TestApplyStateUpdates:
 
         # Get the file's mtime before
         import os
+
         mtime_before = os.path.getmtime(temp_project)
 
         result = cortex.apply_state_updates(updates)
@@ -1132,3 +1131,76 @@ class TestRunDeps:
         data = json.loads(captured.out)
         assert data["total_projects"] == 1
         assert len(data["projects"]) == 1
+
+
+class TestMainV2ProjectionSync:
+    """Test the Cortex CLI default cutover to v2 projection sync."""
+
+    @patch("cortex.is_tracing_enabled", return_value=False)
+    @patch("cortex.sync_agents_md")
+    @patch("cortex.sync_agency_md")
+    @patch("cortex.sync_global_md")
+    @patch("cortex.rebuild_cache")
+    @patch.object(Cortex, "run")
+    def test_main_defaults_to_v2_sync_when_tasks_present(
+        self,
+        mock_run,
+        mock_rebuild,
+        mock_sync_global,
+        mock_sync_agency,
+        mock_sync_agents,
+        mock_tracing,
+        temp_hive_dir,
+        temp_project,
+        monkeypatch,
+        capsys,
+    ):
+        """Default CLI mode uses projection sync once canonical tasks exist."""
+        migrate_v1_to_v2(temp_hive_dir)
+        monkeypatch.setattr(sys, "argv", ["cortex.py", "--path", temp_hive_dir])
+
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+
+        captured = capsys.readouterr()
+        assert excinfo.value.code == 0
+        assert "HIVE V2 PROJECTION SYNC" in captured.out
+        mock_rebuild.assert_called_once()
+        mock_sync_global.assert_called_once()
+        mock_sync_agency.assert_called_once()
+        mock_sync_agents.assert_called_once()
+        mock_run.assert_not_called()
+
+    @patch("cortex.is_tracing_enabled", return_value=False)
+    @patch("cortex.sync_agents_md")
+    @patch("cortex.sync_agency_md")
+    @patch("cortex.sync_global_md")
+    @patch("cortex.rebuild_cache")
+    def test_main_supports_json_output_for_v2_sync(
+        self,
+        mock_rebuild,
+        mock_sync_global,
+        mock_sync_agency,
+        mock_sync_agents,
+        mock_tracing,
+        temp_hive_dir,
+        temp_project,
+        monkeypatch,
+        capsys,
+    ):
+        """The v2 default path supports JSON output without requiring --ready/--deps."""
+        migrate_v1_to_v2(temp_hive_dir)
+        monkeypatch.setattr(sys, "argv", ["cortex.py", "--path", temp_hive_dir, "--json"])
+
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert excinfo.value.code == 0
+        assert payload["action"] == "projection_sync"
+        assert payload["version"] == "2.0"
+        mock_rebuild.assert_called_once()
+        mock_sync_global.assert_called_once()
+        mock_sync_agency.assert_called_once()
+        mock_sync_agents.assert_called_once()

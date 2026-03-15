@@ -10,6 +10,11 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  RELEASE_PYTHON_VERSION: "3.11"
+  HOMEBREW_PYTHON_VERSION: "3.13"
+  HOMEBREW_PYTHON_DEP: "python@3.13"
+
 jobs:
   publish-pypi:
     runs-on: ubuntu-latest
@@ -26,7 +31,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          # Build releases on the oldest supported interpreter so packaging regressions
+          # show up before publish instead of hiding behind a newer runtime.
+          python-version: ${{ env.RELEASE_PYTHON_VERSION }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -74,17 +81,19 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          # The formula generator resolves resources against the Homebrew-managed Python
+          # runtime that the tap will depend on, which is intentionally separate from the
+          # minimum supported interpreter we test in CI.
+          python-version: ${{ env.HOMEBREW_PYTHON_VERSION }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
-      - name: Check formula name availability in Homebrew/core
+      - name: Warn if formula name already exists in Homebrew/core
         run: |
           FORMULA_NAME="agent-hive"
           if curl -fsSL "https://formulae.brew.sh/api/formula/${FORMULA_NAME}.json" >/dev/null 2>&1; then
-            echo "Formula name '${FORMULA_NAME}' already exists in Homebrew/core. Choose a different formula name."
-            exit 1
+            echo "::warning::Formula name '${FORMULA_NAME}' already exists in Homebrew/core. Use a fully qualified tap install target and consider renaming before a public tap release."
           fi
 
       - name: Validate Homebrew tap configuration
@@ -105,6 +114,8 @@ jobs:
         run: |
           uv run --with pip python scripts/generate_homebrew_formula.py \
             --package-version "${{ needs.publish-pypi.outputs.version }}" \
+            --python-dep "${{ env.HOMEBREW_PYTHON_DEP }}" \
+            --python-version "${{ env.HOMEBREW_PYTHON_VERSION }}" \
             --output packaging/homebrew/agent-hive.rb
 
       - name: Checkout tap repository

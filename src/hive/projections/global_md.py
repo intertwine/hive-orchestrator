@@ -32,7 +32,8 @@ def render_projects_table(path: str | Path | None = None) -> str:
     return "\n".join(lines)
 
 
-def _default_global_md() -> str:
+def default_global_md() -> str:
+    """Return the default GLOBAL.md bootstrap content."""
     body = f"""# Hive Workspace
 
 Use this file for high-level notes and orientation. Hive will refresh the bounded
@@ -55,7 +56,7 @@ def sync_global_md(path: str | Path | None = None) -> Path:
     root = Path(path or Path.cwd())
     global_path = root / "GLOBAL.md"
     if not global_path.exists():
-        global_path.write_text(_default_global_md(), encoding="utf-8")
+        global_path.write_text(default_global_md(), encoding="utf-8")
     content = global_path.read_text(encoding="utf-8")
     updated = replace_marker_block(content, BEGIN, END, render_projects_table(root))
     global_path.write_text(updated, encoding="utf-8")

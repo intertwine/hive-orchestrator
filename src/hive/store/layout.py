@@ -5,14 +5,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from src.security import safe_dump_agency_md
-
-
-GLOBAL_PROJECTS_BEGIN = "<!-- hive:begin projects -->"
-GLOBAL_PROJECTS_END = "<!-- hive:end projects -->"
-AGENTS_COMPAT_BEGIN = "<!-- hive:begin compatibility -->"
-AGENTS_COMPAT_END = "<!-- hive:end compatibility -->"
-
 
 def _default_hive_readme() -> str:
     return """# Hive 2.0 Substrate
@@ -25,46 +17,6 @@ This directory holds Hive's canonical machine state.
 - `.hive/events/*.jsonl` stores the append-only audit log.
 - `.hive/cache/` is derived and should stay out of Git.
 - `.hive/worktrees/` is scratch space for local run worktrees.
-"""
-
-
-def _default_global_md() -> str:
-    body = f"""# Hive Workspace
-
-Use this file for high-level notes and orientation. Hive will refresh the bounded
-project rollup below whenever you run `hive sync projections --json`.
-
-## Daily Flow
-
-- `hive project list --json` shows the current project portfolio.
-- `hive task ready --json` shows work that is ready now.
-- `hive context startup --project <project-id> --json` builds a clean handoff package.
-
-{GLOBAL_PROJECTS_BEGIN}
-{GLOBAL_PROJECTS_END}
-"""
-    return safe_dump_agency_md(
-        {
-            "workspace_version": 2,
-            "last_sync": None,
-        },
-        body,
-    )
-
-
-def _default_agents_md() -> str:
-    return f"""# AGENTS
-
-Use the `hive` CLI first.
-
-- Canonical task state lives in `.hive/tasks/*.md`.
-- Narrative project docs live in `projects/*/AGENCY.md`.
-- `projects/*/PROGRAM.md` defines evaluator, path, and command policy.
-- Run `hive context startup --project <project-id> --json` before autonomous edits.
-- Run `hive sync projections --json` after canonical task or run changes.
-
-{AGENTS_COMPAT_BEGIN}
-{AGENTS_COMPAT_END}
 """
 
 
@@ -195,6 +147,9 @@ def ensure_layout(path: str | Path | None = None) -> dict[str, Path]:
 
 def bootstrap_workspace(path: str | Path | None = None) -> dict[str, object]:
     """Create the base layout and bootstrap the root human-facing files."""
+    from src.hive.projections.agents_md import default_agents_md
+    from src.hive.projections.global_md import default_global_md
+
     directories = ensure_layout(path)
     workspace_root = Path(directories["workspace"])
 
@@ -205,9 +160,9 @@ def bootstrap_workspace(path: str | Path | None = None) -> dict[str, object]:
 
     if _ensure_text_file(workspace_root / ".hive" / "README.md", _default_hive_readme()):
         created_files.append(".hive/README.md")
-    if _ensure_text_file(workspace_root / "GLOBAL.md", _default_global_md()):
+    if _ensure_text_file(workspace_root / "GLOBAL.md", default_global_md()):
         created_files.append("GLOBAL.md")
-    if _ensure_text_file(workspace_root / "AGENTS.md", _default_agents_md()):
+    if _ensure_text_file(workspace_root / "AGENTS.md", default_agents_md()):
         created_files.append("AGENTS.md")
     if _ensure_gitignore_entries(workspace_root):
         if gitignore_existed:

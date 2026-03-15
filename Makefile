@@ -189,6 +189,10 @@ publish-test: build
 publish: build
 	@echo "🚀 Publishing to PyPI..."
 	@echo "Requires TWINE_USERNAME=__token__ and TWINE_PASSWORD=<pypi-token>"
+	@if [ -n "$$CI" ]; then \
+		echo "❌ Refusing to run interactive publish in CI. Use the tagged GitHub release workflow instead."; \
+		exit 1; \
+	fi
 	@echo -n "Continue? [y/N] " && read ans && ( [ "$${ans}" = "y" ] || [ "$${ans}" = "Y" ] )
 	uv run --extra dev twine upload dist/*
 

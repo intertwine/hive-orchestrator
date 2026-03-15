@@ -42,9 +42,16 @@ def update_pyproject_version(pyproject_path: Path, bump_type: str) -> tuple[str,
     old_version: str | None = None
     new_version: str | None = None
     updated_lines: list[str] = []
+    in_project_section = False
 
     for line in lines:
-        if line.strip().startswith("version = "):
+        stripped = line.strip()
+        if stripped == "[project]":
+            in_project_section = True
+        elif stripped.startswith("["):
+            in_project_section = False
+
+        if in_project_section and stripped.startswith("version = "):
             quote = '"' if 'version = "' in line else "'"
             start = line.index(quote) + 1
             end = line.index(quote, start)

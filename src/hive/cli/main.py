@@ -300,7 +300,7 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "ok": True,
                 "message": f"Initialized Hive layout at {root}",
-                "layout": {key: str(value) for key, value in dict(bootstrapped["layout"]).items()},
+                "layout": {key: str(value) for key, value in bootstrapped["layout"].items()},
                 "created_files": bootstrapped["created_files"],
                 "updated_files": bootstrapped["updated_files"],
                 "next_steps": doctor["next_steps"],

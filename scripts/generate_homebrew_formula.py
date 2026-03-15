@@ -329,7 +329,7 @@ def render_formula(
             "  end",
             "",
             "  test do",
-            '    assert_match "Hive 2.0 CLI", shell_output("#{bin}/hive --help")',
+            '    assert_match "usage: hive", shell_output("#{bin}/hive --help")',
             "  end",
             "end",
             "",

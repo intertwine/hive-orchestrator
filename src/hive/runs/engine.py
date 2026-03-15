@@ -147,6 +147,26 @@ def _task_title(metadata: dict) -> str:
     return metadata.setdefault("metadata_json", {}).get("task_title") or metadata["task_id"]
 
 
+def _filtered_dirty_paths(root: Path, metadata: dict) -> dict[str, list[str]]:
+    """Filter local manager-generated artifacts out of dirty-path checks."""
+    dirty = split_dirty_paths(root)
+    context_output_path = metadata.get("metadata_json", {}).get("context_output_path")
+    if not context_output_path:
+        return dirty
+    context_path = Path(str(context_output_path)).expanduser()
+    candidates = {str(context_path)}
+    try:
+        candidates.add(str(context_path.resolve()))
+    except OSError:  # pragma: no cover - defensive
+        pass
+    try:
+        candidates.add(str(context_path.resolve().relative_to(root)))
+    except (OSError, ValueError):  # pragma: no cover - path outside repo or unresolved.
+        pass
+    dirty["noncanonical"] = [path for path in dirty["noncanonical"] if path not in candidates]
+    return dirty
+
+
 def _artifact_exists(path_value: str | None) -> bool:
     if not path_value:
         return False
@@ -528,7 +548,7 @@ def promote_run(
     if not branch_name:
         raise ValueError(f"Run {run_id} does not have a mergeable branch")
 
-    dirty = split_dirty_paths(root)
+    dirty = _filtered_dirty_paths(root, metadata)
     if dirty["noncanonical"]:
         details = ", ".join(dirty["noncanonical"][:5])
         raise ValueError(

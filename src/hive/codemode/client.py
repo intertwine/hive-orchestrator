@@ -6,6 +6,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from src.hive.control import (
+    finish_run_flow,
+    portfolio_status,
+    recommend_next_task,
+    steer_project,
+    tick_portfolio,
+    work_on_task,
+)
 from src.hive.memory.context import handoff_context, startup_context
 from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
@@ -217,6 +225,67 @@ class SchedulerModule:
         return ready[0] if ready else None
 
 
+@dataclass
+class ControlModule:
+    root: Path
+
+    def next(self, input: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        input = input or {}
+        return recommend_next_task(self.root, project_id=input.get("projectId"))
+
+    def work(self, input: dict[str, Any] | None = None) -> dict[str, Any]:
+        input = input or {}
+        return work_on_task(
+            self.root,
+            task_id=input.get("taskId"),
+            project_id=input.get("projectId"),
+            owner=input.get("owner"),
+            ttl_minutes=int(input.get("ttlMinutes", 60)),
+            profile=input.get("profile", "default"),
+            output_path=input.get("outputPath"),
+            checkpoint=not bool(input.get("noCheckpoint", False)),
+            checkpoint_message=input.get("checkpointMessage"),
+        )
+
+    def finish(self, input: dict[str, Any]) -> dict[str, Any]:
+        return finish_run_flow(
+            self.root,
+            input["runId"],
+            promote=not bool(input.get("noPromote", False)),
+            cleanup_worktree=not bool(input.get("keepWorktree", False)),
+            actor=input.get("owner"),
+        )
+
+    def status(self, input: dict[str, Any] | None = None) -> dict[str, Any]:
+        del input
+        return portfolio_status(self.root)
+
+    def steer(self, input: dict[str, Any]) -> dict[str, Any]:
+        return steer_project(
+            self.root,
+            input["projectRef"],
+            paused=input.get("paused"),
+            focus_task_id=input.get("focusTaskId"),
+            clear_focus=bool(input.get("clearFocus", False)),
+            boost=input.get("boost"),
+            force_review=input.get("forceReview"),
+            note=input.get("note"),
+            actor=input.get("owner"),
+        )
+
+    def tick(self, input: dict[str, Any] | None = None) -> dict[str, Any]:
+        input = input or {}
+        return tick_portfolio(
+            self.root,
+            mode=input.get("mode", "recommend"),
+            owner=input.get("owner"),
+            project_id=input.get("projectId"),
+            profile=input.get("profile", "default"),
+            output_path=input.get("outputPath"),
+            run_id=input.get("runId"),
+        )
+
+
 class HiveClient:
     """Typed local client used inside the execute sandbox."""
 
@@ -228,6 +297,7 @@ class HiveClient:
         self.memory = MemoryModule(self.root)
         self.context = ContextModule(self.root)
         self.scheduler = SchedulerModule(self.root)
+        self.control = ControlModule(self.root)
 
 
 __all__ = ["HiveClient"]

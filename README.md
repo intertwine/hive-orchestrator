@@ -100,17 +100,16 @@ chain that teaches the normal claim-and-context loop. The longer walkthrough liv
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
 
 If you want the full governed run loop, edit `projects/demo/PROGRAM.md` first so it includes at least one required
-evaluator and lists that evaluator under `promotion.requires_all`. Then checkpoint the workspace and run:
+evaluator and lists that evaluator under `promotion.requires_all`. After that, the quickest operator path is:
 
 ```bash
-hive run start <task-id>
-hive run eval <run-id>
-hive run accept <run-id> --promote --cleanup-worktree
+hive next --project-id demo
+hive work <task-id> --owner <your-name>
+hive finish <run-id>
 ```
 
-That promotion path merges the accepted branch back into your workspace. When you also pass
-`--cleanup-worktree`, Hive prunes the linked run worktree and deletes the merged local run branch too.
-Use `hive run cleanup --terminal` later if you want to prune old terminal worktrees in one pass.
+`hive finish` evaluates the run, accepts or escalates it, and promotes accepted work back into the workspace by
+default. Use the lower-level `hive run *` commands when you want to step through the lifecycle yourself.
 
 ## Adopt Hive In An Existing Repo
 
@@ -132,14 +131,14 @@ with `hive migrate v1-to-v2`. The full path is documented in
 Once the workspace exists, the daily path is short:
 
 ```bash
-hive task ready
-hive task claim <task-id> --owner <your-name> --ttl-minutes 60
-hive context startup --project <project-id> --task <task-id>
-hive run start <task-id>
+hive next
+hive work --owner <your-name>
+hive finish <run-id>
 ```
 
-If you are still following the demo project, use `hive task ready --project-id demo`. In a multi-project workspace, plain `hive task ready` shows the cross-project queue.
-`--json` is available across the CLI when you want to script Hive instead of reading it by eye.
+If you want to stay closer to the underlying primitives, `hive task ready`, `hive task claim`, `hive context startup`,
+and `hive run start` are still there. `--json` is available across the CLI when you want to script Hive instead of
+reading it by eye.
 
 When you are defining new work instead of just taking ready work, stay in the CLI:
 

@@ -175,3 +175,12 @@ def ensure_project_id(project: ProjectRecord) -> ProjectRecord:
         encoding="utf-8",
     )
     return project
+
+
+def save_project(project: ProjectRecord) -> ProjectRecord:
+    """Persist project metadata and content back to AGENCY.md."""
+    project.agency_path.write_text(
+        safe_dump_agency_md(project.metadata, project.content),
+        encoding="utf-8",
+    )
+    return project

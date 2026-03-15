@@ -62,20 +62,23 @@ but governed runs and promotion work much more smoothly once the workspace has a
 ## Find Work
 
 ```bash
+hive next --project-id demo
+```
+
+If you want the manager-style happy path, take the recommended task straight into work:
+
+```bash
+hive work <task-id> --owner <your-name>
+```
+
+That one command checkpoints the repo when needed, claims the task, starts the governed run, and assembles fresh
+startup context.
+
+If you want to see or save the bundle yourself, use the lower-level commands:
+
+```bash
 hive task ready --project-id demo
-```
-
-Claim the first task:
-
-```bash
 hive task claim <task-id> --owner <your-name> --ttl-minutes 60
-```
-
-Use the task ID that `hive task ready --project-id demo` just returned.
-
-Build a startup context:
-
-```bash
 hive context startup --project demo --task <task-id>
 ```
 
@@ -130,12 +133,11 @@ required evaluator and lists it under `promotion.requires_all`. The default stub
 autonomous acceptance until you make that decision. After that, the shortest path is:
 
 ```bash
-hive run start <task-id>
-hive run eval <run-id>
-hive run accept <run-id> --promote --cleanup-worktree
+hive work <task-id> --owner <your-name>
+hive finish <run-id>
 ```
 
-That sequence:
+Under the hood, that covers the same governed sequence:
 
 - opens a dedicated run worktree and branch
 - captures evaluator output and patch data
@@ -144,7 +146,7 @@ That sequence:
 - prunes the run worktree when you pass `--cleanup-worktree`
 - deletes the merged local run branch after that cleanup step
 
-If you want to separate acceptance from merge, keep them separate:
+If you want to separate acceptance from merge, keep the lower-level run commands separate:
 
 ```bash
 hive run accept <run-id>
@@ -171,7 +173,7 @@ The short version is:
 
 ## Optional Next Steps
 
-- Use `hive run start <task-id>` if the project has evaluator policy in `PROGRAM.md`
+- Use `hive next`, `hive work`, and `hive finish` if you want the manager-style happy path
 - Use `hive memory observe --note "..."` to preserve useful decisions
 - Use `hive sync projections` after task, run, or memory changes
 - Install `agent-hive[dashboard]` and run `hive dashboard` if you want a visual workspace view

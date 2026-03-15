@@ -68,6 +68,14 @@ hive task ready --project-id demo
 
 That path is covered in the full [Quickstart](./QUICKSTART.md).
 
+Once the workspace exists, the shortest manager-style loop is:
+
+```bash
+hive next
+hive work --owner <your-name>
+hive finish <run-id>
+```
+
 ## Existing Repo
 
 If you already have a repository and want Hive inside it:

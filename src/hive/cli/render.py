@@ -132,6 +132,53 @@ def _render_run(run: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _render_runs(label: str, runs: list[dict[str, object]]) -> str:
+    if not runs:
+        return ""
+    lines = [label + ":"]
+    for run in runs:
+        lines.append(
+            f"- {run.get('id')} [{run.get('status')}] "
+            f"{run.get('project_id')}/{run.get('task_id')}"
+        )
+    return "\n".join(lines)
+
+
+def _render_recommendation(recommendation: dict[str, object]) -> str:
+    task = recommendation.get("task", {})
+    lines = [
+        "Recommendation:",
+        f"- {task.get('id')} [{task.get('status')}] "
+        f"p{task.get('priority')} {task.get('project_id')}: {task.get('title')}",
+    ]
+    reasons = recommendation.get("reasons") or []
+    for reason in reasons:
+        lines.append(f"  reason: {reason}")
+    return "\n".join(lines)
+
+
+def _render_steering(steering: dict[str, object]) -> str:
+    lines = ["Steering:"]
+    for key in ("paused", "focus_task_id", "boost", "force_review", "note", "updated_by"):
+        value = steering.get(key)
+        if value in (None, "", False, 0):
+            continue
+        lines.append(f"- {key}: {value}")
+    return "\n".join(lines)
+
+
+def _render_events(events: list[dict[str, object]]) -> str:
+    if not events:
+        return ""
+    lines = ["Recent events:"]
+    for event in events:
+        lines.append(
+            f"- {event.get('occurred_at')} {event.get('event_type')} "
+            f"{event.get('entity_type')}:{event.get('entity_id')}"
+        )
+    return "\n".join(lines)
+
+
 def render_payload(payload: dict[str, object]) -> str:
     """Render a CLI payload for humans."""
     if not payload.get("ok", True) and payload.get("error"):
@@ -160,6 +207,16 @@ def render_payload(payload: dict[str, object]) -> str:
         sections.append(_render_dependency_summary(payload["summary"]))
     if isinstance(payload.get("run"), dict):
         sections.append(_render_run(payload["run"]))
+    if isinstance(payload.get("active_runs"), list):
+        sections.append(_render_runs("Active runs", payload["active_runs"]))
+    if isinstance(payload.get("evaluating_runs"), list):
+        sections.append(_render_runs("Evaluating runs", payload["evaluating_runs"]))
+    if isinstance(payload.get("recommendation"), dict):
+        sections.append(_render_recommendation(payload["recommendation"]))
+    if isinstance(payload.get("steering"), dict):
+        sections.append(_render_steering(payload["steering"]))
+    if isinstance(payload.get("recent_events"), list):
+        sections.append(_render_events(payload["recent_events"]))
     if isinstance(payload.get("next_steps"), list):
         sections.append(_render_next_steps(payload["next_steps"]))
 

@@ -76,6 +76,19 @@ def _render_context_sections(context: dict[str, object]) -> str:
     return "\n\n---\n\n".join(sections) if sections else "*No v2 context sections available.*"
 
 
+def _project_payload(project) -> dict[str, object]:
+    return {
+        "id": project.id,
+        "slug": project.slug,
+        "title": project.title,
+        "status": project.status,
+        "priority": project.priority,
+        "owner": project.owner,
+        "path": str(project.agency_path),
+        "program_path": str(project.program_path),
+    }
+
+
 def build_context_bundle(
     path: str | Path | None,
     *,
@@ -154,6 +167,7 @@ Before ending your session:
 """.strip()
     return {
         "project": project,
+        "project_payload": _project_payload(project),
         "ready_tasks": ready,
         "context": context,
         "agency_document": agency_document,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import sys
+import tomllib
 
 
 def _load_module(module_name: str, relative_path: str):
@@ -95,3 +96,18 @@ def test_public_top_level_packages_are_available():
     assert hive_mcp.__version__
     assert callable(hive_mcp_main.run)
     assert callable(hive_mcp_server.main)
+
+
+def test_pyproject_all_extra_covers_optional_runtime_surfaces():
+    """The convenience `all` extra should include every optional runtime surface."""
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    payload = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    extras = payload["project"]["optional-dependencies"]
+
+    assert extras["all"] == [
+        "streamlit>=1.51.0,<2.0.0",
+        "mcp~=1.22.0",
+        "fastapi>=0.115.0,<1.0.0",
+        "uvicorn>=0.32.0,<1.0.0",
+        "weave>=0.51.0,<1.0.0",
+    ]

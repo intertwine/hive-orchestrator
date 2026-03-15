@@ -10,7 +10,9 @@ import sqlite3
 import pytest
 
 from src.hive.cli.main import main as hive_main
+from src.hive.cli.render import render_payload
 from src.hive.codemode.execute import MAX_EXECUTE_BYTES
+from src.hive.context_bundle import build_context_bundle
 from src.hive.memory import observe_project, reflect_project, search_memory, startup_context
 from src.hive.migrate import migrate_v1_to_v2
 from src.hive.models.task import TaskRecord
@@ -1358,6 +1360,27 @@ class TestHiveV2Cli:
         assert payload["output_path"] == str(output_path.resolve())
         assert output_path.exists()
         assert "HIVE STARTUP CONTEXT" in output_path.read_text(encoding="utf-8")
+
+    def test_context_bundle_includes_serializable_project_payload(self, temp_hive_dir, temp_project):
+        """Context bundles should expose a JSON-safe project payload for CLI callers."""
+        migrate_v1_to_v2(temp_hive_dir)
+        assert temp_project
+
+        bundle = build_context_bundle(temp_hive_dir, project_ref="test-project", mode="startup")
+
+        assert bundle["project_payload"]["id"] == "test-project"
+        json.dumps(bundle["project_payload"])
+
+    def test_render_payload_falls_back_for_non_serializable_values(self):
+        """Human rendering should not crash on non-JSON-serializable payloads."""
+
+        class DemoObject:
+            def __repr__(self):  # pragma: no cover - trivial debug representation
+                return "<demo>"
+
+        rendered = render_payload({"object": DemoObject()})
+
+        assert "<demo>" in rendered
 
     def test_cli_project_show_accepts_slug_and_path_references(self, tmp_path, capsys):
         """Project lookups should accept slugs and project paths, not only canonical ids."""

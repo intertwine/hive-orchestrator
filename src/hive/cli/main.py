@@ -674,7 +674,7 @@ def main(argv: list[str] | None = None) -> int:
                         "ok": True,
                         "message": f"Wrote startup context to {output_path}",
                         "output_path": str(output_path),
-                        "project": _project_payload(bundle["project"]),
+                        "project": bundle["project_payload"],
                         "next_steps": [
                             f"Open {output_path}",
                             "Copy the bundle into your agent, or reuse it as a handoff artifact.",
@@ -696,7 +696,7 @@ def main(argv: list[str] | None = None) -> int:
                         "ok": True,
                         "message": f"Wrote handoff context to {output_path}",
                         "output_path": str(output_path),
-                        "project": _project_payload(bundle["project"]),
+                        "project": bundle["project_payload"],
                     },
                     args.json,
                 )

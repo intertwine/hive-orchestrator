@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from pprint import pformat
 
 
 def _render_checks(checks: dict[str, object]) -> str:
@@ -163,5 +164,8 @@ def render_payload(payload: dict[str, object]) -> str:
         sections.append(_render_next_steps(payload["next_steps"]))
 
     if not sections:
-        return json.dumps(payload, indent=2, sort_keys=True)
+        try:
+            return json.dumps(payload, indent=2, sort_keys=True)
+        except TypeError:
+            return pformat(payload, sort_dicts=True)
     return "\n\n".join(section for section in sections if section).strip()

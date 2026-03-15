@@ -416,6 +416,8 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
         active_task = None
 
     for imported in parsed_tasks:
+        # Inline parenthetical hints are stripped before persistence, so this second pass only
+        # scans the cleaned title plus indented detail lines and does not duplicate those hints.
         imported.relation_hints = imported.relation_hints + _extract_relation_hints(
             imported.title,
             imported.detail_lines,

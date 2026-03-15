@@ -145,10 +145,10 @@ def _task_score(
         score += age_bonus
         reasons.append(f"Aging boost +{age_bonus:.1f}")
 
-    freshness_penalty = min(_age_hours(task.updated_at) * 0.05, 4.0)
-    if freshness_penalty:
-        score += freshness_penalty
-        reasons.append(f"Stale context bonus +{freshness_penalty:.1f}")
+    stale_age_bonus = min(_age_hours(task.updated_at) * 0.05, 4.0)
+    if stale_age_bonus:
+        score += stale_age_bonus
+        reasons.append(f"Stale context bonus +{stale_age_bonus:.1f}")
 
     if active_runs:
         penalty = active_runs * 18.0

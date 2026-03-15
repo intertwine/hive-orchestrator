@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 import getpass
 import json
 import os
@@ -53,6 +53,24 @@ def _default_owner() -> str:
 
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _claim_is_active(task) -> bool:
+    claim_deadline = _parse_iso(getattr(task, "claimed_until", None))
+    return (
+        bool(getattr(task, "owner", None))
+        and claim_deadline is not None
+        and claim_deadline > datetime.now(timezone.utc)
+    )
 
 
 def steering_state(project) -> dict[str, Any]:
@@ -204,8 +222,6 @@ def recommend_next_task(
     )
     recommendation = ranked[0] if ranked else None
     if recommendation and emit_decision_event:
-        recommendation_payload = cast(dict[str, Any], recommendation)
-        recommendation_task = cast(dict[str, Any], recommendation_payload["task"])
         emit_event(
             root,
             actor="hive",
@@ -214,9 +230,9 @@ def recommend_next_task(
             event_type="portfolio.recommended",
             source="portfolio.next",
             payload={
-                "task_id": recommendation_task["id"],
-                "project_id": recommendation_task["project_id"],
-                "reasons": recommendation_payload["reasons"],
+                "task_id": recommendation["task"]["id"],
+                "project_id": recommendation["task"]["project_id"],
+                "reasons": recommendation["reasons"],
             },
         )
     return recommendation
@@ -288,8 +304,7 @@ def work_on_task(
         recommendation = recommend_next_task(root, project_id=project_id)
         if recommendation is None:
             raise ValueError("No ready task is available for `hive work`.")
-        recommendation_payload = cast(dict[str, Any], recommendation)
-        task_id = str(cast(dict[str, Any], recommendation_payload["task"])["id"])
+        task_id = str(recommendation["task"]["id"])
 
     checkpoint_payload = None
     if checkpoint:
@@ -299,7 +314,16 @@ def work_on_task(
         )
 
     task = get_task(root, task_id)
-    if task.status in {"proposed", "ready"} or task.owner != resolved_owner:
+    if task.owner and task.owner != resolved_owner:
+        if task.status == "in_progress":
+            raise ValueError(f"Task {task.id} is already in progress by {task.owner}.")
+        if task.status == "claimed" and _claim_is_active(task):
+            raise ValueError(
+                f"Task {task.id} is actively claimed by {task.owner} until {task.claimed_until}."
+            )
+    if task.status in {"proposed", "ready"} or (
+        task.status == "claimed" and task.owner == resolved_owner
+    ):
         task = claim_task(root, task.id, resolved_owner, ttl_minutes)
         sync_workspace(root)
     run = start_run(root, task.id)
@@ -362,8 +386,6 @@ def finish_run_flow(
     if metadata.get("status") == "running":
         evaluation = eval_run(root, run_id)
         metadata = evaluation["run"]
-    else:
-        metadata = load_run(root, run_id)
     decision = (
         metadata.get("metadata_json", {}).get("promotion_decision")
         or (evaluation or {}).get("promotion_decision")

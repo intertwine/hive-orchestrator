@@ -58,7 +58,12 @@ class ProgramRecord:
         ]
 
     def validate(self) -> None:
-        """Validate the MVP program schema."""
+        """Validate and normalize the MVP program schema in place.
+
+        This method intentionally uses ``setdefault`` to populate omitted optional keys in
+        ``self.metadata`` so downstream callers can rely on normalized structures after
+        validation.
+        """
         required = ["program_version", "mode", "default_executor"]
         missing = [key for key in required if key not in self.metadata]
         if missing:

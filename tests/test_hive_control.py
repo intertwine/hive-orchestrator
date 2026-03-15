@@ -6,16 +6,19 @@ import json
 from pathlib import Path
 import subprocess
 
+import pytest
+
 from hive.cli.main import main as hive_main
 from src.hive.control import (
     finish_run_flow,
     portfolio_status,
     recommend_next_task,
     steer_project,
+    tick_portfolio,
     work_on_task,
 )
 from src.hive.store.projects import create_project, discover_projects
-from src.hive.store.task_files import create_task, get_task
+from src.hive.store.task_files import claim_task, create_task, get_task
 
 
 def _invoke_cli_json(capsys, argv: list[str]) -> dict:
@@ -159,6 +162,20 @@ class TestHiveControlPlane:
         assert finished["action"] == "escalate"
         assert finished["run"]["status"] == "escalated"
 
+    def test_work_on_task_refuses_active_foreign_claim(self, temp_hive_dir, capsys):
+        """Managers should not silently steal a live claim from another owner."""
+        _init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        _write_safe_program(temp_hive_dir, "demo")
+        task_id = recommend_next_task(temp_hive_dir, project_id="demo")["task"]["id"]
+        claim_task(temp_hive_dir, task_id, "alice", ttl_minutes=60)
+
+        with pytest.raises(ValueError, match="actively claimed by alice"):
+            work_on_task(temp_hive_dir, task_id=task_id, owner="bob")
+
     def test_cli_work_and_finish_happy_path(self, temp_hive_dir, capsys):
         """CLI `work` and `finish` should cover the common manager loop end to end."""
         _init_git_repo(temp_hive_dir)
@@ -216,6 +233,49 @@ class TestHiveControlPlane:
         assert finish_payload["action"] == "promote"
         assert finish_payload["run"]["status"] == "accepted"
         assert (Path(temp_hive_dir) / "src" / "manager_promoted.py").exists()
+
+    def test_tick_portfolio_start_and_review(self, temp_hive_dir, capsys):
+        """Portfolio ticks should cover the start and review manager loop modes."""
+        _init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        _write_safe_program(temp_hive_dir, "demo")
+
+        start_payload = tick_portfolio(
+            temp_hive_dir,
+            mode="start",
+            owner="manager",
+            project_id="demo",
+            output_path="SESSION_CONTEXT.md",
+        )
+        run = start_payload["work"]["run"]
+        promoted_path = Path(run["worktree_path"]) / "docs" / "tick-review.md"
+        promoted_path.parent.mkdir(parents=True, exist_ok=True)
+        promoted_path.write_text("tick review artifact\n", encoding="utf-8")
+        subprocess.run(["git", "add", "docs/tick-review.md"], cwd=run["worktree_path"], check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Tick review artifact"],
+            cwd=run["worktree_path"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        review_payload = tick_portfolio(
+            temp_hive_dir,
+            mode="review",
+            owner="manager",
+            run_id=run["id"],
+        )
+
+        assert start_payload["mode"] == "start"
+        assert start_payload["work"]["run"]["status"] == "running"
+        assert review_payload["mode"] == "review"
+        assert review_payload["finish"]["action"] == "promote"
+        assert review_payload["finish"]["run"]["status"] == "accepted"
+        assert (Path(temp_hive_dir) / "docs" / "tick-review.md").exists()
 
     def test_cli_portfolio_status_steer_and_tick(self, temp_hive_dir, capsys):
         """Portfolio commands should expose status, steering, and bounded ticks."""

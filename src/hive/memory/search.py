@@ -40,13 +40,13 @@ def _memory_docs(
     if include_global:
         global_root = global_memory_dir()
         if global_root.exists():
-            for file_path in sorted(global_root.glob("*.md")):
+            for file_path in sorted(global_root.glob("**/*.md")):
                 docs.append(
                     {
                         "kind": "memory",
                         "scope": "global",
                         "path": str(file_path),
-                        "title": file_path.name,
+                        "title": str(file_path.relative_to(global_root)),
                         "body": file_path.read_text(encoding="utf-8"),
                     }
                 )

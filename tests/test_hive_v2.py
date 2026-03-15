@@ -597,6 +597,21 @@ class TestHiveV2Memory:
         assert any(section["name"] == "global-profile" for section in context["sections"])
         assert any(hit["scope"] == "global" for hit in context["search_hits"])
 
+    def test_memory_global_search_reads_nested_markdown_files(
+        self, temp_hive_dir, temp_project, monkeypatch
+    ):
+        """Global memory search should recurse into nested directories."""
+        migrate_v1_to_v2(temp_hive_dir)
+        monkeypatch.setenv("XDG_DATA_HOME", str(Path(temp_hive_dir) / ".xdg"))
+        nested_dir = global_memory_dir() / "work"
+        nested_dir.mkdir(parents=True, exist_ok=True)
+        (nested_dir / "notes.md").write_text("nested-aurora memory note", encoding="utf-8")
+
+        results = search_memory(temp_hive_dir, "nested-aurora", scope="global", limit=8)
+
+        assert any(hit["scope"] == "global" for hit in results)
+        assert any(str(hit["title"]).endswith("work/notes.md") for hit in results)
+
     def test_memory_search_and_context_include_recent_accepted_runs(
         self, temp_hive_dir, temp_project, commit_workspace
     ):

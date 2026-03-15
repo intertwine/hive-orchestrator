@@ -3,7 +3,7 @@
 
 import asyncio
 
-from src.hive_mcp.server import main
+from hive_mcp.server import main
 
 
 if __name__ == "__main__":

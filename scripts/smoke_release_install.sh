@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="${1:-$REPO_ROOT/dist}"
 
-WHEEL_PATH="$(find "$DIST_DIR" -maxdepth 1 -name 'agent_hive-*.whl' | sort | head -n 1)"
+WHEEL_PATH="$(find "$DIST_DIR" -maxdepth 1 -name 'agent_hive-*.whl' | sort -V | tail -n 1)"
 if [ -z "$WHEEL_PATH" ]; then
     echo "❌ Error: no built wheel found in $DIST_DIR" >&2
     echo "Run 'make build' first." >&2

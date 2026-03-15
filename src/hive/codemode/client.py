@@ -22,6 +22,7 @@ from src.hive.store.task_files import (
     release_task,
     update_task,
 )
+from src.hive.workspace import sync_workspace
 
 
 def _task_payload(task) -> dict[str, Any]:
@@ -101,22 +102,22 @@ class TaskModule:
             input["owner"],
             int(input.get("ttlMinutes", 30)),
         )
-        rebuild_cache(self.root)
+        sync_workspace(self.root)
         return _task_payload(task)
 
     def release(self, input: dict[str, Any]) -> dict[str, Any]:
         task = release_task(self.root, input["id"])
-        rebuild_cache(self.root)
+        sync_workspace(self.root)
         return _task_payload(task)
 
     def update(self, input: dict[str, Any]) -> dict[str, Any]:
         task = update_task(self.root, input["id"], dict(input.get("patch", {})))
-        rebuild_cache(self.root)
+        sync_workspace(self.root)
         return _task_payload(task)
 
     def link(self, input: dict[str, Any]) -> dict[str, Any]:
         task = link_tasks(self.root, input["srcId"], input["edgeType"], input["dstId"])
-        rebuild_cache(self.root)
+        sync_workspace(self.root)
         return _task_payload(task)
 
 
@@ -126,7 +127,7 @@ class RunModule:
 
     def start(self, input: dict[str, Any]) -> dict[str, Any]:
         run = start_run(self.root, input["taskId"])
-        rebuild_cache(self.root)
+        sync_workspace(self.root)
         return run.to_dict()
 
     def show(self, input: dict[str, Any]) -> dict[str, Any]:
@@ -134,22 +135,22 @@ class RunModule:
 
     def eval(self, input: dict[str, Any]) -> dict[str, Any]:
         payload = eval_run(self.root, input["id"])
-        rebuild_cache(self.root)
+        sync_workspace(self.root)
         return payload
 
     def accept(self, input: dict[str, Any]) -> dict[str, Any]:
         payload = accept_run(self.root, input["id"])
-        rebuild_cache(self.root)
+        sync_workspace(self.root)
         return payload
 
     def reject(self, input: dict[str, Any]) -> dict[str, Any]:
         payload = reject_run(self.root, input["id"], input.get("reason"))
-        rebuild_cache(self.root)
+        sync_workspace(self.root)
         return payload
 
     def escalate(self, input: dict[str, Any]) -> dict[str, Any]:
         payload = escalate_run(self.root, input["id"], input.get("reason"))
-        rebuild_cache(self.root)
+        sync_workspace(self.root)
         return payload
 
 

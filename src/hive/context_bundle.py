@@ -8,6 +8,7 @@ from src.hive.common import isoformat_z
 from src.hive.memory.context import handoff_context, startup_context
 from src.hive.scheduler.query import ready_tasks
 from src.hive.store.projects import get_project
+from src.hive.workspace import sync_workspace
 from src.security import safe_dump_agency_md
 
 
@@ -100,6 +101,7 @@ def build_context_bundle(
 ) -> dict[str, object]:  # pylint: disable=too-many-arguments
     """Build a rendered startup or handoff bundle for a project."""
     root = Path(path or Path.cwd()).resolve()
+    sync_workspace(root)
     project = get_project(root, project_ref)
     ready = ready_tasks(root, project_id=project.id, limit=5)
     context = (

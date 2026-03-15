@@ -48,9 +48,19 @@ def _matches_any(path: str, patterns: tuple[str, ...]) -> bool:
     return any(fnmatch(normalized, pattern) for pattern in patterns)
 
 
+def _has_committed_head(root: Path) -> bool:
+    result = _run_git(root, "rev-parse", "--verify", "HEAD")
+    return result.returncode == 0
+
+
 def ensure_clean_repo(path: str | Path | None) -> None:
     """Require a clean repo outside of known Hive state files."""
     root = ensure_git_repo(path)
+    if not _has_committed_head(root):
+        raise ValueError(
+            "Hive runs need an initial Git commit before the first run. "
+            "Commit the bootstrapped workspace, then retry `hive run start`."
+        )
     result = _run_git(root, "status", "--porcelain")
     if result.returncode != 0:
         raise ValueError(result.stderr.strip() or "Unable to inspect Git status")
@@ -77,6 +87,11 @@ def ensure_clean_repo(path: str | Path | None) -> None:
 def current_head(path: str | Path | None) -> str:
     """Return the current HEAD commit for the workspace."""
     root = ensure_git_repo(path)
+    if not _has_committed_head(root):
+        raise ValueError(
+            "Hive runs need an initial Git commit before the first run. "
+            "Commit the bootstrapped workspace, then retry `hive run start`."
+        )
     result = _run_git(root, "rev-parse", "HEAD")
     if result.returncode != 0:
         raise ValueError(result.stderr.strip() or "Unable to resolve HEAD")

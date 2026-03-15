@@ -149,7 +149,11 @@ def _search_cache(root: Path, query: str, scopes: set[str], limit: int) -> list[
 
     results: list[dict[str, object]] = []
     for doc_type, path, title, body, metadata_json in rows:
-        score = _score(f"{title}\n{body}", query)
+        title_score = _score(title, query)
+        body_score = _score(body, query)
+        score = (title_score * 4) + body_score
+        if doc_type == "task":
+            score += 2
         if not score:
             continue
         metadata = json.loads(metadata_json or "{}")

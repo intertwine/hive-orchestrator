@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 import pytest
 
 from src.hive.migrate import migrate_v1_to_v2
@@ -11,6 +12,14 @@ from src.hive.runs.worktree import ensure_clean_repo
 
 class TestRunWorktree:
     """Tests for git-worktree guardrails."""
+
+    def test_ensure_clean_repo_requires_initial_commit(self, temp_hive_dir, temp_project):
+        """Fresh Git repos should guide users toward making an initial commit first."""
+        del temp_project
+        subprocess.run(["git", "init", "-q"], cwd=temp_hive_dir, check=True)
+
+        with pytest.raises(ValueError, match="initial Git commit"):
+            ensure_clean_repo(temp_hive_dir)
 
     def test_ensure_clean_repo_allows_dirty_canonical_hive_state(
         self, temp_hive_dir, temp_project, commit_workspace

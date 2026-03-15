@@ -2,7 +2,10 @@
 
 This guide is for everyday users of Hive.
 
-If you are maintaining Hive itself, publishing releases, or updating Homebrew and PyPI automation, use the maintainer docs instead. This page is about getting from install to first useful task quickly.
+If you want the install matrix and the lane chooser, start with [docs/START_HERE.md](./START_HERE.md).
+If you are bringing Hive into an existing repository, use [docs/ADOPT_EXISTING_REPO.md](./ADOPT_EXISTING_REPO.md).
+If you are maintaining Hive itself, publishing releases, or updating Homebrew and PyPI automation, use the
+maintainer docs instead. This page is about getting from install to first useful task quickly.
 
 ## Install
 
@@ -104,6 +107,8 @@ The short version is:
 - Use `hive sync projections` after task, run, or memory changes
 - Install `agent-hive[dashboard]` and run `hive dashboard` if you want a visual workspace view
 - Install `agent-hive[mcp]` and run `hive-mcp` if you want the thin MCP server
+- If you installed through Homebrew and want dashboard or MCP support, add those extras through `uv tool`, `pipx`,
+  or `pip` as described in [docs/START_HERE.md](./START_HERE.md)
 
 ## Troubleshooting
 

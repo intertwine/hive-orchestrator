@@ -23,111 +23,92 @@ The center of gravity in this repository is Hive 2.0:
 
 ## Install
 
-### Public release channels
+### Everyday users
 
-Use whichever path fits your setup:
+Pick the install path you already trust:
 
 ```bash
 uv tool install agent-hive
 hive --version
-hive doctor --json
+hive doctor
 ```
 
 ```bash
 pipx install agent-hive
 hive --version
-hive doctor --json
+hive doctor
 ```
-
-If you already manage a virtualenv yourself, `python -m pip install agent-hive` works too. For a standalone CLI install, `uv tool` or `pipx` is the better default.
 
 ```bash
 brew tap intertwine/tap
 brew install intertwine/tap/agent-hive
 hive --version
-hive doctor --json
+hive doctor
 ```
 
-If you're reading this before the first tagged public release lands on PyPI and Homebrew, use the git-based install path instead:
+If you already manage a virtualenv yourself, `python -m pip install agent-hive` works too.
+
+If you want optional extras, install them explicitly:
+
+- Dashboard: `uv tool install --upgrade 'agent-hive[dashboard]'`
+- MCP server: `uv tool install --upgrade 'agent-hive[mcp]'`
+
+If you're reading this before the first tagged public release lands on PyPI and Homebrew, use the git install:
 
 ```bash
 uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git agent-hive
-hive --version
-hive doctor --json
 ```
 
-### From a local checkout
+### Maintainers
+
+If you are developing Hive itself, start from a checkout instead:
 
 ```bash
 git clone https://github.com/intertwine/hive-orchestrator.git
 cd hive-orchestrator
-make install
+make install-dev
 make install-tool
-hive --version
-hive doctor --json
 ```
 
-If you prefer pipx from a checkout, run `make install-pipx`.
+Use [docs/MAINTAINING.md](docs/MAINTAINING.md) for local development, CI, and release workflow details.
 
-## Fastest First Run
+## Five-Minute First Run
 
-If you are starting from an empty directory, skip the manual bootstrap steps and use the one-command path:
+Start in an empty directory and let Hive scaffold the first useful project:
 
 ```bash
 mkdir my-hive
 cd my-hive
-hive quickstart demo --title "Demo project" --json
+hive quickstart demo --title "Demo project"
+hive task ready
+hive context startup --project demo
 ```
 
-That leaves you with:
-
-- a bootstrapped `.hive/` substrate
-- a starter project
-- a conservative `PROGRAM.md`
-- a small task chain with one real ready task
-
-For the full everyday-user path, see [docs/QUICKSTART.md](docs/QUICKSTART.md).
-
-## Five-Minute Tour
-
-Bootstrap a workspace:
+If you want a reusable bundle for Claude, Codex, or another agent, save it directly:
 
 ```bash
-hive init --json
-hive doctor --json
+hive context startup --project demo --output SESSION_CONTEXT.md
 ```
 
-Create a project and a first task:
+That gives you a real workspace with `.hive/`, a starter project, a conservative `PROGRAM.md`, and a first task chain with one ready task. The longer walkthrough lives in [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
+`--json` is available for automation. The commands above are the normal human path.
+
+## Everyday Loop
+
+Once the workspace exists, the daily path is short:
 
 ```bash
-hive project create demo --title "Demo project" --json
-hive task create --project-id demo --title "Define the first slice" --json
+hive task ready
+hive task claim <task-id> --owner <your-name> --ttl-minutes 60
+hive context startup --project demo --task <task-id>
+hive sync projections
 ```
 
-Find ready work and build startup context:
+Optional extras:
 
-```bash
-hive task ready --json
-hive context startup --project demo --json
-```
-
-Refresh human-facing projections after canonical state changes:
-
-```bash
-hive sync projections --json
-```
-
-Need a copy-paste startup bundle for an agent session:
-
-```bash
-make session PROJECT=demo
-```
-
-If you want a visual view, run:
-
-```bash
-make dashboard
-```
+- Run `hive dashboard` after installing `agent-hive[dashboard]` if you want a visual workspace view.
+- Run `hive-mcp` after installing `agent-hive[mcp]` if you want the thin search and execute MCP surface.
 
 ## Core Model
 
@@ -171,46 +152,18 @@ The CLI covers:
 
 These are useful, but not required:
 
-- Streamlit dashboard in `src/dashboard.py`
-- thin search/execute MCP adapter in `src/hive_mcp/server.py`
+- Streamlit dashboard via `hive dashboard` when installed with `agent-hive[dashboard]`
+- thin search/execute MCP adapter via `hive-mcp` when installed with `agent-hive[mcp]`
 - optional GitHub issue dispatcher in `src/agent_dispatcher.py`
 - optional Claude GitHub App integration in `docs/INSTALL_CLAUDE_APP.md`
 
 The core CLI does not require an LLM API key.
 
-## Development
+## Maintainer Links
 
-Install dev dependencies and run the quality gates:
-
-```bash
-make install-dev
-make check
-```
-
-Build release artifacts:
-
-```bash
-make build
-```
-
-Run the release smoke checks:
-
-```bash
-make release-check
-```
-
-## Release Automation
-
-The repository now includes:
-
-- `/.github/workflows/ci.yml` for lint and test gates on push and pull request
-- `/.github/workflows/release.yml` for tagged releases, PyPI trusted publishing, and Homebrew tap updates
-- `docs/RELEASING.md` for the maintainer release checklist
-- `scripts/bump_version.py` for repeatable version bumps
-- `scripts/smoke_release_install.sh` for built-artifact install smoke tests
-- `scripts/generate_homebrew_formula.py` for Homebrew formula generation from published artifacts
-
-Everyday users should stop at the install section above. Maintainers should use [docs/RELEASING.md](/docs/RELEASING.md) for PyPI, Homebrew, tagging, and verification details.
+- [docs/MAINTAINING.md](docs/MAINTAINING.md) for local development and day-to-day repository work
+- [docs/RELEASING.md](docs/RELEASING.md) for tagged releases, PyPI, and Homebrew
+- [docs/INSTALL_CLAUDE_APP.md](docs/INSTALL_CLAUDE_APP.md) for the optional GitHub App path
 
 ## Optional Environment Variables
 
@@ -229,13 +182,13 @@ WEAVE_PROJECT=agent-hive
 If you are bringing an older repo forward, import it once and then stay in the canonical task flow:
 
 ```bash
-hive migrate v1-to-v2 --json
+hive migrate v1-to-v2
 ```
 
 To replace the old checklist section with a generated rollup:
 
 ```bash
-hive migrate v1-to-v2 --rewrite --json
+hive migrate v1-to-v2 --rewrite
 ```
 
 ## Repository Layout

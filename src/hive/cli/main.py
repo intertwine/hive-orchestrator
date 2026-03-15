@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
 from src.hive import __version__
+from src.hive.cli.render import render_payload
 from src.hive.codemode.execute import MAX_EXECUTE_BYTES, execute_code
-from src.hive.memory.context import handoff_context, startup_context
+from src.hive.context_bundle import build_context_bundle
 from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
 from src.hive.memory.search import search
@@ -40,7 +43,7 @@ def _emit(payload: dict, as_json: bool) -> int:
     if as_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
-        print(payload.get("message") or json.dumps(payload, indent=2, sort_keys=True))
+        print(render_payload(payload))
     return 0
 
 
@@ -74,21 +77,23 @@ def _doctor_payload(root: Path) -> dict[str, object]:
     next_steps: list[str] = []
     if not checks["layout"]:
         next_steps.append(
-            'Run `hive quickstart demo --title "Demo project" --json` '
+            'Run `hive quickstart demo --title "Demo project"` '
             "to bootstrap a workspace with a starter project and ready task."
         )
-        next_steps.append("Run `hive init --json` to bootstrap the workspace.")
+        next_steps.append(
+            "Run `hive init` to bootstrap an empty workspace without a starter project."
+        )
     if checks["layout"] and not checks["global_md"]:
-        next_steps.append("Run `hive sync projections --json` to create `GLOBAL.md`.")
+        next_steps.append("Run `hive sync projections` to create `GLOBAL.md`.")
     if checks["layout"] and not checks["agents_md"]:
-        next_steps.append("Run `hive sync projections --json` to create `AGENTS.md`.")
+        next_steps.append("Run `hive sync projections` to create `AGENTS.md`.")
     if checks["layout"] and not projects:
         next_steps.append(
-            'Run `hive quickstart demo --title "Demo project" --json` '
+            'Run `hive quickstart demo --title "Demo project"` '
             "to scaffold a working project with starter tasks."
         )
         next_steps.append(
-            'Run `hive project create demo --title "Demo project" --json` '
+            'Run `hive project create demo --title "Demo project"` '
             "to scaffold your first project."
         )
     elif projects and not tasks:
@@ -96,28 +101,26 @@ def _doctor_payload(root: Path) -> dict[str, object]:
         next_steps.append(
             "Run "
             f"`hive task create --project-id {first_project.id} "
-            f'--title "Define the first slice" --json` '
+            f'--title "Define the first slice"` '
             "to create canonical work."
         )
         next_steps.append(
             "If you still have legacy checkbox tasks, run "
-            "`hive migrate v1-to-v2 --json` to import them."
+            "`hive migrate v1-to-v2` to import them."
         )
     elif ready:
         top_task = ready[0]
         next_steps.append(
             "Run "
             f"`hive context startup --project {top_task['project_id']} "
-            f"--task {top_task['id']} --json` "
+            f"--task {top_task['id']}` "
             "to start work on the top ready task."
         )
     elif tasks:
-        next_steps.append(
-            "Run `hive task list --json` to inspect blocked, claimed, or completed work."
-        )
+        next_steps.append("Run `hive task list` to inspect blocked, claimed, or completed work.")
     if checks["layout"] and not checks["cache"]:
         next_steps.append(
-            "Run `hive sync projections --json` to rebuild the cache and refresh rollups."
+            "Run `hive sync projections` to rebuild the cache and refresh rollups."
         )
 
     message = (
@@ -156,6 +159,9 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser.add_argument("query")
     search_parser.add_argument("--scope", action="append")
     search_parser.add_argument("--limit", type=int, default=8)
+    dashboard_parser = subparsers.add_parser("dashboard")
+    dashboard_parser.add_argument("--host", default="127.0.0.1")
+    dashboard_parser.add_argument("--port", type=int, default=8501)
     execute_parser = subparsers.add_parser("execute")
     execute_parser.add_argument("--language", default="python")
     execute_parser.add_argument("--profile", default="default")
@@ -256,8 +262,10 @@ def build_parser() -> argparse.ArgumentParser:
     context_startup.add_argument("--profile", default="default")
     context_startup.add_argument("--query")
     context_startup.add_argument("--task")
+    context_startup.add_argument("--output")
     context_handoff = context_subparsers.add_parser("handoff")
     context_handoff.add_argument("--project", required=True)
+    context_handoff.add_argument("--output")
 
     sync_parser = subparsers.add_parser("sync")
     sync_subparsers = sync_parser.add_subparsers(dest="sync_command")
@@ -288,6 +296,42 @@ def _project_payload(project) -> dict[str, object]:
         "path": str(project.agency_path),
         "program_path": str(project.program_path),
     }
+
+
+def _launch_dashboard(root: Path, host: str, port: int, as_json: bool) -> int:
+    try:
+        import streamlit  # noqa: F401  # pylint: disable=unused-import,import-outside-toplevel
+        from src import dashboard as dashboard_module  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        _emit(
+            {
+                "ok": False,
+                "error": (
+                    "Dashboard support is not installed. Install it with "
+                    "`uv tool install 'agent-hive[dashboard]'`, "
+                    "`pipx install 'agent-hive[dashboard]'`, or "
+                    "`python -m pip install 'agent-hive[dashboard]'`."
+                ),
+            },
+            as_json,
+        )
+        return 1
+
+    dashboard_path = Path(dashboard_module.__file__).resolve()
+    env = dict(os.environ)
+    env["HIVE_BASE_PATH"] = str(root)
+    command = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(dashboard_path),
+        "--server.address",
+        host,
+        "--server.port",
+        str(port),
+    ]
+    return subprocess.call(command, env=env)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -357,9 +401,9 @@ def main(argv: list[str] | None = None) -> int:
                         for task in starter_tasks
                     ],
                     "next_steps": [
-                        f"hive task ready --project-id {project.id} --json",
-                        f"hive task claim {first_task.id} --owner <your-name> --ttl-minutes 60 --json",
-                        f"hive context startup --project {project.id} --task {first_task.id} --json",
+                        f"hive task ready --project-id {project.id}",
+                        f"hive task claim {first_task.id} --owner <your-name> --ttl-minutes 60",
+                        f"hive context startup --project {project.id} --task {first_task.id}",
                     ],
                 },
                 args.json,
@@ -390,10 +434,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "doctor":
         return _emit(_doctor_payload(root), args.json)
 
+    if args.command == "dashboard":
+        return _launch_dashboard(root, args.host, args.port, args.json)
+
     if args.command == "search":
         return _emit(
             {
                 "ok": True,
+                "message": f"Found search results for {args.query!r}",
                 "results": search_workspace(root, args.query, scopes=args.scope, limit=args.limit),
             },
             args.json,
@@ -448,9 +496,9 @@ def main(argv: list[str] | None = None) -> int:
                     "next_steps": [
                         "Run "
                         f"`hive task create --project-id {project.id} "
-                        f'--title "Define the first slice" --json` '
+                        f'--title "Define the first slice"` '
                         "to add canonical work.",
-                        f"Run `hive context startup --project {project.id} --json` "
+                        f"Run `hive context startup --project {project.id}` "
                         "to build startup context.",
                     ],
                 },
@@ -569,17 +617,32 @@ def main(argv: list[str] | None = None) -> int:
                 harness=args.harness,
             )
             rebuild_cache(root)
-            return _emit({"ok": True, "path": str(output_path)}, args.json)
+            return _emit(
+                {
+                    "ok": True,
+                    "message": f"Recorded observation at {output_path}",
+                    "path": str(output_path),
+                },
+                args.json,
+            )
         if args.memory_command == "reflect":
             output_paths = {
                 key: str(value) for key, value in reflect(root, scope=args.scope).items()
             }
             rebuild_cache(root)
-            return _emit({"ok": True, "paths": output_paths}, args.json)
+            return _emit(
+                {
+                    "ok": True,
+                    "message": "Wrote reflection documents",
+                    "paths": output_paths,
+                },
+                args.json,
+            )
         if args.memory_command == "search":
             return _emit(
                 {
                     "ok": True,
+                    "message": f"Found memory results for {args.query!r}",
                     "results": search(
                         root,
                         args.query,
@@ -594,18 +657,52 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "context":
         if args.context_command == "startup":
-            payload = startup_context(
+            bundle = build_context_bundle(
                 root,
-                project_id=args.project,
+                project_ref=args.project,
+                mode="startup",
                 profile=args.profile,
                 query=args.query,
                 task_id=args.task,
             )
-            return _emit({"ok": True, "context": payload}, args.json)
+            if args.output:
+                output_path = Path(args.output).expanduser().resolve()
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_text(str(bundle["rendered"]), encoding="utf-8")
+                return _emit(
+                    {
+                        "ok": True,
+                        "message": f"Wrote startup context to {output_path}",
+                        "output_path": str(output_path),
+                        "project": bundle["project_payload"],
+                        "next_steps": [
+                            f"Open {output_path}",
+                            "Copy the bundle into your agent, or reuse it as a handoff artifact.",
+                        ],
+                    },
+                    args.json,
+                )
+            if args.json:
+                return _emit({"ok": True, "context": bundle["context"]}, args.json)
+            return _emit({"ok": True, "rendered_context": bundle["rendered"]}, args.json)
         if args.context_command == "handoff":
-            return _emit(
-                {"ok": True, "context": handoff_context(root, project_id=args.project)}, args.json
-            )
+            bundle = build_context_bundle(root, project_ref=args.project, mode="handoff")
+            if args.output:
+                output_path = Path(args.output).expanduser().resolve()
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_text(str(bundle["rendered"]), encoding="utf-8")
+                return _emit(
+                    {
+                        "ok": True,
+                        "message": f"Wrote handoff context to {output_path}",
+                        "output_path": str(output_path),
+                        "project": bundle["project_payload"],
+                    },
+                    args.json,
+                )
+            if args.json:
+                return _emit({"ok": True, "context": bundle["context"]}, args.json)
+            return _emit({"ok": True, "rendered_context": bundle["rendered"]}, args.json)
 
     if args.command == "sync" and args.sync_command == "projections":
         sync_global_md(root)

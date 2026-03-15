@@ -21,7 +21,7 @@ help:
 	@echo "  make setup-env      Create .env file template"
 	@echo ""
 	@echo "Runtime Commands:"
-	@echo "  make dashboard      Launch Streamlit dashboard (UI)"
+	@echo "  make dashboard      Launch the optional dashboard UI"
 	@echo "  make ready          Find ready canonical tasks"
 	@echo "  make ready-json     Find ready work as JSON"
 	@echo "  make deps           Show dependency graph"
@@ -75,13 +75,13 @@ install-tool:
 	@echo "🛠️ Installing hive as a uv tool from this checkout..."
 	@command -v uv >/dev/null 2>&1 || { echo "❌ Error: uv not found. Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
 	uv tool install --force --from . agent-hive
-	@echo "✅ hive CLI installed. Verify with: hive doctor --json"
+	@echo "✅ hive CLI installed. Verify with: hive doctor"
 
 install-pipx:
 	@echo "🛠️ Installing hive as a pipx app from this checkout..."
 	@command -v uv >/dev/null 2>&1 || { echo "❌ Error: uv not found. Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
 	uvx --from pipx pipx install --force .
-	@echo "✅ hive CLI installed via pipx. Verify with: hive doctor --json"
+	@echo "✅ hive CLI installed via pipx. Verify with: hive doctor"
 
 # Sync dependencies
 sync:
@@ -109,7 +109,7 @@ dashboard:
 	@echo "🚀 Launching Agent Hive Dashboard..."
 	@echo "   Open http://localhost:8501 in your browser"
 	@echo ""
-	uv run streamlit run src/dashboard.py
+	uv run hive dashboard
 
 # Find ready work
 ready:
@@ -128,23 +128,23 @@ deps-json:
 	@uv run hive deps --json
 
 hive:
-	@uv run hive doctor --json
+	@uv run hive doctor
 
 hive-init:
-	@uv run hive init --json
+	@uv run hive init
 
 hive-doctor:
-	@uv run hive doctor --json
+	@uv run hive doctor
 
 doctor:
-	@uv run hive doctor --json
+	@uv run hive doctor
 
 sync-projections:
-	@uv run hive cache rebuild --json
-	@uv run hive sync projections --json
+	@uv run hive cache rebuild
+	@uv run hive sync projections
 
 migrate-v2:
-	@uv run hive migrate v1-to-v2 --json
+	@uv run hive migrate v1-to-v2
 
 # Start a Hive v2 session
 session:
@@ -271,7 +271,7 @@ quickstart: install setup-env
 	@echo "✅ .env template created"
 	@echo ""
 	@echo "Next steps:"
-	@echo "1. Run: make hive-init"
-	@echo "2. Run: uv run hive project create demo --title \"Demo project\" --json"
-	@echo "3. Run: make session PROJECT=demo"
+	@echo "1. Run: uv run hive quickstart demo --title \"Demo project\""
+	@echo "2. Run: uv run hive task ready"
+	@echo "3. Run: uv run hive context startup --project demo"
 	@echo ""

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
+import tomllib
 
 
 def _load_module(module_name: str, relative_path: str):
@@ -83,11 +85,55 @@ def test_generate_homebrew_formula_uses_stable_help_assertion():
 def test_public_top_level_packages_are_available():
     """Installed users should see top-level hive packages, not just src.* imports."""
     hive = importlib.import_module("hive")
+    hive_main = importlib.import_module("hive.__main__")
     hive_cli_main = importlib.import_module("hive.cli.main")
     hive_mcp = importlib.import_module("hive_mcp")
+    hive_mcp_main = importlib.import_module("hive_mcp.__main__")
     hive_mcp_server = importlib.import_module("hive_mcp.server")
 
     assert hive.__version__
+    assert callable(hive_main.main)
     assert callable(hive_cli_main.main)
     assert hive_mcp.__version__
+    assert callable(hive_mcp_main.run)
     assert callable(hive_mcp_server.main)
+
+
+def test_pyproject_all_extra_covers_optional_runtime_surfaces():
+    """The convenience `all` extra should include every optional runtime surface."""
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    payload = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    extras = payload["project"]["optional-dependencies"]
+
+    assert extras["all"] == [
+        "streamlit>=1.51.0,<2.0.0",
+        "mcp~=1.22.0",
+        "fastapi>=0.115.0,<1.0.0",
+        "uvicorn>=0.32.0,<1.0.0",
+        "weave>=0.51.0,<1.0.0",
+    ]
+
+
+def test_opencode_mcp_command_requests_optional_extra():
+    """The OpenCode MCP config should bootstrap the optional runtime dependency."""
+    config_path = Path(__file__).resolve().parents[1] / ".opencode" / "opencode.json"
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert payload["mcp"]["hive"]["command"] == ["uv", "run", "--extra", "mcp", "hive-mcp"]
+
+
+def test_verify_claude_workspace_state_fails_when_ready_check_breaks(monkeypatch, capsys):
+    """Workspace verification should fail if `hive task ready` cannot be read."""
+    module = _load_module("verify_claude_app_script", "scripts/verify_claude_app.py")
+
+    responses = iter(
+        [
+            {"checks": {"layout": True}, "projects": 1, "tasks": 3},
+            None,
+        ]
+    )
+    monkeypatch.setattr(module, "run_hive_json", lambda args: next(responses))
+
+    assert module.check_workspace_state() is False
+    captured = capsys.readouterr()
+    assert "Could not read ready-task state" in captured.out

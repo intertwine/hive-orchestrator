@@ -36,54 +36,27 @@ WORKSPACE_ROOT="${HIVE_BASE_PATH:-$REPO_ROOT}"
 export PROJECT_REF
 export WORKSPACE_ROOT
 
-PYTHON_STDERR="$(mktemp)"
-trap 'rm -f "$PYTHON_STDERR"' EXIT
+if ! PROJECT_JSON=$(cd "$REPO_ROOT" && uv run hive --path "$WORKSPACE_ROOT" --json project show "$PROJECT_REF" 2>/dev/null); then
+    echo -e "${RED}Error: Could not resolve project '$PROJECT_REF'${NC}"
+    exit 1
+fi
 
-if ! PROJECT_INFO=$(cd "$REPO_ROOT" && uv run python - <<'PY' 2>"$PYTHON_STDERR"
+if [ -z "$PROJECT_JSON" ]; then
+    echo -e "${RED}Error: Could not resolve project '$PROJECT_REF'${NC}"
+    exit 1
+fi
+
+PROJECT_INFO="$(PROJECT_JSON="$PROJECT_JSON" uv run python - <<'PY'
+import json
 import os
-import sys
-from pathlib import Path
 
-from src.hive.store.projects import discover_projects, get_project
-
-root = Path(os.environ["WORKSPACE_ROOT"]).resolve()
-project_ref = os.environ["PROJECT_REF"]
-
-candidate = Path(project_ref)
-candidate = candidate if candidate.is_absolute() else (root / candidate).resolve()
-
-project = None
-if candidate.exists():
-    for discovered in discover_projects(root):
-        agency_path = discovered.agency_path.resolve()
-        if candidate == agency_path or candidate == agency_path.parent:
-            project = discovered
-            break
-
-if project is None:
-    try:
-        project = get_project(root, project_ref)
-    except FileNotFoundError as exc:
-        print(f"PROJECT_LOOKUP_ERROR:{exc}", file=sys.stderr)
-        raise SystemExit(2) from exc
-
-print(f"{project.id}\t{project.agency_path.parent.resolve()}")
+payload = json.loads(os.environ["PROJECT_JSON"])
+project = payload["project"]
+print(f"{project['id']}\t{project['path']}")
 PY
-); then
-    echo -e "${RED}Error: Could not resolve project '$PROJECT_REF'${NC}"
-    if ! grep -q '^PROJECT_LOOKUP_ERROR:' "$PYTHON_STDERR" && [ -s "$PYTHON_STDERR" ]; then
-        cat "$PYTHON_STDERR" >&2
-    fi
-    exit 1
-fi
-
-if [ -z "$PROJECT_INFO" ]; then
-    echo -e "${RED}Error: Could not resolve project '$PROJECT_REF'${NC}"
-    exit 1
-fi
-
-IFS=$'\t' read -r PROJECT_ID PROJECT_DIR <<< "$PROJECT_INFO"
-AGENCY_FILE="$PROJECT_DIR/AGENCY.md"
+)"
+IFS=$'\t' read -r PROJECT_ID AGENCY_FILE <<< "$PROJECT_INFO"
+PROJECT_DIR="$(dirname "$AGENCY_FILE")"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║         AGENT HIVE - HIVE V2 SESSION BOOTSTRAP        ║${NC}"
@@ -100,26 +73,10 @@ SESSION_FILE="$PROJECT_DIR/SESSION_CONTEXT.md"
 echo -e "${YELLOW}Generating session context...${NC}"
 
 cd "$REPO_ROOT"
-export AGENCY_FILE
-export SESSION_FILE
-export WORKSPACE_ROOT
-
-uv run python - <<'PY'
-import os
-from pathlib import Path
-
-from src.dashboard import generate_hive_context
-
-agency_file = Path(os.environ["AGENCY_FILE"]).resolve()
-session_file = Path(os.environ["SESSION_FILE"]).resolve()
-workspace_root = Path(os.environ["WORKSPACE_ROOT"]).resolve()
-
-context = generate_hive_context(str(agency_file), workspace_root, mode="startup", profile="light")
-if not context:
-    raise SystemExit("Failed to generate Hive v2 startup context")
-
-session_file.write_text(context, encoding="utf-8")
-PY
+if ! uv run hive --path "$WORKSPACE_ROOT" context startup --project "$PROJECT_REF" --output "$SESSION_FILE" >/dev/null; then
+    echo -e "${RED}Error: Could not generate startup context for '$PROJECT_REF'${NC}"
+    exit 1
+fi
 
 echo -e "${GREEN}✓ Session context generated: $SESSION_FILE${NC}"
 echo ""

@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -20,6 +21,20 @@ def run_command(cmd: list[str]) -> tuple[int, str, str]:
     """Run a command and return exit code, stdout, stderr."""
     result = subprocess.run(cmd, capture_output=True, text=True)
     return result.returncode, result.stdout, result.stderr
+
+
+def run_hive_json(args: list[str]) -> dict | None:
+    """Run the installed Hive CLI in JSON mode and parse the response."""
+    code, stdout, stderr = run_command([sys.executable, "-m", "hive", "--json", *args])
+    if code != 0:
+        if stderr.strip():
+            print(stderr.strip())
+        return None
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError:
+        print("✗ Could not parse Hive CLI output")
+        return None
 
 
 def get_repo_info() -> tuple[str, str] | None:
@@ -110,24 +125,31 @@ def check_workflow_permissions() -> bool:
     return False
 
 
-def check_agency_files() -> bool:
-    """Check if there are AGENCY.md files for the dispatcher to work with."""
-    projects_dir = Path("projects")
-    if not projects_dir.exists():
-        print("✗ projects/ directory not found")
+def check_workspace_state() -> bool:
+    """Check that Hive sees a usable workspace through the public CLI."""
+    doctor = run_hive_json(["doctor"])
+    if doctor is None:
+        print("✗ Could not read workspace state through `python -m hive doctor --json`")
         return False
 
-    agency_files = list(projects_dir.glob("**/AGENCY.md"))
-    if agency_files:
-        print(f"✓ Found {len(agency_files)} AGENCY.md file(s)")
-        for f in agency_files[:5]:  # Show up to 5
-            print(f"  - {f}")
-        if len(agency_files) > 5:
-            print(f"  ... and {len(agency_files) - 5} more")
-        return True
+    if not doctor.get("checks", {}).get("layout"):
+        print("✗ Hive workspace layout is missing")
+        print("  Run: hive quickstart demo --title \"Demo project\"")
+        return False
 
-    print("✗ No AGENCY.md files found in projects/")
-    return False
+    ready_payload = run_hive_json(["task", "ready"])
+    if ready_payload is None:
+        print("✗ Could not read ready-task state through `python -m hive task ready --json`")
+        return False
+
+    ready_count = len(ready_payload.get("tasks", [])) if ready_payload else 0
+    print(
+        "✓ Hive workspace detected: "
+        f"{doctor.get('projects', 0)} project(s), "
+        f"{doctor.get('tasks', 0)} task(s), "
+        f"{ready_count} ready"
+    )
+    return True
 
 
 def print_installation_guide():
@@ -202,9 +224,9 @@ def main():
         checks_passed += 1
     print()
 
-    # Check 5: AGENCY.md files
-    print("[5/5] Checking AGENCY.md files...")
-    if check_agency_files():
+    # Check 5: Hive workspace state
+    print("[5/5] Checking Hive workspace state...")
+    if check_workspace_state():
         checks_passed += 1
     print()
 

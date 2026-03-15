@@ -25,6 +25,7 @@ Then verify:
 
 ```bash
 hive --version
+hive doctor
 ```
 
 ## Create A Workspace In One Command
@@ -34,7 +35,7 @@ Make a clean directory and run:
 ```bash
 mkdir my-hive
 cd my-hive
-hive quickstart demo --title "Demo project" --json
+hive quickstart demo --title "Demo project"
 ```
 
 That command:
@@ -51,22 +52,28 @@ You do not need to hand-write any of that to begin.
 ## Find Work
 
 ```bash
-hive task ready --json
+hive task ready
 ```
 
 Claim the first task:
 
 ```bash
-hive task claim <task-id> --owner <your-name> --ttl-minutes 60 --json
+hive task claim <task-id> --owner <your-name> --ttl-minutes 60
 ```
 
 Build a startup context:
 
 ```bash
-hive context startup --project demo --task <task-id> --json
+hive context startup --project demo --task <task-id>
 ```
 
-That is the normal daily-use loop in Hive.
+If you want a file you can hand to another agent session, write it directly:
+
+```bash
+hive context startup --project demo --task <task-id> --output SESSION_CONTEXT.md
+```
+
+That is the normal daily-use loop in Hive. Add `--json` when you are scripting the CLI instead of reading it yourself.
 
 ## The Files That Matter
 
@@ -82,17 +89,18 @@ The short version is:
 
 ## Optional Next Steps
 
-- Use `hive run start <task-id> --json` if the project has evaluator policy in `PROGRAM.md`
-- Use `hive memory observe --note "..." --json` to preserve useful decisions
-- Use `hive sync projections --json` after task, run, or memory changes
-- Use the optional dashboard if you want a visual view of the workspace
+- Use `hive run start <task-id>` if the project has evaluator policy in `PROGRAM.md`
+- Use `hive memory observe --note "..."` to preserve useful decisions
+- Use `hive sync projections` after task, run, or memory changes
+- Install `agent-hive[dashboard]` and run `hive dashboard` if you want a visual workspace view
+- Install `agent-hive[mcp]` and run `hive-mcp` if you want the thin MCP server
 
 ## Troubleshooting
 
 If you are unsure what to do next:
 
 ```bash
-hive doctor --json
+hive doctor
 ```
 
 That will tell you whether the workspace is missing layout, projects, tasks, or cache, and it will print the next recommended step.

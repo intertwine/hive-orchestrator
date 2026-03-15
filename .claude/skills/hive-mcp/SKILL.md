@@ -20,9 +20,7 @@ Example MCP config:
 {
   "mcpServers": {
     "hive": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "src.hive_mcp"],
-      "cwd": "/path/to/hive-orchestrator",
+      "command": "hive-mcp",
       "env": {
         "HIVE_BASE_PATH": "/path/to/workspace"
       }
@@ -32,6 +30,8 @@ Example MCP config:
 ```
 
 `HIVE_BASE_PATH` should point at the workspace you want the server to search and execute against.
+
+If you are running from a local checkout instead of an installed package, `uv run hive-mcp` is the equivalent launch command.
 
 ## Available Tools
 

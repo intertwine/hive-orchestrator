@@ -221,7 +221,9 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
     parsed_tasks: list[ImportedTask] = []
     active_task: ImportedTask | None = None
     relative_path = str(project.agency_path.relative_to(root))
-    project_dependencies = project.metadata.get("dependencies", {})
+    project_dependencies = project.metadata.get("dependencies") or {}
+    if not isinstance(project_dependencies, dict):
+        project_dependencies = {}
     project_blocked = bool(
         project.metadata.get("blocked")
         or project.metadata.get("blocking_reason")
@@ -395,6 +397,7 @@ def _infer_edges(
             task.parent_id = task_by_line[imported.parent_line]
             save_task(root, task)
 
+        any_blocking_resolved = False
         needs_proposed_downgrade = False
         for relation in imported.relation_hints:
             target_id = _resolve_relation_target(
@@ -405,7 +408,12 @@ def _infer_edges(
                 source_path=source_path,
             )
             if target_id is None:
-                if imported.relation_blocking and task.status == "blocked":
+                if (
+                    relation.kind == "depends_on"
+                    and imported.relation_blocking
+                    and task.status == "blocked"
+                    and not any_blocking_resolved
+                ):
                     needs_proposed_downgrade = True
                 continue
             if relation.kind == "depends_on":
@@ -413,6 +421,8 @@ def _infer_edges(
                 if task.status != "done":
                     task.status = "blocked"
                     save_task(root, task)
+                any_blocking_resolved = True
+                needs_proposed_downgrade = False
             elif relation.kind == "duplicate_of":
                 _append_edge(root, src_id=target_id, edge_type="duplicates", dst_id=task.id)
             elif relation.kind == "supersedes":
@@ -513,7 +523,7 @@ def migrate_v1_to_v2(
                 report=report,
                 source_path=source_path,
             )
-            event_record = emit_event(
+            _ = emit_event(
                 root,
                 actor="migration",
                 entity_type="project",
@@ -522,7 +532,6 @@ def migrate_v1_to_v2(
                 source="migrate",
                 payload={"path": source_path},
             )
-            _ = event_record
             report.add_created_file(str(event_file(root).relative_to(root)))
 
     if not dry_run:

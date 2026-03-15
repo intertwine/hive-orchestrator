@@ -384,6 +384,72 @@ depends on Build foundation
         )
         assert tasks["Ship docs"].status == "ready"
 
+    def test_migration_handles_list_dependencies_frontmatter(self, temp_hive_dir):
+        """Legacy list-form dependencies should not abort migration."""
+        agency_path = Path(temp_hive_dir) / "projects" / "list-dependencies" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: list-dependencies
+status: active
+priority: medium
+dependencies:
+  - setup
+  - review
+---
+# List Dependencies Project
+
+## Tasks
+- [ ] Ship docs
+""",
+            encoding="utf-8",
+        )
+
+        report = migrate_v1_to_v2(temp_hive_dir)
+        tasks = [task for task in list_tasks(temp_hive_dir) if task.project_id == "list-dependencies"]
+
+        assert report.to_dict()["ok"] is True
+        assert len(tasks) == 1
+        assert tasks[0].status == "ready"
+
+    def test_migration_keeps_blocked_status_when_one_dependency_resolves(
+        self, temp_hive_dir
+    ):
+        """A resolved dependency should keep the task blocked even if another target is missing."""
+        agency_path = Path(temp_hive_dir) / "projects" / "mixed-dependencies" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: mixed-dependencies
+status: active
+priority: high
+---
+# Mixed Dependencies Project
+
+## Tasks
+- [ ] Build foundation
+- [ ] Ship docs
+  depends on Build foundation
+  depends on Missing dependency
+""",
+            encoding="utf-8",
+        )
+
+        report = migrate_v1_to_v2(temp_hive_dir)
+        result = report.to_dict()
+        tasks = {
+            task.title: task
+            for task in list_tasks(temp_hive_dir)
+            if task.project_id == "mixed-dependencies"
+        }
+
+        assert tasks["Build foundation"].edges["blocks"] == [tasks["Ship docs"].id]
+        assert tasks["Ship docs"].status == "blocked"
+        assert any(
+            "Could not confidently infer relation target 'Missing dependency'" in warning["message"]
+            for warning in result["warnings"]
+        )
+
     def test_cli_migrate_supports_rewrite_mode(self, temp_hive_dir, temp_project, capsys):
         """The CLI should execute rewrite migrations without the old placeholder warning."""
         del temp_project

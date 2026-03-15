@@ -211,6 +211,8 @@ __marimo__/
 .streamlit/
 tmp/
 temp/
+.hive/cache/
+.hive/worktrees/
 .DS_Store
 
 # Node.js (for skill scripts)

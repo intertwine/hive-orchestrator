@@ -160,3 +160,46 @@ Project complete! Future enhancements could include:
 1. ~~Add MCP server documentation to main README.md~~ - Done
 2. Test with Claude Desktop in real environment
 3. Consider adding more advanced tools (batch operations, search, etc.)
+
+<!-- hive:begin task-rollup -->
+## Task Rollup
+
+| ID | Status | Priority | Owner | Title |
+|---|---|---:|---|---|
+| task_01KKQGXZVSA1JEGC7RH3QHHSND | done | 1 |  | `add_note(project_id, agent, note)` - Append to agent notes section |
+| task_01KKQGXZVPREX6NTAFHZPRATKX | done | 1 |  | `claim_project(project_id, agent_name)` - Set owner field to claim work |
+| task_01KKQGXZVVAXVXW7S531AETBSD | done | 1 |  | `get_dependencies(project_id)` - Get dependency info for a project |
+| task_01KKQGXZVWGB9VEGYAPJYDJY86 | done | 1 |  | `get_dependency_graph()` - Get full dependency graph visualization |
+| task_01KKQGXZVPMN1B7PFFGYWRC9M9 | done | 1 |  | `get_project(project_id)` - Get full details of a specific project |
+| task_01KKQGXZVNC60VY4NXV6FW5N8C | done | 1 |  | `get_ready_work()` - Get projects ready for an agent to claim |
+| task_01KKQGXZVMCY12F707WECE4GPE | done | 1 |  | `list_projects()` - List all discovered projects with metadata |
+| task_01KKQGXZVQYV78M9PWV0XX64Y8 | done | 1 |  | `release_project(project_id)` - Set owner to null |
+| task_01KKQGXZVR03ACF1655ECZ3ZKP | done | 1 |  | `update_status(project_id, status)` - Change project status |
+| task_01KKQGXZVZDTWHRY539Z6J6TFT | done | 1 |  | Add Claude Desktop configuration example (in AGENCY.md) |
+| task_01KKQGXZW386P8J7BNTF8J5GAK | done | 1 |  | Add example Claude Desktop config |
+| task_01KKQGXZVKRA6TA2VQ253Z8TNS | done | 1 |  | Add mcp dependency to pyproject.toml |
+| task_01KKQGXZW0ZVQY8HA3PQ1SCD5K | done | 1 |  | Add MCP server setup instructions to README |
+| task_01KKQGXZW7FS1P7JHNXY5CD34N | done | 1 |  | All core tools implemented and tested |
+| task_01KKQGXZWARFY0VB7GBN1CJHWX | done | 1 |  | All tests pass (21 tests, 100% pass rate) |
+| task_01KKQGXZVYV852AZ24WE6V3WW0 | done | 1 |  | Auto-detect workspace from current directory |
+| task_01KKQGXZVFT05EJMR3WVWEGM50 | done | 1 |  | Create `src/hive_mcp/__init__.py` |
+| task_01KKQGXZVGKHXMGXEJQY8WP5Z4 | done | 1 |  | Create `src/hive_mcp/__main__.py` - entry point |
+| task_01KKQGXZVEXEQ271C5JGFRTWYW | done | 1 |  | Create `src/hive_mcp/` package directory |
+| task_01KKQGXZVHCB9XNJG507G486YY | done | 1 |  | Create `src/hive_mcp/server.py` - main MCP server (all tools in one file) |
+| task_01KKQGXZW1J927GNKH923RM7Y3 | done | 1 |  | Document all available tools |
+| task_01KKQGXZW9NJ6V1A565PJQJMFM | done | 1 |  | Documentation complete (README has full MCP section) |
+| task_01KKQGXZW5G9K84YBCWZ2MH17V | done | 1 |  | Integration test with mock MCP client |
+| task_01KKQGXZW6HX1D3NEMHXHKAGG7 | done | 1 |  | MCP server starts without errors |
+| task_01KKQGXZVX412Q5JEEGGT922B6 | done | 1 |  | Support HIVE_BASE_PATH environment variable |
+| task_01KKQGXZW5K5K8YGFXGJMPD343 | done | 1 |  | Test MCP server startup |
+| task_01KKQGXZW8EWYA0D4TVS1F3J7P | done | 1 |  | Works with Claude Desktop |
+| task_01KKQGXZW4AM72YNSFZQEWVRKM | done | 1 |  | Write unit tests for each tool (21 comprehensive tests) |
+<!-- hive:end task-rollup -->
+
+<!-- hive:begin recent-runs -->
+## Recent Runs
+
+| Run | Status | Task |
+|---|---|---|
+| No runs | - | - |
+<!-- hive:end recent-runs -->

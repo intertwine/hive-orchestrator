@@ -195,3 +195,50 @@ All phases complete! This project is now finished.
 1. ~~Phase 4: Optional real-time coordination layer~~ - Completed in [agent-coordination project](../agent-coordination/AGENCY.md)
 2. ~~Documentation updates for README.md~~ - Completed
 3. ~~Test with Claude Desktop in real environment~~ - Configuration documented
+
+<!-- hive:begin task-rollup -->
+## Task Rollup
+
+| ID | Status | Priority | Owner | Title |
+|---|---|---:|---|---|
+| task_01KKQGXZTFKPHMVC9W03B0F02G | done | 1 |  | `ready_work()` returns correct projects in <100ms |
+| task_01KKQGXZSXXZ63CG0FMSNXFXH8 | done | 1 |  | Add `--deps` CLI flag and `make deps` target |
+| task_01KKQGXZSN8P49JPYPV1HTF8FS | done | 1 |  | Add `--json` output flag for programmatic access |
+| task_01KKQGXZSJZSRVJZC6VJTFXBNP | done | 1 |  | Add `ready_work()` function to cortex.py |
+| task_01KKQGXZSM5GPX5R2S481R0BNA | done | 1 |  | Add CLI command: `make ready` or `uv run python -m src.cortex --ready` |
+| task_01KKQGXZSTTB08HNSYS8CTXG7N | done | 1 |  | Add cycle detection for blocking dependencies |
+| task_01KKQGXZT9036QECZ7FSBMKHH6 | done | 1 |  | Add graceful fallback to git-only mode |
+| task_01KKQGXZT4TX7JMEV7TEWYAF11 | done | 1 |  | Add MCP server configuration docs |
+| task_01KKQGXZTJCS38WV2RW9R8WQD8 | done | 1 |  | All existing tests continue to pass (152+ tests total) |
+| task_01KKQGXZSYSWVKX075G1J1FMHJ | done | 1 |  | Create `src/hive_mcp/` package structure |
+| task_01KKQGXZT7056A9E7DXKFD5AT9 | done | 1 |  | Create FastAPI server in `src/coordinator.py` |
+| task_01KKQGXZSQ56WA8D11QNV1AP2H | done | 1 |  | Define dependency schema in AGENCY.md format |
+| task_01KKQGXZTFAM2BNWB6TMJ9TT1W | done | 1 |  | Dependency graph correctly identifies blocked projects (basic blocked_by support) |
+| task_01KKQGXZT6NGY9CX8JY0PKDRDE | done | 1 |  | Design reservation API (POST /claim, DELETE /release) |
+| task_01KKQGXZTDPT3X6YC2AQ57TM01 | done | 1 |  | Document deployment options |
+| task_01KKQGXZTMN4EZ663CW651HVD8 | done | 1 |  | Documentation updated for new features (README.md, examples) |
+| task_01KKQGXZSKX1NY0P7FY91VT8GG | done | 1 |  | Filter: `status == 'active' AND blocked == false AND owner == null` |
+| task_01KKQGXZT86FD7GZC92QSES0C9 | done | 1 |  | Implement 409 Conflict response for contested claims |
+| task_01KKQGXZT31BS4W3W7EH4TQQGF | done | 1 |  | Implement `add_note(project_id, note)` tool |
+| task_01KKQGXZT1YVE9H44GKEDYM94A | done | 1 |  | Implement `claim_project(project_id, agent_name)` tool |
+| task_01KKQGXZT09SS6T56TD7M0QMJW | done | 1 |  | Implement `get_ready_work()` tool |
+| task_01KKQGXZSSR1F61T3KFJS61YQA | done | 1 |  | Implement `is_blocked()` that checks dependency graph |
+| task_01KKQGXZSZP7MJYQ865JMTH7XQ | done | 1 |  | Implement `list_projects()` tool |
+| task_01KKQGXZT2GAEFWNS4WAGQ0ZB9 | done | 1 |  | Implement `update_status(project_id, status)` tool |
+| task_01KKQGXZTHMCW9FFWQ8WGBWFA9 | done | 1 |  | MCP server integrates with Claude Desktop (configuration documented in README) |
+| task_01KKQGXZTKS6H0JXNK6MJTBY1Z | done | 1 |  | New functionality has >90% test coverage (55+ new tests total) |
+| task_01KKQGXZSR1NH0D4MJE6CPBB93 | done | 1 |  | Update cortex.py to parse `dependencies` field |
+| task_01KKQGXZSVEKAQ09GYGGX6ENSZ | done | 1 |  | Update dashboard.py to visualize dependencies |
+| task_01KKQGXZTES6XYDPSB1JZKRFMQ | done | 1 |  | Write integration tests |
+| task_01KKQGXZSW0A43Q5PX0G8TD5VG | done | 1 |  | Write tests for dependency resolution |
+| task_01KKQGXZT5GTGNV27DGBWCH32Z | done | 1 |  | Write tests for MCP tools (21 tests) |
+| task_01KKQGXZSPG9GFN8JSZWR9RXTK | done | 1 |  | Write tests for ready_work functionality |
+<!-- hive:end task-rollup -->
+
+<!-- hive:begin recent-runs -->
+## Recent Runs
+
+| Run | Status | Task |
+|---|---|---|
+| No runs | - | - |
+<!-- hive:end recent-runs -->

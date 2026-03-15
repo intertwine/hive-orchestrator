@@ -428,3 +428,49 @@ export const chatMessageHook = async (
 - **2025-12-29 07:47 - Agent Dispatcher**: Assigned to Claude Code. Issue: https://github.com/intertwine/hive-orchestrator/issues/71
 
 - **2025-12-29 00:00 - human**: Project created with full specification for OpenCode plugin development. Ready for implementation.
+
+<!-- hive:begin task-rollup -->
+## Task Rollup
+
+| ID | Status | Priority | Owner | Title |
+|---|---|---:|---|---|
+| task_01KKQGXZWZ960PX3AEWFFYT98Q | ready | 1 |  | Add fallback to MCP when plugin operations fail |
+| task_01KKQGXZX2K9Y5S9Q0NAK3T7A7 | ready | 1 |  | Add inline documentation (TSDoc) |
+| task_01KKQGXZWX4AXX7SJQE3VE0VQ0 | ready | 1 |  | Add integration tests for hooks |
+| task_01KKQGXZWPB7QDHW6C2D4924EM | ready | 1 |  | Add unit tests for all services |
+| task_01KKQGXZXDR35RC9YPV9M0AKMW | ready | 1 |  | Announce in project discussions |
+| task_01KKQGXZWEY7391DWNSYQK5SD1 | ready | 1 |  | Configure TypeScript (tsconfig.json) |
+| task_01KKQGXZWCAKVEPSZV0P22QV67 | ready | 1 |  | Create `packages/opencode-plugin/` directory structure |
+| task_01KKQGXZWG8FMBTCX2YXGYWE9D | ready | 1 |  | Create base plugin skeleton in `src/index.ts` |
+| task_01KKQGXZX53ZFSVXYQ4A6ZQ9EC | ready | 1 |  | Create example configurations |
+| task_01KKQGXZX9SSY9V65AZRB16ZVH | ready | 1 |  | Create GitHub release process |
+| task_01KKQGXZX1NYYVPSWD2JZFSMD7 | ready | 1 |  | Document interaction between plugin and MCP |
+| task_01KKQGXZWYB0ANZPFEVYYBQWQS | ready | 1 |  | Ensure MCP tools work alongside plugin hooks |
+| task_01KKQGXZWH52F2K2ANF3ZNAVCF | ready | 1 |  | Implement `agency-parser.ts` - Parse AGENCY.md YAML frontmatter |
+| task_01KKQGXZWWRZSCZGPPF7R5ZK6X | ready | 1 |  | Implement `chat.message` hook - Context injection |
+| task_01KKQGXZWNPFTT335WX5XWAK13 | ready | 1 |  | Implement `config.ts` - Load and validate configuration |
+| task_01KKQGXZWJP5AVV4T91PJS2E97 | ready | 1 |  | Implement `hive-client.ts` - Read/write project files |
+| task_01KKQGXZWKG926GC2Q2DXT44CA | ready | 1 |  | Implement `ownership.ts` - Claim/release/check ownership |
+| task_01KKQGXZWME5GD01T4KXE3T892 | ready | 1 |  | Implement `project-context.ts` - Build context strings |
+| task_01KKQGXZWRYNCNFMBNDQKAMMDK | ready | 1 |  | Implement `session.end` hook - Handoff reminder |
+| task_01KKQGXZWQZA21YV74S4ZZVR2J | ready | 1 |  | Implement `session.start` hook - Display ready work |
+| task_01KKQGXZWTEPJFXWVHA58PHP38 | ready | 1 |  | Implement `tool.execute.after` hook - Action logging |
+| task_01KKQGXZWSE1JQVJR3EARRQEKH | ready | 1 |  | Implement `tool.execute.before` hook - Ownership enforcement |
+| task_01KKQGXZWD66WDGB93TJV9FEY4 | ready | 1 |  | Initialize package.json with correct dependencies |
+| task_01KKQGXZXA82CR749WAJ875XJH | ready | 1 |  | Publish to npm as `@agent-hive/opencode-plugin` |
+| task_01KKQGXZWFQPPP5G89WK2DYSWQ | ready | 1 |  | Set up build process (esbuild or tsup) |
+| task_01KKQGXZX8Q9Y06822RZCW05F3 | ready | 1 |  | Set up npm publishing workflow |
+| task_01KKQGXZX0CWEYY20F8HDY31NW | ready | 1 |  | Test combined plugin + MCP workflows |
+| task_01KKQGXZXBVGP8M7NJ9MQH23B7 | ready | 1 |  | Update Agent Hive documentation with install instructions |
+| task_01KKQGXZX7DQNGW0VNZSRMYAVV | ready | 1 |  | Update main README.md with plugin documentation |
+| task_01KKQGXZX2201HVWDPRJEP0FCN | ready | 1 |  | Write comprehensive README.md for the package |
+| task_01KKQGXZX6MYAD8PE4QGAM3G1K | ready | 1 |  | Write migration guide from Skills-only approach |
+<!-- hive:end task-rollup -->
+
+<!-- hive:begin recent-runs -->
+## Recent Runs
+
+| Run | Status | Task |
+|---|---|---|
+| No runs | - | - |
+<!-- hive:end recent-runs -->

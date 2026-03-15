@@ -764,3 +764,12 @@ uv sync
 **Happy Hacking!** 🐝
 
 Remember: Agent Hive is about coordination, not control. Work transparently, update shared memory, and help the collective achieve more than any single agent could alone.
+
+<!-- hive:begin compatibility -->
+## Hive 2.0 compatibility
+
+1. Use the `hive` CLI first.
+2. Prefer `--json` for machine-readable operations.
+3. Treat `.hive/tasks/*.md` as canonical task state.
+4. Read `projects/*/PROGRAM.md` before autonomous edits.
+<!-- hive:end compatibility -->

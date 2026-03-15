@@ -1,4 +1,4 @@
-.PHONY: help install install-dev run dashboard cortex ready ready-json deps deps-json session clean test lint format sync verify-claude
+.PHONY: help install install-dev run dashboard cortex ready ready-json deps deps-json hive hive-init hive-doctor sync-projections migrate-v2 session clean test lint format sync verify-claude
 
 # Default target
 help:
@@ -19,6 +19,10 @@ help:
 	@echo "  make ready-json     Find ready work as JSON"
 	@echo "  make deps           Show dependency graph"
 	@echo "  make deps-json      Show dependency graph as JSON"
+	@echo "  make hive           Show Hive 2.0 doctor output"
+	@echo "  make hive-init      Initialize the Hive 2.0 layout"
+	@echo "  make sync-projections  Refresh GLOBAL/AGENCY/AGENTS generated sections"
+	@echo "  make migrate-v2     Import v1 projects into the v2 substrate"
 	@echo "  make session        Start a Deep Work session (requires PROJECT=...)"
 	@echo "  make verify-claude  Verify Claude Code GitHub App setup"
 	@echo ""
@@ -93,6 +97,21 @@ deps:
 # Show dependency graph as JSON (for programmatic use)
 deps-json:
 	@uv run python src/cortex.py --deps --json
+
+hive:
+	@uv run hive doctor --json
+
+hive-init:
+	@uv run hive init --json
+
+hive-doctor:
+	@uv run hive doctor --json
+
+sync-projections:
+	@uv run hive sync projections --json
+
+migrate-v2:
+	@uv run hive migrate v1-to-v2 --json
 
 # Start a Deep Work session
 session:

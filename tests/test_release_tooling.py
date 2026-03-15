@@ -49,7 +49,7 @@ def test_bump_version_only_updates_project_section(tmp_path):
 
 
 def test_generate_homebrew_formula_uses_stable_help_assertion():
-    """Generated formulas should assert on a stable help prefix."""
+    """Generated formulas should exercise the real doctor JSON entrypoint."""
     module = _load_module("generate_homebrew_formula", "scripts/generate_homebrew_formula.py")
     source_artifact = module.Artifact(
         name="agent-hive",
@@ -77,4 +77,17 @@ def test_generate_homebrew_formula_uses_stable_help_assertion():
         intel_resources=[],
     )
 
-    assert 'assert_match "usage: hive", shell_output("#{bin}/hive --help")' in formula
+    assert 'assert_match "\\"ok\\": true", shell_output("#{bin}/hive doctor --json")' in formula
+
+
+def test_public_top_level_packages_are_available():
+    """Installed users should see top-level hive packages, not just src.* imports."""
+    hive = importlib.import_module("hive")
+    hive_cli_main = importlib.import_module("hive.cli.main")
+    hive_mcp = importlib.import_module("hive_mcp")
+    hive_mcp_server = importlib.import_module("hive_mcp.server")
+
+    assert hive.__version__
+    assert callable(hive_cli_main.main)
+    assert hive_mcp.__version__
+    assert callable(hive_mcp_server.main)

@@ -23,12 +23,36 @@ The center of gravity in this repository is Hive 2.0:
 
 ## Install
 
-### Easiest path today
+### Public release channels
 
-Use `uv tool` directly from GitHub:
+Use whichever path fits your setup:
+
+```bash
+uv tool install agent-hive
+hive --version
+hive doctor --json
+```
+
+```bash
+pipx install agent-hive
+hive --version
+hive doctor --json
+```
+
+If you already manage a virtualenv yourself, `python -m pip install agent-hive` works too. For a standalone CLI install, `uv tool` or `pipx` is the better default.
+
+```bash
+brew tap intertwine/tap
+brew install intertwine/tap/agent-hive
+hive --version
+hive doctor --json
+```
+
+If you're reading this before the first tagged public release lands on PyPI and Homebrew, use the git-based install path instead:
 
 ```bash
 uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git agent-hive
+hive --version
 hive doctor --json
 ```
 
@@ -39,19 +63,11 @@ git clone https://github.com/intertwine/hive-orchestrator.git
 cd hive-orchestrator
 make install
 make install-tool
+hive --version
 hive doctor --json
 ```
 
-### Release channels
-
-This repo now includes release automation for PyPI and Homebrew. Until the first tagged public release is cut, the git-based `uv tool install` flow above is the simplest path. After a release, the intended install commands are:
-
-```bash
-uv tool install agent-hive
-pipx install agent-hive
-pip install agent-hive
-brew install intertwine/tap/agent-hive
-```
+If you prefer pipx from a checkout, run `make install-pipx`.
 
 ## Five-Minute Tour
 
@@ -158,10 +174,10 @@ Build release artifacts:
 make build
 ```
 
-Generate a Homebrew formula after publishing a release to PyPI:
+Run the release smoke checks:
 
 ```bash
-make brew-formula
+make release-check
 ```
 
 ## Release Automation
@@ -170,31 +186,12 @@ The repository now includes:
 
 - `/.github/workflows/ci.yml` for lint and test gates on push and pull request
 - `/.github/workflows/release.yml` for tagged releases, PyPI trusted publishing, and Homebrew tap updates
+- `docs/RELEASING.md` for the maintainer release checklist
 - `scripts/bump_version.py` for repeatable version bumps
+- `scripts/smoke_release_install.sh` for built-artifact install smoke tests
 - `scripts/generate_homebrew_formula.py` for Homebrew formula generation from published artifacts
 
-### PyPI
-
-`release.yml` is set up for PyPI trusted publishing. Configure this repository as a trusted publisher in PyPI before tagging a release.
-
-If you prefer manual publishing, the local path is still available:
-
-```bash
-TWINE_USERNAME=__token__ TWINE_PASSWORD=<pypi-token> make publish
-```
-
-### Homebrew
-
-Homebrew release automation expects:
-
-- repository variable `HOMEBREW_TAP_REPO`
-- repository secret `HOMEBREW_TAP_GITHUB_TOKEN`
-
-For local tap updates:
-
-```bash
-make release-homebrew HOMEBREW_TAP_DIR=../homebrew-tap
-```
+Everyday users should stop at the install section above. Maintainers should use [docs/RELEASING.md](/Users/bryanyoung/experiments/hive-orchestrator-v2-distribution/docs/RELEASING.md) for PyPI, Homebrew, tagging, and verification details.
 
 ## Optional Environment Variables
 

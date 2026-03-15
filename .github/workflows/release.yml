@@ -64,8 +64,8 @@ jobs:
             exit 1
           fi
 
-      - name: Build distribution artifacts
-        run: uv run --extra dev python -m build
+      - name: Run release smoke checks
+        run: make release-check
 
       - name: Publish to PyPI via trusted publishing
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -109,6 +109,21 @@ jobs:
             echo "Missing secret HOMEBREW_TAP_GITHUB_TOKEN with push access to $HOMEBREW_TAP_REPO"
             exit 1
           fi
+
+      - name: Wait for PyPI artifacts to propagate
+        env:
+          PACKAGE_VERSION: ${{ needs.publish-pypi.outputs.version }}
+        run: |
+          for attempt in {1..20}; do
+            if curl -fsSL "https://pypi.org/pypi/agent-hive/${PACKAGE_VERSION}/json" >/dev/null 2>&1; then
+              echo "PyPI release is live."
+              exit 0
+            fi
+            echo "Waiting for PyPI propagation (${attempt}/20)..."
+            sleep 15
+          done
+          echo "Timed out waiting for agent-hive ${PACKAGE_VERSION} on PyPI."
+          exit 1
 
       - name: Generate Homebrew formula
         run: |

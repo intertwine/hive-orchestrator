@@ -1,12 +1,18 @@
 # Homebrew Packaging
 
-`agent-hive.rb` is generated from published PyPI artifacts.
+This directory holds the generated Homebrew formula for Agent Hive.
 
-Generate it locally after a package release with:
+What matters:
+
+- The formula is generated from published PyPI artifacts, not from the local source tree.
+- The release workflow updates the tap after PyPI publish succeeds.
+- Everyday users should install with `brew tap intertwine/tap && brew install intertwine/tap/agent-hive`.
+
+Local maintainer commands:
 
 ```bash
 make brew-formula
+make release-homebrew HOMEBREW_TAP_DIR=../homebrew-tap
 ```
 
-The release workflow can also update a Homebrew tap automatically when
-`HOMEBREW_TAP_REPO` and `HOMEBREW_TAP_GITHUB_TOKEN` are configured.
+For the full release sequence and verification checklist, see [docs/RELEASING.md](/Users/bryanyoung/experiments/hive-orchestrator-v2-distribution/docs/RELEASING.md).

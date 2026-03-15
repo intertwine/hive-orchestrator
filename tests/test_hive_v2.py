@@ -591,3 +591,83 @@ class TestHiveV2Search:
         assert "command" in kinds
         assert "example" in kinds
         assert "project" in kinds
+
+
+class TestHiveV2Execute:
+    """Tests for the bounded execute surface."""
+
+    def test_cli_execute_python_can_compose_multiple_hive_calls(self, temp_hive_dir, temp_project, capsys):
+        """Execute should expose a typed Hive client inside bounded Python."""
+        migrate_v1_to_v2(temp_hive_dir)
+        exit_code = hive_main(
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "execute",
+                "--language",
+                "python",
+                "--code",
+                (
+                    "result = {"
+                    "'projects': len(hive.project.list()), "
+                    "'next': hive.scheduler.next(), "
+                    "'ready': len(hive.task.ready({'limit': 5}))"
+                    "}"
+                ),
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["ok"] is True
+        assert payload["value"]["projects"] >= 1
+        assert payload["value"]["next"]["id"]
+        assert payload["value"]["ready"] >= 1
+
+    def test_cli_execute_python_timeout_is_reported(self, temp_hive_dir, temp_project, capsys):
+        """Execute should fail cleanly when the subprocess exceeds its timeout."""
+        migrate_v1_to_v2(temp_hive_dir)
+        exit_code = hive_main(
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "execute",
+                "--language",
+                "python",
+                "--timeout-seconds",
+                "1",
+                "--code",
+                "import time\ntime.sleep(2)\nresult = {'ok': True}",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["ok"] is False
+        assert payload["timed_out"] is True
+
+    def test_cli_execute_rejects_unsupported_language(self, temp_hive_dir, temp_project, capsys):
+        """Execute should fail clearly for languages outside the MVP surface."""
+        migrate_v1_to_v2(temp_hive_dir)
+        exit_code = hive_main(
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "execute",
+                "--language",
+                "ts",
+                "--code",
+                "export default async () => ({ ok: true })",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["ok"] is False
+        assert "Python only" in payload["error"]

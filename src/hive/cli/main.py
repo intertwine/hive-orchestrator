@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from src.hive import __version__
+from src.hive.codemode.execute import execute_code
 from src.hive.memory.context import handoff_context, startup_context
 from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
@@ -56,6 +57,13 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser.add_argument("query")
     search_parser.add_argument("--scope", action="append")
     search_parser.add_argument("--limit", type=int, default=8)
+    execute_parser = subparsers.add_parser("execute")
+    execute_parser.add_argument("--language", default="python")
+    execute_parser.add_argument("--profile", default="default")
+    execute_parser.add_argument("--timeout-seconds", type=int, default=20)
+    execute_input = execute_parser.add_mutually_exclusive_group(required=True)
+    execute_input.add_argument("--code")
+    execute_input.add_argument("--file")
 
     cache_parser = subparsers.add_parser("cache")
     cache_subparsers = cache_parser.add_subparsers(dest="cache_command")
@@ -202,6 +210,19 @@ def main(argv: list[str] | None = None) -> int:
             },
             args.json,
         )
+
+    if args.command == "execute":
+        code = args.code
+        if args.file:
+            code = Path(args.file).read_text(encoding="utf-8")
+        payload = execute_code(
+            root,
+            language=args.language,
+            code=code,
+            profile=args.profile,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return _emit(payload, args.json)
 
     if args.command == "cache" and args.cache_command == "rebuild":
         db_path = rebuild_cache(root)

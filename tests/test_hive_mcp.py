@@ -1,15 +1,20 @@
 """Tests for Hive MCP Server."""
 
+import json
 import frontmatter
 from pathlib import Path
+import pytest
 from src.hive_mcp.server import (
+    call_tool,
     format_response,
     format_project,
+    list_tools,
     update_project_field,
     add_agent_note,
     get_base_path,
 )
 from src.cortex import Cortex
+from src.hive.migrate import migrate_v1_to_v2
 
 
 class TestFormatResponse:
@@ -334,3 +339,46 @@ class TestMCPToolIntegration:
         assert "Started working on tasks" in post.content
         assert "Completed all tasks" in post.content
         assert agent_name in post.content
+
+
+class TestHiveV2MCP:
+    """Tests for the thin v2 MCP surface."""
+
+    @pytest.mark.asyncio
+    async def test_list_tools_exposes_only_search_and_execute(self):
+        """The MCP server should expose the v2 two-tool surface."""
+        tools = await list_tools()
+        tool_names = [tool.name for tool in tools]
+        assert tool_names == ["search", "execute"]
+
+    @pytest.mark.asyncio
+    async def test_search_tool_returns_workspace_results(self, temp_hive_dir, temp_project, monkeypatch):
+        """The search MCP tool should wrap the workspace search surface."""
+        migrate_v1_to_v2(temp_hive_dir)
+        monkeypatch.setenv("HIVE_BASE_PATH", temp_hive_dir)
+
+        response = await call_tool("search", {"query": "Task 1", "scopes": ["workspace"], "limit": 5})
+        payload = json.loads(response[0].text)
+
+        assert payload["success"] is True
+        assert payload["data"]["count"] >= 1
+        assert payload["data"]["results"]
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_runs_python_client_code(self, temp_hive_dir, temp_project, monkeypatch):
+        """The execute MCP tool should run bounded Python against the typed Hive client."""
+        migrate_v1_to_v2(temp_hive_dir)
+        monkeypatch.setenv("HIVE_BASE_PATH", temp_hive_dir)
+
+        response = await call_tool(
+            "execute",
+            {
+                "language": "python",
+                "code": "result = {'ready': len(hive.task.ready({'limit': 3}))}",
+                "timeout_seconds": 10,
+            },
+        )
+        payload = json.loads(response[0].text)
+
+        assert payload["success"] is True
+        assert payload["data"]["value"]["ready"] >= 1

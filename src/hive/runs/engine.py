@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from fnmatch import fnmatch
 from hashlib import sha256
 import json
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from src.hive.clock import utc_now_iso
 from src.hive.ids import new_id
@@ -114,7 +115,7 @@ def _parse_iso(value: str | None) -> datetime | None:
 
 
 def _matches_path(path: str, pattern: str) -> bool:
-    return PurePosixPath(path).match(pattern)
+    return fnmatch(path, pattern)
 
 
 def _refresh_workspace_state(root: Path, metadata: dict) -> dict[str, object]:

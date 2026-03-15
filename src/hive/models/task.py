@@ -36,6 +36,7 @@ class TaskRecord:
     summary_md: str = ""
     notes_md: str = ""
     history_md: str = ""
+    extra_sections: list[tuple[str, str]] = field(default_factory=list)
     source: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
     path: Path | None = None
@@ -55,6 +56,7 @@ class TaskRecord:
     def to_frontmatter(self) -> dict[str, Any]:
         """Serialize to frontmatter while preserving unknown keys."""
         metadata = dict(self.metadata)
+        edges = {edge_type: values for edge_type, values in self.edges.items() if values}
         metadata.update(
             {
                 "id": self.id,
@@ -69,7 +71,7 @@ class TaskRecord:
                 "labels": self.labels,
                 "relevant_files": self.relevant_files,
                 "acceptance": self.acceptance,
-                "edges": self.edges,
+                "edges": edges,
                 "created_at": self.created_at,
                 "updated_at": self.updated_at,
                 "source": self.source,

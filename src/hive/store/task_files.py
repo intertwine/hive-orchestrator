@@ -13,20 +13,31 @@ from src.hive.store.layout import tasks_dir
 from src.security import safe_dump_agency_md, safe_load_agency_md
 
 _SECTION_RE = re.compile(r"^##\s+(.+?)\s*$")
+_CANONICAL_SECTIONS = ("Summary", "Notes", "History")
 
 
-def _parse_sections(body: str) -> dict[str, str]:
-    sections: dict[str, list[str]] = {"Summary": [], "Notes": [], "History": []}
+def _parse_sections(body: str) -> tuple[dict[str, str], list[tuple[str, str]]]:
+    sections: dict[str, list[str]] = {name: [] for name in _CANONICAL_SECTIONS}
+    section_order: list[str] = ["Summary"]
     current = "Summary"
     for line in body.splitlines():
         match = _SECTION_RE.match(line.strip())
         if match:
             name = match.group(1).strip()
-            if name in sections:
-                current = name
-                continue
-        sections.setdefault(current, []).append(line)
-    return {name: "\n".join(lines).strip() for name, lines in sections.items()}
+            current = name
+            if name not in sections:
+                sections[name] = []
+            if name not in section_order:
+                section_order.append(name)
+            continue
+        sections[current].append(line)
+    canonical = {name: "\n".join(sections.get(name, [])).strip() for name in _CANONICAL_SECTIONS}
+    extra_sections = [
+        (name, "\n".join(sections[name]).strip())
+        for name in section_order
+        if name not in _CANONICAL_SECTIONS
+    ]
+    return canonical, extra_sections
 
 
 def _serialize_sections(task: TaskRecord) -> str:
@@ -40,6 +51,8 @@ def _serialize_sections(task: TaskRecord) -> str:
         "## History",
         task.history_md.strip() or f"- {task.created_at} bootstrap created.",
     ]
+    for name, content in task.extra_sections:
+        parts.extend(["", f"## {name}", content.strip()])
     return "\n".join(parts).strip()
 
 
@@ -52,7 +65,7 @@ def load_task(file_path: str | Path) -> TaskRecord:
     """Load a canonical task file."""
     parsed = safe_load_agency_md(Path(file_path))
     metadata = dict(parsed.metadata)
-    sections = _parse_sections(parsed.content)
+    sections, extra_sections = _parse_sections(parsed.content)
     extra = metadata.copy()
     known = {
         "id",
@@ -94,6 +107,7 @@ def load_task(file_path: str | Path) -> TaskRecord:
         summary_md=sections.get("Summary", ""),
         notes_md=sections.get("Notes", ""),
         history_md=sections.get("History", ""),
+        extra_sections=extra_sections,
         source=dict(metadata.get("source", {})),
         metadata=extra,
         path=Path(file_path),

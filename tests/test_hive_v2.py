@@ -21,7 +21,17 @@ from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import get_task, link_tasks, save_task
 
 
-def _program_markdown(command: str, auto_close: bool = False) -> str:
+def _program_markdown(
+    command: str,
+    auto_close: bool = False,
+    allow_commands: list[str] | None = None,
+) -> str:
+    allowed = allow_commands if allow_commands is not None else [command]
+    allow_block = (
+        "\n" + "\n".join(f"    - {json.dumps(item)}" for item in allowed)
+        if allowed
+        else " []"
+    )
     return f"""---
 program_version: 1
 mode: workflow
@@ -38,8 +48,7 @@ paths:
     - docs/**
   deny: []
 commands:
-  allow:
-    - {json.dumps(command)}
+  allow:{allow_block}
   deny: []
 evaluators:
   - id: unit
@@ -100,6 +109,32 @@ class TestHiveV2TaskFiles:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected missing destination task to raise FileNotFoundError")
 
+    def test_task_round_trip_preserves_noncanonical_sections(self, temp_hive_dir):
+        """Custom task sections should survive load/save cycles."""
+        ensure_layout(temp_hive_dir)
+        task = TaskRecord(
+            id="task_test_sections",
+            project_id="test-project",
+            title="Section task",
+            status="ready",
+            summary_md="Summary",
+            notes_md="Notes",
+            history_md="History",
+        )
+        save_task(temp_hive_dir, task)
+        task_file = Path(temp_hive_dir) / ".hive" / "tasks" / f"{task.id}.md"
+        task_file.write_text(
+            task_file.read_text(encoding="utf-8") + "\n\n## References\n- docs/example.md\n",
+            encoding="utf-8",
+        )
+
+        reloaded = get_task(temp_hive_dir, task.id)
+        save_task(temp_hive_dir, reloaded)
+
+        rendered = task_file.read_text(encoding="utf-8")
+        assert "## References" in rendered
+        assert "- docs/example.md" in rendered
+
 
 class TestHiveV2Migration:
     """Tests for v1 -> v2 migration."""
@@ -156,6 +191,41 @@ class TestHiveV2Runs:
         assert accepted["status"] == "accepted"
         assert task.status == "review"
 
+    def test_eval_run_rejects_commands_outside_allow_list(self, temp_hive_dir, temp_project):
+        """Evaluators should only run commands explicitly allow-listed in PROGRAM.md."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, allow_commands=[]),
+            encoding="utf-8",
+        )
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        try:
+            eval_run(temp_hive_dir, run.id)
+        except ValueError as exc:
+            assert "allow-listed" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected evaluator allow-list validation to fail")
+
+    def test_start_run_rejects_terminal_task_statuses(self, temp_hive_dir, temp_project):
+        """Runs should not reopen blocked or completed tasks."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        task = get_task(temp_hive_dir, task_id)
+        task.status = "done"
+        save_task(temp_hive_dir, task)
+
+        try:
+            start_run(temp_hive_dir, task_id)
+        except ValueError as exc:
+            assert "Cannot start run" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected terminal task status to block run creation")
+
     def test_expired_claimed_task_returns_to_ready_queue(self, temp_hive_dir, temp_project):
         """Expired claimed tasks should be surfaced by ready detection again."""
         migrate_v1_to_v2(temp_hive_dir)
@@ -191,6 +261,32 @@ class TestHiveV2Memory:
         assert context["project_id"] == project.id
         assert any(section["name"] == "profile" for section in context["sections"])
 
+    def test_cache_rebuild_keeps_memory_docs_unique_per_scope_key(self, temp_hive_dir, temp_project):
+        """Memory docs should not collide when multiple scoped docs share the same kind."""
+        migrate_v1_to_v2(temp_hive_dir)
+        memory_root = Path(temp_hive_dir) / ".hive" / "memory" / "project"
+        for scope_key in ("demo", "ops"):
+            directory = memory_root / scope_key
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / "observations.md").write_text(
+                f"# Observations\n\n{scope_key}\n",
+                encoding="utf-8",
+            )
+
+        db_path = rebuild_cache(temp_hive_dir)
+        connection = sqlite3.connect(db_path)
+        try:
+            rows = list(
+                connection.execute(
+                    "SELECT id, scope, scope_key, kind FROM memory_docs ORDER BY scope_key"
+                )
+            )
+        finally:
+            connection.close()
+
+        assert ("project:demo:observations", "project", "demo", "observations") in rows
+        assert ("project:ops:observations", "project", "ops", "observations") in rows
+
 
 class TestHiveV2Cli:
     """Tests for the CLI JSON surface."""
@@ -223,12 +319,19 @@ class TestHiveV2Cli:
         """SQLite views should parse ISO timestamps when deciding claim expiry."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
-        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
-        task = get_task(temp_hive_dir, task_id)
-        task.status = "claimed"
-        task.owner = "codex"
-        task.claimed_until = "2000-01-01T00:00:00Z"
-        save_task(temp_hive_dir, task)
+        ready_ids_before = [item["id"] for item in ready_tasks(temp_hive_dir, project_id=project.id)]
+
+        expired_task = get_task(temp_hive_dir, ready_ids_before[0])
+        expired_task.status = "claimed"
+        expired_task.owner = "codex"
+        expired_task.claimed_until = "2000-01-01T00:00:00Z"
+        save_task(temp_hive_dir, expired_task)
+
+        active_task = get_task(temp_hive_dir, ready_ids_before[1])
+        active_task.status = "claimed"
+        active_task.owner = "codex"
+        active_task.claimed_until = "2099-01-01T00:00:00Z"
+        save_task(temp_hive_dir, active_task)
 
         db_path = rebuild_cache(temp_hive_dir)
         connection = sqlite3.connect(db_path)
@@ -238,8 +341,10 @@ class TestHiveV2Cli:
         finally:
             connection.close()
 
-        assert task_id in ready_ids
-        assert task_id not in active_claim_ids
+        assert expired_task.id in ready_ids
+        assert expired_task.id not in active_claim_ids
+        assert active_task.id not in ready_ids
+        assert active_task.id in active_claim_ids
 
     def test_cli_run_show_returns_metadata(self, temp_hive_dir, temp_project, capsys):
         """Run show should surface persisted metadata after start."""

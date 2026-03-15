@@ -9,6 +9,18 @@ from pathlib import Path
 from src.hive.clock import utc_now_iso
 
 
+def validate_evaluator_command(command: str, commands_policy: dict | None) -> None:
+    """Ensure evaluator commands stay within the program command policy."""
+    policy = commands_policy or {}
+    allowed = [entry.strip() for entry in policy.get("allow", []) if str(entry).strip()]
+    denied = [entry.strip() for entry in policy.get("deny", []) if str(entry).strip()]
+    normalized = command.strip()
+    if normalized in denied:
+        raise ValueError(f"Evaluator command is denied by PROGRAM.md: {command}")
+    if normalized not in allowed:
+        raise ValueError(f"Evaluator command is not allow-listed in PROGRAM.md: {command}")
+
+
 def run_evaluator(command: str, cwd: Path, output_dir: Path, evaluator_id: str, required: bool) -> dict:
     """Run a program evaluator and persist its outputs."""
     output_dir.mkdir(parents=True, exist_ok=True)

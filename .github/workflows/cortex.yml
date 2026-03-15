@@ -48,7 +48,8 @@ jobs:
       - name: Validate changes before commit
         run: |
           # Only add generated projection files for safety
-          git add AGENTS.md GLOBAL.md projects/**/AGENCY.md 2>/dev/null || true
+          mapfile -t agency_files < <(find projects -name AGENCY.md -print 2>/dev/null)
+          git add AGENTS.md GLOBAL.md "${agency_files[@]}" 2>/dev/null || true
 
           # Check which files are staged
           if git diff --staged --name-only | grep -qvE '^(AGENTS\.md|GLOBAL\.md|projects/.*/AGENCY\.md)$'; then

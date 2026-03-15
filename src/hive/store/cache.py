@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from hashlib import sha256
 from pathlib import Path
 
 from src.hive.store.events import load_events
@@ -20,6 +21,18 @@ def _json(value) -> str:
 def _schema_sql() -> str:
     schema_path = Path(__file__).resolve().parents[3] / "docs" / "hive-v2-spec" / "SCHEMA.sql"
     return schema_path.read_text(encoding="utf-8")
+
+
+def _memory_scope_parts(relative_path: Path) -> tuple[str, str]:
+    """Infer memory scope and scope key from the .hive/memory relative path."""
+    parts = relative_path.parts
+    if len(parts) < 2:
+        raise ValueError(f"Unsupported memory doc path: {relative_path}")
+    scope = parts[0]
+    if scope not in {"project", "global", "run", "agent"}:
+        raise ValueError(f"Unsupported memory scope: {scope}")
+    scope_key = "/".join(parts[1:-1]) or scope
+    return scope, scope_key
 
 
 def rebuild_cache(path: str | Path | None = None) -> Path:
@@ -210,8 +223,13 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
         memory_root = root / ".hive" / "memory"
         if memory_root.exists():
             for file_path in sorted(memory_root.glob("**/*.md")):
+                relative_path = file_path.relative_to(memory_root)
+                try:
+                    scope, scope_key = _memory_scope_parts(relative_path)
+                except ValueError:
+                    continue
                 kind = file_path.stem
-                scope = "project" if "project" in file_path.parts else "global"
+                content = file_path.read_text(encoding="utf-8")
                 connection.execute(
                     """
                     INSERT INTO memory_docs
@@ -219,14 +237,14 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        f"{scope}:{kind}",
+                        f"{scope}:{scope_key}:{kind}",
                         scope,
-                        root.name,
+                        scope_key,
                         kind,
                         str(file_path),
                         file_path.stat().st_mtime_ns,
-                        str(hash(file_path.read_text(encoding="utf-8"))),
-                        "{}",
+                        sha256(content.encode("utf-8")).hexdigest(),
+                        _json({"relative_path": relative_path.as_posix()}),
                     ),
                 )
 

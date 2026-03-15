@@ -10,7 +10,7 @@ from src.hive.clock import utc_now_iso
 from src.hive.ids import new_id
 from src.hive.models.program import ProgramRecord
 from src.hive.models.run import RunRecord
-from src.hive.runs.evaluators import run_evaluator
+from src.hive.runs.evaluators import run_evaluator, validate_evaluator_command
 from src.hive.store.events import emit_event
 from src.hive.store.layout import runs_dir, worktrees_dir
 from src.hive.store.projects import get_project
@@ -85,6 +85,8 @@ def start_run(path: str | Path | None, task_id: str) -> RunRecord:
     """Create a bounded local run record and scaffold artifacts."""
     root = Path(path or Path.cwd())
     task = get_task(root, task_id)
+    if task.status not in {"proposed", "ready", "claimed"}:
+        raise ValueError(f"Cannot start run on task with status {task.status!r}")
     project = get_project(root, task.project_id)
     if not project.program_path.exists():
         generate_program_stub(project.directory)
@@ -177,7 +179,9 @@ def eval_run(path: str | Path | None, run_id: str) -> dict:
     program = load_program(Path(metadata["program_path"]))
     run_directory = _run_dir(root, run_id)
     results = []
+    commands_policy = program.metadata.get("commands", {})
     for evaluator in program.metadata.get("evaluators", []):
+        validate_evaluator_command(evaluator["command"], commands_policy)
         result = run_evaluator(
             evaluator["command"],
             root,

@@ -65,13 +65,16 @@ git push origin main --tags
 
 That tag triggers the release workflow.
 
+The release workflow only publishes from `v*` tags. `workflow_dispatch` is still available for retries, but it must run against a tag ref instead of an arbitrary branch.
+
 ## Watch The Automation
 
 After pushing the tag:
 
 1. Confirm the PyPI publish job succeeds.
-2. Confirm the Homebrew update job succeeds.
-3. Check that the formula commit lands in the configured tap repo.
+2. Confirm the Homebrew verification job succeeds on macOS.
+3. Confirm the Homebrew update job succeeds.
+4. Check that the formula commit lands in the configured tap repo.
 
 Useful commands:
 
@@ -114,6 +117,14 @@ Generate the Homebrew formula after a version is already on PyPI:
 ```bash
 make brew-formula
 ```
+
+Run the full local Homebrew release check:
+
+```bash
+make brew-release-check HOMEBREW_PACKAGE_VERSION=0.1.0
+```
+
+That command only works after the target version is already live on PyPI, because the formula generator resolves published artifacts instead of local files. For a brand-new release, the tagged GitHub workflow is the thing that proves the Homebrew path before it updates the tap.
 
 Copy the generated formula into a local tap checkout:
 

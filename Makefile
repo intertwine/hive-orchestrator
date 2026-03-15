@@ -5,6 +5,7 @@ SHELL := /bin/bash
 BUMP ?= patch
 HOMEBREW_TAP_DIR ?= ../homebrew-tap
 HOMEBREW_INSTALL_TARGET ?= intertwine/tap/agent-hive
+HOMEBREW_PACKAGE_VERSION ?=
 
 # Default target
 help:
@@ -216,20 +217,15 @@ publish: build
 
 brew-formula:
 	@echo "🍺 Generating Homebrew formula..."
-	uv run --with pip python scripts/generate_homebrew_formula.py --output packaging/homebrew/agent-hive.rb
+	uv run --with pip python scripts/generate_homebrew_formula.py \
+		$(if $(HOMEBREW_PACKAGE_VERSION),--package-version "$(HOMEBREW_PACKAGE_VERSION)",) \
+		--output packaging/homebrew/agent-hive.rb
 
 brew-check: brew-formula
-	@if ! command -v brew >/dev/null 2>&1; then \
-		echo "❌ Error: brew not found"; \
-		echo "Install Homebrew first: https://brew.sh"; \
-		exit 1; \
-	fi
-	brew style packaging/homebrew/agent-hive.rb
-	@if brew info --formula $(HOMEBREW_INSTALL_TARGET) >/dev/null 2>&1; then \
-		brew audit --strict --formula $(HOMEBREW_INSTALL_TARGET); \
-	else \
-		echo "ℹ️ Skipped brew audit by formula name; add the tap first with: brew tap intertwine/tap"; \
-	fi
+	@./scripts/smoke_brew_formula.sh packaging/homebrew/agent-hive.rb
+
+brew-release-check: brew-check
+	@echo "✅ Homebrew formula passed style, audit, install, and test."
 
 release-homebrew: brew-formula
 	@if [ ! -d "$(HOMEBREW_TAP_DIR)/.git" ]; then \

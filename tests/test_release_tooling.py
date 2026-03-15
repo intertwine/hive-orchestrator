@@ -8,6 +8,8 @@ from pathlib import Path
 import sys
 import tomllib
 
+import yaml
+
 
 def _load_module(module_name: str, relative_path: str):
     """Load a repository script as a Python module."""
@@ -99,6 +101,12 @@ def test_public_top_level_packages_are_available():
     assert callable(hive_mcp_server.main)
 
 
+def test_public_hive_module_entrypoint_exists():
+    """`python -m hive` should resolve through a real public package module."""
+    entrypoint = Path(__file__).resolve().parents[1] / "hive" / "__main__.py"
+    assert entrypoint.exists()
+
+
 def test_pyproject_all_extra_covers_optional_runtime_surfaces():
     """The convenience `all` extra should include every optional runtime surface."""
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
@@ -137,3 +145,37 @@ def test_verify_claude_workspace_state_fails_when_ready_check_breaks(monkeypatch
     assert module.check_workspace_state() is False
     captured = capsys.readouterr()
     assert "Could not read ready-task state" in captured.out
+
+
+def test_release_smoke_script_exercises_python_module_entrypoint():
+    """Release install smoke tests should cover `python -m hive`, not just console scripts."""
+    script = (Path(__file__).resolve().parents[1] / "scripts" / "smoke_release_install.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"$venv_dir/bin/python" -m hive --version >/dev/null' in script
+    assert '"$venv_dir/bin/python" -m hive --path "$workspace" doctor --json >/dev/null' in script
+
+
+def test_release_workflow_requires_tag_and_homebrew_verification():
+    """Tagged releases should be gated by both tag validation and Homebrew verification."""
+    workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+
+    publish_steps = workflow["jobs"]["publish-pypi"]["steps"]
+    guard_step = next(step for step in publish_steps if step["name"] == "Require a version tag ref")
+    assert "refs/tags/v*" in guard_step["run"]
+
+    verify_homebrew = workflow["jobs"]["verify-homebrew"]
+    assert verify_homebrew["runs-on"] == "macos-latest"
+
+    update_homebrew_needs = workflow["jobs"]["update-homebrew"]["needs"]
+    assert update_homebrew_needs == ["publish-pypi", "verify-homebrew"]
+
+
+def test_makefile_supports_overriding_homebrew_package_version():
+    """Maintainers should be able to point formula generation at an already-published version."""
+    makefile = (Path(__file__).resolve().parents[1] / "Makefile").read_text(encoding="utf-8")
+
+    assert "HOMEBREW_PACKAGE_VERSION ?=" in makefile
+    assert '--package-version "$(HOMEBREW_PACKAGE_VERSION)"' in makefile

@@ -431,15 +431,12 @@ def main(argv: list[str] | None = None) -> int:
         return _emit({"ok": True, "message": "Synced projections"}, args.json)
 
     if args.command == "migrate" and args.migrate_command == "v1-to-v2":
-        if args.rewrite:
-            print(
-                "--rewrite is not implemented in the initial shadow-mode migrator", file=sys.stderr
-            )
         report = migrate_v1_to_v2(
             root,
             dry_run=args.dry_run,
             project_filter=args.project,
             owner=args.owner,
+            rewrite=args.rewrite,
         )
         payload = report.to_dict()
         payload["ok"] = report.ok

@@ -1,408 +1,184 @@
-# Agent Hive vs. The Framework Explosion: A Different Philosophy for Agent Orchestration
+# Agent Hive vs. The Framework Landscape
 
-_This is the seventh article in a series exploring Agent Hive and AI agent orchestration._
+_A practical comparison, not a cage match._
 
 ---
 
 ![Hero: The Cambrian Explosion of Frameworks](images/framework-comparison/img-01_v1.png)
-_2024-2025: A Cambrian explosion of agent frameworks. Each optimizes for different scenarios and embodies different philosophies. No single winner. Just an evolving field._
+_The agent ecosystem is crowded because people are solving different problems. Hive fits a different layer than most chat-runtime frameworks._
 
 ---
 
-## The Cambrian Explosion of Agent Frameworks
+## Start With The Right Question
 
-2024-2025 has seen an explosion of AI agent frameworks. LangGraph brings graph-based state machines. CrewAI offers role-based teams. Microsoft's AutoGen enables conversational multi-agent systems. OpenAI's Agents SDK provides lightweight handoffs. HuggingFace's smolagents takes a code-first approach.
+Most framework comparisons start by asking which tool is "best."
 
-Each framework makes different tradeoffs. Each optimizes for different scenarios. And each embodies a different philosophy about what AI agents should be.
+That is usually the wrong question.
 
-Agent Hive enters this space as an alternative approach to a different problem: **long-horizon, multi-session orchestration with human oversight**.
+The better question is: what layer of the system are you trying to solve?
 
-This article explores where Agent Hive fits among these frameworks. What it shares with other approaches, where it diverges, and when you might choose one over another.
+Some tools are execution runtimes. Some are agent team frameworks. Some are tool protocols. Some are long-horizon orchestration systems. Hive belongs in the last group.
 
-## The Framework Explosion: A Quick Tour
+Hive is not trying to be the chat loop, the planner, or the coding model. It is trying to make long-running, reviewable, multi-session work hold together over time.
 
-Here's what each major framework offers.
+## What Hive Actually Is
 
-### LangGraph: Graph-Based State Machines
+Hive v2 is a CLI-first orchestration platform built around a few stable primitives:
 
-[LangGraph](https://github.com/langchain-ai/langgraph), built on LangChain, represents agent workflows as directed graphs. Nodes are functions, edges define transitions, and state flows through the system.
+- canonical machine state in `.hive/`
+- human-readable project docs in `projects/*/AGENCY.md`
+- autonomy and evaluator policy in `projects/*/PROGRAM.md`
+- explicit task claims, ready queues, run artifacts, memory, and projections
 
-```python
-# LangGraph workflow definition
-from langgraph.graph import StateGraph
+That means Hive is comfortable sitting above other agent tools rather than replacing them.
 
-workflow = StateGraph(AgentState)
-workflow.add_node("research", research_node)
-workflow.add_node("draft", draft_node)
-workflow.add_edge("research", "draft")
-```
+## A Useful Mental Model
 
-**Strengths**: Explicit state management, conditional branching, checkpointing for long-running processes, human-in-the-loop support.
+Think about the ecosystem in four layers:
 
-**Tradeoffs**: Steep learning curve, requires understanding graph theory and LangChain abstractions.
+1. **Model providers**: Claude, GPT, Gemini, local models
+2. **Interactive harnesses**: Claude Code, OpenCode, Codex, Pi, Hermes
+3. **Runtime frameworks**: LangGraph, AutoGen, CrewAI, OpenAI Agents, smolagents
+4. **Long-horizon orchestration**: Hive
 
-### CrewAI: Role-Based Teams
+You can use Hive without layer 3.  
+You can use layer 3 without Hive.  
+You can also combine them.
 
-[CrewAI](https://www.crewai.com/) models agents as team members with defined roles, goals, and backstories. A "crew" collaborates to accomplish tasks.
+That last option is where things get interesting.
 
-```python
-# CrewAI team definition
-from crewai import Agent, Task, Crew
+## Where Hive Differs
 
-researcher = Agent(role="Research Analyst", goal="Find relevant data")
-writer = Agent(role="Content Writer", goal="Draft clear content")
+### 1. Durable state is the product
 
-crew = Crew(agents=[researcher, writer], tasks=[...])
-```
+Many agent frameworks focus on the runtime loop:
 
-**Strengths**: Intuitive mental model, built-in memory types (short-term, entity, long-term), rapid prototyping.
+- who calls which tool
+- how messages pass between agents
+- how to hand off inside a live execution
 
-**Tradeoffs**: Sequential workflow limitations, less fine-grained control, newer tooling.
+Hive focuses on what survives after the loop ends:
 
-### Microsoft AutoGen: Conversational Multi-Agent
+- what is still ready
+- what is blocked
+- what policy governed the work
+- what run artifacts were produced
+- what a new session needs to know
 
-[AutoGen](https://github.com/microsoft/autogen) frames multi-agent coordination as conversations. Agents communicate in natural language to complete tasks.
+That makes Hive a better fit for work that spans hours, days, reviewers, and model swaps.
 
-```python
-# AutoGen agent conversation
-assistant = AssistantAgent("assistant", llm_config=config)
-user_proxy = UserProxyAgent("user_proxy", code_execution_config={"work_dir": "coding"})
+### 2. Human readability is not optional
 
-user_proxy.initiate_chat(assistant, message="Write a function to sort data")
-```
+Hive keeps the machine substrate structured, but it still treats Markdown as part of the interface.
 
-**Strengths**: Enterprise-grade reliability, event-driven architecture (v0.4), flexible agent dialogs, good observability.
+That matters because long-horizon systems fail in messy, human ways:
 
-**Tradeoffs**: Conversations can loop without proper constraints, more setup required.
+- priorities change
+- a task needs explanation, not just status
+- reviewers need to understand why a run was accepted
+- a new agent needs orientation fast
 
-### OpenAI Agents SDK: Lightweight Handoffs
+SQLite alone does not solve that. Neither does a wall of hidden framework state.
 
-The [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) (successor to Swarm) provides minimal primitives: agents, handoffs, and guardrails.
+### 3. Policy is explicit
 
-```python
-# OpenAI Agents SDK definition
-from agents import Agent
+`PROGRAM.md` is not window dressing. It is the contract for autonomous work:
 
-triage_agent = Agent(
-    name="Triage Agent",
-    instructions="Route customer issues to the right specialist",
-    handoffs=[technical_agent, billing_agent]
-)
-```
+- allowed paths
+- denied paths
+- evaluator commands
+- promotion rules
+- escalation rules
+- budgets
 
-**Strengths**: Very lightweight, stateless design, built-in tracing, production-ready.
+If a run crosses a line, Hive has somewhere concrete to point.
 
-**Tradeoffs**: OpenAI-specific, no persistent state between calls, requires external state management for complex workflows.
+### 4. Git review stays central
 
-### smolagents: Code-First Agents
+Hive assumes you still want diffs, branches, artifacts, and human review.
 
-HuggingFace's [smolagents](https://github.com/huggingface/smolagents) takes a minimalist approach where agents write Python code to take actions.
+That may sound conservative if you come from more autonomous agent demos. In practice, it is what makes teams trust the system.
 
-```python
-# smolagents code agent
-from smolagents import CodeAgent, tool
+## Comparison By Layer
 
-agent = CodeAgent(tools=[web_search_tool], model=model)
-agent.run("Find the latest news about AI")
-```
+| Tool family | Best at | Where Hive differs |
+|---|---|---|
+| LangGraph-style runtimes | Stateful execution graphs and branching workflows | Hive is better at cross-session continuity and repo-native review |
+| Crew/team frameworks | Role-based collaboration inside a running session | Hive is better at durable work tracking across sessions and harnesses |
+| AutoGen/conversation frameworks | Multi-agent conversation loops | Hive is better when you need explicit state, claims, and handoff artifacts |
+| OpenAI Agents / lightweight agent SDKs | Simple hosted agent loops and tool calling | Hive is better for long-running work that must survive provider or harness changes |
+| smolagents / code-first runtimes | Fast tool use and code-driven behavior | Hive is better as the surrounding operating layer |
+| MCP | Tool connectivity standard | Hive can use MCP, but it is not itself just a tool bus |
+| OpenCode / Claude Code / Codex | Interactive agent harnesses | Hive coordinates work above them and gives them shared state |
 
-**Strengths**: Under 1000 lines of core code, 30% fewer LLM calls than JSON tool-calling, model-agnostic, sandboxed execution.
+## When Hive Is The Right Fit
 
-**Tradeoffs**: Code execution risks, less structured coordination for multi-agent scenarios.
+Hive starts to shine when at least three of these are true:
 
-### Anthropic MCP: The Protocol Layer
+- work spans multiple sessions
+- more than one human or agent may touch the same project
+- you want Git-native review
+- you need a ready queue, not just a prompt
+- you want the ability to swap harnesses or models later
+- you care about explicit policy for autonomous work
 
-Anthropic's [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) is a standard for connecting agents to tools and data sources. Think of it as "USB-C for AI applications."
+If you just need a one-shot agent loop that routes a few tool calls, Hive may be more structure than you need.
 
-**Strengths**: Open standard, thousands of community servers, vendor-agnostic connectivity.
+## When To Combine Hive With Other Tools
 
-**Role**: MCP is a connectivity layer that other frameworks (including Agent Hive) can build upon.
+Some of the best setups look like this:
 
-## Where Agent Hive Differs
+### Hive + Claude Code
 
-Agent Hive doesn't compete with these frameworks for the same use cases. The differences are philosophical, architectural, and practical.
+Use Hive for orchestration, claims, runs, and projections. Use Claude Code as the interactive coding harness.
 
-### Philosophy: Session-Oriented vs. Continuous
+### Hive + OpenCode
 
-Most agent frameworks assume **continuous operation**. The agent runs, maintains state in memory, and executes until done. State lives in objects, databases, or runtime checkpoints.
+Same orchestration layer, different harness. This is a good fit if you want vendor flexibility in the everyday coding tool.
 
-Agent Hive assumes **discrete sessions**. Work happens in bounded time windows. Context windows are finite. Every session starts fresh. State lives in human-readable files committed to git.
+### Hive + LangGraph or another runtime
 
-This is a design choice, not a limitation. It reflects how agents actually work on long-horizon projects:
+Use the runtime inside a bounded run for a single task, while Hive manages the surrounding project lifecycle.
 
-- Context windows have hard limits
-- Sessions time out or get interrupted
-- Different agents (or humans) may continue the work
-- State needs to survive across days, not just minutes
+### Hive + MCP
 
-![Philosophy Comparison: Session vs Continuous](images/framework-comparison/img-02_v1.png)
-_Different operating philosophies: most frameworks assume continuous operation with in-memory state. Agent Hive assumes discrete sessions with durable file-based state._
+Use MCP for tool access. Use Hive for state, policy, and work coordination.
 
-### Architecture: External Orchestration vs. Self-Direction
+That layering is often cleaner than trying to make one framework do every job.
 
-In LangGraph, CrewAI, and AutoGen, agents self-direct. The framework provides structure, but agents decide what to do next based on their goals and the current state.
+## The Tradeoff Hive Makes On Purpose
 
-Agent Hive adds **external orchestration** through the Cortex engine:
+Hive asks you to be explicit.
 
-```bash
-# Cortex analyzes all projects and updates state
-uv run python -m src.cortex
-```
+You create projects.
+You create tasks.
+You define policy.
+You sync projections.
+You decide when runs are accepted.
 
-Cortex runs on a schedule (every 4 hours via GitHub Actions), reads all AGENCY.md files, analyzes dependencies, and updates project metadata. It never executes code. It only coordinates.
+That is more ceremony than a "just talk to the agent" demo.
 
-This separation matters for oversight. The orchestration layer is auditable, predictable, and can catch issues that self-directed agents miss.
+It is also why Hive ages better once the work gets real.
 
-### State: Markdown vs. In-Memory/Database
+## What Hive Is Not Trying To Win
 
-This is Agent Hive's most distinctive choice.
+Hive is not trying to be:
 
-**Other frameworks**:
+- the smartest single-session coding agent
+- the most magical autonomous demo
+- the shortest path from prompt to spectacle
 
-- LangGraph: TypedDict state objects, SQLite checkpoints
-- CrewAI: ChromaDB vectors, SQLite tables
-- AutoGen: In-memory conversations, optional persistence
-- OpenAI SDK: Stateless (external persistence required)
+It is trying to be the system you can still trust on week three, with multiple contributors, a review queue, and a repo full of state that still makes sense.
 
-**Agent Hive**: Markdown files with YAML frontmatter.
+That is a different standard.
 
-```markdown
----
-project_id: auth-feature
-status: active
-owner: null
-blocked: false
-priority: high
-dependencies:
-  blocked_by: [database-schema]
----
+## Bottom Line
 
-# Authentication Feature
+If you want a runtime, use a runtime.  
+If you want a harness, use a harness.  
+If you want long-horizon orchestration that survives model churn, human review, and real project complexity, that is where Hive belongs.
 
-## Tasks
+The best teams will not pick one of these categories forever.
+They will stack them.
 
-- [x] Research OAuth2 providers
-- [ ] Implement login endpoints
-
-## Agent Notes
-
-- **2025-01-15 14:30 - claude-sonnet-4**: Starting implementation phase.
-```
-
-Why Markdown?
-
-1. **Human-readable**: No query language needed. Open in any text editor.
-2. **Git-native**: All state changes are commits. Full history, diffs, reverts.
-3. **Vendor-agnostic**: Any LLM can read and write Markdown.
-4. **Debuggable**: When something goes wrong, you can literally read what happened.
-
-The tradeoff is query performance. LangGraph's SQLite checkpointer is faster than parsing Markdown files. CrewAI's vector store enables semantic search. For thousands of projects, you'd need caching.
-
-But for most real-world orchestration scenarios with dozens to hundreds of projects, human readability outweighs millisecond query times.
-
-![State Storage Comparison](images/framework-comparison/img-03_v1.png)
-_State storage philosophies: databases, vectors, in-memory objects, external requirements, or simple Markdown files anyone can read with a text editor._
-
-### Multi-Agent Coordination: Protocols vs. Conversations
-
-AutoGen coordinates agents through natural language conversations. Agents literally talk to each other:
-
-```text
-Assistant: I've analyzed the data. Here are my findings...
-Critic: Your analysis misses the edge case where...
-Assistant: You're right. Let me revise...
-```
-
-Agent Hive coordinates through **explicit protocols** and **shared state**:
-
-```markdown
-## Agent Notes
-
-- **2025-01-15 16:00 - grok-beta**: @claude-sonnet-4 - found an issue with
-  the token refresh logic. Implementing workaround.
-- **2025-01-15 15:30 - claude-sonnet-4**: DECISION: Using JWT instead of
-  sessions. Rationale: stateless scaling.
-```
-
-Conversations are flexible but can loop indefinitely. Protocols are rigid but predictable. For production orchestration where you need auditability, protocols win.
-
-![Multi-Agent Coordination Approaches](images/framework-comparison/img-04_v1.png)
-_How frameworks coordinate agents: graph edges (LangGraph), team roles (CrewAI), conversations (AutoGen), or explicit protocols (Agent Hive). Different tools for different problems._
-
-### Vendor Lock-In: Agnostic by Design
-
-OpenAI's Agents SDK works with OpenAI models. LangGraph is optimized for LangChain's model abstractions. smolagents supports multiple providers but is HuggingFace-native.
-
-Agent Hive is **vendor-agnostic by design**:
-
-- AGENCY.md files are plain Markdown. Any LLM can process them.
-- Cortex uses OpenRouter, supporting Claude, GPT-5, Grok, Gemini, and more.
-- The same project can be worked on by different models in sequence.
-- A human with a text editor is a valid "agent."
-
-```yaml
-# Same project, different agents over time
-## Agent Notes
-- **2025-01-15 - claude-sonnet-4**: Completed research phase
-- **2025-01-16 - gpt-4-turbo**: Reviewed research, started implementation
-- **2025-01-17 - human (alice@example.com)**: Fixed edge case in auth flow
-```
-
-This matters for teams that want to use the best model for each task, or who don't want to bet their orchestration infrastructure on a single provider.
-
-## The Tradeoff Matrix
-
-| Dimension             | LangGraph        | CrewAI     | AutoGen       | OpenAI SDK | smolagents   | Agent Hive   |
-| --------------------- | ---------------- | ---------- | ------------- | ---------- | ------------ | ------------ |
-| **Learning Curve**    | Steep            | Easy       | Moderate      | Easy       | Easy         | Moderate     |
-| **State Persistence** | Checkpoints      | Database   | In-memory     | Stateless  | In-memory    | Git/Markdown |
-| **Human Readability** | Low              | Low        | Low           | Low        | Low          | High         |
-| **Multi-Agent**       | Graph edges      | Crew roles | Conversations | Handoffs   | Orchestrator | Protocols    |
-| **Vendor Lock-in**    | LangChain        | Moderate   | Microsoft     | OpenAI     | HuggingFace  | None         |
-| **Long-Horizon**      | Checkpointing    | Limited    | Limited       | External   | Limited      | Native       |
-| **Human Oversight**   | Interrupt points | Limited    | Limited       | Guardrails | Limited      | Core design  |
-| **Query Performance** | High             | High       | Medium        | N/A        | Medium       | Low          |
-
-![The Tradeoff Matrix Visualization](images/framework-comparison/img-05_v1.png)
-_No framework wins everywhere. Each has strengths: LangGraph for power, CrewAI for intuition, AutoGen for enterprise, Agent Hive for transparency and long-horizon work._
-
-## When to Use What
-
-### Choose LangGraph if
-
-- You need complex, branching workflows with fine-grained control
-- Performance and checkpoint recovery are critical
-- Your team knows LangChain and graph-based thinking
-- You're building real-time agent systems
-
-### Choose CrewAI if
-
-- You want rapid prototyping with intuitive team metaphors
-- Built-in memory management is valuable
-- Sequential workflows fit your use case
-- You're building collaborative content generation
-
-### Choose AutoGen if
-
-- Enterprise reliability and observability are priorities
-- Agent conversations naturally fit your problem
-- Microsoft integration matters
-- You need event-driven, distributed architectures
-
-### Choose OpenAI SDK if
-
-- Lightweight, minimal abstraction is preferred
-- You're already committed to OpenAI
-- Handoff patterns fit your use case
-- You'll handle persistence externally
-
-### Choose smolagents if
-
-- Minimalism appeals to you (< 1000 lines of core code)
-- Code-generating agents fit your problem
-- You want model flexibility
-- HuggingFace integration helps
-
-### Choose Agent Hive if
-
-- Projects span multiple sessions over days or weeks
-- Human oversight and auditability are requirements
-- You need vendor-agnostic operation
-- Transparency matters (anyone can read the state)
-- You want git-based version control of all orchestration state
-- Multiple agents (or humans) will work on the same projects
-
-![When to Use What Decision Guide](images/framework-comparison/img-06_v1.png)
-_Choosing the right framework depends on your needs. Complex workflows? LangGraph. Enterprise? AutoGen. Long-horizon with oversight? Agent Hive. All valid choices._
-
-## Complementary, Not Competitive
-
-**Agent Hive can work alongside other frameworks.**
-
-Consider this architecture:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                      Agent Hive                             │
-│  (Long-horizon orchestration, human oversight, git state)   │
-├─────────────────────────────────────────────────────────────┤
-│  Project A          │  Project B          │  Project C      │
-│  ┌───────────────┐  │  ┌───────────────┐  │  ┌───────────┐  │
-│  │   LangGraph   │  │  │    CrewAI     │  │  │  smolagent │  │
-│  │  (complex     │  │  │  (research    │  │  │  (code    │  │
-│  │   workflow)   │  │  │   team)       │  │  │   tasks)  │  │
-│  └───────────────┘  │  └───────────────┘  │  └───────────┘  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-Agent Hive coordinates **between** projects and **across** sessions. The individual agents within a session can use whatever framework fits their task.
-
-A LangGraph agent could:
-
-1. Read the AGENCY.md to understand what needs doing
-2. Execute its complex workflow
-3. Update the AGENCY.md with results
-4. Set `owner: null` to release the project
-
-The frameworks handle **intra-session execution**. Agent Hive handles **inter-session coordination**.
-
-![Complementary Architecture](images/framework-comparison/img-07_v1.png)
-_Complementary, not competitive: Agent Hive orchestrates between projects and across sessions. LangGraph, CrewAI, or smolagents can handle intra-session execution._
-
-## The Deeper Question
-
-The proliferation of agent frameworks reflects a question the industry is wrestling with: **What's the right abstraction for AI agent systems?**
-
-- Is it graphs (LangGraph)?
-- Is it teams (CrewAI)?
-- Is it conversations (AutoGen)?
-- Is it handoffs (OpenAI SDK)?
-- Is it code (smolagents)?
-- Is it files (Agent Hive)?
-
-The honest answer: we don't know yet. The field is too young for consensus.
-
-Agent Hive bets that for **long-horizon, human-supervised orchestration**, the right abstraction is:
-
-1. **Human-readable state** (Markdown, not databases)
-2. **Explicit protocols** (conventions, not conversations)
-3. **External coordination** (Cortex, not self-direction)
-4. **Git-based persistence** (commits, not checkpoints)
-5. **Vendor agnosticism** (any LLM, not one provider)
-
-These bets may be wrong. The field may converge on different patterns. But I believe the problems Agent Hive addresses are real and underserved by existing frameworks. Session boundaries matter. Human oversight matters. Long-horizon coordination matters.
-
-![The Right Abstraction Question](images/framework-comparison/img-08_v1.png)
-_What's the right abstraction for agent systems? Graphs, teams, conversations, handoffs, code, or files? The field is too young for consensus. Room for many approaches._
-
-## Conclusion
-
-The agent framework space is rich and evolving. LangGraph offers power and control. CrewAI offers intuitive team models. AutoGen offers enterprise reliability. OpenAI SDK offers lightweight simplicity. smolagents offers minimalist elegance.
-
-Agent Hive offers something different: a **session-oriented orchestration layer** built on **human-readable shared memory**. It's designed for the reality that AI agents work in discrete sessions, that humans need to understand and intervene, and that complex projects outlast any single context window.
-
-These approaches are complementary solutions for different parts of the agent problem space. The best architecture might use several together.
-
-What matters is choosing the right tool for your problem. If you need real-time complex workflows, reach for LangGraph. If you need multi-session orchestration with human oversight, consider Agent Hive. If you need both, use both.
-
-The agent era is just beginning.
-
----
-
-_Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator). I welcome contributions, questions, and healthy debate about the right abstractions for agent systems._
-
-## Sources
-
-- [LangGraph Architecture and Design](https://medium.com/@shuv.sdr/langgraph-architecture-and-design-280c365aaf2c) - Shuvrajyoti Debroy, Medium
-- [LangGraph Multi-Agent Orchestration Guide](https://latenode.com/blog/ai-frameworks-technical-infrastructure/langgraph-multi-agent-orchestration/langgraph-multi-agent-orchestration-complete-framework-guide-architecture-analysis-2025) - Latenode
-- [CrewAI Guide: Build Multi-Agent AI Teams](https://mem0.ai/blog/crewai-guide-multi-agent-ai-teams) - Mem0
-- [CrewAI Memory Documentation](https://docs.crewai.com/en/concepts/memory) - CrewAI Docs
-- [Microsoft AutoGen Framework](https://github.com/microsoft/autogen) - Microsoft Research
-- [Microsoft's Agentic Frameworks: AutoGen and Semantic Kernel](https://devblogs.microsoft.com/autogen/microsofts-agentic-frameworks-autogen-and-semantic-kernel/) - Microsoft DevBlogs
-- [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/) - OpenAI
-- [New Tools for Building Agents](https://openai.com/index/new-tools-for-building-agents/) - OpenAI
-- [smolagents: Agents That Think in Code](https://huggingface.co/blog/smolagents) - HuggingFace
-- [Introducing the Model Context Protocol](https://www.anthropic.com/news/model-context-protocol) - Anthropic
-- [The State of AI Agent Platforms in 2025](https://www.ionio.ai/blog/the-state-of-ai-agent-platforms-in-2025-comparative-analysis) - Ionio
-- [Best AI Agent Frameworks in 2025](https://langwatch.ai/blog/best-ai-agent-frameworks-in-2025-comparing-langgraph-dspy-crewai-agno-and-more) - LangWatch
-- [Top AI Agent Frameworks Comparison](https://www.datagrom.com/data-science-machine-learning-ai-blog/langgraph-vs-autogen-vs-crewai-comparison-agentic-ai-frameworks) - Datagrom
+Hive was designed to be the part of that stack that keeps the whole thing coherent.

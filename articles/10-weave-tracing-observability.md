@@ -1,499 +1,202 @@
 # Observability with Weave Tracing
 
-_How to monitor, debug, and gain visibility into Agent Hive's LLM operations._
+_Hive already gives you local artifacts. Weave is the optional layer that helps when you want richer visibility into model-heavy paths._
 
 ---
 
-![Hero: The Observability Dashboard](images/weave-tracing/img-01_v1.png)
-_Complete visibility: Weave tracing shows every LLM call, its latency, token usage, and success status. No more black-box AI operations._
+![Hero: Observability in Practice](images/weave-tracing/img-01_v1.png)
+_Good observability makes agent systems less mysterious. You should be able to inspect what ran, what it cost, where it slowed down, and why it failed._
 
 ---
 
-## Introduction
+## Start With What Hive Already Records
 
-When orchestrating multiple AI agents, you need to know what's happening. How long do LLM calls take? How many tokens are being used? Which calls are failing and why? Agent Hive integrates with [Weights & Biases Weave](https://docs.wandb.ai/weave) to answer all of these questions.
+Before you add any external tracing, Hive already gives you a useful baseline:
 
-## What is Weave?
+- `.hive/runs/*` for run artifacts
+- `.hive/events/*.jsonl` for append-only events
+- canonical task history in `.hive/tasks/*.md`
+- generated rollups in `GLOBAL.md` and `AGENCY.md`
 
-Weave is W&B's toolkit for tracking and evaluating LLM applications. It provides:
+That means you can answer a surprising number of questions locally:
 
-- **Automatic tracing** of LLM calls with latency and token metrics
-- **Cost tracking** across different models
-- **Call hierarchies** showing nested operations
-- **Comparison tools** for debugging and optimization
-- **Dataset management** for evaluation
+- what task was worked on
+- which run produced the patch
+- whether evaluation passed
+- what got accepted or rejected
+- what context and notes were left behind
 
-## Quick Start
+This is worth emphasizing because many agent systems jump straight to remote tracing dashboards before they even have durable local artifacts.
 
-### 1. Get a W&B API Key
+Hive does not.
 
-Sign up at [wandb.ai](https://wandb.ai) and get your API key from settings.
+## Where Weave Fits
 
-### 2. Configure Environment
+Weave is the optional layer for the parts of your system that still involve model calls or adapter behavior you want to inspect in more detail.
 
-```bash
-# Add to .env
-WANDB_API_KEY=your-wandb-api-key
-WEAVE_PROJECT=agent-hive        # Optional, defaults to "agent-hive"
-```
+Typical examples:
 
-### 3. Run Agent Hive
+- a dispatcher that summarizes project context before delivery
+- a custom evaluator that calls a model
+- a memory reflection step
+- a harness bridge that uses an LLM to compress or rank context
 
-Tracing is automatic. Just run Cortex or any component:
+In those cases, local artifacts tell you what happened. Weave helps you understand how the model call behaved.
 
-```bash
-make cortex
-# ✓ Weave tracing initialized (project: agent-hive)
-```
+## Why Add Weave At All
 
-### 4. View Traces
+Because the hard questions are rarely just "did it run."
 
-Open your project at `https://wandb.ai/<your-username>/agent-hive/weave`
+They are usually:
 
-That's it. You're tracing.
+- why did this take so long
+- why did cost spike
+- why did the model miss the obvious issue
+- why does one harness produce better summaries than another
+- why did the same task work yesterday and fail today
 
-## Architecture
+Those are observability questions, not just logging questions.
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    Agent Hive Components                     │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│    Cortex ──────┐                                           │
-│                 │                                            │
-│    Dashboard ───┼──▶ traced_llm_call() ──▶ OpenRouter API   │
-│                 │           │                                │
-│    Dispatcher ──┘           │                                │
-│                             ▼                                │
-│                      ┌─────────────┐                        │
-│                      │   Weave     │                        │
-│                      │  (tracing)  │                        │
-│                      └──────┬──────┘                        │
-│                             │                                │
-└─────────────────────────────┼───────────────────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │   W&B Cloud     │
-                    │ (visualization) │
-                    └─────────────────┘
-```
+## Enabling Weave
 
-![Tracing Architecture Flow](images/weave-tracing/img-02_v1.png)
-_Tracing architecture: All LLM calls flow through traced_llm_call(), which captures metrics and sends them to Weave for analysis._
+Weave is optional. The core Hive CLI works without it.
 
-## Using the Tracing Module
-
-### Initialization
-
-Initialize tracing at application startup:
-
-```python
-from src.tracing import init_tracing, is_tracing_enabled
-
-# Check if tracing is available
-if is_tracing_enabled():
-    init_tracing()  # Returns True if successful
-```
-
-### Making Traced LLM Calls
-
-Use `traced_llm_call()` for all LLM API calls:
-
-```python
-from src.tracing import traced_llm_call
-
-result = traced_llm_call(
-    api_url="https://openrouter.ai/api/v1/chat/completions",
-    headers={"Authorization": f"Bearer {api_key}"},
-    payload={
-        "model": "anthropic/claude-haiku-4.5",
-        "messages": [{"role": "user", "content": "Hello!"}]
-    },
-    model="anthropic/claude-haiku-4.5",
-    timeout=60
-)
-
-# Access the response
-response = result["response"]
-print(response["choices"][0]["message"]["content"])
-
-# Access metadata
-metadata = result["metadata"]
-print(f"Latency: {metadata.latency_ms}ms")
-print(f"Tokens: {metadata.total_tokens}")
-print(f"Success: {metadata.success}")
-```
-
-### The LLMCallMetadata Class
-
-Every traced call returns rich metadata:
-
-```python
-@dataclass
-class LLMCallMetadata:
-    model: str              # Model identifier
-    api_url: str            # API endpoint
-    prompt_tokens: int      # Input tokens
-    completion_tokens: int  # Output tokens
-    total_tokens: int       # Total tokens
-    latency_ms: float       # Call latency in milliseconds
-    success: bool           # Whether the call succeeded
-    error: str              # Error message if failed
-    timestamp: str          # ISO timestamp
-```
-
-![LLMCallMetadata Visualization](images/weave-tracing/img-03_v1.png)
-_Rich metadata for every call: Model, latency, token counts, success status, and timestamps, all captured automatically._
-
-### Custom Operation Tracing
-
-Trace your own functions with the `@trace_op` decorator:
-
-```python
-from src.tracing import trace_op
-
-@trace_op("process_project")
-def process_project(project_id: str) -> dict:
-    # Your code here
-    return {"status": "processed"}
-```
-
-Each invocation creates a trace entry with:
-
-- Function name
-- Arguments
-- Return value
-- Duration
-- Success/failure status
-
-### Checking Tracing Status
-
-```python
-from src.tracing import get_tracing_status, print_tracing_status
-
-# Get status as dict
-status = get_tracing_status()
-print(status)
-# {
-#     'weave_available': True,
-#     'tracing_enabled': True,
-#     'tracing_initialized': True,
-#     'project': 'agent-hive',
-#     'disabled_by_env': False
-# }
-
-# Print formatted status
-print_tracing_status()
-# ========================================
-# WEAVE TRACING STATUS
-# ========================================
-#   Weave Available: True
-#   Tracing Enabled: True
-#   Initialized:     True
-#   Project:         agent-hive
-#   Disabled by Env: False
-# ========================================
-```
-
-## Security: Automatic Header Sanitization
-
-Agent Hive automatically redacts sensitive headers in traces:
-
-```python
-# Your actual headers
-headers = {
-    "Authorization": "Bearer sk-or-v1-actual-api-key",
-    "Content-Type": "application/json"
-}
-
-# What gets logged to Weave
-{
-    "Authorization": "***REDACTED***",
-    "Content-Type": "application/json"
-}
-```
-
-Your API keys never appear in traces. Full request/response visibility, zero credential exposure.
-
-![Automatic Header Sanitization](images/weave-tracing/img-04_v1.png)
-_Security by default: API keys and sensitive headers are automatically redacted before being sent to Weave traces._
-
-## Graceful Degradation
-
-Tracing is designed to never break your application.
-
-### When Weave is Not Installed
-
-```python
-# Works fine, just no tracing
-result = traced_llm_call(...)
-```
-
-### When WANDB_API_KEY is Not Set
-
-```python
-# Works fine, just no remote logging
-result = traced_llm_call(...)
-```
-
-### When WEAVE_DISABLED=true
+When you do want it, set the normal environment variables:
 
 ```bash
-WEAVE_DISABLED=true make cortex
-# Cortex runs normally, no tracing
+WANDB_API_KEY=your-key
+WEAVE_PROJECT=agent-hive
 ```
 
-### When Weave Fails to Initialize
-
-```python
-init_tracing()  # Returns False, prints warning
-# ⚠ Could not initialize Weave tracing: <error>
-
-# Subsequent calls work normally
-result = traced_llm_call(...)  # No tracing, but works
-```
-
-No Weave? No problem. Agent Hive keeps running.
-
-![Graceful Degradation](images/weave-tracing/img-05_v1.png)
-_Graceful degradation: If Weave isn't available or fails to initialize, Agent Hive continues working normally._
-
-## Viewing Traces in W&B
-
-### The Traces View
-
-Navigate to your project's Weave tab to see:
-
-1. **Call List**: All traced operations with timestamps
-2. **Latency Distribution**: Histogram of call times
-3. **Token Usage**: Prompt vs. completion tokens
-4. **Error Rate**: Percentage of failed calls
-
-### Filtering Traces
-
-Filter by:
-
-- Time range
-- Operation name (e.g., `llm_call`, `cortex_run`)
-- Success/failure status
-- Model name
-
-### Inspecting a Single Trace
-
-Click on a trace to see:
-
-- Full request payload (with redacted headers)
-- Complete response body
-- Token breakdown
-- Latency timeline
-- Error details (if failed)
-
-![Trace Inspection View](images/weave-tracing/img-06_v1.png)
-_Drilling into traces: See the full request, response, token breakdown, and timing for any LLM call._
-
-## Common Patterns
-
-### Tracing Cortex Runs
-
-Cortex automatically traces its runs:
-
-```python
-@traced_cortex_run
-def run(self) -> Dict[str, Any]:
-    # The entire run is traced as "cortex_run"
-    ...
-```
-
-This creates a parent trace containing all child LLM calls.
-
-### Tracing Analysis Prompts
-
-The analysis phase is traced separately:
-
-```python
-@traced_analysis
-def build_analysis_prompt(self, projects: List[dict]) -> str:
-    # Traced as "build_analysis_prompt"
-    ...
-```
-
-### Custom Metrics
-
-Add custom attributes to traces:
-
-```python
-@trace_op("my_operation")
-def my_operation():
-    result = do_something()
-    # Weave captures the return value
-    return {
-        "status": "success",
-        "items_processed": 42,
-        "custom_metric": 3.14
-    }
-```
-
-![Custom Operation Tracing](images/weave-tracing/img-07_v1.png)
-_Trace any operation: Use @trace_op to add observability to your own functions, creating hierarchical trace records._
-
-## Debugging with Traces
-
-### Slow LLM Calls
-
-1. Open the Weave dashboard
-2. Sort by latency (descending)
-3. Click on slow calls to see:
-   - Prompt length (tokens)
-   - Model used
-   - Response time breakdown
-
-### Failed Calls
-
-1. Filter by `success: false`
-2. Check error messages
-3. Look for patterns (timeouts, rate limits, etc.)
-
-### Token Usage Analysis
-
-1. Group by model
-2. Sum total tokens
-3. Identify cost-heavy operations
-
-Traces give you the evidence. No more guessing.
-
-![Debugging with Traces](images/weave-tracing/img-08_v1.png)
-_Debug with data: Filter by latency, success status, or model to identify issues._
-
-## Configuration Reference
-
-### Environment Variables
-
-| Variable         | Purpose             | Default                     |
-| ---------------- | ------------------- | --------------------------- |
-| `WANDB_API_KEY`  | W&B authentication  | Required for remote logging |
-| `WEAVE_PROJECT`  | Project name in W&B | `agent-hive`                |
-| `WEAVE_DISABLED` | Disable tracing     | `false`                     |
-
-### Disabling Tracing
+If you need to turn it off:
 
 ```bash
-# Completely disable tracing
 WEAVE_DISABLED=true
-
-# Or unset the API key
-unset WANDB_API_KEY
 ```
 
-## Best Practices
+That is the right shape for a launch-ready system:
 
-### 1. Always Trace in Production
+- no tracing requirement for everyday use
+- a clear on-ramp for teams that want it
+- graceful degradation when it is off
 
-Tracing helps you:
+## What To Trace
 
-- Debug issues faster
-- Track costs
-- Identify optimization opportunities
+Not everything deserves a trace.
 
-### 2. Use Meaningful Operation Names
+The best candidates are the calls that are expensive, failure-prone, or hard to reason about after the fact.
 
-```python
-# Good
-@trace_op("analyze_project_dependencies")
-def analyze_deps(): ...
+Good choices:
 
-# Less useful
-@trace_op("step_1")
-def analyze_deps(): ...
-```
+- model-backed summarization
+- task-ranking experiments
+- memory reflection passes
+- evaluator calls that influence run acceptance
+- adapter code that reformats or filters context
 
-### 3. Include Context in Returns
+Bad choices:
 
-```python
-@trace_op("process_project")
-def process_project(project_id: str):
-    # Include useful context in the return value
-    return {
-        "project_id": project_id,
-        "status": "completed",
-        "tasks_processed": 5,
-        "duration_ms": 1234
-    }
-```
+- trivial local helpers
+- every tiny pure function
+- noisy operations you will never inspect
 
-### 4. Monitor Error Rates
+The goal is signal, not trace-shaped clutter.
 
-Set up alerts in W&B when:
+## The Most Useful Metrics
 
-- Error rate exceeds threshold
-- Latency spikes
-- Token usage unexpectedly increases
+When you look at traces, start with the boring questions:
 
-## Integration with Cortex
+### Latency
 
-Cortex uses tracing automatically:
+Which operations are actually slow?
 
-```python
-class Cortex:
-    def __init__(self, base_path: Path):
-        # Initialize tracing if available
-        if is_tracing_enabled():
-            init_tracing()
+Agent systems often feel "unpredictable" when the real issue is that one hidden call adds 18 seconds to every loop.
 
-    def run(self) -> Dict[str, Any]:
-        # All LLM calls are automatically traced
-        result = traced_llm_call(...)
-        return result
-```
+### Token and cost usage
 
-No extra configuration needed.
+If a workflow suddenly gets expensive, traces are one of the fastest ways to see whether the problem is:
 
-## Troubleshooting
+- larger prompts
+- more retries
+- different models
+- duplicate calls
 
-### "Weave not available"
+### Error rates
 
-```bash
-# Install weave
-uv add weave
-# Or
-pip install weave
-```
+Repeated model failures, timeout spikes, or provider instability are much easier to spot when they are visible as a pattern instead of buried in logs.
 
-### "Could not initialize Weave"
+### Outcome quality
 
-Check:
+If two adapters both succeed technically but one produces much better context or summaries, traces help you compare the real input and output shape.
 
-1. `WANDB_API_KEY` is set correctly
-2. Network connectivity to wandb.ai
-3. API key has correct permissions
+## Pair Weave With Run Artifacts
 
-### Traces not appearing
+The strongest debugging loop in Hive is not "use Weave instead of local artifacts."
 
-1. Check `get_tracing_status()` returns `initialized: True`
-2. Wait a few seconds for W&B sync
-3. Verify you're looking at the correct project
+It is:
 
-### High latency from tracing
+- inspect the run artifacts
+- inspect the event trail
+- inspect the relevant trace
 
-Weave tracing adds less than 1ms overhead per call. If you see issues:
+That combination usually tells a much fuller story:
 
-1. Check network latency to W&B
-2. Consider batching traces (automatic in Weave)
-3. Disable tracing for high-frequency, low-value operations
+- the run artifact tells you what the system accepted
+- the event trail tells you when state changed
+- the trace tells you what the model-heavy step actually did
 
-## Conclusion
+This layered view is much better than relying on a single logging system to do every job.
 
-Weave tracing gives you visibility into Agent Hive:
+## A Simple Mental Model
 
-- **Visibility**: See every LLM call with full context
-- **Security**: Automatic API key redaction
-- **Reliability**: Graceful degradation when unavailable
-- **Simplicity**: Just set `WANDB_API_KEY` and go
+Use local Hive artifacts for:
 
-For production deployments, always enable tracing. When something breaks at 3am, you'll be glad you did.
+- ground truth
+- reviews
+- reproduction
+- auditability
 
----
+Use Weave for:
 
-**Previous**: [Security in Agent Hive](09-agent-hive-security.md) - Security hardening and best practices
+- latency analysis
+- cost analysis
+- prompt and response inspection
+- adapter debugging
 
-**Back to**: [Article Index](README.md)
+That division keeps observability practical.
+
+## Security And Tracing
+
+Tracing is useful, but it is also a data surface.
+
+That means you should be deliberate:
+
+- avoid sending secrets
+- sanitize headers and tokens
+- trace only what you are prepared to store
+- review what leaves the machine
+
+This is one reason Hive's default posture is optional tracing rather than mandatory remote telemetry.
+
+## Where Teams Usually Get Value First
+
+The first useful Weave deployment is rarely "trace the whole platform."
+
+It is usually one of these:
+
+1. trace a model-backed dispatcher or summarizer
+2. trace a memory reflection path
+3. trace evaluator calls that decide whether runs are accepted
+
+That is enough to start learning where the system is expensive or brittle.
+
+## Bottom Line
+
+Hive gives you durable local observability by default.
+Weave gives you richer visibility when your workflows include model-heavy steps that need inspection.
+
+That is the right order.
+
+You want a system that is understandable even without remote tracing, and more diagnosable when you choose to turn tracing on.
+
+Hive plus Weave gets you there without making basic use depend on a cloud dashboard.

@@ -1,486 +1,143 @@
 # Dependency Graphs in Practice
 
-_This is the fourth article in a series exploring Agent Hive and AI agent orchestration._
-
----
-
-![Hero: Why Dependencies Matter](images/dependency-graphs-in-practice/img-01_v1.png)
-_One project needs no tracking. Five you can manage. Fifty? Implicit dependencies become a liability. Agent Hive makes relationships explicit and queryable._
+_A ready queue is only honest if the system understands what is actually blocked._
 
 ---
 
 ## Why Dependencies Matter
 
-When you have one project, you don't need dependency tracking. You just work on it until it's done.
+Agent systems waste enormous time on work that should never have started yet.
 
-When you have five projects, you can keep the relationships in your head. Project B needs the database schema from Project A. Project D can wait until C is done. You manage.
+A task looks available.
+An agent grabs it.
+Halfway through, it becomes obvious the real prerequisite was still unfinished.
 
-When you have fifty projects across multiple agents and humans, implicit dependencies become a liability. Work starts on things that aren't ready. Critical blockers sit unnoticed while downstream teams wonder why they're stuck. The left hand doesn't know what the right hand needs.
+That is not just annoying. It is expensive.
 
-Agent Hive's dependency system makes these relationships explicit, queryable, and enforceable.
+Hive uses explicit dependency edges so the ready queue has something better than intuition to work with.
 
-## The Four Dependency Types
+## Task-Level Dependencies Are The Center
 
-Agent Hive supports four types of relationships between projects, each serving a different purpose:
+In Hive v2, the most useful dependency relationships live on canonical tasks.
 
-### 1. blocked_by: "I need this first"
-
-The most common dependency. This project cannot proceed until the listed projects are completed.
-
-```yaml
-# api-integration/AGENCY.md
-dependencies:
-  blocked_by: [database-schema, auth-service]
-```
-
-This says: "Don't start api-integration until both database-schema AND auth-service are completed."
-
-The Cortex engine checks this before marking a project as ready for work. An agent querying for ready work won't see api-integration until its blockers are cleared.
-
-### 2. blocks: "Things waiting on me"
-
-The inverse of blocked_by. Lists projects that depend on this one completing.
-
-```yaml
-# database-schema/AGENCY.md
-dependencies:
-  blocks: [api-integration, data-migration, analytics-pipeline]
-```
-
-This is informational from the current project's perspective, but critical for understanding impact. If database-schema is delayed, three other projects are affected.
-
-You can define relationships from either direction. `A.blocked_by: [B]` and `B.blocks: [A]` are equivalent. Agent Hive normalizes both into a unified graph.
-
-### 3. parent: "I'm part of something bigger"
-
-Hierarchical relationships for breaking large initiatives into smaller projects.
-
-```yaml
-# auth-login/AGENCY.md
-dependencies:
-  parent: auth-epic
-
-# auth-registration/AGENCY.md
-dependencies:
-  parent: auth-epic
-
-# auth-password-reset/AGENCY.md
-dependencies:
-  parent: auth-epic
-```
-
-The parent project (auth-epic) contains the overall objective; child projects contain the specific implementation work. This enables:
-
-- Rolling up status across related work
-- Understanding which tactical projects serve which strategic goals
-- Navigating from high-level to low-level and back
-
-### 4. related: "You might want to know about this"
-
-Non-blocking contextual relationships. These don't affect scheduling but help agents understand context.
-
-```yaml
-# api-v2/AGENCY.md
-dependencies:
-  related: [api-v1, deprecation-plan, client-migration]
-```
-
-When working on api-v2, an agent might benefit from reading the related projects for context. But nothing blocks.
-
-![The Four Dependency Types](images/dependency-graphs-in-practice/img-02_v1.png)
-_Four dependency types for different relationships: blocked_by (must wait), blocks (others waiting), parent (hierarchy), related (context only)._
-
-## Viewing the Dependency Graph
-
-Agent Hive provides multiple ways to visualize dependencies:
-
-### CLI: Human-Readable
+The common one is `blocks`:
 
 ```bash
-uv run python -m src.cortex --deps
+hive task link task_schema blocks task_api --json
+hive task link task_api blocks task_docs --json
 ```
 
-Output:
+That gives you a real graph:
 
-```text
-============================================================
-DEPENDENCY GRAPH
-============================================================
-Timestamp: 2025-01-15T14:30:00
-Total Projects: 8
+- schema blocks API
+- API blocks docs
 
-BLOCKED PROJECTS:
-----------------------------------------
-*** api-integration
-    Status: active
-    Blocked by: database-schema, auth-service
-    Reason: Blocked by uncompleted: database-schema, auth-service
+Now the scheduler can tell the truth about what is ready.
 
-*** frontend-integration
-    Status: pending
-    Blocked by: api-integration
-    Reason: Blocked by uncompleted: api-integration
+## Ready Work Comes From The Graph
 
-UNBLOCKED PROJECTS:
-----------------------------------------
-    database-schema [active]
-      Blocks: api-integration, data-migration
-    auth-service [active]
-      Blocks: api-integration
-    documentation [active]
-    testing-framework [completed]
-
-DEPENDENCY TREE:
-----------------------------------------
-[*] database-schema
-  [!] api-integration
-    [!] frontend-integration
-[*] auth-service
-  [!] api-integration
-[*] documentation
-[+] testing-framework
-
-Legend: [+] completed  [*] active  [!] blocked  [-] pending
-============================================================
-```
-
-### CLI: JSON for Programmatic Use
+Once tasks are linked, the ready queue becomes much more valuable:
 
 ```bash
-uv run python -m src.cortex --deps --json
+hive task ready --json
 ```
 
-Output:
+That command is not just listing tasks with a nice status. It is filtering out work that should stay put until upstream tasks move.
 
-```json
-{
-  "timestamp": "2025-01-15T14:30:00Z",
-  "total_projects": 8,
-  "has_cycles": false,
-  "cycles": [],
-  "projects": [
-    {
-      "project_id": "api-integration",
-      "status": "active",
-      "priority": "high",
-      "owner": null,
-      "blocked": false,
-      "blocks": ["frontend-integration"],
-      "blocked_by": ["database-schema", "auth-service"],
-      "effectively_blocked": true,
-      "blocking_reasons": [
-        "Blocked by uncompleted: database-schema, auth-service"
-      ],
-      "in_cycle": false
-    }
-  ]
-}
-```
+This is one of the simplest ways Hive saves teams from busy-looking but low-value agent activity.
 
-### Dashboard: Visual
+## Project-Level Summaries Still Matter
 
-The Streamlit dashboard shows dependencies in the sidebar and project detail views, with visual indicators for blocked status and cycle warnings.
+Task edges do most of the real coordination work, but project-level dependency summaries still help humans stay oriented.
 
-## Finding Ready Work
-
-The primary use of dependency tracking is identifying what's actually actionable:
+Hive keeps a compatibility-style project summary through:
 
 ```bash
-uv run python -m src.cortex --ready
+hive deps --json
 ```
 
-Output:
+That gives you a workspace view of which projects are blocked, what they depend on, and where the obvious choke points are.
+
+Use the project view for orientation.  
+Use task edges for actual scheduling.
+
+## A Good Dependency Graph Is Boring
+
+The best graphs are not clever. They are explicit and restrained.
+
+Good:
+
+- "Implement API contract" blocks "Build client integration"
+- "Write migration" blocks "Run production rollout"
+
+Bad:
+
+- giant webs of vague "related" tasks
+- dependencies added because two tasks touch the same theme
+- hidden blockers buried in `AGENCY.md` prose
+
+If the relationship changes readiness, encode it.
+If it is just context, document it.
+
+## A Practical Pattern
+
+Suppose you are shipping a new authentication feature.
+
+You might model it like this:
 
 ```text
-============================================================
-READY WORK
-============================================================
-Timestamp: 2025-01-15T14:30:00
-Found 3 project(s) ready for work
-
-!!  database-schema
-    Priority: high
-    Tags: infrastructure, database
-    Path: projects/database-schema/AGENCY.md
-
-!!  auth-service
-    Priority: high
-    Tags: security, backend
-    Path: projects/auth-service/AGENCY.md
-
-!   documentation
-    Priority: medium
-    Tags: docs
-    Path: projects/documentation/AGENCY.md
-
-============================================================
+task_research -> blocks -> task_design
+task_design   -> blocks -> task_impl
+task_impl     -> blocks -> task_tests
+task_tests    -> blocks -> task_rollout
 ```
 
-A project is "ready" when:
+That graph does a few useful things:
 
-- `status` is `active`
-- `blocked` is `false`
-- `owner` is `null` (unclaimed)
-- All `blocked_by` dependencies are `completed`
+- it keeps early exploratory work from colliding with implementation
+- it prevents rollout tasks from appearing ready too soon
+- it gives reviewers a simple picture of sequencing
 
-This query runs without any LLM calls. Pure graph traversal.
+The bigger the team, the more this matters.
 
-![Ready Work Detection](images/dependency-graphs-in-practice/img-03_v1.png)
-_Finding ready work requires no LLM calls. Just graph traversal. Projects with all blockers cleared light up as claimable._
+## What About Parallel Work
 
-## Cycle Detection
+Dependencies are not there to force everything into a line.
 
-Circular dependencies create deadlocks that can never be resolved:
+They are there to tell the truth about what can safely happen in parallel.
 
-```yaml
-# project-a/AGENCY.md
-dependencies:
-  blocked_by: [project-b]
-
-# project-b/AGENCY.md
-dependencies:
-  blocked_by: [project-c]
-
-# project-c/AGENCY.md
-dependencies:
-  blocked_by: [project-a]  # Uh oh
-```
-
-None of these projects can ever start. Each is waiting for something that's waiting for something that's waiting for it.
-
-Agent Hive detects these cycles automatically:
-
-```bash
-uv run python -m src.cortex --deps
-
-# Output includes:
-!!! CYCLES DETECTED !!!
-    project-a -> project-b -> project-c -> project-a
-```
-
-The dashboard shows cycle warnings prominently. Resolving cycles requires human intervention to restructure the dependencies. No algorithm can decide which dependency is wrong.
-
-![Cycle Detection](images/dependency-graphs-in-practice/img-04_v1.png)
-_Circular dependencies are deadlocks that can never resolve. Each project waits for something that's waiting for it. Cortex detects these cycles automatically._
-
-## Real-World Examples
-
-### Example 1: Feature Development Pipeline
-
-A typical feature moving from research to production:
+For example:
 
 ```text
-research-auth → design-auth → implement-auth → test-auth → deploy-auth
+task_design -> blocks -> task_backend
+task_design -> blocks -> task_frontend
+task_backend -> blocks -> task_integration
+task_frontend -> blocks -> task_integration
 ```
 
-```yaml
-# research-auth/AGENCY.md
-project_id: research-auth
-status: completed
-dependencies:
-  blocks: [design-auth]
+That lets backend and frontend proceed together after design is done, while still holding integration until both are ready.
 
-# design-auth/AGENCY.md
-project_id: design-auth
-status: completed
-dependencies:
-  blocked_by: [research-auth]
-  blocks: [implement-auth]
+This is much closer to how real teams work.
 
-# implement-auth/AGENCY.md
-project_id: implement-auth
-status: active
-dependencies:
-  blocked_by: [design-auth]
-  blocks: [test-auth]
+## What To Avoid
 
-# test-auth/AGENCY.md
-project_id: test-auth
-status: pending
-dependencies:
-  blocked_by: [implement-auth]
-  blocks: [deploy-auth]
+### Hidden dependency policy
 
-# deploy-auth/AGENCY.md
-project_id: deploy-auth
-status: pending
-dependencies:
-  blocked_by: [test-auth]
-```
+If a reviewer has to infer the graph from comments and conventions, the graph is not explicit enough.
 
-Query result: Only `implement-auth` shows as ready work. Everything else is either done or waiting.
+### Over-modeling
 
-![Feature Development Pipeline](images/dependency-graphs-in-practice/img-05_v1.png)
-_A typical feature pipeline: research, design, implement, test, deploy. Each stage blocked by the previous, creating orderly progression._
+You do not need a dependency edge for every tiny relationship. Model the edges that affect readiness and sequencing.
 
-### Example 2: Platform Migration
+### Stale links
 
-Multiple workstreams that must coordinate:
+Dependencies are operational data. When a plan changes, update the graph.
 
-```text
-                    ┌─────────────────┐
-                    │   migration-    │
-                    │     planning    │
-                    └────────┬────────┘
-                             │
-           ┌─────────────────┼─────────────────┐
-           │                 │                 │
-           ▼                 ▼                 ▼
-    ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-    │  database-   │  │   api-       │  │   frontend-  │
-    │  migration   │  │   migration  │  │   migration  │
-    └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-           │                 │                 │
-           └─────────────────┼─────────────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │   integration-  │
-                    │     testing     │
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │    cutover      │
-                    └─────────────────┘
-```
+## Bottom Line
 
-```yaml
-# database-migration/AGENCY.md
-dependencies:
-  blocked_by: [migration-planning]
-  blocks: [integration-testing]
+A good dependency graph does not make a workspace look sophisticated.
+It makes the ready queue honest.
 
-# api-migration/AGENCY.md
-dependencies:
-  blocked_by: [migration-planning]
-  blocks: [integration-testing]
+That is the whole point.
 
-# frontend-migration/AGENCY.md
-dependencies:
-  blocked_by: [migration-planning]
-  blocks: [integration-testing]
-
-# integration-testing/AGENCY.md
-dependencies:
-  blocked_by: [database-migration, api-migration, frontend-migration]
-  blocks: [cutover]
-```
-
-The three migration projects can run in parallel once planning completes. Integration testing waits for all three. Three teams working independently, then reconverging.
-
-![Platform Migration Diagram](images/dependency-graphs-in-practice/img-06_v1.png)
-_Platform migration: planning unlocks three parallel workstreams, integration testing waits for all three, then cutover can proceed. Complex coordination made visible._
-
-### Example 3: Epic with Sub-Projects
-
-Breaking a large initiative into manageable pieces:
-
-```yaml
-# auth-epic/AGENCY.md
-project_id: auth-epic
-status: active
-priority: high
----
-# Authentication System Epic
-
-## Objective
-Implement complete authentication system with login, registration, and password management.
-
-## Sub-Projects
-- auth-login (in progress)
-- auth-registration (pending)
-- auth-password-reset (pending)
-
-# auth-login/AGENCY.md
-dependencies:
-  parent: auth-epic
-  blocks: [auth-registration]  # Sharing some components
-
-# auth-registration/AGENCY.md
-dependencies:
-  parent: auth-epic
-  blocked_by: [auth-login]  # Reuses login components
-
-# auth-password-reset/AGENCY.md
-dependencies:
-  parent: auth-epic
-  related: [auth-login, auth-registration]  # Context only
-```
-
-## Dependency Best Practices
-
-### 1. Be Explicit
-
-If project B needs something from project A, declare it. Don't rely on "everyone knows" or implied ordering. Write it down.
-
-### 2. Minimize Dependencies
-
-Every dependency is a delay waiting to happen. Only declare true blockers. Things that genuinely cannot proceed without the prerequisite.
-
-### 3. Use Related for Context
-
-Not every connection is a blocker. If two projects are conceptually related but can proceed independently, use `related` instead of `blocked_by`.
-
-### 4. Review for Cycles Early
-
-Before adding dependencies, think through whether you're creating a cycle. Prevention beats resolution.
-
-### 5. Keep Granularity Consistent
-
-Dependencies work best when projects are similarly sized. A tiny bug fix depending on a months-long epic creates awkward scheduling.
-
-### 6. Update Status Promptly
-
-Downstream projects remain blocked until the blocker is marked `completed`. Don't leave finished work in `active` status. Mark it done.
-
-![Dependency Best Practices](images/dependency-graphs-in-practice/img-07_v1.png)
-_Dependency management rules: be explicit, minimize dependencies, use related for context, watch for cycles, keep consistent granularity, update status promptly._
-
-## Programmatic Access
-
-For tools and automation, all dependency information is available via the Cortex API:
-
-```python
-from src.cortex import Cortex
-
-cortex = Cortex()
-
-# Get full dependency summary
-summary = cortex.get_dependency_summary()
-
-# Check if specific project is blocked
-blocking_info = cortex.is_blocked("api-integration")
-print(blocking_info)
-# {
-#   'is_blocked': True,
-#   'reasons': ['Blocked by uncompleted: database-schema'],
-#   'blocking_projects': ['database-schema'],
-#   'in_cycle': False,
-#   'cycle': []
-# }
-
-# Build raw dependency graph
-graph = cortex.build_dependency_graph(cortex.discover_projects())
-# graph['nodes']: project metadata
-# graph['edges']: what each project blocks
-# graph['reverse_edges']: what blocks each project
-
-# Detect cycles
-cycles = cortex.detect_cycles()
-```
-
-![The Full Dependency Graph View](images/dependency-graphs-in-practice/img-08_v1.png)
-_The full dependency graph: every project, every relationship, every status. Visible and queryable._
-
-## Conclusion
-
-Dependency tracking transforms project coordination from implicit tribal knowledge to explicit, queryable structure. Agents can find ready work instantly. Humans can see why things are blocked. Cycles get detected before they cause deadlocks.
-
-The investment is small: a few lines of YAML in each AGENCY.md file. The return is clarity about what can proceed and what's waiting.
-
----
-
-_Next in the series: "Skills and Protocols" - teaching agents to work effectively within Agent Hive._
-
-_Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator)._
+In Hive, task edges are how you turn a pile of possible work into a reliable picture of what should happen next.

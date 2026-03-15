@@ -1,260 +1,155 @@
-# Solving the Long-Horizon Agent Problem: How Agent Hive Bridges the AI Memory Gap
+# Solving the Long-Horizon Agent Problem
 
-*This is the first article in a series exploring the design philosophy behind Agent Hive and the problems it aims to solve.*
-
-Published: December 27, 2025
-
-- [Substack](https://codeandcontext.substack.com/p/solving-the-long-horizon-agent-problem)
-- [X.com](https://x.com/intertwineai/status/2004988022685925565)
+_Why agent work falls apart across sessions, and why Hive treats durable state as a product feature._
 
 ---
 
 ![Hero: The Shift-Change Problem](images/solving-the-long-horizon-agent-problem/img-01_v1.png)
-*The Shift-Change Problem: Every new AI agent session begins with no memory of what came before.*
+_Every new session starts cold. If the system does not preserve state well, the next agent inherits confusion instead of momentum._
 
 ---
 
-## The Shift-Change Problem
+## The Problem Is Not Intelligence
 
-Imagine a software company staffed entirely by engineers who work in shifts, but with a peculiar constraint: every time a new engineer arrives, they have complete amnesia about everything that happened before. No memory of the architecture decisions made yesterday. No recollection of the bug that was half-fixed on the previous shift. No awareness of the rabbit holes their predecessor explored and wisely abandoned.
+Most agent failures on long projects do not come from a lack of raw model capability.
 
-This is the reality of AI agents today.
+They come from the simple fact that work spans sessions while agent memory usually does not.
 
-As Anthropic's engineering team recently documented in their article on [effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents), this "shift-change problem" is one of the fundamental challenges in building agents that can tackle complex, multi-day projects:
+That creates the same ugly pattern over and over:
 
-> "The core challenge of long-running agents is that they must work in discrete sessions, and each new session begins with no memory of what came before."
+- session one figures out the architecture
+- session two rediscovers half of it
+- session three mistakes partial progress for completion
+- session four spends its budget cleaning up the confusion
 
-Context windows are finite. Complex projects are not. When your task takes longer than a single context window allows, you need a way to bridge the gap between sessions.
+This is the real long-horizon problem.
 
-![Context Window Visualization](images/solving-the-long-horizon-agent-problem/img-02_v1.png)
-*Context windows are finite. Complex projects are not. When work outlasts the context window, crucial information is lost.*
+## What Goes Wrong In Practice
 
-## The Failure Modes
+Three failure modes show up constantly.
 
-Before diving into solutions, it's worth understanding how agents fail when left to their own devices on long-horizon tasks. Anthropic identified two telling patterns:
+### 1. The one-shot fantasy
 
-**1. The One-Shot Trap**: Agents try to do too much at once—essentially attempting to complete an entire application in a single session. This often leads to running out of context mid-implementation, leaving the next session to start with a half-finished, undocumented mess.
+An agent tries to finish too much in a single run. It leaves a half-built result and a weak handoff.
 
-**2. The Premature Victory**: After some features have been built, a later agent instance looks around, sees that progress has been made, and declares the job done. Without persistent state tracking, it's easy to mistake "some work completed" for "all work completed."
+### 2. The premature victory
 
-Both failures stem from the same root cause: agents lack durable, structured memory about project state.
+A later session sees evidence of progress and concludes the job is done.
 
-![The Two Failure Modes](images/solving-the-long-horizon-agent-problem/img-03_v1.png)
-*Two failure modes: The One-Shot Trap (trying to complete everything at once) and Premature Victory (declaring success with work unfinished).*
+### 3. The hidden decision
 
-## The Industry Response: Structured Note-Taking
+An important choice exists somewhere in a transcript, a terminal buffer, or an agent's internal reasoning, but nowhere durable enough for the next contributor to rely on.
 
-Anthropic's solution centers on what they call the `claude-progress.txt` file—a structured document that agents update to track their progress. Combined with git history and a specialized "initializer agent" that sets up context for future sessions, this approach has proven effective for multi-context-window workflows.
+None of these problems are fixed by a bigger prompt alone.
 
-The insight is elegant: if agents can't remember, give them something to read.
+## What Hive Changes
 
-But we wondered: what if memory wasn't an add-on to existing workflows? What if it were the foundational primitive around which everything else is built?
+Hive v2 solves this by separating durable state from ephemeral conversation.
 
-## Agent Hive: Shared Memory as an Operating System Primitive
+It gives the work a home:
 
-Agent Hive flips the script. Rather than tacking progress files onto ad-hoc workflows, we've made shared memory the foundational primitive—a single, version-controlled document that agents, humans, and automation all read and write.
+- canonical task records in `.hive/tasks/*.md`
+- run artifacts in `.hive/runs/*`
+- memory documents in `.hive/memory/`
+- event history in `.hive/events/*.jsonl`
+- human project context in `projects/*/AGENCY.md`
+- autonomy policy in `projects/*/PROGRAM.md`
 
-### The AGENCY.md File
+That split matters because not everything deserves the same kind of persistence.
 
-Every project in Agent Hive has an `AGENCY.md` file—a Markdown document with YAML frontmatter that serves as shared memory:
+Task state should be structured.
+Project notes should stay readable.
+Run evidence should be reviewable.
+Policy should be explicit.
 
-```markdown
----
-project_id: authentication-feature
-status: active
-owner: claude-sonnet-4
-last_updated: 2025-01-15T14:30:00Z
-blocked: false
-blocking_reason: null
-priority: high
-tags: [security, backend]
-dependencies:
-  blocked_by: [database-schema]
-  blocks: [user-dashboard]
----
+## Why The `.hive/` Substrate Matters
 
-# Authentication Feature
+Older systems often blur everything together in one document or one transcript.
 
-## Objective
-Implement secure user authentication with OAuth2 support.
+Hive v2 does not.
 
-## Tasks
-- [x] Research OAuth2 providers
-- [x] Design token storage strategy
-- [ ] Implement login endpoints
-- [ ] Add session management
-- [ ] Write integration tests
+The substrate under `.hive/` is the canonical machine layer. It is where the scheduler, cache, run engine, memory tooling, and search surface look first.
 
-## Agent Notes
-- **2025-01-15 14:30 - claude-sonnet-4**: Starting implementation phase.
-  Research complete, chose JWT with Redis for session storage.
-  Auth endpoints spec ready in docs/auth-api.md.
-- **2025-01-14 16:00 - grok-beta**: Completed research phase.
-  Evaluated Auth0, Okta, and Firebase Auth. Recommendation: Auth0 for
-  enterprise features. Full comparison in docs/auth-comparison.md.
+That gives you something stronger than "the last agent probably mentioned it somewhere."
+
+It gives you explicit state that can be regenerated, queried, diffed, and reviewed.
+
+## Why Markdown Still Stays
+
+Hive did not throw Markdown away. It gave Markdown a cleaner job.
+
+`AGENCY.md` is still where humans and agents read:
+
+- project mission
+- architecture notes
+- links
+- handoff explanations
+- bounded rollups of tasks and runs
+
+That is different from asking Markdown to double as the machine database.
+
+Humans need documents.
+Machines need structure.
+Hive uses both.
+
+## The Startup Context Is The Bridge
+
+Long-horizon systems work better when each session starts from a reliable briefing, not a blank prompt.
+
+That is what `hive context startup` is for:
+
+```bash
+hive context startup --project demo --task task_ABC --json
 ```
 
-This is a complete project manifest that captures:
+The startup context pulls together:
 
-- **Current state** (status, blocked, owner)
-- **Historical context** (timestamped agent notes)
-- **Structural relationships** (dependencies between projects)
-- **Work breakdown** (task checklists)
+- the claimed task
+- project narrative
+- `PROGRAM.md` policy
+- recent memory
+- relevant search hits
+- accepted run summaries
 
-![AGENCY.md as Shared Memory](images/solving-the-long-horizon-agent-problem/img-04_v1.png)
-*The AGENCY.md file serves as shared memory between agents, humans, and automation—a single source of truth everyone can read and write.*
+This is how Hive turns durable state into a usable next session.
 
-### Why This Matters
+## The Other Missing Piece: Policy
 
-The format enables four critical capabilities:
+State alone is not enough.
 
-**1. Ownership Protocol**: Agents explicitly claim projects by setting the `owner` field. This prevents conflicts when multiple agents might try to work on the same thing, and makes it clear who is responsible for what.
+If an agent can do anything, then long-horizon continuity just means you preserved a longer record of risky behavior.
 
-**2. Blocking Semantics**: When an agent hits a wall, they don't just give up. They set `blocked: true` with a `blocking_reason`, signaling to humans and other agents that intervention is needed. The problem is documented, not lost.
+Hive uses `PROGRAM.md` to keep autonomy explicit:
 
-**3. Dependency Tracking**: Projects can declare what they're waiting on (`blocked_by`) and what depends on them (`blocks`). Our Cortex engine uses this to build a dependency graph, detect cycles, and identify which work is actually ready to be claimed.
+- which paths are allowed
+- which commands are allowed
+- what evaluators must pass
+- when review is required
+- when the run must escalate
 
-**4. Progressive Documentation**: The "Agent Notes" section creates a persistent, timestamped log of decisions and context. Unlike ephemeral model outputs, these notes survive across sessions and across different agents.
+That means the next session inherits not just context, but boundaries.
 
-## The Deep Work Session
+## What Good Long-Horizon Systems Need
 
-One of Anthropic's key insights was the value of an "initializer agent" that sets up context for future work. Agent Hive implements this through what we call the "Deep Work session."
+After working on this problem, I think the checklist is straightforward.
 
-When an agent (or human) wants to work on a project, the system generates a comprehensive context package:
+They need:
 
-```markdown
-# DEEP WORK SESSION CONTEXT
-# Project: authentication-feature
-# Generated: 2025-01-15T15:00:00
+- durable task state
+- durable notes
+- reviewable artifacts
+- explicit policy
+- a way to regenerate human-facing summaries
+- a startup context that can orient a fresh session quickly
 
----
+Hive v2 is opinionated because it tries to give you that entire package instead of one isolated trick.
 
-## YOUR ROLE
+## Bottom Line
 
-You are an AI agent entering a Deep Work session. Your responsibilities:
-1. Read and understand the AGENCY.md file below
-2. Work on the assigned tasks
-3. Update the AGENCY.md frontmatter to reflect your progress
-4. Add notes about your work in the "Agent Notes" section
-5. Mark yourself as the owner while working
-6. Set blocked: true if you need help
+Long-horizon agent work fails when the system assumes the next session will somehow "just know."
 
----
+It will not.
 
-## AGENCY.MD CONTENT
-[Full project manifest]
+The next session needs structured state, readable context, and clear policy.
 
----
-
-## PROJECT FILE STRUCTURE
-[Directory tree]
-
----
-
-## HANDOFF PROTOCOL
-[Required steps before ending session]
-```
-
-This context package ensures every session starts with the agent fully oriented. No need to re-discover project state through exploratory coding.
-
-![The Deep Work Session](images/solving-the-long-horizon-agent-problem/img-05_v1.png)
-*The Deep Work session: Agents enter with a comprehensive context package—fully oriented before writing a single line of code.*
-
-## Vendor-Agnostic by Design
-
-Here's something that sets Agent Hive apart: it's completely vendor-agnostic. The same AGENCY.md file can be read and updated by Claude, GPT-5, Grok, Gemini, or a human with a text editor.
-
-This matters because:
-
-1. **No lock-in**: Your project state isn't trapped in a proprietary format
-2. **Mixed workflows**: Different parts of a project can be worked on by different models, chosen for their strengths
-3. **Human-in-the-loop**: Humans can review, edit, and intervene at any point by simply editing Markdown
-4. **Git as truth**: All state changes are version-controlled, auditable, and revertible
-
-The AGENCY.md file is human-readable by design, not by accident. Transparency is the foundation, not a feature we bolted on.
-
-![Vendor Agnostic Operation](images/solving-the-long-horizon-agent-problem/img-07_v1.png)
-*Vendor-agnostic by design: The same AGENCY.md file works with Claude, GPT-4, Grok, Gemini—or a human with a text editor.*
-
-## The Cortex: Automated Coordination
-
-While agents work on individual projects, the Cortex orchestration engine maintains oversight of the entire system. Running on a schedule (every 4 hours by default via GitHub Actions), it:
-
-1. Reads all AGENCY.md files across projects
-2. Analyzes dependencies and identifies blocked work
-3. Updates project statuses based on completion criteria
-4. Detects cycles in the dependency graph
-5. Surfaces ready work that agents can claim
-
-Critically, the Cortex never executes code, it only updates Markdown. All actual implementation work is done by agents or humans. This separation of concerns keeps the system safe and auditable. Coordination without coercion.
-
-![The Cortex Orchestrator](images/solving-the-long-horizon-agent-problem/img-06_v1.png)
-*The Cortex orchestrator maintains system-wide oversight—analyzing dependencies, detecting cycles, and coordinating without executing code.*
-
-## Addressing Anthropic's Failure Modes
-
-Let's revisit those failure modes and see how Agent Hive's design addresses them:
-
-### The One-Shot Trap
-
-Agent Hive combats this through:
-
-- **Structured task lists**: Work is broken into discrete, checkable items rather than vague goals
-- **Priority fields**: Agents know what to work on first
-- **Handoff protocol**: Sessions must end cleanly, with state updated and notes added
-- **Context packages**: New sessions start with full orientation, not from scratch
-
-An agent can make meaningful progress on two or three tasks, document their work, and hand off cleanly without the pressure to "complete everything now."
-
-### The Premature Victory
-
-Agent Hive prevents false completion through:
-
-- **Explicit status fields**: The `status` field must be deliberately changed to `completed`
-- **Task checklists**: Incomplete `- [ ]` items are visible evidence of remaining work
-- **Dependency awareness**: A project can't be "done" if downstream projects are still blocked by it
-- **Cortex validation**: The orchestration engine can verify completion criteria
-
-An agent that declares victory prematurely will leave obvious artifacts: unchecked tasks, pending dependencies, or missing notes explaining what was accomplished. Victory has to be typed, not assumed.
-
-## The Bigger Picture
-
-Agent Hive is an operating system for agent coordination. The AGENCY.md primitive is our "file," Cortex is our "scheduler," and the Deep Work session is our "process."
-
-![Building the Operating System for Agents](images/solving-the-long-horizon-agent-problem/img-08_v1.png)
-*Agent Hive as an operating system: AGENCY.md files are our "files," Cortex is our "scheduler," and Deep Work sessions are our "processes."*
-
-This might sound like overkill for simple tasks. And for simple tasks, it probably is. If your agent can complete the work in a single context window, you don't need elaborate orchestration.
-
-But complex software projects aren't simple tasks. They involve:
-
-- Multiple components with interdependencies
-- Research phases that inform implementation decisions
-- Blocking issues that require human input
-- Handoffs between team members (human or AI)
-- Historical context that matters for future decisions
-
-For these long-horizon challenges, durable, structured, transparent shared memory becomes essential infrastructure rather than optional overhead.
-
-## What's Next
-
-This article has focused on the "why" of Agent Hive—the problems we're solving and the design principles we've chosen. Future articles in this series will explore:
-
-- **Multi-Agent Coordination**: How multiple agents work together on related projects without stepping on each other's toes
-- **Dependency Graphs in Practice**: Real examples of project orchestration with the Cortex engine
-- **Skills and Protocols**: Teaching agents to work effectively within the Agent Hive paradigm
-- **From Theory to Practice**: Building your first Agent Hive project
-
-I'm open-sourcing Agent Hive because I believe the long-horizon agent problem is one the entire community needs to solve. This approach is one answer among many possible answers. I'm excited to see how others build on, critique, and improve these ideas.
-
-The shift-change problem is real. But with nothing more than a Markdown file and a little discipline, we can give AI agents something every good engineer depends on: a reliable way to know where they are, what's been done, and what comes next.
-
----
-
-*Agent Hive is open source and available at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator). Contributions, questions, and feedback are welcome*
-
-## Sources
-
-- [Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) - Anthropic Engineering Blog
-- [Building Effective AI Agents](https://www.anthropic.com/research/building-effective-agents) - Anthropic Research
-- [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) - Anthropic Engineering Blog
+That is why Hive treats orchestration as an operating surface instead of a pile of prompts.

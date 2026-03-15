@@ -1,475 +1,107 @@
 # Agent Hive Meets OpenCode
 
-*How Agent Hive extends its vendor-agnostic philosophy by adding full support for OpenCode, the open-source AI coding agent.*
-
-Published: [Date]
-
-- [Substack](link)
-- [X.com](link)
+_OpenCode is another good harness for Hive, not a fork in the architecture._
 
 ---
 
 ![Hero: OpenCode + Agent Hive Integration](images/opencode-integration/img-01_v1.png)
-*Two open philosophies unite: Agent Hive's vendor-agnostic orchestration meets OpenCode's model-independent coding agent.*
+_Hive works best when the orchestration layer stays stable and the interactive harness stays swappable._
 
 ---
 
-## The Promise of Choice
+## Why This Pairing Makes Sense
 
-Agent Hive was built on a simple premise: AI agent orchestration shouldn't lock you into a single vendor. Your projects, your workflows, your coordination patterns should work regardless of whether you're using Claude, GPT, Gemini, or any other model.
+Hive is built around a vendor-agnostic idea:
 
-OpenCode embodies the same philosophy for the AI coding agent itself. Claude Code ties you to Anthropic's models. OpenCode lets you use any provider through a unified interface.
+the orchestration layer should outlive any one model provider or coding shell.
 
-What happens when these two projects align? A fully open, fully flexible AI development stack. You choose both the orchestration layer and the execution engine.
+OpenCode fits that mindset well because it is another flexible harness rather than a closed hosted platform you have to design around.
 
-## What is OpenCode?
+That makes the pairing simple:
 
-OpenCode is an open-source AI coding agent from SST. It runs in your terminal, IDE, or as a desktop app:
+- Hive handles the durable coordination layer
+- OpenCode handles the interactive coding experience
 
-- **Multi-model support**: Works with Claude, GPT-5, Gemini, local models, and more
-- **Skills system**: Loads specialized instructions via SKILL.md files
-- **MCP integration**: Connects to external tools through Model Context Protocol
-- **Built-in agents**: Pre-configured Build and Plan agents with Tab switching
-- **Client/server architecture**: Run locally or drive remotely
+## What The Integration Looks Like Today
 
-![OpenCode Architecture Overview](images/opencode-integration/img-02_v1.png)
-*OpenCode's architecture: Terminal, desktop, or IDE interface connecting to any model provider through a unified API.*
+Hive already ships the core pieces you need for OpenCode:
 
----
+- `.opencode/skill/` with Hive-specific skills
+- `.opencode/opencode.json` with MCP configuration
+- the thin Hive MCP server
+- the same CLI surfaces used by other harnesses
 
-## Why Agent Hive + OpenCode?
+This is intentionally boring.
 
-The integration delivers three benefits.
+The point is not to create an OpenCode-only version of Hive. The point is to let OpenCode speak the same operating language as the rest of the system.
 
-### 1. True Vendor Independence
+## The Big Benefit: Same Workflow, Different Harness
 
-Claude Code offers excellent orchestration, but locks you to Claude. With OpenCode + Agent Hive:
-
-- Use GPT-5 for coding while Claude handles Cortex analysis
-- Run Gemini locally for cost-sensitive projects
-- Switch providers based on task requirements without rewriting workflows
-
-### 2. Same Skills, Different Engines
-
-Agent Hive skills work identically across both platforms because they share the same SKILL.md format:
-
-```yaml
----
-name: skill-name
-description: What this skill does and when to use it
----
-
-# Skill Instructions
-[Markdown content teaching the agent how to perform tasks]
-```
-
-Write once, use anywhere. Whether Claude Code or OpenCode loads the skill, it learns the same instructions.
-
-### 3. Full MCP Tool Access
-
-Both platforms support Model Context Protocol. The Hive MCP server works with either:
-
-```json
-{
-  "mcp": {
-    "hive": {
-      "type": "local",
-      "command": ["uv", "run", "python", "-m", "src.hive_mcp"],
-      "enabled": true
-    }
-  }
-}
-```
-
-Same tools. Same API. Different execution engines.
-
-![Skills and MCP Parity](images/opencode-integration/img-03_v1.png)
-*One skill format, one MCP server, multiple agents: Agent Hive achieves true interoperability across AI coding platforms.*
-
----
-
-## Setting Up OpenCode with Agent Hive
-
-Agent Hive ships with OpenCode support out of the box.
-
-### Directory Structure
-
-```
-agent-hive/
-├── .claude/
-│   └── skills/                  # Claude Code skills
-│       ├── cortex-operations/
-│       ├── deep-work-session/
-│       ├── hive-mcp/
-│       ├── hive-project-management/
-│       └── multi-agent-coordination/
-├── .opencode/
-│   ├── skill/                   # OpenCode skills (same content)
-│   │   ├── cortex-operations/
-│   │   ├── deep-work-session/
-│   │   ├── hive-mcp/
-│   │   ├── hive-project-management/
-│   │   └── multi-agent-coordination/
-│   └── opencode.json            # MCP configuration
-└── src/
-    └── hive_mcp/                # MCP server (works with both)
-```
-
-### Installation
-
-1. **Install OpenCode**:
+An OpenCode user should still work roughly like this:
 
 ```bash
-curl -fsSL https://opencode.ai/install | bash
+hive task ready --json
+hive task claim task_ABC --owner opencode --json
+hive context startup --project demo --task task_ABC --json
 ```
 
-2. **Clone Agent Hive**:
+Then, after the work:
 
 ```bash
-git clone https://github.com/intertwine/hive-orchestrator.git
-cd hive-orchestrator
+hive task update task_ABC --status review --json
+hive sync projections --json
 ```
 
-3. **Start OpenCode**:
+That is the real win.
 
-```bash
-opencode
-```
+You do not need a parallel "OpenCode way" of using Hive.
 
-Done. Skills load from `.opencode/skill/`. MCP tools configure from `.opencode/opencode.json`.
+## Skills Matter More Than Branding
 
-![Quick Setup Flow](images/opencode-integration/img-04_v1.png)
-*Three commands to full integration: install OpenCode, clone Agent Hive, start coding.*
+The shipped OpenCode skills teach the same habits Hive expects elsewhere:
 
----
+- use canonical task state
+- treat `AGENCY.md` as narrative context
+- read `PROGRAM.md`
+- respect handoff protocol
+- prefer the CLI for authoritative operations
 
-## Available Skills
+That shared protocol is what keeps the experience coherent across harnesses.
 
-All five core Agent Hive skills work with OpenCode:
+## MCP Is The Glue, Not The Whole Story
 
-### cortex-operations
+OpenCode can use Hive through MCP, but MCP is not the whole integration.
 
-Run the Cortex orchestration engine:
+The broader picture is:
 
-```bash
-# Find ready work without LLM calls
-uv run python -m src.cortex --ready
+- CLI for authoritative operations
+- skills for behavior
+- MCP for thin tool access like `search` and `execute`
 
-# Analyze dependency graph
-uv run python -m src.cortex --deps
+That layered approach is cleaner than trying to force every Hive action through a single tool server.
 
-# Run full orchestration
-uv run python -m src.cortex
-```
+## Where OpenCode Fits Best
 
-### hive-project-management
+OpenCode is a strong fit when you want:
 
-Manage AGENCY.md files:
+- a flexible interactive coding harness
+- the same orchestration model used elsewhere in Hive
+- the ability to move between local and team workflows without changing the underlying state model
 
-- Create new projects with proper frontmatter
-- Manage status, owner, blocked fields
-- Add timestamped agent notes
-- Handle dependencies between projects
+It is especially attractive if you want to keep your orchestration system independent from your day-to-day coding shell.
 
-### deep-work-session
+## What Hive Does Not Need From OpenCode
 
-Structure focused work:
+Hive does not need a special OpenCode-only state model.
+It does not need OpenCode-specific task files.
+It does not need the orchestration repo to become an OpenCode plugin project.
 
-- Session lifecycle: ENTER → CLAIM → WORK → UPDATE → HANDOFF
-- Claiming and releasing projects
-- The handoff protocol for clean transitions
-- Blocking and unblocking workflows
+That restraint is good.
 
-### multi-agent-coordination
+The best integrations usually look smaller than people expect.
 
-Enable collaboration:
+## Bottom Line
 
-- Ownership protocol for conflict prevention
-- Dependency management patterns
-- Real-time coordinator integration
-- Communication via Agent Notes
+OpenCode is a good match for Hive because it fits the same broad idea: keep the core portable, keep the interfaces plain, and do not weld the system to one vendor.
 
-### hive-mcp
-
-Use MCP tools:
-
-- All 12 available tools with arguments
-- Response format handling
-- Workflow examples for common tasks
-- Coordinator integration
-
-![Five Skills Overview](images/opencode-integration/img-05_v1.png)
-*Five skills, one complete workflow: From finding ready work to multi-agent coordination, OpenCode learns the full Agent Hive protocol.*
-
----
-
-## MCP Integration
-
-The Hive MCP server exposes 12 tools that work identically with OpenCode and Claude Code:
-
-| Tool | Description |
-|------|-------------|
-| `list_projects` | List all projects with metadata |
-| `get_ready_work` | Find claimable projects |
-| `get_project` | Get full project details |
-| `claim_project` | Set owner to claim work |
-| `release_project` | Release ownership |
-| `update_status` | Change project status |
-| `add_note` | Add timestamped notes |
-| `get_dependencies` | Check blocking status |
-| `get_dependency_graph` | Full dependency view |
-| `coordinator_status` | Coordinator health check |
-| `coordinator_claim` | Real-time claim |
-| `coordinator_release` | Real-time release |
-
-### Configuration
-
-OpenCode loads MCP configuration from `.opencode/opencode.json`:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "hive": {
-      "type": "local",
-      "command": ["uv", "run", "python", "-m", "src.hive_mcp"],
-      "enabled": true,
-      "environment": {
-        "HIVE_BASE_PATH": ".",
-        "COORDINATOR_URL": "http://localhost:8080"
-      }
-    }
-  }
-}
-```
-
-### Usage
-
-Once configured, use natural language:
-
-```
-User: Find projects ready for me to work on
-
-OpenCode: [Uses hive.get_ready_work tool]
-I found 2 projects ready:
-- feature-auth (high priority)
-- docs-update (medium priority)
-
-Want me to claim one?
-```
-
-![MCP Tools in Action](images/opencode-integration/img-06_v1.png)
-*Natural language meets structured tools: Ask for ready work, claim projects, update status. All through conversation.*
-
----
-
-## Platform Comparison
-
-| Feature | Claude Code | OpenCode |
-|---------|-------------|----------|
-| **Model** | Claude only | Any provider |
-| **Skills Location** | `.claude/skills/` | `.opencode/skill/` |
-| **Skills Format** | SKILL.md | SKILL.md (identical) |
-| **MCP Support** | Native | Native |
-| **Config File** | `claude.json` | `opencode.json` |
-| **Built-in Agents** | Single | Build/Plan (Tab toggle) |
-| **Price** | Anthropic API | Free + any API |
-| **Open Source** | No | Yes (MIT) |
-
-### When to Use Each
-
-**Choose Claude Code when:**
-- You want tight integration with Claude models
-- Your team is standardized on Anthropic
-- You prefer a single-vendor relationship
-
-**Choose OpenCode when:**
-- You need model flexibility
-- Cost optimization requires switching providers
-- You want local models for privacy
-- Open-source tooling matters
-
-**Use both when:**
-- Different team members prefer different tools
-- Some tasks benefit from Claude, others from GPT/Gemini
-- You're evaluating before standardizing
-
-![Platform Decision Tree](images/opencode-integration/img-07_v1.png)
-*Choose your path: Both roads lead to effective Agent Hive orchestration. Pick the one that fits your constraints.*
-
----
-
-## A Complete Workflow
-
-Using OpenCode with Agent Hive:
-
-### 1. Find Ready Work
-
-```bash
-$ opencode
-
-> What projects are ready?
-
-OpenCode: Let me check...
-[Runs cortex --ready]
-
-Found 1 project ready:
-- security-audit (high priority)
-  Path: projects/security-audit/AGENCY.md
-```
-
-### 2. Review the Project
-
-```
-> Show me security-audit details
-
-OpenCode: [Uses hive.get_project]
-
-Project: security-audit
-Status: active
-Owner: null (unclaimed)
-Priority: high
-
-Tasks:
-- [ ] Audit authentication system
-- [ ] Check for injection vulnerabilities
-- [ ] Review API authorization
-```
-
-### 3. Claim and Work
-
-```
-> Claim it and start the first task
-
-OpenCode: [Uses hive.claim_project]
-
-Claimed. Owner: "opencode-gpt4".
-
-Analyzing authentication...
-[Reads src/security.py, src/coordinator.py]
-
-Findings:
-1. Safe YAML loading prevents RCE ✓
-2. API key auth with timing-safe comparison ✓
-3. Path traversal validation ✓
-
-Adding notes...
-[Uses hive.add_note]
-```
-
-### 4. Complete and Handoff
-
-```
-> Mark the task complete and release
-
-OpenCode: [Updates AGENCY.md]
-[Uses hive.release_project]
-
-Done. Notes added:
-- **2025-01-15 14:30 - opencode-gpt4**: Completed auth audit.
-  Patterns follow security best practices.
-  Next: injection vulnerability scan.
-```
-
-![Complete Workflow Diagram](images/opencode-integration/img-08_v1.png)
-*From discovery to handoff: A complete work cycle using OpenCode with Agent Hive's orchestration primitives.*
-
----
-
-## Advanced Configuration
-
-### Global Skills
-
-Install skills system-wide:
-
-```bash
-# Copy to global config
-cp -r .opencode/skill/* ~/.config/opencode/skill/
-
-# Verify
-ls ~/.config/opencode/skill/
-```
-
-### Custom Agents
-
-Create a specialized Hive agent in `.opencode/agent/hive.md`:
-
-```yaml
----
-name: hive
-description: Specialized agent for Agent Hive orchestration
-model: anthropic/claude-sonnet-4
-tools:
-  read: true
-  write: true
-  bash: true
-  mcp__hive__*: true
----
-
-You are an AI agent specialized in Agent Hive orchestration.
-Always check for ready work before starting.
-Follow the handoff protocol when finishing.
-```
-
-### Multiple Hives
-
-Configure multiple MCP servers:
-
-```json
-{
-  "mcp": {
-    "hive-main": {
-      "type": "local",
-      "command": ["uv", "run", "python", "-m", "src.hive_mcp"],
-      "environment": { "HIVE_BASE_PATH": "/projects/main-hive" }
-    },
-    "hive-experimental": {
-      "type": "local",
-      "command": ["uv", "run", "python", "-m", "src.hive_mcp"],
-      "environment": { "HIVE_BASE_PATH": "/projects/experimental-hive" }
-    }
-  }
-}
-```
-
----
-
-## The Bigger Picture
-
-Agent Hive's OpenCode integration signals something beyond technical compatibility. It points to where AI-assisted development is heading.
-
-The industry is moving toward:
-
-1. **Tool interoperability**: Skills and protocols that work across platforms
-2. **Model flexibility**: Freedom to choose and switch AI providers
-3. **Open standards**: MCP as a universal tool integration layer
-4. **Composable workflows**: Mix and match components from different vendors
-
-Agent Hive + OpenCode shows this future is already here. Orchestrate AI agents with Markdown files. Coordinate across vendors. Switch execution engines without rewriting workflows.
-
-Open primitives. Real power.
-
----
-
-## Getting Started
-
-1. **Install OpenCode**: `curl -fsSL https://opencode.ai/install | bash`
-2. **Clone Agent Hive**: `git clone https://github.com/intertwine/hive-orchestrator.git`
-3. **Navigate to repo**: `cd hive-orchestrator`
-4. **Start OpenCode**: `opencode`
-5. **Ask for help**: "What projects are ready?"
-
-Skills and MCP tools are pre-configured. Start orchestrating with whichever model you prefer.
-
----
-
-## Further Reading
-
-- [OpenCode Documentation](https://opencode.ai/docs/)
-- [Agent Hive README](https://github.com/intertwine/hive-orchestrator)
-- [Skills and Protocols Article](05-skills-and-protocols-teaching-agents-to-work-in-agent-hive.md)
-- [Hive MCP Server Guide](.claude/skills/hive-mcp/SKILL.md)
-
----
-
-*Agent Hive: Vendor-agnostic orchestration meets model-agnostic execution. Choose your tools, keep your workflows.*
+That is exactly the kind of harness Hive should work well with.

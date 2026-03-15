@@ -6,6 +6,26 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from src.hive.constants import EXECUTOR_NAMES
+
+
+def _require_mapping(value: Any, name: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"PROGRAM.md {name} must be a mapping")
+    return dict(value)
+
+
+def _require_string_list(value: Any, name: str) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError(f"PROGRAM.md {name} must be a list of strings")
+    return list(value)
+
+
+def _require_number(value: Any, name: str) -> float:
+    if not isinstance(value, (int, float)):
+        raise ValueError(f"PROGRAM.md {name} must be numeric")
+    return float(value)
+
 
 @dataclass
 class ProgramRecord:
@@ -22,8 +42,58 @@ class ProgramRecord:
         if missing:
             raise ValueError(f"PROGRAM.md is missing required fields: {', '.join(missing)}")
 
-        for key in ["budgets", "paths", "commands", "evaluators", "promotion", "escalation"]:
-            self.metadata.setdefault(key, {} if key != "evaluators" else [])
+        if not isinstance(self.metadata["program_version"], int):
+            raise ValueError("PROGRAM.md program_version must be an integer")
+        if not isinstance(self.metadata["mode"], str):
+            raise ValueError("PROGRAM.md mode must be a string")
+        if self.metadata["default_executor"] not in EXECUTOR_NAMES:
+            raise ValueError(
+                "PROGRAM.md default_executor must be one of: " + ", ".join(sorted(EXECUTOR_NAMES))
+            )
 
-        if not isinstance(self.metadata["evaluators"], list):
+        budgets = _require_mapping(self.metadata.setdefault("budgets", {}), "budgets")
+        for key in ["max_wall_clock_minutes", "max_steps", "max_tokens", "max_cost_usd"]:
+            if key not in budgets:
+                raise ValueError(f"PROGRAM.md budgets is missing required field: {key}")
+            _require_number(budgets[key], f"budgets.{key}")
+
+        paths = _require_mapping(self.metadata.setdefault("paths", {}), "paths")
+        _require_string_list(paths.setdefault("allow", []), "paths.allow")
+        _require_string_list(paths.setdefault("deny", []), "paths.deny")
+
+        commands = _require_mapping(self.metadata.setdefault("commands", {}), "commands")
+        _require_string_list(commands.setdefault("allow", []), "commands.allow")
+        _require_string_list(commands.setdefault("deny", []), "commands.deny")
+
+        evaluators = self.metadata.setdefault("evaluators", [])
+        if not isinstance(evaluators, list):
             raise ValueError("PROGRAM.md evaluators must be a list")
+        for index, evaluator in enumerate(evaluators):
+            if not isinstance(evaluator, dict):
+                raise ValueError(f"PROGRAM.md evaluators[{index}] must be a mapping")
+            for key in ["id", "command"]:
+                if not isinstance(evaluator.get(key), str) or not evaluator[key].strip():
+                    raise ValueError(
+                        f"PROGRAM.md evaluators[{index}].{key} must be a non-empty string"
+                    )
+            if "required" in evaluator and not isinstance(evaluator["required"], bool):
+                raise ValueError(f"PROGRAM.md evaluators[{index}].required must be a boolean")
+            evaluator.setdefault("required", True)
+
+        promotion = _require_mapping(self.metadata.setdefault("promotion", {}), "promotion")
+        _require_string_list(promotion.setdefault("requires_all", []), "promotion.requires_all")
+        _require_string_list(
+            promotion.setdefault("review_required_when_paths_match", []),
+            "promotion.review_required_when_paths_match",
+        )
+        if not isinstance(promotion.setdefault("auto_close_task", False), bool):
+            raise ValueError("PROGRAM.md promotion.auto_close_task must be a boolean")
+
+        escalation = _require_mapping(self.metadata.setdefault("escalation", {}), "escalation")
+        _require_string_list(
+            escalation.setdefault("when_paths_match", []), "escalation.when_paths_match"
+        )
+        _require_string_list(
+            escalation.setdefault("when_commands_match", []),
+            "escalation.when_commands_match",
+        )

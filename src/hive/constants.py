@@ -20,5 +20,6 @@ RUN_STATUSES = {
     "escalated",
     "aborted",
 }
+EXECUTOR_NAMES = {"local", "github-actions"}
 EDGE_TYPES = {"blocks", "parent_of", "relates_to", "duplicates", "supersedes"}
 PRIORITY_MAP = {"critical": 0, "high": 1, "medium": 2, "low": 3}

@@ -28,26 +28,55 @@ def _program_markdown(
     command: str,
     auto_close: bool = False,
     allow_commands: list[str] | None = None,
+    allow_paths: list[str] | None = None,
+    deny_paths: list[str] | None = None,
+    review_paths: list[str] | None = None,
+    escalation_paths: list[str] | None = None,
+    escalation_commands: list[str] | None = None,
+    executor: str = "local",
 ) -> str:
     allowed = allow_commands if allow_commands is not None else [command]
+    allowed_paths = allow_paths if allow_paths is not None else ["src/**", "tests/**", "docs/**"]
+    denied_paths = deny_paths if deny_paths is not None else []
+    review_required = review_paths if review_paths is not None else []
+    escalate_when_paths = escalation_paths if escalation_paths is not None else []
+    escalate_when_commands = escalation_commands if escalation_commands is not None else []
     allow_block = (
         "\n" + "\n".join(f"    - {json.dumps(item)}" for item in allowed) if allowed else " []"
+    )
+    allow_paths_block = "\n" + "\n".join(f"    - {json.dumps(item)}" for item in allowed_paths)
+    deny_paths_block = (
+        "\n" + "\n".join(f"    - {json.dumps(item)}" for item in denied_paths)
+        if denied_paths
+        else " []"
+    )
+    review_paths_block = (
+        "\n" + "\n".join(f"    - {json.dumps(item)}" for item in review_required)
+        if review_required
+        else " []"
+    )
+    escalation_paths_block = (
+        "\n" + "\n".join(f"    - {json.dumps(item)}" for item in escalate_when_paths)
+        if escalate_when_paths
+        else " []"
+    )
+    escalation_commands_block = (
+        "\n" + "\n".join(f"    - {json.dumps(item)}" for item in escalate_when_commands)
+        if escalate_when_commands
+        else " []"
     )
     return f"""---
 program_version: 1
 mode: workflow
-default_executor: local
+default_executor: {executor}
 budgets:
   max_wall_clock_minutes: 30
   max_steps: 25
   max_tokens: 20000
   max_cost_usd: 0.0
 paths:
-  allow:
-    - src/**
-    - tests/**
-    - docs/**
-  deny: []
+  allow:{allow_paths_block}
+  deny:{deny_paths_block}
 commands:
   allow:{allow_block}
   deny: []
@@ -58,10 +87,11 @@ evaluators:
 promotion:
   requires_all:
     - unit
+  review_required_when_paths_match:{review_paths_block}
   auto_close_task: {str(auto_close).lower()}
 escalation:
-  when_paths_match: []
-  when_commands_match: []
+  when_paths_match:{escalation_paths_block}
+  when_commands_match:{escalation_commands_block}
 ---
 
 # Goal
@@ -175,7 +205,32 @@ class TestHiveV2Migration:
 class TestHiveV2Runs:
     """Tests for run engine happy paths."""
 
-    def test_run_start_eval_and_accept_respects_auto_close(self, temp_hive_dir, temp_project):
+    def test_run_start_creates_git_worktree_and_branch(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Run startup should create a linked git worktree with a dedicated branch."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare run workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        worktree = Path(run.worktree_path)
+        plan = json.loads(
+            (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "plan.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert worktree.exists()
+        assert (worktree / ".git").exists()
+        assert plan["branch_name"] == run.branch_name
+        assert plan["base_commit"]
+
+    def test_run_start_eval_and_accept_respects_auto_close(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
         """Accepted runs should leave tasks in review when auto_close_task is false."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
@@ -183,6 +238,7 @@ class TestHiveV2Runs:
         project.program_path.write_text(
             _program_markdown(command, auto_close=False), encoding="utf-8"
         )
+        commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
         run = start_run(temp_hive_dir, task_id)
@@ -194,7 +250,9 @@ class TestHiveV2Runs:
         assert accepted["status"] == "accepted"
         assert task.status == "review"
 
-    def test_eval_run_rejects_commands_outside_allow_list(self, temp_hive_dir, temp_project):
+    def test_eval_run_rejects_commands_outside_allow_list(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
         """Evaluators should only run commands explicitly allow-listed in PROGRAM.md."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
@@ -203,6 +261,7 @@ class TestHiveV2Runs:
             _program_markdown(command, allow_commands=[]),
             encoding="utf-8",
         )
+        commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
         run = start_run(temp_hive_dir, task_id)
@@ -213,7 +272,9 @@ class TestHiveV2Runs:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected evaluator allow-list validation to fail")
 
-    def test_start_run_rejects_terminal_task_statuses(self, temp_hive_dir, temp_project):
+    def test_start_run_rejects_terminal_task_statuses(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
         """Runs should not reopen blocked or completed tasks."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
@@ -221,6 +282,7 @@ class TestHiveV2Runs:
         task = get_task(temp_hive_dir, task_id)
         task.status = "done"
         save_task(temp_hive_dir, task)
+        commit_workspace(temp_hive_dir, "prepare terminal task")
 
         try:
             start_run(temp_hive_dir, task_id)
@@ -229,12 +291,15 @@ class TestHiveV2Runs:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected terminal task status to block run creation")
 
-    def test_eval_run_rejects_non_running_statuses(self, temp_hive_dir, temp_project):
+    def test_eval_run_rejects_non_running_statuses(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
         """Evaluators should only run from the running state."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
         run = start_run(temp_hive_dir, task_id)
@@ -247,12 +312,15 @@ class TestHiveV2Runs:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected non-running run evaluation to fail")
 
-    def test_accept_run_requires_evaluating_status(self, temp_hive_dir, temp_project):
+    def test_accept_run_requires_evaluating_status(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
         """Runs should not be accepted before evaluator execution."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
         run = start_run(temp_hive_dir, task_id)
@@ -264,12 +332,15 @@ class TestHiveV2Runs:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected accept without evaluation to fail")
 
-    def test_reject_run_rejects_terminal_statuses(self, temp_hive_dir, temp_project):
+    def test_reject_run_rejects_terminal_statuses(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
         """Rejected runs should not overwrite already-finalized outcomes."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
         run = start_run(temp_hive_dir, task_id)
@@ -283,7 +354,7 @@ class TestHiveV2Runs:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected rejecting an accepted run to fail")
 
-    def test_reject_run_requeues_claimed_task(self, temp_hive_dir, temp_project):
+    def test_reject_run_requeues_claimed_task(self, temp_hive_dir, temp_project, commit_workspace):
         """Rejected runs should return claimed tasks to the ready queue."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
@@ -296,6 +367,7 @@ class TestHiveV2Runs:
         task.owner = "codex"
         task.claimed_until = "2099-01-01T00:00:00Z"
         save_task(temp_hive_dir, task)
+        commit_workspace(temp_hive_dir, "prepare claimed run workspace")
 
         run = start_run(temp_hive_dir, task_id)
         rejected = reject_run(temp_hive_dir, run.id, reason="retry")
@@ -308,12 +380,15 @@ class TestHiveV2Runs:
         assert reloaded.claimed_until is None
         assert task_id in ready_ids
 
-    def test_escalate_run_rejects_terminal_statuses(self, temp_hive_dir, temp_project):
+    def test_escalate_run_rejects_terminal_statuses(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
         """Escalation should not reopen finalized runs or tasks."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
         run = start_run(temp_hive_dir, task_id)
@@ -341,6 +416,140 @@ class TestHiveV2Runs:
         ready = ready_tasks(temp_hive_dir, project_id=project.id)
         ready_entry = next(item for item in ready if item["id"] == task_id)
         assert ready_entry["status"] == "ready"
+
+    def test_eval_run_captures_patch_and_command_log(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Evaluating a run should persist patch and command-log artifacts."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare run workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        (Path(run.worktree_path) / "src" / "generated.py").parent.mkdir(parents=True, exist_ok=True)
+        (Path(run.worktree_path) / "src" / "generated.py").write_text(
+            "print('hello from run')\n",
+            encoding="utf-8",
+        )
+
+        result = eval_run(temp_hive_dir, run.id)
+        metadata = result["run"]["metadata_json"]
+        patch = Path(result["run"]["patch_path"]).read_text(encoding="utf-8")
+        command_log = Path(result["run"]["command_log_path"]).read_text(encoding="utf-8")
+
+        assert "src/generated.py" in metadata["touched_paths"]
+        assert "generated.py" in patch
+        assert '"step_type": "eval"' in command_log
+        assert metadata["command_count"] == 1
+
+    def test_accept_run_blocks_paths_requiring_review(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Promotion should stop when touched paths trigger manual review rules."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, review_paths=["src/**"]),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare run workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        (Path(run.worktree_path) / "src" / "needs_review.py").parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        (Path(run.worktree_path) / "src" / "needs_review.py").write_text(
+            "print('review')\n",
+            encoding="utf-8",
+        )
+
+        result = eval_run(temp_hive_dir, run.id)
+        try:
+            accept_run(temp_hive_dir, run.id)
+        except ValueError as exc:
+            assert "requires review" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected review-gated promotion to fail")
+
+        assert result["promotion_decision"]["decision"] == "escalate"
+
+    def test_accept_run_allows_nested_paths_matching_program_globs(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Recursive path policies should match nested files on Python 3.11."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, allow_paths=["src/**"]),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare nested path run workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        nested_path = Path(run.worktree_path) / "src" / "hive" / "nested.py"
+        nested_path.parent.mkdir(parents=True, exist_ok=True)
+        nested_path.write_text("print('nested')\n", encoding="utf-8")
+
+        result = eval_run(temp_hive_dir, run.id)
+        accepted = accept_run(temp_hive_dir, run.id)
+
+        assert "src/hive/nested.py" in result["run"]["metadata_json"]["touched_paths"]
+        assert accepted["status"] == "accepted"
+
+    def test_eval_run_uses_executor_stub_for_github_actions(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """The GitHub Actions executor should exist as a stubbed interface point."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, executor="github-actions"),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare run workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+
+        try:
+            eval_run(temp_hive_dir, run.id)
+        except NotImplementedError as exc:
+            assert "stub" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected github-actions executor stub to raise")
+
+    def test_cache_rebuild_populates_run_steps_from_command_log(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Command-log entries should populate the derived run_steps cache table."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare run workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        eval_run(temp_hive_dir, run.id)
+
+        db_path = rebuild_cache(temp_hive_dir)
+        connection = sqlite3.connect(db_path)
+        try:
+            rows = list(
+                connection.execute("SELECT run_id, step_type, status FROM run_steps ORDER BY seq")
+            )
+        finally:
+            connection.close()
+
+        assert (run.id, "eval", "succeeded") in rows
 
 
 class TestHiveV2Memory:
@@ -520,12 +729,15 @@ class TestHiveV2Cli:
         assert active_task.id not in ready_ids
         assert active_task.id in active_claim_ids
 
-    def test_cli_run_show_returns_metadata(self, temp_hive_dir, temp_project, capsys):
+    def test_cli_run_show_returns_metadata(
+        self, temp_hive_dir, temp_project, commit_workspace, capsys
+    ):
         """Run show should surface persisted metadata after start."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare run workspace")
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
         run = start_run(temp_hive_dir, task_id)
 

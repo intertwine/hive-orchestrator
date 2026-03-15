@@ -1,8 +1,10 @@
 """Shared pytest fixtures for Agent Hive tests."""
 
-import tempfile
-import shutil
 from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+
 import pytest
 import frontmatter
 
@@ -37,6 +39,40 @@ Test global context.
 
     # Cleanup
     shutil.rmtree(temp_dir)
+
+
+@pytest.fixture
+def commit_workspace():
+    """Commit all current workspace files into a temporary Git repo."""
+
+    def _commit(path: str | Path, message: str = "test snapshot") -> str:
+        root = Path(path)
+        if not (root / ".git").exists():
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "tests@example.com"], cwd=root, check=True
+            )
+            subprocess.run(["git", "config", "user.name", "Agent Hive Tests"], cwd=root, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        status = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        if status.stdout.strip():
+            subprocess.run(["git", "commit", "-q", "-m", message], cwd=root, check=True)
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        return head.stdout.strip()
+
+    return _commit
 
 
 @pytest.fixture

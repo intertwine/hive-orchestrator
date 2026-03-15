@@ -10,6 +10,7 @@ STATE_PATTERNS = (
     ".hive/tasks/**",
     ".hive/events/**",
     ".hive/runs/**",
+    ".hive/worktrees/**",
     "GLOBAL.md",
     "AGENTS.md",
     "projects/**/AGENCY.md",

@@ -25,18 +25,18 @@ Create a 2x2 grid illustration showing four distinct failure scenarios, each in 
 ## Image 3: The Three Coordination Layers
 
 **Prompt:**
-Create a vertical layer cake diagram showing three distinct coordination mechanisms stacked on top of each other. Bottom layer (FOUNDATION): "Git-Based Coordination" shown as a solid bedrock foundation with git branch icons embedded, labeled "ALWAYS AVAILABLE - SLOW". Middle layer: "Cortex Orchestration" shown as an automated clockwork mechanism with gears, timing indicators showing "4 hours", labeled "SCHEDULED - OVERSIGHT". Top layer: "Real-Time Coordinator" shown as a lightning-fast switching hub with HTTP/API connections, timer showing "milliseconds", labeled "OPTIONAL - FAST". All three layers are connected by glowing conduits. Each layer has small robot figures using that layer appropriately. Technical illustration style, clean lines, blue gradient background, professional infographic aesthetic.
+Create a vertical layer cake diagram showing three distinct coordination mechanisms stacked on top of each other. Bottom layer (FOUNDATION): "Git-Based Coordination" shown as a solid bedrock foundation with git branch icons embedded, labeled "ALWAYS AVAILABLE". Middle layer: "Canonical Hive Claims" shown as a structured task-and-run operating surface with ready queues, leases, and startup context bundles, labeled "DEFAULT V2 FLOW". Top layer: "Real-Time Coordinator" shown as a lightning-fast switching hub with HTTP/API connections, timer showing "milliseconds", labeled "OPTIONAL - FAST". All three layers are connected by glowing conduits. Each layer has small robot figures using that layer appropriately. Technical illustration style, clean lines, blue gradient background, professional infographic aesthetic.
 
-**Caption:** *Agent Hive provides three complementary coordination layers: git for foundation, Cortex for oversight, real-time coordinator for speed.*
+**Caption:** *Agent Hive provides three complementary coordination layers: git for foundation, canonical claims for the default flow, and optional real-time coordination for teams that need extra speed.*
 
 ---
 
-## Image 4: The Ownership Protocol
+## Image 4: The Claim Protocol
 
 **Prompt:**
-Create an image showing the ownership claim process as a formal ceremony. A robot approaches a glowing project document on a pedestal. The document shows a "OWNER: NULL" field that transforms to "OWNER: claude-sonnet-4" as the robot places its hand on a scanner. A ceremonial seal of ownership appears above. Other robots wait respectfully at a distance behind a velvet rope, watching a status board showing which projects are claimed. The atmosphere is orderly and respectful, like a well-organized library or museum. Elegant illustration style, warm lighting, conveying the seriousness and mutual respect of the ownership protocol.
+Create an image showing task claiming as a formal ceremony. A robot approaches a glowing task card on a pedestal. The card shows a visible lease panel that changes from "UNCLAIMED" to "CLAIMED UNTIL 11:00" as the robot places its hand on a scanner. A ceremonial seal appears above the card. Other robots wait respectfully at a distance behind a velvet rope, watching a status board showing which tasks are leased. The atmosphere is orderly and respectful, like a well-organized library or museum. Elegant illustration style, warm lighting, conveying the seriousness and mutual respect of the claim protocol.
 
-**Caption:** *The ownership protocol: explicitly claim before working, one owner at a time, release when done. Sacred rules that prevent coordination chaos.*
+**Caption:** *The claim protocol: lease a task before working, keep the claim visible, and hand it off cleanly when you are done.*
 
 ---
 

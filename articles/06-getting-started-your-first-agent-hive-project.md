@@ -22,6 +22,8 @@ Two things are worth calling out up front:
 
 This guide is for the first group.
 
+If you are reading from the Hive repository checkout itself, remember that the repo also carries maintainer tasks and release tooling. The clean product experience is still the installed CLI in a fresh workspace.
+
 ## Step 1: Install Hive
 
 Use the public install path that matches how you normally work.
@@ -242,8 +244,8 @@ This is especially useful when multiple agents, or the same human across several
 
 These are useful, but they are not required to get started:
 
-- `make dashboard` if you're working from a local checkout and want a Streamlit view
-- `make session PROJECT=demo` if you want a saved startup bundle from the repo checkout
+- `make dashboard` from a local checkout if you want a Streamlit view while maintaining Hive itself
+- `make session PROJECT=demo` from a local checkout if you want a saved startup bundle
 - the Claude GitHub App if you want issue-driven workflows
 - the MCP server if you want a thin `search` and `execute` surface for agent harnesses
 

@@ -16,16 +16,16 @@ Create an image depicting a grand central beehive control tower with multiple gl
 ## Image 2: The Dispatcher Pattern Architecture
 
 **Prompt:**
-Create a clean architectural diagram visualization showing the three-stage dispatcher pattern as a horizontal flow. Left stage "FIND WORK": A Cortex engine cylinder with gears, outputting a list of ready projects as document icons. Middle stage "BUILD CONTEXT": An assembly station where AGENCY.md documents, file trees, and code snippets are combined into a rich context package. Right stage "DELIVER": Multiple output channels branching out—a GitHub issue, a Slack message, an API endpoint, an email icon. Arrows flow left to right showing the transformation. Clean, technical illustration style, blueprint-like precision, clear visual hierarchy, professional and informative.
+Create a clean architectural diagram visualization showing the three-stage dispatcher pattern as a horizontal flow. Left stage "FIND WORK": a canonical ready queue produced from task cards, claims, and dependency edges. Middle stage "BUILD CONTEXT": an assembly station where `.hive/` state, `AGENCY.md`, `PROGRAM.md`, and search hits are combined into a rich startup package. Right stage "DELIVER": multiple output channels branching out, including a GitHub issue, a Slack message, an API endpoint, and an email icon. Arrows flow left to right showing the transformation. Clean, technical illustration style, blueprint-like precision, clear visual hierarchy, professional and informative.
 
-**Caption:** *The dispatcher pattern: Find work (query Cortex), Build context (assemble what agents need), Deliver (hand off in the agent's native format).*
+**Caption:** *The dispatcher pattern: find work from the canonical queue, build context from Hive, then deliver it in the agent's native format.*
 
 ---
 
 ## Image 3: Why Dispatchers Matter - Vendor Independence
 
 **Prompt:**
-Create an image showing the concept of vendor independence through a modular plug-and-play system. A central orchestration platform (beehive motif) has standardized docking ports where different agent modules can connect and disconnect easily. Currently plugged in: a Claude module (anthropic style), but floating nearby ready to swap: a GPT-4 module (OpenAI green), a Gemini module (Google colors), a self-hosted model module (custom gear icon). The docking mechanism emphasizes easy switching without changing the core infrastructure. The project structure (AGENCY.md files) remains unchanged regardless of which module is plugged in. Modular technology illustration, hardware-inspired aesthetic, clean swap-in swap-out visual metaphor, empowering and flexible.
+Create an image showing the concept of vendor independence through a modular plug-and-play system. A central orchestration platform with a beehive motif has standardized docking ports where different agent modules can connect and disconnect easily. Currently plugged in: a Claude module, but floating nearby ready to swap are a GPT module, a Gemini module, and a self-hosted model module. The docking mechanism emphasizes easy switching without changing the core infrastructure. The Hive workspace structure, with `.hive/`, `AGENCY.md`, and `PROGRAM.md`, remains stable regardless of which module is plugged in. Modular technology illustration, hardware-inspired aesthetic, clean swap-in swap-out visual metaphor, empowering and flexible.
 
 **Caption:** *Vendor independence: Switch agents without changing project structure. Today Claude, tomorrow GPT-4—the orchestration remains stable.*
 
@@ -43,9 +43,9 @@ Create an image showing intelligent task routing as a smart sorting conveyor sys
 ## Image 5: The Claude Code Dispatcher Deep Dive
 
 **Prompt:**
-Create an illustrated code-flow diagram showing the Claude Code dispatcher's internal mechanics as a cross-section machine view. Four chambers in sequence: Chamber 1 "ready_work()" shows the Cortex brain scanning project files. Chamber 2 "select_work" shows a priority sorting funnel (critical at top, low at bottom). Chamber 3 "build_context" shows AGENCY.md content being wrapped with file trees and instructions into a rich issue package. Chamber 4 "deliver" shows the package transforming into a GitHub issue with @claude mention that triggers the Claude robot. A final output shows the AGENCY.md being updated with "owner: claude-code". Technical cutaway illustration, machine internals aesthetic, step-by-step process visualization, detailed but clear.
+Create an illustrated code-flow diagram showing the Claude Code dispatcher's internal mechanics as a cross-section machine view. Four chambers in sequence: Chamber 1 "hive task ready" shows the canonical queue being queried. Chamber 2 "select_work" shows a priority sorting funnel. Chamber 3 "hive context startup" shows task state, `AGENCY.md`, `PROGRAM.md`, and file context being wrapped into a rich issue package. Chamber 4 "deliver" shows the package transforming into a GitHub issue with an `@claude` mention that triggers the Claude robot. A final output shows the task being claimed in canonical state rather than flipping project ownership. Technical cutaway illustration, machine internals aesthetic, step-by-step process visualization, detailed but clear.
 
-**Caption:** *Inside the Claude Code dispatcher: Find ready work, select by priority, build rich context, create GitHub issue with @claude mention, claim ownership.*
+**Caption:** *Inside the Claude Code dispatcher: find ready work, select by priority, build context, create the issue, then claim the canonical task.*
 
 ---
 
@@ -61,18 +61,18 @@ Create an image showing a sophisticated multi-agent routing system as an intelli
 ## Image 7: Completion Callbacks Pattern
 
 **Prompt:**
-Create an image showing three different completion callback patterns as three parallel tracks or lanes. Lane 1 "DIRECT UPDATE": An agent robot directly editing an AGENCY.md file, creating a PR, setting owner to null—the cleanest loop. Lane 2 "WEBHOOK CALLBACK": An agent sending a completion signal to a webhook endpoint which then updates the AGENCY.md file. Lane 3 "POLLING": A monitoring eye periodically checking agent status, then updating AGENCY.md when complete. All three lanes converge at the same destination: an updated AGENCY.md with tasks marked complete and ownership released. Comparative process illustration, three parallel approaches, clear visual distinction, all valid paths to the same goal.
+Create an image showing three different completion callback patterns as three parallel tracks or lanes. Lane 1 "DIRECT UPDATE": an agent robot directly calling the Hive CLI to update a task or accept a run. Lane 2 "WEBHOOK CALLBACK": an agent sending a completion signal to a webhook endpoint which then updates canonical task state. Lane 3 "POLLING": a monitoring eye periodically checking agent status, then updating the task when complete. All three lanes converge at the same destination: refreshed task state, run artifacts, and synchronized human-facing projections. Comparative process illustration, three parallel approaches, clear visual distinction, all valid paths to the same goal.
 
-**Caption:** *Completion patterns: Direct AGENCY.md updates (cleanest), webhook callbacks, or status polling. All ensure the Hive knows when work is done.*
+**Caption:** *Completion patterns: direct task or run updates, webhook callbacks, or status polling. All feed back into the same canonical state.*
 
 ---
 
 ## Image 8: Production Architecture
 
 **Prompt:**
-Create a comprehensive production architecture diagram as a layered system visualization. Top layer "GitHub Actions (Scheduled)": Cortex engine running at :00, Router running at :15, connecting to multiple dispatcher boxes (Claude Code, Slack, OpenAI). Middle layer "Agent Execution": Each dispatcher's output showing the agent working (Claude sees @claude, human claims Slack work, OpenAI runs thread). Bottom layer "AGENCY.md (Source of Truth)": A central glowing document showing updates flowing back—tasks complete, notes added, ownership released, downstream work unlocked. Arrows show the full cycle: Cortex → Router → Dispatchers → Agents → AGENCY.md → (cycle repeats). Production system diagram style, comprehensive but not cluttered, professional DevOps aesthetic, full-cycle visualization.
+Create a comprehensive production architecture diagram as a layered system visualization. Top layer "Scheduled Automation": a ready-queue job and a projection-sync job feeding multiple dispatcher boxes for Claude Code, Slack, and API-based agents. Middle layer "Agent Execution": each dispatcher's output shows the agent working in its native environment. Bottom layer "Canonical Hive State": a central glowing `.hive/` substrate with task updates, run artifacts, memory, and projections flowing outward to `AGENCY.md` and `GLOBAL.md`. Arrows show the full cycle: ready queue → dispatchers → agents → canonical state → synced projections. Production system diagram style, comprehensive but not cluttered, professional DevOps aesthetic, full-cycle visualization.
 
-**Caption:** *Production architecture: Cortex analyzes, Router dispatches, Agents execute, AGENCY.md captures state. A complete automation cycle with human oversight.*
+**Caption:** *Production architecture: Hive exposes the queue, dispatchers route work, agents execute, and canonical state flows back into synced projections.*
 
 ---
 
@@ -81,7 +81,7 @@ Create a comprehensive production architecture diagram as a layered system visua
 **Style consistency:** Professional technical illustrations with a focus on clarity and architecture. Use the beehive/Agent Hive visual motifs (hexagons, honey-gold accents) as connecting elements. Show dispatchers as bridges between the Hive and diverse agent ecosystems.
 
 **Color palette:**
-- Agent Hive/Cortex: Honey gold, warm amber
+- Agent Hive: Honey gold, warm amber
 - Claude/Anthropic: Warm coral/terracotta
 - OpenAI/GPT: Green tones
 - Google/Gemini: Google colors (blue, red, yellow, green)

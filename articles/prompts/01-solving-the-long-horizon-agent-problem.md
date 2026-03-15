@@ -31,12 +31,12 @@ Create a split-screen diptych illustration. Left side: A frantic robot trying to
 
 ---
 
-## Image 4: AGENCY.md as Shared Memory
+## Image 4: Canonical State and Narrative Working Together
 
 **Prompt:**
-Create an image of a glowing holographic document floating in the center of a circular chamber, resembling a sacred text or ancient scroll but rendered in futuristic digital aesthetic. Multiple diverse AI robots of different designs (representing different LLM providers) are gathered around it in a circle, some reading from it, others writing luminous notes that float up and merge into the document. The document shows visible markdown formatting with YAML frontmatter glowing differently than the body text. Warm golden light emanates from the document, connecting all the agents with subtle light threads. High-quality digital painting, ceremonial and collaborative atmosphere.
+Create an image of a glowing workspace suspended in a circular chamber. At the center sits a structured constellation of task cards, run artifacts, and memory notes representing the canonical `.hive/` substrate. Around that core float two readable documents, `AGENCY.md` and `PROGRAM.md`, acting as the human-facing layer. Multiple diverse AI robots of different designs gather around the workspace, some reading the narrative docs, others tracing light paths back to the structured substrate. Warm golden light connects the machine and human layers without collapsing them into one thing. High-quality digital painting, ceremonial and collaborative atmosphere.
 
-**Caption:** *The AGENCY.md file serves as shared memory between agents, humans, and automation—a single source of truth everyone can read and write.*
+**Caption:** *Hive keeps the durable machine state in `.hive/`, while `AGENCY.md` and `PROGRAM.md` keep humans and agents oriented.*
 
 ---
 
@@ -49,12 +49,12 @@ Create an image of a sleek AI robot sitting at a minimalist workstation, wearing
 
 ---
 
-## Image 6: The Cortex Orchestrator
+## Image 6: Ready Work and Projection Sync
 
 **Prompt:**
-Create an image of a stylized mechanical beehive viewed from above, with a glowing central core representing the Cortex engine. Hexagonal cells extend outward, each containing a miniature project icon or document. Glowing neural pathways connect the cells, with some paths highlighted in green (completed dependencies) and others in amber (blocked). Small bee-like drones with digital displays for faces patrol the pathways, carrying status updates. The scene has a warm honey-gold color scheme with technological overlay, mixing organic beehive shapes with circuit board patterns. Bird's eye view, symmetrical composition, detailed illustration style.
+Create an image of a stylized mechanical beehive viewed from above, but instead of a single control core, show a query surface built from many linked task cards, dependency edges, run folders, and memory documents. Glowing paths highlight ready work in green and blocked work in amber. Small bee-like drones carry updates outward to `GLOBAL.md` and project `AGENCY.md` rollups at the edges, showing projection sync as a bounded publishing step rather than a magical brain. Warm honey-gold color scheme with technological overlay, mixing organic beehive shapes with circuit board patterns. Bird's eye view, symmetrical composition, detailed illustration style.
 
-**Caption:** *The Cortex orchestrator maintains system-wide oversight—analyzing dependencies, detecting cycles, and coordinating without executing code.*
+**Caption:** *Hive's query and projection surfaces read canonical state, find ready work, and regenerate human-facing summaries without turning narrative docs into the machine database.*
 
 ---
 
@@ -63,16 +63,16 @@ Create an image of a stylized mechanical beehive viewed from above, with a glowi
 **Prompt:**
 Create an image showing a central luminous markdown document icon floating above an open palm, with five different stylized AI robot figures arranged in a circle around it. Each robot has distinctly different design aesthetics representing different AI providers—one sleek and minimal, one industrial and robust, one organic and flowing, one geometric and angular, one playful and rounded. They are all connected to the central document by gentle light beams of different colors. Above the scene, a human hand reaches down to touch the document, showing equal access. Clean white background, modern logo-style illustration, vibrant but harmonious multi-color palette.
 
-**Caption:** *Vendor-agnostic by design: The same AGENCY.md file works with Claude, GPT-4, Grok, Gemini—or a human with a text editor.*
+**Caption:** *Vendor-agnostic by design: the same workspace can brief Claude, GPT, Gemini, Grok, or a human with a text editor.*
 
 ---
 
 ## Image 8: Building the Operating System for Agents
 
 **Prompt:**
-Create an image of a layered architectural diagram rendered as a beautiful 3D floating structure. The base layer shows "AGENCY.md" as glowing file icons forming a foundation. The middle layer shows "Cortex" as an interconnected mesh of processing nodes. The top layer shows "Deep Work Sessions" as pod-like chambers where robot figures work. All layers are connected by flowing data streams visualized as luminous ribbons. The structure floats above a subtle grid representing version control. Isometric technical illustration style, blueprint-inspired aesthetic with deep blue background and glowing cyan, orange, and white elements. Detailed and clean.
+Create an image of a layered architectural diagram rendered as a beautiful 3D floating structure. The base layer shows the `.hive/` substrate as glowing task, run, memory, and event objects forming a stable foundation. The middle layer shows the `hive` CLI as an interconnected operating surface for search, context, runs, and projections. The top layer shows focused work sessions as pod-like chambers where robot figures operate with startup context bundles. All layers are connected by flowing data streams visualized as luminous ribbons. The structure floats above a subtle grid representing version control. Isometric technical illustration style, blueprint-inspired aesthetic with deep blue background and glowing cyan, orange, and white elements. Detailed and clean.
 
-**Caption:** *Agent Hive as an operating system: AGENCY.md files are our "files," Cortex is our "scheduler," and Deep Work sessions are our "processes."*
+**Caption:** *Agent Hive as an operating surface: canonical substrate below, CLI and policy in the middle, focused work sessions on top.*
 
 ---
 

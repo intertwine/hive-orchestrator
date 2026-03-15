@@ -21,6 +21,8 @@ tags:
 
 # Beads Pattern Adoption for Hive Orchestrator
 
+> Historical note: this project record preserves the migration work that helped push Hive toward v2. Some imported task titles below still use pre-cutover terms such as `cortex.py`, project `owner`, or `AGENCY.md` checklist state. The live product model is the `.hive/` substrate, task claims, `PROGRAM.md`, and `hive` CLI surfaces.
+
 ## Project Context
 
 Analysis of the [beads](https://github.com/steveyegge/beads) project revealed several patterns that could significantly improve Hive Orchestrator's multi-agent coordination capabilities while preserving our core philosophy of human-readable Markdown and vendor agnosticism.
@@ -39,7 +41,7 @@ Adopt key patterns from beads to enhance Hive Orchestrator:
 1. **Markdown-First**: All state remains human-readable
 2. **Vendor Agnostic**: Works with any LLM provider
 3. **Git as Truth**: No required external services
-4. **Simple Primitives**: AGENCY.md files are the core abstraction
+4. **Simple Primitives**: Markdown stays readable, while canonical machine state lives under `.hive/`
 5. **Human-in-the-Loop**: Transparent, auditable operations
 
 ## Implementation Phases

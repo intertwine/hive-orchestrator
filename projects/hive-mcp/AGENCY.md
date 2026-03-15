@@ -20,6 +20,8 @@ tags:
 
 # Hive MCP Server
 
+> Historical note: this project record captures the path from the earlier broad MCP surface to the current thin v2 adapter. Some imported task titles below still mention project `owner` flips or other pre-cutover details. Current integrations should treat `.hive/` as canonical, use task claims instead of project ownership, and prefer the thin `search` / `execute` surface.
+
 ## Project Context
 
 Part of the beads pattern adoption (Phase 3). Create a Model Context Protocol server that enables AI agents to interact with Hive Orchestrator programmatically.
@@ -30,7 +32,7 @@ Build `hive-mcp` - an MCP server that exposes Hive Orchestrator functionality as
 
 ## Design Principles
 
-1. **Leverage Existing Code**: Reuse Cortex class methods where possible
+1. **Leverage Existing Code**: Reuse stable Hive v2 query, context, and execution surfaces where possible
 2. **Simple Tool Interface**: Clear, focused tools with good documentation
 3. **JSON-First**: All tool outputs should be structured JSON
 4. **Error Handling**: Graceful failures with helpful error messages
@@ -79,14 +81,15 @@ Build `hive-mcp` - an MCP server that exposes Hive Orchestrator functionality as
 # src/hive_mcp/server.py
 from mcp.server import Server
 from mcp.types import Tool, TextContent
+from hive.codemode.client import HiveClient
 
 app = Server("hive-mcp")
+client = HiveClient()
 
 @app.tool()
 async def list_projects() -> list[dict]:
     """List all projects in the hive."""
-    cortex = Cortex()
-    projects = cortex.discover_projects()
+    projects = client.project.list()
     return [format_project(p) for p in projects]
 ```
 
@@ -126,7 +129,7 @@ async def list_projects() -> list[dict]:
 
 - [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 - [beads-mcp](https://github.com/steveyegge/beads/tree/main/integrations/beads-mcp) - Reference implementation
-- Hive Orchestrator cortex.py - Reuse existing methods
+- Current Hive CLI and client surfaces - Reuse stable v2 methods
 
 ## Agent Notes
 
@@ -137,14 +140,14 @@ async def list_projects() -> list[dict]:
 Implementation summary:
 - Created `src/hive_mcp/` package with __init__.py, __main__.py, and server.py
 - Added mcp>=1.0.0 dependency to pyproject.toml
-- Implemented all 9 core MCP tools using existing Cortex class methods:
+- Implemented the first broad MCP toolset using the orchestration surfaces that existed at the time:
   - list_projects, get_ready_work, get_project
   - claim_project, release_project, update_status
   - add_note, get_dependencies, get_dependency_graph
 - Wrote 21 comprehensive tests covering all functionality
 - All tests pass (95/95 total project tests pass)
 - Achieved 10.00/10 pylint score (perfect!)
-- Tools reuse Cortex class methods (discover_projects, ready_work, is_blocked, get_dependency_summary)
+- That implementation has since been narrowed into the thinner v2 adapter surface
 - Standardized JSON response format: {success, data, error}
 - Proper error handling and path validation
 - Supports HIVE_BASE_PATH environment variable

@@ -22,6 +22,8 @@ tags:
 
 # Agent Coordination Layer (Phase 4)
 
+> Historical note: this project record preserves the optional coordination work that landed during the v2 migration. Older task titles below still mention `Cortex`, dashboard integration, or project-owner era language because they were imported from that period. The current model is task claims on canonical `.hive/tasks/*.md`, with the coordinator acting only as an optional live lock service.
+
 ## Project Context
 
 Part of the beads pattern adoption (Phase 4). Create an optional real-time coordination layer inspired by beads' Agent Mail concept. This enables multiple agents to coordinate in real-time without git conflicts.
@@ -125,23 +127,18 @@ GET    /health         - Health check
 }
 ```
 
-### Cortex Integration
+### Legacy Integration Sketch
 
 ```python
-class Cortex:
-    def __init__(self, coordinator_url: str = None):
-        self.coordinator = CoordinatorClient(coordinator_url) if coordinator_url else None
+def claim_task(task_id: str, owner: str, coordinator: CoordinatorClient | None) -> bool:
+    """Historical sketch: coordinator first, canonical task claim second."""
+    if coordinator:
+        try:
+            return coordinator.claim(task_id, owner)
+        except CoordinatorUnavailable:
+            pass
 
-    def claim_project(self, project_id: str, agent_name: str) -> bool:
-        # Try coordinator first if available
-        if self.coordinator:
-            try:
-                return self.coordinator.claim(project_id, agent_name)
-            except CoordinatorUnavailable:
-                pass  # Fall back to git-only
-
-        # Git-only mode: update AGENCY.md directly
-        return self._claim_via_git(project_id, agent_name)
+    return hive_task_claim(task_id, owner)
 ```
 
 ### Deployment Options

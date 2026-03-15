@@ -175,12 +175,11 @@ def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str,
                 "score": score,
                 "summary": command["summary"],
                 "example": command["example"],
-                "snippet": command["summary"],
             }
         )
 
     for kind, title, relative_path in API_DOC_FILES:
-        if kind == "schema" and "schema" not in scopes and "api" not in scopes:
+        if kind == "schema" and "schema" not in scopes:
             continue
         file_path = repo_root / relative_path
         if not file_path.exists():

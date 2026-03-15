@@ -625,6 +625,18 @@ class TestHiveV2Search:
         assert "example" in kinds
         assert "project" in kinds
 
+    def test_search_workspace_api_scope_excludes_schema_docs(self, temp_hive_dir, temp_project):
+        """Schema docs should only appear when the explicit schema scope is requested."""
+        migrate_v1_to_v2(temp_hive_dir)
+
+        api_results = search_workspace(temp_hive_dir, "CREATE TABLE", scopes=["api"], limit=20)
+        schema_results = search_workspace(
+            temp_hive_dir, "CREATE TABLE", scopes=["schema"], limit=20
+        )
+
+        assert all(item["kind"] != "schema" for item in api_results)
+        assert any(item["kind"] == "schema" for item in schema_results)
+
 
 class TestHiveV2Execute:
     """Tests for the bounded execute surface."""
@@ -673,12 +685,12 @@ class TestHiveV2Execute:
                 "--language",
                 "python",
                 "--timeout-seconds",
-                "1",
+                "2",
                 "--code",
                 (
                     "import time\n"
                     "print('hello before timeout', flush=True)\n"
-                    "time.sleep(2)\n"
+                    "time.sleep(4)\n"
                     "result = {'ok': True}"
                 ),
             ]

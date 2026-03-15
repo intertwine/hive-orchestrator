@@ -680,6 +680,83 @@ class TestHiveV2Memory:
         assert any(run_summary["id"] == run.id for run_summary in results["recent_runs"])
         assert any(hit["kind"] == "run_summary" for hit in memory_hits)
 
+    def test_recent_runs_sort_by_acceptance_time(self, temp_hive_dir, temp_project, commit_workspace):
+        """Startup context should order recent runs by acceptance time, not run ID."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, auto_close=False),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare acceptance order workspace")
+
+        ready_ids = [item["id"] for item in ready_tasks(temp_hive_dir, project_id=project.id)]
+        first_run = start_run(temp_hive_dir, ready_ids[0])
+        eval_run(temp_hive_dir, first_run.id)
+        accept_run(temp_hive_dir, first_run.id)
+
+        commit_workspace(temp_hive_dir, "snapshot first accepted run")
+        project = discover_projects(temp_hive_dir)[0]
+        project.program_path.write_text(
+            _program_markdown(command, auto_close=False),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "restore program after snapshot")
+
+        second_ready_ids = [
+            item["id"] for item in ready_tasks(temp_hive_dir, project_id=project.id) if item["id"] != ready_ids[0]
+        ]
+        second_run = start_run(temp_hive_dir, second_ready_ids[0])
+        eval_run(temp_hive_dir, second_run.id)
+        accept_run(temp_hive_dir, second_run.id)
+
+        first_metadata_path = Path(temp_hive_dir) / ".hive" / "runs" / first_run.id / "metadata.json"
+        first_metadata = json.loads(first_metadata_path.read_text(encoding="utf-8"))
+        first_metadata["finished_at"] = "2099-01-01T00:00:00Z"
+        first_metadata_path.write_text(
+            json.dumps(first_metadata, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+
+        results = startup_context(
+            temp_hive_dir,
+            project_id=project.id,
+            profile="default",
+            query="ok",
+        )
+
+        assert results["recent_runs"][0]["id"] == first_run.id
+
+    def test_workspace_search_indexes_relative_run_summary_paths(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Workspace search should index accepted run summaries even when metadata stores relative paths."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, auto_close=False),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare workspace search run workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        eval_run(temp_hive_dir, run.id)
+        accept_run(temp_hive_dir, run.id)
+        summary_path = Path(run.summary_path)
+        summary_path.write_text("# Summary\n\ncache-relative-swan note\n", encoding="utf-8")
+        metadata_path = Path(temp_hive_dir) / ".hive" / "runs" / run.id / "metadata.json"
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata["summary_path"] = str(Path(".hive") / "runs" / run.id / "summary.md")
+        metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+        rebuild_cache(temp_hive_dir)
+
+        results = search_workspace(temp_hive_dir, "cache-relative-swan", scopes=["workspace"], limit=10)
+
+        assert any(hit["kind"] == "run_summary" for hit in results)
+
     def test_cache_rebuild_keeps_memory_docs_unique_per_scope_key(
         self, temp_hive_dir, temp_project
     ):

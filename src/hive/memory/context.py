@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.hive.memory.search import iter_accepted_runs, search
-from src.hive.store.layout import global_memory_dir
+from src.hive.store.layout import global_memory_dir, memory_project_dir
 from src.hive.store.projects import get_project
 from src.hive.store.task_files import get_task
 
@@ -18,7 +18,7 @@ def _recent_accepted_runs(root: Path, *, project_id: str, limit: int) -> list[di
     runs: list[dict[str, str]] = []
     for metadata, _, summary_path in sorted(
         iter_accepted_runs(root, project_id=project_id),
-        key=lambda item: str(item[1]),
+        key=lambda item: item[0].get("finished_at") or str(item[1]),
         reverse=True,
     ):
         runs.append(
@@ -44,7 +44,7 @@ def startup_context(
     """Assemble startup context in the v2 order."""
     root = Path(path or Path.cwd()).resolve()
     project = get_project(root, project_id)
-    memory_root = root / ".hive" / "memory" / "project"
+    memory_root = memory_project_dir(root)
     agents_text = _load_if_exists(root / "AGENTS.md")
     profile_text = _load_if_exists(memory_root / "profile.md")
     active_text = _load_if_exists(memory_root / "active.md")

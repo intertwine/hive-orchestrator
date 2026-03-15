@@ -26,7 +26,7 @@ def temp_hive_dir():
 Test global context.
 """,
         status="active",
-        last_cortex_run=None,
+        last_sync=None,
         version="1.0.0",
         orchestrator="agent-hive",
     )

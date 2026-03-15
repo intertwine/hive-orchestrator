@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.hive.models.project import ProjectRecord
 from src.hive.models.task import TaskRecord
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import list_tasks
@@ -113,10 +112,18 @@ def project_summary(path: str | Path | None = None) -> list[dict[str, object]]:
                 "owner": project.owner,
                 "path": str(project.agency_path),
                 "ready": len(
-                    [task for task in project_tasks if _effective_status(task) in {"proposed", "ready"}]
+                    [
+                        task
+                        for task in project_tasks
+                        if _effective_status(task) in {"proposed", "ready"}
+                    ]
                 ),
                 "in_progress": len(
-                    [task for task in project_tasks if _effective_status(task) in {"claimed", "in_progress"}]
+                    [
+                        task
+                        for task in project_tasks
+                        if _effective_status(task) in {"claimed", "in_progress"}
+                    ]
                 ),
                 "blocked": len([task for task in project_tasks if task.status == "blocked"]),
             }

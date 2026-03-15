@@ -23,11 +23,33 @@ def _render_shim() -> str:
     )
 
 
+def _default_agents_md() -> str:
+    return "\n".join(
+        [
+            "# AGENTS",
+            "",
+            "Use the `hive` CLI first.",
+            "",
+            "- Canonical task state lives in `.hive/tasks/*.md`.",
+            "- Narrative project docs live in `projects/*/AGENCY.md`.",
+            "- `projects/*/PROGRAM.md` defines evaluator, path, and command policy.",
+            "- Run `hive context startup --project <project-id> --json` before autonomous edits.",
+            "- Run `hive sync projections --json` after canonical task or run changes.",
+            "",
+            BEGIN,
+            END,
+            "",
+        ]
+    )
+
+
 def sync_agents_md(path: str | Path | None = None) -> Path:
     """Append or update the bounded Hive compatibility section."""
     root = Path(path or Path.cwd())
     agents_path = root / "AGENTS.md"
-    content = agents_path.read_text(encoding="utf-8") if agents_path.exists() else "# AGENTS\n"
+    content = (
+        agents_path.read_text(encoding="utf-8") if agents_path.exists() else _default_agents_md()
+    )
     updated = replace_marker_block(content, BEGIN, END, _render_shim())
     agents_path.write_text(updated, encoding="utf-8")
     return agents_path

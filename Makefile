@@ -1,4 +1,10 @@
-.PHONY: help install install-dev run dashboard ready ready-json deps deps-json hive hive-init hive-doctor sync-projections migrate-v2 session clean test lint format sync verify-claude
+SHELL := /bin/bash
+
+.PHONY: help install install-dev install-tool run dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install
+
+BUMP ?= patch
+HOMEBREW_TAP_DIR ?= ../homebrew-tap
+HOMEBREW_INSTALL_TARGET ?= intertwine/tap/agent-hive
 
 # Default target
 help:
@@ -9,6 +15,7 @@ help:
 	@echo "Setup Commands:"
 	@echo "  make install        Install Python dependencies with uv"
 	@echo "  make install-dev    Install dev dependencies (black, pylint, pytest)"
+	@echo "  make install-tool   Install the hive CLI as a uv-managed tool from this checkout"
 	@echo "  make sync           Sync dependencies from pyproject.toml"
 	@echo "  make setup-env      Create .env file template"
 	@echo ""
@@ -20,6 +27,7 @@ help:
 	@echo "  make deps-json      Show dependency graph as JSON"
 	@echo "  make hive           Show Hive 2.0 doctor output"
 	@echo "  make hive-init      Initialize the Hive 2.0 layout"
+	@echo "  make doctor         Show Hive 2.0 doctor output"
 	@echo "  make sync-projections  Rebuild cache and refresh generated sections"
 	@echo "  make migrate-v2     Import v1 projects into the v2 substrate"
 	@echo "  make session        Start a Hive v2 session (requires PROJECT=...)"
@@ -29,11 +37,20 @@ help:
 	@echo "  make lint           Run code linting (pylint)"
 	@echo "  make format         Format code with black"
 	@echo "  make test           Run tests (if available)"
+	@echo "  make check          Run lint + tests"
+	@echo "  make build          Build wheel and sdist"
+	@echo "  make bump-version   Bump the package version (BUMP=patch|minor|major)"
+	@echo "  make publish-test   Publish dist/* to TestPyPI with twine"
+	@echo "  make publish        Publish dist/* to PyPI with twine"
+	@echo "  make brew-formula   Generate the Homebrew formula"
+	@echo "  make brew-check     Audit the generated Homebrew formula"
+	@echo "  make release-homebrew  Copy the formula into a local Homebrew tap checkout"
+	@echo "  make brew-install   Install from the configured Homebrew tap"
 	@echo "  make clean          Clean up generated files"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make dashboard"
-	@echo "  make sync-projections"
+	@echo "  make install"
+	@echo "  make hive-init"
 	@echo "  make session PROJECT=projects/demo"
 	@echo ""
 
@@ -48,8 +65,14 @@ install:
 install-dev:
 	@echo "📦 Installing dev dependencies with uv..."
 	@command -v uv >/dev/null 2>&1 || { echo "❌ Error: uv not found. Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
-	uv sync --dev
+	uv sync --extra dev
 	@echo "✅ Dev dependencies installed!"
+
+install-tool:
+	@echo "🛠️ Installing hive as a uv tool from this checkout..."
+	@command -v uv >/dev/null 2>&1 || { echo "❌ Error: uv not found. Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
+	uv tool install --force --from . agent-hive
+	@echo "✅ hive CLI installed. Verify with: hive doctor --json"
 
 # Sync dependencies
 sync:
@@ -104,6 +127,9 @@ hive-init:
 hive-doctor:
 	@uv run hive doctor --json
 
+doctor:
+	@uv run hive doctor --json
+
 sync-projections:
 	@uv run hive cache rebuild --json
 	@uv run hive sync projections --json
@@ -140,6 +166,68 @@ test:
 	@echo "🧪 Running tests..."
 	uv run pytest tests/ -v
 
+check: lint test
+	@echo "✅ Lint and tests passed!"
+
+build: clean
+	@echo "📦 Building wheel and sdist..."
+	uv run --extra dev python -m build
+	@ls -lh dist/
+
+bump-version:
+	@if [ "$(BUMP)" != "patch" ] && [ "$(BUMP)" != "minor" ] && [ "$(BUMP)" != "major" ]; then \
+		echo "❌ Error: BUMP must be patch, minor, or major"; \
+		exit 1; \
+	fi
+	@uv run python scripts/bump_version.py pyproject.toml $(BUMP)
+
+publish-test: build
+	@echo "🚀 Publishing to TestPyPI..."
+	@echo "Requires TWINE_USERNAME=__token__ and TWINE_PASSWORD=<testpypi-token>"
+	uv run --extra dev twine upload --repository testpypi dist/*
+
+publish: build
+	@echo "🚀 Publishing to PyPI..."
+	@echo "Requires TWINE_USERNAME=__token__ and TWINE_PASSWORD=<pypi-token>"
+	@echo -n "Continue? [y/N] " && read ans && ( [ "$${ans}" = "y" ] || [ "$${ans}" = "Y" ] )
+	uv run --extra dev twine upload dist/*
+
+brew-formula:
+	@echo "🍺 Generating Homebrew formula..."
+	uv run --with pip python scripts/generate_homebrew_formula.py --output packaging/homebrew/agent-hive.rb
+
+brew-check: brew-formula
+	@if ! command -v brew >/dev/null 2>&1; then \
+		echo "❌ Error: brew not found"; \
+		echo "Install Homebrew first: https://brew.sh"; \
+		exit 1; \
+	fi
+	brew style packaging/homebrew/agent-hive.rb
+	@if brew info --formula $(HOMEBREW_INSTALL_TARGET) >/dev/null 2>&1; then \
+		brew audit --strict --formula $(HOMEBREW_INSTALL_TARGET); \
+	else \
+		echo "ℹ️ Skipped brew audit by formula name; add the tap first with: brew tap intertwine/tap"; \
+	fi
+
+release-homebrew: brew-formula
+	@if [ ! -d "$(HOMEBREW_TAP_DIR)/.git" ]; then \
+		echo "❌ Error: $(HOMEBREW_TAP_DIR) is not a git repository"; \
+		echo "Clone your tap repo first, for example:"; \
+		echo "  git clone git@github.com:intertwine/homebrew-tap.git $(HOMEBREW_TAP_DIR)"; \
+		exit 1; \
+	fi
+	@mkdir -p "$(HOMEBREW_TAP_DIR)/Formula"
+	cp packaging/homebrew/agent-hive.rb "$(HOMEBREW_TAP_DIR)/Formula/agent-hive.rb"
+	@echo "✅ Synced formula into $(HOMEBREW_TAP_DIR)/Formula/agent-hive.rb"
+
+brew-install:
+	@if ! command -v brew >/dev/null 2>&1; then \
+		echo "❌ Error: brew not found"; \
+		echo "Install Homebrew first: https://brew.sh"; \
+		exit 1; \
+	fi
+	brew install $(HOMEBREW_INSTALL_TARGET)
+
 # Clean up
 clean:
 	@echo "🧹 Cleaning up..."
@@ -161,7 +249,7 @@ quickstart: install setup-env
 	@echo "✅ .env template created"
 	@echo ""
 	@echo "Next steps:"
-	@echo "1. Edit .env if you want custom paths or optional services"
-	@echo "2. Run: make dashboard"
-	@echo "3. Or run: make sync-projections"
+	@echo "1. Run: make hive-init"
+	@echo "2. Run: uv run hive project create demo --title \"Demo project\" --json"
+	@echo "3. Run: make dashboard"
 	@echo ""

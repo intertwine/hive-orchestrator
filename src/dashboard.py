@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Agent Hive Dashboard - Streamlit UI
+Hive Dashboard - Streamlit UI
 
-Provides human oversight and control over the Agent Hive orchestration system.
+Provides human oversight and control over the Hive 2.0 workspace.
 
 Security Note: This dashboard uses safe YAML loading to prevent deserialization
 attacks from malicious AGENCY.md content.
@@ -84,7 +84,7 @@ def generate_file_tree(
 
 
 def generate_deep_work_context(project_path: str, base_path: Path):
-    """Generate a v2 startup context package for Deep Work sessions."""
+    """Generate a v2 startup context package for focused work sessions."""
     return generate_hive_context(project_path, base_path, mode="startup", profile="light")
 
 
@@ -219,7 +219,7 @@ Before ending your session:
 def main():
     """Main dashboard application."""
 
-    st.set_page_config(page_title="Agent Hive Dashboard", page_icon="🧠", layout="wide")
+    st.set_page_config(page_title="Hive Dashboard", page_icon="🧠", layout="wide")
 
     # Determine base path
     base_path = Path(os.getenv("HIVE_BASE_PATH", os.getcwd()))
@@ -229,8 +229,8 @@ def main():
     }
     workspace_ready_tasks = ready_tasks(base_path)
 
-    st.title("🧠 Agent Hive Dashboard")
-    st.caption("Vendor-Agnostic Agent Orchestration OS")
+    st.title("🧠 Hive Dashboard")
+    st.caption("CLI-first orchestration for agent workspaces")
 
     # Sidebar: Project list and actions
     with st.sidebar:
@@ -240,9 +240,10 @@ def main():
 
         if projects:
             project_options = {
-                f"{p['metadata'].get('project_id', 'unknown')} ({p['metadata'].get('status', 'unknown')})": p[
-                    "path"
-                ]
+                (
+                    f"{p['metadata'].get('project_id', 'unknown')} "
+                    f"({p['metadata'].get('status', 'unknown')})"
+                ): p["path"]
                 for p in projects
             }
             selected_project_key = st.selectbox(
@@ -275,7 +276,10 @@ def main():
         if global_file.exists():
             try:
                 global_parsed = safe_load_agency_md(global_file)
-                last_run = global_parsed.metadata.get("last_cortex_run", "Never")
+                last_run = global_parsed.metadata.get("last_sync") or global_parsed.metadata.get(
+                    "last_cortex_run",
+                    "Never",
+                )
                 if last_run and last_run != "Never":
                     try:
                         last_run = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
@@ -400,13 +404,11 @@ def main():
             elif (base_path / ".hive" / "tasks").exists():
                 st.caption("No canonical ready tasks for this project right now.")
             else:
-                st.info(
-                    "No canonical task substrate found yet. Run `uv run hive migrate v1-to-v2 --json`."
-                )
+                st.info("No canonical task substrate found yet. Run `uv run hive init --json`.")
 
             st.divider()
 
-            # Deep Work section
+            # Context assembly section
             st.subheader("🚀 Hive v2 Context")
             st.write(
                 "Generate startup or handoff context from the canonical Hive v2 context pipeline."
@@ -444,7 +446,8 @@ def main():
 
                 st.info(
                     "💡 Copy the above context or regenerate it locally with "
-                    f"`uv run hive context {mode} --project {metadata.get('project_id', 'unknown')} --json`."
+                    f"`uv run hive context {mode} --project "
+                    f"{metadata.get('project_id', 'unknown')} --json`."
                 )
 
     else:
@@ -455,30 +458,31 @@ def main():
         st.subheader("🎯 Getting Started")
         st.markdown(
             """
-        **Agent Hive** is a vendor-agnostic orchestration OS for autonomous AI agents.
+        **Hive 2.0** keeps machine state in `.hive/` and human context in Markdown.
 
         ### Quick Start
 
-        1. **Set up your environment**
+        1. **Bootstrap the workspace**
            ```bash
-           uv sync
+           uv run hive init --json
            ```
 
-        2. **Inspect ready work**
+        2. **Create a project**
            ```bash
-           uv run hive task ready --json
+           uv run hive project create demo --title "Demo project" --json
            ```
 
-        3. **Refresh generated views**
+        3. **Create a first task**
            ```bash
-           uv run hive sync projections --json
+           uv run hive task create --project-id demo --title "Define the first slice" --json
            ```
 
-        4. **Create a new project**
-           - Create a folder in `projects/your-project-name/`
-           - Add an `AGENCY.md` file using the same format as `projects/demo/AGENCY.md`
+        4. **Generate startup context**
+           ```bash
+           uv run hive context startup --project demo --json
+           ```
 
-        5. **Launch Deep Work sessions**
+        5. **Use the dashboard when you want a visual view**
            - Select a project from the sidebar
            - Generate a `startup` or `handoff` context
            - Copy the context and paste it to your AI agent

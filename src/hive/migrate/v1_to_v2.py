@@ -209,9 +209,7 @@ def _extract_relation_hints(
 
 def _line_contains_relation_keyword(text: str) -> bool:
     return bool(
-        DEPENDENCY_RE.search(text)
-        or DUPLICATE_RE.search(text)
-        or SUPERSEDES_RE.search(text)
+        DEPENDENCY_RE.search(text) or DUPLICATE_RE.search(text) or SUPERSEDES_RE.search(text)
     )
 
 
@@ -245,15 +243,11 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
             indent = len(checkbox_match.group("indent").replace("\t", "  "))
             title = checkbox_match.group("title").strip()
             checked = checkbox_match.group("checked").lower() == "x"
-            blocked_heading = any(
-                "blocked" in heading.casefold() for _, heading in heading_stack
-            )
+            blocked_heading = any("blocked" in heading.casefold() for _, heading in heading_stack)
             status = (
                 "done"
                 if checked
-                else "blocked"
-                if (blocked_heading or project_blocked)
-                else "ready"
+                else "blocked" if (blocked_heading or project_blocked) else "ready"
             )
             parent_candidates = [
                 candidate_indent
@@ -261,9 +255,7 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
                 if candidate_indent < indent
             ]
             parent_line = (
-                parent_line_by_indent[max(parent_candidates)]
-                if parent_candidates
-                else None
+                parent_line_by_indent[max(parent_candidates)] if parent_candidates else None
             )
             if indent > 0 and parent_line is None:
                 report.warn(

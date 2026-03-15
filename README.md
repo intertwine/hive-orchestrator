@@ -1,1084 +1,235 @@
-# 🧠 Agent Hive - Vendor-Agnostic Agent Orchestration OS
+# Agent Hive
 
-[![Hive Projection Sync](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/projection-sync.yml?branch=main&label=Hive%20Projection%20Sync)](https://github.com/intertwine/hive-orchestrator/actions/workflows/projection-sync.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/ci.yml?branch=main&label=CI)](https://github.com/intertwine/hive-orchestrator/actions/workflows/ci.yml)
+[![Hive Projection Sync](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/projection-sync.yml?branch=main&label=Projection%20Sync)](https://github.com/intertwine/hive-orchestrator/actions/workflows/projection-sync.yml)
 
 ![Agent Hive](images/agent-hive-explainer-image-web.png)
 
-**Agent Hive** is a production-ready orchestration operating system for autonomous AI agents. It enables seamless coordination across different LLM providers (Claude, Grok, Gemini, etc.) using shared memory stored in Markdown files.
+Agent Hive is a CLI-first orchestration platform for autonomous agents. It keeps machine state in a Git-friendly substrate under `.hive/`, keeps human context in Markdown, and gives agents a stable command surface instead of brittle prompt rituals.
 
-## Hive 2.0 Status
+The center of gravity in this repository is Hive 2.0:
 
-Hive 2.0 is now the active implementation direction in this repository.
+- `hive` is the primary interface.
+- `.hive/tasks/*.md` is the canonical task store.
+- `projects/*/AGENCY.md` stays human-readable.
+- `projects/*/PROGRAM.md` defines evaluator, path, and command policy.
+- `GLOBAL.md` and `AGENTS.md` are bounded projections, not the machine database.
 
-- `hive` CLI is the primary interface.
-- `.hive/tasks/*.md` is the canonical machine task store.
-- `projects/*/AGENCY.md` remains the narrative project doc.
-- `projects/*/PROGRAM.md` is the autonomous work contract.
-- `GLOBAL.md` and `AGENCY.md` now contain generated `hive:` marker sections instead of being the only machine state.
+## Why Hive
 
-> **Inspiration**: Some patterns in Agent Hive were inspired by [beads](https://github.com/steveyegge/beads), particularly the ready work detection, dependency tracking, and MCP integration concepts. We've adapted these ideas for our Markdown-first, vendor-agnostic approach.
+- It keeps the machine state explicit. Tasks, runs, memory, events, and cache live in predictable files.
+- It keeps humans in the loop. Project docs stay readable, diffable, and easy to review.
+- It gives agents a real operating surface. Ready work, claims, runs, evaluators, search, context assembly, and migration are all available through the CLI.
 
-## 🎯 Core Concept
+## Install
 
-Hive 2.0 keeps the human-friendly Markdown surface, but moves canonical machine state into `.hive/`. The guiding split is:
+### Easiest path today
 
-- Human interface: `GLOBAL.md`, `AGENCY.md`, `PROGRAM.md`, `AGENTS.md`
-- Machine interface: `.hive/tasks/`, `.hive/runs/`, `.hive/memory/`, `.hive/events/`
-- Stable automation surface: `hive ... --json`
-
-### The Architecture
-
-```diagram
-┌─────────────────────────────────────────────────────────────┐
-│                      GLOBAL.md                              │
-│                  (Root System State)                        │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                ┌───────────┴──────────┐
-                │                      │
-         ┌──────▼─────┐         ┌──────▼─────┐
-         │ AGENCY.md  │         │ AGENCY.md  │
-         │ (Project 1)│         │ (Project 2)│
-         └──────┬─────┘         └──────┬─────┘
-                │                      │
-    ┌───────────┼───────────┐          │
-    │           │           │          │
-┌───▼──┐    ┌───▼──┐    ┌───▼──┐   ┌───▼───┐
-│Claude│    │ Grok │    │Gemini│   │ Human │
-└──────┘    └──────┘    └──────┘   └───────┘
-```
-
-## 🔴 Live Orchestration on This Repository
-
-**This repository practices what it preaches.** The `projects/` directory contains real projects, and the repository now carries a live Hive 2.0 substrate under `.hive/`:
-
-- **Projection sync runs every 4 hours** via GitHub Actions (see `.github/workflows/projection-sync.yml`)
-- **Ready work snapshots are generated automatically** (see `.github/workflows/agent-assignment.yml`)
-- **The `projects/` directory stays readable** while `.hive/tasks/` holds canonical task state
-
-### What You'll See
-
-Browse the `projects/` directory to see:
-
-- Active projects with assigned owners
-- Blocked tasks waiting for dependencies
-- Agent notes documenting progress
-- Task completion over time
-
-### For Forks
-
-When you fork this repository:
-
-- The v2 CLI and migration flow work locally with no API key.
-- The Claude Code workflow still requires the `ANTHROPIC_API_KEY` secret.
-- Your fork becomes your own independent Hive workspace.
-
-This transparency demonstrates that Agent Hive is a real, working system - not just a concept.
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- [uv](https://github.com/astral-sh/uv) - Fast Python package installer
-
-### Installation
+Use `uv tool` directly from GitHub:
 
 ```bash
-# Install uv (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git agent-hive
+hive doctor --json
+```
 
-# Clone the repository
+### From a local checkout
+
+```bash
 git clone https://github.com/intertwine/hive-orchestrator.git
 cd hive-orchestrator
-
-# Install dependencies with uv
 make install
-
-# Initialize the Hive 2.0 layout
-uv run hive init --json
-
-# Inspect the workspace
-uv run hive doctor --json
-
-# Import legacy AGENCY.md task lists into .hive/tasks/
-uv run hive migrate v1-to-v2 --json
+make install-tool
+hive doctor --json
 ```
 
-### Optional `.env` values
+### Release channels
+
+This repo now includes release automation for PyPI and Homebrew. Until the first tagged public release is cut, the git-based `uv tool install` flow above is the simplest path. After a release, the intended install commands are:
 
 ```bash
-HIVE_BASE_PATH=/path/to/agent-hive
+uv tool install agent-hive
+pip install agent-hive
+brew install intertwine/tap/agent-hive
+```
 
-# Optional: Real-time coordination server
+## Five-Minute Tour
+
+Bootstrap a workspace:
+
+```bash
+hive init --json
+hive doctor --json
+```
+
+Create a project and a first task:
+
+```bash
+hive project create demo --title "Demo project" --json
+hive task create --project-id demo --title "Define the first slice" --json
+```
+
+Find ready work and build startup context:
+
+```bash
+hive task ready --json
+hive context startup --project demo --json
+```
+
+Refresh human-facing projections after canonical state changes:
+
+```bash
+hive sync projections --json
+```
+
+If you want a visual view, run:
+
+```bash
+make dashboard
+```
+
+## Core Model
+
+| File or directory | Purpose |
+|---|---|
+| `.hive/tasks/*.md` | Canonical task records |
+| `.hive/runs/*` | Run artifacts, evaluator output, logs, patch data |
+| `.hive/memory/` | Project-local observational memory |
+| `.hive/events/*.jsonl` | Append-only audit log |
+| `.hive/cache/index.sqlite` | Derived query cache |
+| `projects/*/AGENCY.md` | Human project document and bounded rollups |
+| `projects/*/PROGRAM.md` | Policy for autonomous work |
+| `GLOBAL.md` | Top-level workspace orientation |
+| `AGENTS.md` | Short compatibility shim for coding harnesses |
+
+## Typical Workflow
+
+1. Create or sync a workspace with `hive init` and `hive sync projections`.
+2. Scaffold a project with `hive project create`, or migrate legacy checkbox projects with `hive migrate v1-to-v2`.
+3. Create canonical tasks with `hive task create`, or import them from older docs.
+4. Use `hive task ready` to find work and `hive task claim` to lease it.
+5. Start work with `hive context startup` or a governed run via `hive run start`.
+6. Evaluate, accept, reject, or escalate with the `hive run` commands.
+
+## What Ships In This Repo
+
+### Core CLI
+
+The CLI covers:
+
+- workspace bootstrap and health checks
+- project discovery and scaffolding
+- task CRUD, claims, and ready ranking
+- governed runs and evaluator execution
+- project-local and optional global memory
+- startup and handoff context assembly
+- workspace search
+- migration from legacy checkbox-based repos
+
+### Optional adapters
+
+These are useful, but not required:
+
+- Streamlit dashboard in `src/dashboard.py`
+- thin search/execute MCP adapter in `src/hive_mcp/server.py`
+- optional GitHub issue dispatcher in `src/agent_dispatcher.py`
+- optional Claude GitHub App integration in `docs/INSTALL_CLAUDE_APP.md`
+
+The core CLI does not require an LLM API key.
+
+## Development
+
+Install dev dependencies and run the quality gates:
+
+```bash
+make install-dev
+make check
+```
+
+Build release artifacts:
+
+```bash
+make build
+```
+
+Generate a Homebrew formula after publishing a release to PyPI:
+
+```bash
+make brew-formula
+```
+
+## Release Automation
+
+The repository now includes:
+
+- `/.github/workflows/ci.yml` for lint and test gates on push and pull request
+- `/.github/workflows/release.yml` for tagged releases, PyPI trusted publishing, and Homebrew tap updates
+- `scripts/bump_version.py` for repeatable version bumps
+- `scripts/generate_homebrew_formula.py` for Homebrew formula generation from published artifacts
+
+### PyPI
+
+`release.yml` is set up for PyPI trusted publishing. Configure this repository as a trusted publisher in PyPI before tagging a release.
+
+If you prefer manual publishing, the local path is still available:
+
+```bash
+TWINE_USERNAME=__token__ TWINE_PASSWORD=<pypi-token> make publish
+```
+
+### Homebrew
+
+Homebrew release automation expects:
+
+- repository variable `HOMEBREW_TAP_REPO`
+- repository secret `HOMEBREW_TAP_GITHUB_TOKEN`
+
+For local tap updates:
+
+```bash
+make release-homebrew HOMEBREW_TAP_DIR=../homebrew-tap
+```
+
+## Optional Environment Variables
+
+```bash
+HIVE_BASE_PATH=/path/to/workspace
+HIVE_GLOBAL_MEMORY_DIR=/custom/global-memory
 COORDINATOR_URL=http://localhost:8080
-
-# Optional: Weave tracing for custom integrations
 WANDB_API_KEY=your-wandb-api-key
 WEAVE_PROJECT=agent-hive
 ```
 
-### Run the Dashboard
+`COORDINATOR_URL` and Weave tracing are optional. The core CLI works fine without them.
+
+## Migration
+
+If you still have older `AGENCY.md` checkbox projects, import them once and move on:
 
 ```bash
-make dashboard
+hive migrate v1-to-v2 --json
 ```
 
-Open <http://localhost:8501> in your browser.
-
-### Run Hive (CLI)
+If you want Hive to replace the old checklist section with a generated rollup, use:
 
 ```bash
-uv run hive doctor --json
-uv run hive task ready --json
-uv run hive sync projections --json
+hive migrate v1-to-v2 --rewrite --json
 ```
 
-This validates the workspace, shows canonical ready work, and refreshes generated Markdown projections.
+## Repository Layout
 
-## 📁 Repository Structure
-
-```bash
-agent-hive/
-├── .claude/
-│   └── skills/                 # Claude Code skills for Agent Hive
-│       ├── hive-project-management/
-│       ├── cortex-operations/
-│       ├── deep-work-session/
-│       ├── multi-agent-coordination/
-│       └── hive-mcp/
-├── .opencode/
-│   ├── skill/                  # OpenCode skills (same as Claude Code)
-│   │   ├── cortex-operations/
-│   │   ├── deep-work-session/
-│   │   ├── hive-mcp/
-│   │   ├── hive-project-management/
-│   │   └── multi-agent-coordination/
-│   └── opencode.json           # OpenCode MCP configuration
-├── .devcontainer/
-│   └── devcontainer.json       # DevContainer config (Codespaces/Cursor ready)
-├── .github/
-│   └── workflows/
-│       ├── projection-sync.yml # Automated v2 projection sync
-│       └── agent-assignment.yml # Automated ready-work snapshot
-├── config/
-│   └── app-manifest.json       # GitHub App definition (for SaaS)
-├── examples/
-│   └── */                      # Example workflows (7 patterns)
-├── projects/
-│   └── */                      # Your project workspaces
-│       ├── AGENCY.md           # Narrative shared memory
-│       └── PROGRAM.md          # Autonomous work contract
+```text
+.
+├── .github/workflows/
 ├── .hive/
-│   ├── tasks/                  # Canonical machine task files
-│   ├── runs/                   # Immutable run artifacts
-│   ├── memory/                 # Project-local memory docs
-│   ├── events/                 # Append-only audit logs
-│   └── cache/                  # Derived SQLite cache (gitignored)
+├── docs/
+├── examples/
+├── packaging/homebrew/
+├── projects/
 ├── scripts/
-│   ├── start_session.sh        # Hive v2 session bootstrap
-│   └── generate-images-from-prompts.mjs # Prompt-to-image generator
 ├── src/
-│   ├── cortex.py               # v2 compatibility wrapper for sync/ready/deps
-│   ├── agent_dispatcher.py     # Optional manual GitHub issue dispatcher for ready tasks
-│   ├── context_assembler.py    # v2 task issue context builder
-│   ├── coordinator.py          # Real-time coordination server (optional)
-│   ├── coordinator_client.py   # Coordinator client library
-│   ├── dashboard.py            # Streamlit UI
-│   ├── security.py             # Security utilities (YAML, sanitization, auth)
-│   ├── tracing.py              # Weave observability integration
-│   ├── hive/                   # Hive 2.0 core package and CLI
-│   └── hive_mcp/               # Legacy MCP server
-│       ├── __init__.py
-│       ├── __main__.py
-│       └── server.py           # MCP tool implementations
-├── tests/                      # Test suite (150+ tests)
-├── articles/                   # Documentation articles
-├── GLOBAL.md                   # Root system state
-├── Makefile                    # Convenience commands
-├── pyproject.toml              # Python project configuration & dependencies
-├── SECURITY.md                 # Security policy and hardening documentation
-└── README.md                   # This file
+└── tests/
 ```
 
-## 🖼️ Article Image Generation
+## Status
 
-The repo includes a prompt-to-image generator for markdown prompts in `articles/prompts/`.
-
-### Run locally
-
-```bash
-OPENAI_API_KEY=... node scripts/generate-images-from-prompts.mjs
-```
-
-Optional environment variables:
-
-- `PROMPTS_GLOB` (default: `articles/prompts/*.md`)
-- `OUTPUT_ROOT` (default: `articles/images`)
-- `MODEL` (default: `gpt-image-1`)
-- `IMAGES_PER_PROMPT` (default: `1`)
-- `MAX_PROMPTS`, `MAX_IMAGES` (safety limits)
-- `DRY_RUN=1` (skip API calls, still writes manifest)
-- `FORCE=1` (regenerate even if manifest matches)
-- `TECHNICAL_ASPECT_PREFERENCE` (default: `4:3`)
-- `CONCEPTUAL_ASPECT_PREFERENCE` (default: `16:9`)
-
-### Parse test
-
-```bash
-node scripts/test-parse.mjs
-```
-
-### GitHub Actions workflow
-
-Run the `Generate Article Images` workflow manually with `workflow_dispatch` inputs to generate images and open a PR by default.
-
-## 🧩 Core Components
-
-### 1. AGENCY.md - The Shared Memory
-
-Every project has an `AGENCY.md` file with:
-
-```markdown
----
-project_id: my-project
-status: active
-owner: null
-last_updated: 2025-01-15T10:30:00Z
-blocked: false
-blocking_reason: null
-priority: high
-tags: [feature, backend]
-dependencies:
-  blocked_by: [other-project] # This project waits for these
-  blocks: [downstream-project] # These projects wait for us
-  parent: epic-project # Part of a larger epic (optional)
-  related: [context-project] # Related but non-blocking (optional)
----
-
-# Project Title
-
-## Objective
-
-What this project aims to achieve.
-
-## Tasks
-
-- [ ] Task 1
-- [ ] Task 2
-- [x] Completed task
-
-## Agent Notes
-
-- **2025-01-15 10:30 - Claude**: Started work on Task 1
-```
-
-**Key Fields:**
-
-| Field                     | Description                                      |
-| ------------------------- | ------------------------------------------------ |
-| `project_id`              | Unique identifier for the project                |
-| `status`                  | `active`, `pending`, `blocked`, or `completed`   |
-| `owner`                   | Agent currently working (or `null` if unclaimed) |
-| `blocked`                 | `true` if blocked on external dependency         |
-| `priority`                | `low`, `medium`, `high`, or `critical`           |
-| `dependencies.blocked_by` | Projects that must complete before this one      |
-| `dependencies.blocks`     | Projects waiting on this one                     |
-
-### 2. Cortex - Compatibility Wrapper
-
-`cortex.py` is now a thin compatibility layer over Hive 2.0. It no longer runs the old LLM orchestration loop. Instead, it:
-
-- ✅ Rebuilds the v2 cache and syncs generated projections
-- ✅ Updates compatibility timestamps in `GLOBAL.md`
-- ✅ Exposes ready-task queries for older scripts
-- ✅ Exposes dependency summaries for older scripts
-
-**CLI Commands:**
-
-```bash
-# Rebuild cache and refresh projections
-make sync-projections
-
-# Fast ready work detection
-make ready              # Human-readable output
-make ready-json         # JSON for programmatic use
-
-# Dependency analysis
-make deps               # Human-readable dependency summary
-make deps-json          # JSON for programmatic use
-```
-
-### 3. Dashboard - The UI
-
-`dashboard.py` is a Streamlit app that:
-
-- 📊 Visualizes all projects
-- 🚀 Generates Hive v2 startup and handoff contexts
-- 🔄 Refreshes projections and cache from the canonical substrate
-- 📋 Displays canonical ready-task queues and project metadata
-- 🔗 Shows dependency graphs and blocking status
-- ⚠️ Alerts on dependency cycles
-
-### 4. Hive MCP Server - AI Agent Integration
-
-The `hive-mcp` server enables AI agents like Claude to interact with Agent Hive programmatically via the [Model Context Protocol](https://modelcontextprotocol.io/).
-
-**Available Tools:**
-
-| Tool      | Description                                                            |
-| --------- | ---------------------------------------------------------------------- |
-| `search`  | Search workspace state, API docs, schemas, examples, and project views |
-| `execute` | Run bounded Python against a typed local Hive client                   |
-
-**Claude Desktop Configuration:**
-
-Add to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "hive": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "hive_mcp"],
-      "env": {
-        "HIVE_BASE_PATH": "/path/to/your/agent-hive"
-      }
-    }
-  }
-}
-```
-
-**Run Standalone:**
-
-```bash
-uv run python -m hive_mcp
-```
-
-### 5. Coordinator Server - Real-time Conflict Prevention (Optional)
-
-The Coordinator Server provides an optional real-time coordination layer for scenarios where multiple agents need to work concurrently without git conflicts.
-
-> **Note**: This is fully optional. Agent Hive works perfectly with git-only coordination. The Coordinator is for teams wanting faster real-time conflict resolution.
-
-**Start the server:**
-
-```bash
-# Default: localhost:8080
-uv run python -m src.coordinator
-
-# Custom host/port
-COORDINATOR_HOST=0.0.0.0 COORDINATOR_PORT=9000 uv run python -m src.coordinator
-```
-
-**Configure clients:**
-
-```bash
-# Add to .env
-COORDINATOR_URL=http://localhost:8080
-```
-
-**API Endpoints:**
-
-| Endpoint                | Method | Description                                      |
-| ----------------------- | ------ | ------------------------------------------------ |
-| `/health`               | GET    | Health check with active claim count             |
-| `/claim`                | POST   | Claim a project (returns 409 if already claimed) |
-| `/release/{project_id}` | DELETE | Release a project claim                          |
-| `/status/{project_id}`  | GET    | Check claim status of a project                  |
-| `/reservations`         | GET    | List all active reservations                     |
-| `/extend/{project_id}`  | POST   | Extend claim TTL                                 |
-
-**Claim Request Example:**
-
-```bash
-curl -X POST http://localhost:8080/claim \
-  -H "Content-Type: application/json" \
-  -d '{"project_id": "my-project", "agent_name": "claude-opus", "ttl_seconds": 3600}'
-```
-
-**Response (Success - 200):**
-
-```json
-{
-  "success": true,
-  "claim_id": "uuid-here",
-  "project_id": "my-project",
-  "agent_name": "claude-opus",
-  "expires_at": "2025-01-01T12:00:00Z"
-}
-```
-
-**Response (Conflict - 409):**
-
-```json
-{
-  "success": false,
-  "error": "Project already claimed",
-  "current_owner": "grok-beta",
-  "claimed_at": "2025-01-01T10:00:00Z",
-  "expires_at": "2025-01-01T11:00:00Z"
-}
-```
-
-**Features:**
-
-- Automatic claim expiration (configurable TTL, default 1 hour)
-- Force-claim option for admin override (`?force=true`)
-- Background cleanup of expired claims
-- Graceful degradation (clients fall back to git-only when unavailable)
-- OpenAPI documentation at `/docs`
-
-### 6. Agent Dispatcher - Optional Manual Work Assignment
-
-The Agent Dispatcher remains available as an optional manual compatibility path for creating GitHub issues that ping Claude Code.
-
-> **Prerequisite**: The Agent Dispatcher requires the [Claude Code GitHub App](#installing-claude-code-github-app) to be installed on your repository for `@claude` mentions to work.
-
-**How it works:**
-
-1. **You inspect ready work** - Use `uv run hive task ready --json` or the dashboard
-2. **Dispatcher can create an issue** - It builds a rich context package and opens a GitHub issue
-3. **Claude Code is triggered** - The dispatcher adds an `@claude` comment
-4. **Work proceeds on the issue/PR** - Claude Code responds through the normal GitHub flow
-
-**Run manually:**
-
-```bash
-# Dispatch highest priority ready task
-uv run python -m src.agent_dispatcher
-
-# Dry run (preview without changes)
-uv run python -m src.agent_dispatcher --dry-run
-
-# Dispatch up to 3 tasks
-uv run python -m src.agent_dispatcher --max 3
-```
-
-**GitHub Actions:**
-
-The scheduled `.github/workflows/agent-assignment.yml` workflow currently captures a ready-work snapshot (`hive task ready` + `hive doctor`) and uploads it as an artifact. It does not auto-open issues or run the dispatcher.
-
-**Claude Code Integration:**
-
-When issues are created with `@claude` mentions, the Claude Code Action (`.github/workflows/claude.yml`) automatically responds. This enables Claude to:
-
-- Analyze code and implement requested changes
-- Create pull requests for bug fixes and features
-- Answer questions about the codebase
-
-Requires `ANTHROPIC_API_KEY` secret to be configured.
-
-**AGENCY.md Extension - relevant_files:**
-
-Specify files to include in the issue context:
-
-```yaml
----
-project_id: my-project
-relevant_files:
-  - src/api/routes.py
-  - src/models/user.py
-  - tests/test_api.py
----
-```
-
-### 7. External Repository Support
-
-Agent Hive can coordinate work on external GitHub repositories. Add a `target_repo` field to your AGENCY.md:
-
-```yaml
----
-project_id: improve-external-lib
-status: active
-target_repo:
-  url: https://github.com/org/external-repo
-  branch: main
----
-
-# Improve External Library
-
-## Tasks
-- [ ] Analyze repository structure
-- [ ] Identify improvement opportunity
-- [ ] Implement and submit PR
-
-## Phase 1: Analysis
-*Agent writes analysis here*
-
-## Phase 2: Strategy
-*Agent writes improvement plan here*
-
-## Phase 3: Implementation
-*Agent writes code changes here*
-```
-
-When the Dispatcher creates an issue for this project, it automatically:
-
-1. **Clones the external repo** (shallow, depth=1)
-2. **Generates a file tree** (4 levels deep, excludes noise like node_modules)
-3. **Reads key files** (package.json, README.md, src/index.\*, etc.)
-4. **Includes context in the issue** for the agent
-5. **Cleans up** temporary files
-
-The agent then works on the external repository while using AGENCY.md as shared memory. Results are written to Phase sections, and when ready, the agent submits a PR to the target repository.
-
-**See also:**
-
-- [Example 9: Cross-Repository Workflows](examples/9-cross-repo-workflows/)
-- [Article 11: Cross-Repository Multi-Agent Workflows](articles/11-cross-repo-multi-agent-workflows.md)
-
-## 🎓 Usage Patterns
-
-### Pattern 1: Scheduled Projection Sync
-
-Let GitHub Actions refresh the derived workspace state every 4 hours. It will:
-
-1. Rebuild `.hive/cache/index.sqlite`
-2. Sync generated sections in `GLOBAL.md`, `AGENCY.md`, and `AGENTS.md`
-3. Commit generated projection updates back to the repo
-
-```bash
-# Enable the workflow
-git push origin main
-
-# Monitor sync runs
-gh workflow view projection-sync.yml
-```
-
-### Pattern 2: Hive v2 Sessions
-
-Use the bootstrap script to generate context for manual agent work:
-
-```bash
-make session PROJECT=projects/demo
-```
-
-This creates a `SESSION_CONTEXT.md` file with:
-
-- Hive v2 startup context
-- Canonical ready tasks
-- AGENCY.md projection content
-- File tree and handoff instructions
-
-Copy this to your AI agent (Claude, Cursor, etc.) and let it work.
-
-### Pattern 3: Multi-Agent Collaboration
-
-Different agents can work on the same project:
-
-1. **Agent A (Claude)**: Works a canonical ready task and updates `.hive/tasks/`
-2. **Hive projections**: Sync generated `AGENCY.md` / `GLOBAL.md` views
-3. **Agent B (Grok)**: Picks up the next ready task from the canonical queue
-4. **Human**: Reviews in Dashboard, adds new tasks, or adjusts project state
-
-## 🔧 Configuration
-
-### Weave Tracing (Observability)
-
-Agent Hive includes optional tracing utilities via [Weights & Biases Weave](https://docs.wandb.ai/weave). The core Hive 2.0 CLI does not require LLM calls, but custom integrations built on `src/tracing.py` can emit latency, token usage, and status metadata.
-
-**Enable Weave tracing:**
-
-```bash
-# Add to .env
-WANDB_API_KEY=your-wandb-api-key
-WEAVE_PROJECT=agent-hive  # Optional, defaults to "agent-hive"
-```
-
-**Disable tracing (optional):**
-
-```bash
-WEAVE_DISABLED=true
-```
-
-**What can be traced:**
-
-- Custom LLM API calls made through `src/tracing.py`
-- Request/response latency (milliseconds)
-- Token usage (prompt, completion, total)
-- Success/failure status
-
-**Key features:**
-
-- **Automatic header sanitization**: API keys are redacted from traces
-- **Graceful degradation**: If Weave fails or isn't configured, the app continues normally
-- **Decorators for custom tracing**: Use `@trace_op("name")` to trace your own functions
-- **LLMCallMetadata**: Rich metadata class capturing all call details
-
-**View traces:**
-
-- Log into [wandb.ai](https://wandb.ai)
-- Navigate to your Weave project
-- View call traces, costs, and performance metrics
-
-Tracing is **optional** and gracefully degrades - if Weave is not configured or fails to initialize, the application continues to function normally.
-
-### Security Configuration
-
-Agent Hive includes comprehensive security hardening. See [SECURITY.md](SECURITY.md) for full details.
-
-**Required for production:**
-
-```bash
-# Add to .env for Coordinator API authentication
-HIVE_API_KEY=your-secure-api-key-here
-HIVE_REQUIRE_AUTH=true
-```
-
-**Security features:**
-
-- **Safe YAML parsing**: Prevents deserialization attacks (RCE prevention)
-- **Prompt injection protection**: Sanitizes untrusted content before LLM calls
-- **API key authentication**: Bearer token auth for Coordinator server
-- **Path traversal validation**: Prevents directory escape attacks
-- **Input validation**: Bounds checking on dispatch limits and recursion depth
-- **Issue body sanitization**: Filters injection patterns in GitHub issues
-
-**Environment variables:**
-
-| Variable            | Purpose                    | Default                             |
-| ------------------- | -------------------------- | ----------------------------------- |
-| `HIVE_API_KEY`      | Coordinator authentication | None (required for external access) |
-| `HIVE_REQUIRE_AUTH` | Enable/disable auth        | `true` in production                |
-| `COORDINATOR_HOST`  | Server binding address     | `127.0.0.1` (localhost only)        |
-
-For detailed security documentation, see the [Security article](articles/09-agent-hive-security.md) and [SECURITY.md](SECURITY.md).
-
-### GitHub Actions Schedule
-
-Edit `.github/workflows/projection-sync.yml`:
-
-```yaml
-schedule:
-  # Run every 2 hours instead of 4
-  - cron: "0 */2 * * *"
-```
-
-### Installing Claude Code GitHub App
-
-The [Claude Code GitHub App](https://github.com/apps/claude) is **required** for the Agent Dispatcher to work. It responds to `@claude` mentions in issues and pull requests.
-
-**Installation:**
-
-1. Visit <https://github.com/apps/claude>
-2. Click **"Install"** or **"Configure"**
-3. Select your organization or account
-4. Choose **"Only select repositories"** and add this repository
-5. Click **"Install"**
-
-**Verify installation:**
-
-```bash
-# Run the verification script
-uv run python scripts/verify_claude_app.py
-
-# Test the dispatcher (dry run)
-uv run python -m src.agent_dispatcher --dry-run
-```
-
-For detailed instructions, see [docs/INSTALL_CLAUDE_APP.md](docs/INSTALL_CLAUDE_APP.md).
-
-### Custom GitHub App Deployment (Optional)
-
-To deploy Agent Hive as your own custom GitHub App (for webhooks/SaaS):
-
-1. Go to GitHub Settings > Developer > GitHub Apps > New GitHub App
-2. Use `config/app-manifest.json` as the base configuration
-3. Set webhook URL to your server
-4. Install on repositories
-
-## 🛠️ Development
-
-### Project Structure
-
-- `src/cortex.py` - Compatibility ready/deps/sync wrapper
-- `src/dashboard.py` - Streamlit UI
-- `scripts/start_session.sh` - Session bootstrap
-- `.devcontainer/` - DevContainer configuration
-
-### Running Tests
-
-```bash
-make test
-```
-
-### Code Formatting
-
-```bash
-make format
-```
-
-### Linting
-
-```bash
-make lint
-```
-
-## 📖 Creating a New Project
-
-1. Create a directory in `projects/`:
-
-```bash
-mkdir projects/my-new-project
-```
-
-1. Create an `AGENCY.md` file (copy from `projects/demo/AGENCY.md`):
-
-```bash
-cp projects/demo/AGENCY.md projects/my-new-project/AGENCY.md
-```
-
-1. Edit the frontmatter and content:
-
-```yaml
----
-project_id: my-new-project
-status: active
-owner: null
-last_updated: null
-blocked: false
-priority: high
-tags: [new-feature]
----
-# My New Project
-
-## Objective
-Build a new feature that...
-```
-
-1. Sync projections and inspect ready work:
-
-```bash
-make sync-projections
-make ready-json
-```
-
-The project will now be tracked automatically.
-
-## 🌐 Deployment Options
-
-### Option 1: GitHub Actions (Free Tier)
-
-Already configured! Just push to GitHub and enable Actions.
-
-**Required Secrets** (Settings → Secrets and variables → Actions):
-
-- `ANTHROPIC_API_KEY` - For Claude Code Action (@claude mentions)
-- `WANDB_API_KEY` - Optional, only if you want Weave tracing
-
-### Option 2: Local Cron Job
-
-```bash
-# Add to crontab
-0 */4 * * * cd /path/to/agent-hive && make sync-projections
-```
-
-### Option 3: Cloud VM
-
-Deploy to AWS/GCP/Azure with:
-
-- Cron job running projection sync
-- Nginx serving Dashboard
-- GitHub App webhook receiver
-
-### Option 4: Codespaces
-
-Open in GitHub Codespaces for instant MCP-enabled environment:
-
-```bash
-# The DevContainer is pre-configured
-# Just open in Codespaces and run:
-make dashboard
-```
-
-## 🧪 Advanced: MCP Integration
-
-Agent Hive provides two levels of MCP integration:
-
-### Hive MCP Server (Recommended)
-
-The built-in `hive-mcp` server gives AI agents direct access to Agent Hive operations:
-
-```bash
-# Install and run
-uv run python -m hive_mcp
-```
-
-This enables agents to:
-
-- 🔎 Search the workspace and Hive docs through one bounded surface
-- 🧪 Execute small Hive client programs in a bounded subprocess
-
-See [Hive MCP Server](#4-hive-mcp-server---ai-agent-integration) for configuration.
-
-### DevContainer Filesystem MCP
-
-The DevContainer also includes a generic filesystem MCP server for lower-level file operations. When using Cursor/Claude Code in the DevContainer, agents have filesystem access for reading/writing files directly.
-
-## 🎯 Claude Code Skills
-
-Agent Hive includes a set of [Claude Code Skills](https://www.anthropic.com/news/skills) that teach Claude how to work effectively with the orchestration system. Skills are modular instruction sets that Claude loads automatically when relevant to your task.
-
-### Available Skills
-
-| Skill                        | Description                                                    | Use When                                                    |
-| ---------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------- |
-| **hive-project-management**  | Managing AGENCY.md files, frontmatter fields, task tracking    | Creating/updating projects, managing ownership              |
-| **cortex-operations**        | Using compatibility ready/deps commands during v2 transition   | Finding work, analyzing dependencies, using compatibility commands |
-| **deep-work-session**        | Focused work sessions, handoff protocol, session lifecycle     | Starting/ending work sessions, following protocols          |
-| **multi-agent-coordination** | Multi-agent patterns, conflict prevention, coordination server | Working with other agents, preventing conflicts             |
-| **hive-mcp**                 | MCP server tools, programmatic project access                  | Using MCP tools for project management                      |
-
-### How Skills Work
-
-Skills use **progressive disclosure** - Claude loads only the skill name and description at startup, then loads full instructions when needed:
-
-```bash
-1. Startup: Load skill metadata (name + description)
-2. Task Match: Claude detects relevant skill from your request
-3. Activation: Full skill instructions loaded into context
-4. Execution: Claude follows skill guidance for the task
-```
-
-### Skill Location
-
-Skills are stored in `.claude/skills/` with this structure:
-
-```bash
-.claude/skills/
-├── hive-project-management/
-│   └── SKILL.md
-├── cortex-operations/
-│   └── SKILL.md
-├── deep-work-session/
-│   └── SKILL.md
-├── multi-agent-coordination/
-│   └── SKILL.md
-└── hive-mcp/
-    └── SKILL.md
-```
-
-### Using Skills
-
-Skills activate automatically based on your request. Examples:
-
-```bash
-# Activates: hive-project-management
-"Create a new project for the authentication feature"
-
-# Activates: cortex-operations
-"Find projects that are ready for me to work on"
-
-# Activates: deep-work-session
-"Start a deep work session on the demo project"
-
-# Activates: multi-agent-coordination
-"How do I coordinate with other agents on this project?"
-
-# Activates: hive-mcp
-"Use the MCP tools to claim project demo"
-```
-
-### What Skills Teach Claude
-
-Each skill provides comprehensive guidance:
-
-- **hive-project-management**: AGENCY.md structure, all frontmatter fields, task management, ownership rules, dependency configuration
-- **cortex-operations**: compatibility CLI commands (`--ready`, `--deps`, `--json`), output interpretation, troubleshooting, programmatic usage
-- **deep-work-session**: Session lifecycle (enter → claim → work → update → handoff), checklist, blocking protocol
-- **multi-agent-coordination**: Ownership protocol, dependency flow, coordinator API, conflict resolution patterns
-- **hive-mcp**: All 12 MCP tools with arguments, response formats, workflow examples
-
-### Installing Additional Skills
-
-You can add custom skills or install from the [Anthropic Skills repository](https://github.com/anthropics/skills):
-
-```bash
-# Create a new skill
-mkdir .claude/skills/my-custom-skill
-cat > .claude/skills/my-custom-skill/SKILL.md << 'EOF'
----
-name: my-custom-skill
-description: Description of what this skill does and when to use it
----
-
-# My Custom Skill
-
-Instructions for Claude to follow...
-EOF
-```
-
-## 🌐 OpenCode Integration
-
-Agent Hive provides full support for [OpenCode](https://opencode.ai/), the open-source AI coding agent. OpenCode users get the same skills and MCP integration as Claude Code users.
-
-### OpenCode Skills
-
-All Agent Hive skills are available in `.opencode/skill/`:
-
-| Skill                        | Description                                                    |
-| ---------------------------- | -------------------------------------------------------------- |
-| **cortex-operations**        | Using compatibility ready/deps commands during v2 transition   |
-| **deep-work-session**        | Focused work sessions, handoff protocol, session lifecycle     |
-| **hive-mcp**                 | MCP server tools, programmatic project access                  |
-| **hive-project-management**  | Managing AGENCY.md files, frontmatter fields, task tracking    |
-| **multi-agent-coordination** | Multi-agent patterns, conflict prevention, coordination server |
-
-Skills load automatically when OpenCode detects a relevant request.
-
-### OpenCode MCP Configuration
-
-The `.opencode/opencode.json` file configures the Hive MCP server:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "hive": {
-      "type": "local",
-      "command": ["uv", "run", "python", "-m", "src.hive_mcp"],
-      "enabled": true,
-      "environment": {
-        "HIVE_BASE_PATH": "."
-      }
-    }
-  }
-}
-```
-
-### Using OpenCode with Agent Hive
-
-1. **Install OpenCode**:
-   ```bash
-   curl -fsSL https://opencode.ai/install | bash
-   ```
-
-2. **Navigate to Agent Hive repository**:
-   ```bash
-   cd /path/to/agent-hive
-   ```
-
-3. **Start OpenCode**:
-   ```bash
-   opencode
-   ```
-
-4. **Skills and MCP tools are available automatically**:
-   - Skills load from `.opencode/skill/`
-   - MCP tools are configured in `.opencode/opencode.json`
-   - Use Tab to switch between OpenCode's built-in agents (Build/Plan)
-
-### OpenCode vs Claude Code
-
-| Feature | Claude Code | OpenCode |
-|---------|-------------|----------|
-| Model | Claude only | Any provider |
-| Skills Location | `.claude/skills/` | `.opencode/skill/` |
-| Skills Format | SKILL.md | SKILL.md (identical) |
-| MCP Support | Native | Native |
-| Config File | `claude.json` | `opencode.json` |
-| Built-in Agents | Single | Build/Plan (Tab toggle) |
-| Price | Anthropic API | Free + any API |
-| Open Source | No | Yes (MIT) |
-
-Both tools use the same SKILL.md format, so Agent Hive skills work identically across both platforms.
-
-### Global OpenCode Configuration
-
-For system-wide access to Agent Hive skills, copy to your global config:
-
-```bash
-# Copy skills globally
-cp -r .opencode/skill/* ~/.config/opencode/skill/
-
-# Or symlink for automatic updates
-ln -s $(pwd)/.opencode/skill/hive-project-management ~/.config/opencode/skill/
-```
-
-## 📚 Philosophy
-
-Agent Hive is built on these principles:
-
-1. **Vendor Agnostic**: Works with any LLM provider
-2. **Human-in-the-Loop**: Always transparent, never autonomous
-3. **Simple Primitives**: Markdown files as shared memory
-4. **Git as Source of Truth**: All state is versioned
-5. **Free Infrastructure**: Runs on GitHub Actions free tier
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
-
-## 🆘 Troubleshooting
-
-### "No canonical ready work found"
-
-Run `uv run hive migrate v1-to-v2 --json` if you still have legacy checkbox projects that have not been imported into `.hive/tasks/` yet.
-
-### "No projects found"
-
-Make sure you have at least one `AGENCY.md` file in a subdirectory of `projects/`.
-
-### GitHub Actions not running
-
-1. Check that the workflow is enabled in your repo settings
-2. Verify the cron schedule in `.github/workflows/projection-sync.yml`
-
-### Streamlit dashboard won't start
-
-```bash
-# Reinstall dependencies
-make install
-
-# Or sync dependencies
-make sync
-
-# Check for port conflicts
-lsof -i :8501
-```
-
-## 🎯 Roadmap
-
-**Completed:**
-
-- [x] Ready work detection (fast, no LLM required)
-- [x] Dependency tracking with cycle detection
-- [x] MCP server for AI agent integration
-- [x] JSON output mode for programmatic access
-- [x] Dashboard dependency visualization
-- [x] Real-time agent coordination layer (HTTP API)
-- [x] Claude Code Skills for guided AI workflows
-- [x] Automated agent work assignment (Agent Dispatcher)
-- [x] Security hardening (YAML RCE, prompt injection, auth)
-- [x] Weave tracing integration (LLM observability)
-- [x] Multi-repository support
-- [x] OpenCode integration (skills + MCP)
-
-**Planned:**
-
-- [ ] Web-based Dashboard (hosted version)
-- [ ] Slack/Discord integration
-- [ ] Agent performance metrics
-- [ ] Visual workflow builder
-- [ ] Docker deployment for coordinator
-
-## 📞 Support
-
-- GitHub Issues: <https://github.com/intertwine/hive-orchestrator/issues>
-- Discussions: <https://github.com/intertwine/hive-orchestrator/discussions>
-
----
-
-Built with ❤️ by the Agent Hive community.
-
-**Happy orchestrating!** 🚀
+This repository runs on the same Hive 2.0 substrate it ships. Projection sync and ready-work snapshots run in GitHub Actions, and the repo carries live canonical task, run, memory, and projection state.

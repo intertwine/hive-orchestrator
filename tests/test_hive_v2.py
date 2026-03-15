@@ -201,9 +201,7 @@ class TestHiveV2Migration:
         assert report.to_dict()["ok"] is True
         assert not list(tasks_dir(temp_hive_dir).glob("task_*.md"))
 
-    def test_migration_rewrite_replaces_legacy_checklist_section(
-        self, temp_hive_dir, temp_project
-    ):
+    def test_migration_rewrite_replaces_legacy_checklist_section(self, temp_hive_dir, temp_project):
         """Rewrite mode should replace legacy checklists after import."""
         report = migrate_v1_to_v2(temp_hive_dir, rewrite=True)
         agency_content = Path(temp_project).read_text(encoding="utf-8")
@@ -239,9 +237,7 @@ priority: high
 
         report = migrate_v1_to_v2(temp_hive_dir)
         tasks = {
-            task.title: task
-            for task in list_tasks(temp_hive_dir)
-            if task.project_id == "relations"
+            task.title: task for task in list_tasks(temp_hive_dir) if task.project_id == "relations"
         }
 
         assert report.edges_inferred == 3
@@ -339,9 +335,7 @@ priority: medium
         report = migrate_v1_to_v2(temp_hive_dir)
         result = report.to_dict()
         task = next(
-            task
-            for task in list_tasks(temp_hive_dir)
-            if task.project_id == "missing-relation"
+            task for task in list_tasks(temp_hive_dir) if task.project_id == "missing-relation"
         )
 
         assert any(
@@ -406,15 +400,15 @@ dependencies:
         )
 
         report = migrate_v1_to_v2(temp_hive_dir)
-        tasks = [task for task in list_tasks(temp_hive_dir) if task.project_id == "list-dependencies"]
+        tasks = [
+            task for task in list_tasks(temp_hive_dir) if task.project_id == "list-dependencies"
+        ]
 
         assert report.to_dict()["ok"] is True
         assert len(tasks) == 1
         assert tasks[0].status == "ready"
 
-    def test_migration_keeps_blocked_status_when_one_dependency_resolves(
-        self, temp_hive_dir
-    ):
+    def test_migration_keeps_blocked_status_when_one_dependency_resolves(self, temp_hive_dir):
         """A resolved dependency should keep the task blocked even if another target is missing."""
         agency_path = Path(temp_hive_dir) / "projects" / "mixed-dependencies" / "AGENCY.md"
         agency_path.parent.mkdir(parents=True, exist_ok=True)
@@ -958,7 +952,9 @@ class TestHiveV2Memory:
         assert any(run_summary["id"] == run.id for run_summary in results["recent_runs"])
         assert any(hit["kind"] == "run_summary" for hit in memory_hits)
 
-    def test_recent_runs_sort_by_acceptance_time(self, temp_hive_dir, temp_project, commit_workspace):
+    def test_recent_runs_sort_by_acceptance_time(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
         """Startup context should order recent runs by acceptance time, not run ID."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
@@ -983,13 +979,17 @@ class TestHiveV2Memory:
         commit_workspace(temp_hive_dir, "restore program after snapshot")
 
         second_ready_ids = [
-            item["id"] for item in ready_tasks(temp_hive_dir, project_id=project.id) if item["id"] != ready_ids[0]
+            item["id"]
+            for item in ready_tasks(temp_hive_dir, project_id=project.id)
+            if item["id"] != ready_ids[0]
         ]
         second_run = start_run(temp_hive_dir, second_ready_ids[0])
         eval_run(temp_hive_dir, second_run.id)
         accept_run(temp_hive_dir, second_run.id)
 
-        first_metadata_path = Path(temp_hive_dir) / ".hive" / "runs" / first_run.id / "metadata.json"
+        first_metadata_path = (
+            Path(temp_hive_dir) / ".hive" / "runs" / first_run.id / "metadata.json"
+        )
         first_metadata = json.loads(first_metadata_path.read_text(encoding="utf-8"))
         first_metadata["finished_at"] = "2099-01-01T00:00:00Z"
         first_metadata_path.write_text(
@@ -1009,7 +1009,7 @@ class TestHiveV2Memory:
     def test_workspace_search_indexes_relative_run_summary_paths(
         self, temp_hive_dir, temp_project, commit_workspace
     ):
-        """Workspace search should index accepted run summaries even when metadata stores relative paths."""
+        """Workspace search should index run summaries even when metadata uses relative paths."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
@@ -1031,7 +1031,9 @@ class TestHiveV2Memory:
         metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
         rebuild_cache(temp_hive_dir)
 
-        results = search_workspace(temp_hive_dir, "cache-relative-swan", scopes=["workspace"], limit=10)
+        results = search_workspace(
+            temp_hive_dir, "cache-relative-swan", scopes=["workspace"], limit=10
+        )
 
         assert any(hit["kind"] == "run_summary" for hit in results)
 
@@ -1129,6 +1131,104 @@ class TestHiveV2Memory:
 
 class TestHiveV2Cli:
     """Tests for the CLI JSON surface."""
+
+    def test_cli_init_bootstraps_workspace_files(self, tmp_path, capsys):
+        """Init should create a usable workspace, projections, and cache."""
+        workspace = tmp_path / "fresh-hive"
+
+        exit_code = hive_main(["--path", str(workspace), "--json", "init"])
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["created_files"]
+        assert ".hive/README.md" in payload["created_files"]
+        assert "AGENTS.md" in payload["created_files"]
+        assert "GLOBAL.md" in payload["created_files"]
+        assert ".gitignore" in payload["created_files"]
+        assert (workspace / ".hive" / "cache" / "index.sqlite").exists()
+        assert GLOBAL_BEGIN in (workspace / "GLOBAL.md").read_text(encoding="utf-8")
+        assert "<!-- hive:begin compatibility -->" in (workspace / "AGENTS.md").read_text(
+            encoding="utf-8"
+        )
+        assert any("hive project create demo" in step for step in payload["next_steps"])
+
+    def test_cli_doctor_guides_empty_workspace_and_first_project(self, tmp_path, capsys):
+        """Doctor should recommend bootstrap and first-project steps as the workspace evolves."""
+        workspace = tmp_path / "doctor-hive"
+        workspace.mkdir(parents=True, exist_ok=True)
+
+        exit_code = hive_main(["--path", str(workspace), "--json", "doctor"])
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+
+        assert exit_code == 0
+        assert any("hive init --json" in step for step in payload["next_steps"])
+
+        hive_main(["--path", str(workspace), "--json", "init"])
+        capsys.readouterr()
+        hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "create",
+                "launch/demo",
+                "--title",
+                "Launch Demo",
+            ]
+        )
+        capsys.readouterr()
+
+        exit_code = hive_main(["--path", str(workspace), "--json", "doctor"])
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+
+        assert exit_code == 0
+        assert any(
+            "hive task create --project-id launch-demo" in step for step in payload["next_steps"]
+        )
+
+    def test_cli_project_create_scaffolds_agency_and_program(self, tmp_path, capsys):
+        """Project creation should normalize slugs and scaffold narrative and policy files."""
+        workspace = tmp_path / "scaffold-hive"
+        hive_main(["--path", str(workspace), "--json", "init"])
+        capsys.readouterr()
+
+        exit_code = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "create",
+                "Launch Ready / Website",
+                "--title",
+                "Launch Ready Website",
+                "--objective",
+                "Ship the public launch surface for Hive 2.0.",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        agency_path = Path(payload["project"]["path"])
+        program_path = Path(payload["project"]["program_path"])
+
+        assert payload["project"]["id"] == "launch-ready/website".replace("/", "-")
+        assert agency_path.exists()
+        assert program_path.exists()
+        agency_content = agency_path.read_text(encoding="utf-8")
+        assert "Ship the public launch surface for Hive 2.0." in agency_content
+        assert TASK_BEGIN in agency_content
+        assert RUN_BEGIN in agency_content
+        assert "program_version: 1" in program_path.read_text(encoding="utf-8")
+        assert any(
+            "hive task create --project-id launch-ready-website" in step
+            for step in payload["next_steps"]
+        )
 
     def test_cli_task_ready_json_after_migration(self, temp_hive_dir, capsys):
         """The CLI should return stable JSON for ready tasks."""

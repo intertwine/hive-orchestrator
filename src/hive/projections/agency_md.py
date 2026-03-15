@@ -45,9 +45,7 @@ def _render_recent_runs(project_id: str, path: str | Path | None = None) -> str:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             if metadata.get("project_id") != project_id:
                 continue
-            lines.append(
-                f"| {metadata['id']} | {metadata['status']} | {metadata['task_id']} |"
-            )
+            lines.append(f"| {metadata['id']} | {metadata['status']} | {metadata['task_id']} |")
     if len(lines) == 4:
         lines.append("| No runs | - | - |")
     return "\n".join(lines)
@@ -60,8 +58,12 @@ def sync_agency_md(path: str | Path | None = None) -> list[Path]:
     updated_paths: list[Path] = []
     for project in discover_projects(path):
         content = project.agency_path.read_text(encoding="utf-8")
-        updated = replace_marker_block(content, TASK_BEGIN, TASK_END, _render_task_rollup(project.id, path))
-        updated = replace_marker_block(updated, RUN_BEGIN, RUN_END, _render_recent_runs(project.id, path))
+        updated = replace_marker_block(
+            content, TASK_BEGIN, TASK_END, _render_task_rollup(project.id, path)
+        )
+        updated = replace_marker_block(
+            updated, RUN_BEGIN, RUN_END, _render_recent_runs(project.id, path)
+        )
         project.agency_path.write_text(updated, encoding="utf-8")
         updated_paths.append(project.agency_path)
     return updated_paths

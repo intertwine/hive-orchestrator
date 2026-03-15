@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from src.hive.constants import PRIORITY_MAP
 from src.hive.ids import new_id
 from src.hive.models.project import ProjectRecord
+from src.hive.scaffold import generate_program_stub
 from src.security import safe_dump_agency_md, safe_load_agency_md
+
+
+SLUG_PART_RE = re.compile(r"[^a-z0-9]+")
 
 
 def _extract_title(content: str, fallback: str) -> str:
@@ -24,6 +29,46 @@ def _priority_value(value: object) -> int:
     if isinstance(value, str):
         return PRIORITY_MAP.get(value.lower(), 2)
     return 2
+
+
+def _normalize_slug(value: str) -> str:
+    parts: list[str] = []
+    for raw_part in value.strip().strip("/").split("/"):
+        lowered = raw_part.strip().lower()
+        lowered = SLUG_PART_RE.sub("-", lowered).strip("-")
+        if lowered:
+            parts.append(lowered)
+    if not parts:
+        raise ValueError("Project slug must contain at least one alphanumeric segment")
+    return "/".join(parts)
+
+
+def _title_from_slug(slug: str) -> str:
+    label = slug.split("/")[-1].replace("-", " ").strip()
+    return label.title() or "Untitled Project"
+
+
+def _project_id_from_slug(slug: str) -> str:
+    return slug.replace("/", "-")
+
+
+def _default_agency_body(title: str, objective: str | None = None) -> str:
+    mission = (
+        objective or "Describe the outcome, constraints, and operating notes for this project."
+    )
+    return f"""# {title}
+
+## Mission
+{mission}
+
+## Notes
+Use this document for human context, links, architecture notes, and handoff details.
+
+## Working Rules
+- Keep canonical task state in `.hive/tasks/*.md`.
+- Read `PROGRAM.md` before autonomous edits or evaluator runs.
+- Refresh projections after state changes with `hive sync projections --json`.
+"""
 
 
 def discover_projects(path: str | Path | None = None) -> list[ProjectRecord]:
@@ -61,6 +106,49 @@ def get_project(path: str | Path | None, project_id: str) -> ProjectRecord:
         if project.id == project_id:
             return project
     raise FileNotFoundError(f"Project not found: {project_id}")
+
+
+def create_project(
+    path: str | Path | None,
+    slug: str,
+    *,
+    title: str | None = None,
+    project_id: str | None = None,
+    status: str = "active",
+    priority: int = 2,
+    objective: str | None = None,
+    tags: list[str] | None = None,
+) -> ProjectRecord:
+    """Create a new project scaffold with AGENCY.md and PROGRAM.md."""
+    root = Path(path or Path.cwd())
+    normalized_slug = _normalize_slug(slug)
+    resolved_title = title.strip() if title else _title_from_slug(normalized_slug)
+    resolved_project_id = (
+        project_id.strip() if project_id else _project_id_from_slug(normalized_slug)
+    )
+    project_dir = root / "projects" / normalized_slug
+    agency_path = project_dir / "AGENCY.md"
+    program_path = project_dir / "PROGRAM.md"
+
+    if agency_path.exists() or program_path.exists():
+        raise FileExistsError(f"Project already exists at {project_dir}")
+
+    project_dir.mkdir(parents=True, exist_ok=True)
+    metadata = {
+        "project_id": resolved_project_id,
+        "status": status,
+        "priority": priority,
+    }
+    if tags:
+        metadata["tags"] = list(tags)
+
+    agency_path.write_text(
+        safe_dump_agency_md(metadata, _default_agency_body(resolved_title, objective)),
+        encoding="utf-8",
+    )
+
+    generate_program_stub(project_dir)
+    return get_project(root, resolved_project_id)
 
 
 def ensure_project_id(project: ProjectRecord) -> ProjectRecord:

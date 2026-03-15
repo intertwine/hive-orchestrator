@@ -19,9 +19,7 @@ class TestCoordinatorClientAuthentication:
 
     def test_client_initialization_with_api_key_parameter(self):
         """Test that client accepts and stores API key parameter."""
-        client = CoordinatorClient(
-            base_url="http://localhost:8080", api_key="test-key-123"
-        )
+        client = CoordinatorClient(base_url="http://localhost:8080", api_key="test-key-123")
         assert client.api_key == "test-key-123"
         assert client.base_url == "http://localhost:8080"
 
@@ -34,9 +32,7 @@ class TestCoordinatorClientAuthentication:
     def test_client_initialization_parameter_overrides_env(self):
         """Test that explicit parameter overrides environment variable."""
         with patch.dict(os.environ, {"HIVE_API_KEY": "env-key-456"}, clear=False):
-            client = CoordinatorClient(
-                base_url="http://localhost:8080", api_key="param-key-789"
-            )
+            client = CoordinatorClient(base_url="http://localhost:8080", api_key="param-key-789")
             assert client.api_key == "param-key-789"
 
     def test_client_initialization_no_api_key(self):
@@ -55,9 +51,7 @@ class TestCoordinatorClientAuthentication:
         mock_response.json.return_value = {"status": "healthy"}
         mock_request.return_value = mock_response
 
-        client = CoordinatorClient(
-            base_url="http://localhost:8080", api_key="test-key-123"
-        )
+        client = CoordinatorClient(base_url="http://localhost:8080", api_key="test-key-123")
         client._request("GET", "/health")
 
         # Verify the request was made with Authorization header
@@ -186,9 +180,7 @@ class TestCoordinatorClientWithAuthServer:
     def test_all_protected_endpoints_require_auth(self, auth_client):
         """Test that all claim/release/extend endpoints require authentication."""
         # Test /claim
-        response = auth_client.post(
-            "/claim", json={"project_id": "test", "agent_name": "agent"}
-        )
+        response = auth_client.post("/claim", json={"project_id": "test", "agent_name": "agent"})
         assert response.status_code == 401
 
         # Test /release/{project_id}
@@ -267,9 +259,7 @@ class TestCoordinatorClientIntegrationWithAuth:
 
     def test_client_with_api_key_succeeds(self, auth_server):
         """Test that client with API key can successfully claim projects."""
-        client = CoordinatorClient(
-            base_url="http://test-server", api_key="integration-key-789"
-        )
+        client = CoordinatorClient(base_url="http://test-server", api_key="integration-key-789")
         result = client.claim("my-project", "test-agent")
 
         assert result.success is True
@@ -296,9 +286,7 @@ class TestCoordinatorClientIntegrationWithAuth:
 
     def test_full_workflow_with_authentication(self, auth_server):
         """Test complete claim/extend/release workflow with authentication."""
-        client = CoordinatorClient(
-            base_url="http://test-server", api_key="integration-key-789"
-        )
+        client = CoordinatorClient(base_url="http://test-server", api_key="integration-key-789")
 
         # 1. Claim a project
         claim_result = client.claim("workflow-test", "authenticated-agent")

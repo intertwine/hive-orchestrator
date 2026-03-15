@@ -15,6 +15,7 @@ from src.hive.models.run import RunRecord
 from src.hive.runs.evaluators import run_evaluator, validate_evaluator_command
 from src.hive.runs.executors import get_executor
 from src.hive.runs.worktree import capture_worktree_state, create_run_worktree, current_head
+from src.hive.scaffold import generate_program_stub
 from src.hive.store.events import emit_event
 from src.hive.store.layout import runs_dir, worktrees_dir
 from src.hive.store.projects import get_project
@@ -28,54 +29,6 @@ def load_program(project_path: Path) -> ProgramRecord:
     program = ProgramRecord(path=project_path, body=parsed.content, metadata=dict(parsed.metadata))
     program.validate()
     return program
-
-
-def generate_program_stub(project_dir: Path) -> Path:
-    """Create a conservative PROGRAM.md stub when missing."""
-    stub = """---
-program_version: 1
-mode: workflow
-default_executor: local
-budgets:
-  max_wall_clock_minutes: 30
-  max_steps: 25
-  max_tokens: 20000
-  max_cost_usd: 2.0
-paths:
-  allow:
-    - src/**
-    - tests/**
-    - docs/**
-  deny:
-    - secrets/**
-    - infra/prod/**
-commands:
-  allow: []
-  deny:
-    - rm -rf /
-    - terraform apply
-evaluators: []
-promotion:
-  requires_all: []
-  review_required_when_paths_match: []
-  auto_close_task: false
-escalation:
-  when_paths_match: []
-  when_commands_match: []
----
-
-# Goal
-
-Define the autonomous work contract for this project.
-
-# Constraints
-
-- Fill in safe evaluator commands before autonomous runs.
-- Commands in `commands.allow` must match evaluator commands exactly.
-"""
-    target = project_dir / "PROGRAM.md"
-    target.write_text(stub, encoding="utf-8")
-    return target
 
 
 def _run_dir(path: str | Path | None, run_id: str) -> Path:

@@ -69,4 +69,3 @@ def serialize_value(value: Any) -> Any:
 def json_payload(payload: Any) -> str:
     """Serialize a payload for CLI JSON output."""
     return json.dumps(serialize_value(payload), indent=2, sort_keys=True)
-

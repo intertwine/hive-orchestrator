@@ -27,9 +27,11 @@ def _root(paths: HivePaths) -> Path:
 
 def list_tasks(paths: HivePaths, project_id: str | None = None) -> list[TaskRecord]:
     """Load all canonical tasks."""
-    return _list_tasks(_root(paths)) if project_id is None else [
-        task for task in _list_tasks(_root(paths)) if task.project_id == project_id
-    ]
+    return (
+        _list_tasks(_root(paths))
+        if project_id is None
+        else [task for task in _list_tasks(_root(paths)) if task.project_id == project_id]
+    )
 
 
 def load_task(paths: HivePaths, task_id: str) -> TaskRecord:

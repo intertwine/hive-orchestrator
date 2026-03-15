@@ -234,7 +234,7 @@ def get_next_task(content: str) -> Optional[str]:
     """
     Extract the next uncompleted checkbox task from markdown content.
 
-    This is kept as a compatibility helper for legacy project-shaped inputs.
+    This is only used when importing or rendering legacy project-shaped inputs.
     """
     for line in content.split("\n"):
         stripped = line.strip()

@@ -2,7 +2,8 @@
 #
 # Hive v2 Session Bootstrap Script
 #
-# Usage: ./scripts/start_session.sh <project_path>
+# Usage: ./scripts/start_session.sh <project-id-or-path>
+# Example: ./scripts/start_session.sh demo
 # Example: ./scripts/start_session.sh projects/demo
 #
 # This script generates a Hive v2 startup context package for AI agents
@@ -20,44 +21,55 @@ NC='\033[0m' # No Color
 
 # Check arguments
 if [ $# -eq 0 ]; then
-    echo -e "${RED}Error: No project path provided${NC}"
-    echo "Usage: $0 <project_path>"
+    echo -e "${RED}Error: No project id or path provided${NC}"
+    echo "Usage: $0 <project-id-or-path>"
+    echo "Example: $0 demo"
     echo "Example: $0 projects/demo"
     exit 1
 fi
 
-PROJECT_PATH="$1"
+PROJECT_REF="$1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORKSPACE_ROOT="${HIVE_BASE_PATH:-$REPO_ROOT}"
 
-if [[ "$PROJECT_PATH" = /* ]]; then
-    PROJECT_DIR="$PROJECT_PATH"
-else
-    PROJECT_DIR="$WORKSPACE_ROOT/$PROJECT_PATH"
+export PROJECT_REF
+export WORKSPACE_ROOT
+
+PROJECT_INFO=$(cd "$REPO_ROOT" && uv run python - <<'PY'
+import os
+from pathlib import Path
+
+from src.hive.store.projects import discover_projects, get_project
+
+root = Path(os.environ["WORKSPACE_ROOT"]).resolve()
+project_ref = os.environ["PROJECT_REF"]
+
+candidate = Path(project_ref)
+candidate = candidate if candidate.is_absolute() else (root / candidate).resolve()
+
+project = None
+if candidate.exists():
+    for discovered in discover_projects(root):
+        agency_path = discovered.agency_path.resolve()
+        if candidate == agency_path or candidate == agency_path.parent:
+            project = discovered
+            break
+
+if project is None:
+    project = get_project(root, project_ref)
+
+print(f"{project.id}\t{project.agency_path.parent.resolve()}")
+PY
+)
+
+if [ $? -ne 0 ] || [ -z "$PROJECT_INFO" ]; then
+    echo -e "${RED}Error: Could not resolve project '$PROJECT_REF'${NC}"
+    exit 1
 fi
 
+IFS=$'\t' read -r PROJECT_ID PROJECT_DIR <<< "$PROJECT_INFO"
 AGENCY_FILE="$PROJECT_DIR/AGENCY.md"
-
-# Validate project path
-if [ ! -d "$PROJECT_DIR" ]; then
-    echo -e "${RED}Error: Project directory does not exist: $PROJECT_DIR${NC}"
-    exit 1
-fi
-
-if [ ! -f "$AGENCY_FILE" ]; then
-    echo -e "${RED}Error: AGENCY.md not found in $PROJECT_DIR${NC}"
-    exit 1
-fi
-
-# Get project ID from AGENCY.md
-PROJECT_ID=$(grep "project_id:" "$AGENCY_FILE" | head -1 | sed 's/project_id: *//' | tr -d '\r')
-
-# Validate that PROJECT_ID was found
-if [ -z "$PROJECT_ID" ]; then
-    echo -e "${RED}Error: 'project_id:' field not found in $AGENCY_FILE${NC}"
-    exit 1
-fi
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║         AGENT HIVE - HIVE V2 SESSION BOOTSTRAP        ║${NC}"

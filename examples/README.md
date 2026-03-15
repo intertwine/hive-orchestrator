@@ -1,8 +1,10 @@
 # Agent Hive Examples
 
-These examples are reference patterns, not the main onboarding path.
+These examples are v2-native reference patterns.
 
-If you are new to Hive, start with the root [README](../README.md) and the CLI flow:
+Start with the root [README](../README.md) for installation and first-run setup. Use this folder when you want to study how a specific orchestration pattern maps onto the current CLI and substrate.
+
+## Common Starting Point
 
 ```bash
 hive init --json
@@ -11,25 +13,29 @@ hive task create --project-id demo --title "Define the first slice" --json
 hive context startup --project demo --json
 ```
 
-## How to use this folder
+## What Each Example Shows
 
-- Use these directories to study orchestration patterns.
-- Expect some examples to reflect older, pre-v2 habits more than the current product surface.
-- Treat `.hive/tasks/*.md`, `PROGRAM.md`, and the `hive` CLI as the current source of truth when adapting any example.
+- `1-simple-sequential/`: a clean handoff where one task unlocks the next
+- `2-parallel-tasks/`: several independent tasks claimed at the same time
+- `3-code-review-pipeline/`: run, evaluate, reject, refine, accept
+- `4-multi-model-ensemble/`: parallel candidate solutions with a synthesis step
+- `5-data-pipeline/`: stage-by-stage task chains with explicit blockers
+- `6-creative-collaboration/`: project memory and iterative drafting
+- `7-complex-application/`: combining projects, tasks, runs, search, and policy
+- `8-agent-dispatchers/`: building adapters on top of `hive task ready` and `hive context startup`
+- `9-cross-repo-workflows/`: keeping Hive canonical while work spans more than one repo
 
-## Where to look first
+## Reading These Examples
 
-- `1-simple-sequential/` for basic handoffs
-- `2-parallel-tasks/` for independent parallel work
-- `3-code-review-pipeline/` for reviewer loops
-- `7-complex-application/` for a larger end-to-end example
-- `8-agent-dispatchers/` if you want to build your own issue or webhook adapter
+Each directory includes:
 
-## Better v2-native references
+- a `README.md` with the pattern and command flow
+- an `AGENCY.md` projection snapshot that shows how the human-facing document should read in Hive 2.0
 
-For cleaner Hive 2.0 examples, also look at:
+The important rule is the same in every example:
 
-- `docs/hive-v2-spec/examples/`
-- `projects/`
+- canonical work lives in `.hive/tasks/*.md`
+- `PROGRAM.md` carries policy
+- `AGENCY.md` stays readable and narrative
 
-Those directories track the current substrate and projection model more closely than the older example set here.
+If you want more implementation detail, also look at `docs/hive-v2-spec/examples/` and the live projects under `projects/`.

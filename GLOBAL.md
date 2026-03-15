@@ -1,89 +1,33 @@
 ---
-Pending tasks - Configure OpenRouter API key: Remove or clarify requirement - this
-  appears to be a stale task with no context
-Pending tasks section: Update to remove 'Configure OpenRouter API key' and 'Run initial
-  Cortex cycle' (GitHub Actions not yet configured, but this is a deployment task,
-  not a blocker)
-Tasks.Pending: Remove checkbox item '[ ] Configure OpenRouter API key'
-Tasks.Pending section: '- [ ] Deploy GitHub Actions workflow
-
-  - [ ] Create additional projects as needed'
-Tasks.Pending section content: Update to remove checkbox items for 'Configure OpenRouter
-  API key' and 'Run initial Cortex cycle'
-blocked_tasks_section: None currently.
-last_cortex_run: '2026-03-13T00:03:37.229482Z'
-last_updated: '2026-03-12T20:04:56.459111Z'
-orchestrator: agent-hive
-pending_tasks: '- [ ] Deploy GitHub Actions workflow
-
-  - [ ] Create additional projects as needed'
-status: active
-tasks.pending: '- [ ] Deploy GitHub Actions workflow
-
-  - [ ] Create additional projects as needed'
-version: 1.0.0
+workspace_version: 2
+last_sync: null
 ---
 
-# Agent Hive - Global Context
+# Hive Workspace
 
-## Overview
+Hive is now a CLI-first, substrate-backed workspace.
 
-Agent Hive is a vendor-agnostic agent orchestration operating system. It enables autonomous coordination of AI agents across different models (Claude, Grok, Gemini) using shared memory stored in Markdown files.
+## What Matters
 
-## System Architecture
+- `.hive/` holds canonical machine state
+- `projects/*/PROGRAM.md` holds execution and evaluator policy
+- `GLOBAL.md`, `projects/*/AGENCY.md`, and `AGENTS.md` are human-facing projections
 
-### Core Primitives
-- **AGENCY.md**: Project-level shared memory with YAML frontmatter for machine state
-- **GLOBAL.md**: Root-level context and system state (this file)
-- **Cortex**: Python-based orchestration logic that reads/writes state
-- **Dashboard**: Streamlit UI for human oversight and bootstrapping
+## Fast Path
 
-### Execution Modes
-1. **Automated Mode**: GitHub Actions runs Cortex every 4 hours
-2. **Deep Work Mode**: Local/cloud sessions via MCP with bootstrapped context
-3. **Interactive Mode**: Manual trigger via Dashboard
+```bash
+hive doctor --json
+hive project list --json
+hive task ready --json
+hive context startup --project <project-id> --json
+hive sync projections --json
+```
 
-## Current System State
+## Working Notes
 
-### Active Projects
-- `projects/demo` - Example project demonstrating the Agent Hive pattern
-
-### Blocked Tasks
-None currently.
-
-### System Health
-- GitHub Actions: Not yet configured
-- MCP Server: Available in DevContainer
-- Dashboard: Ready to launch
-
-## Context for AI Agents
-
-When you (an AI agent) read this file, you are part of the Agent Hive ecosystem. Your role is to:
-
-1. **Read before acting**: Always check GLOBAL.md and relevant AGENCY.md files
-2. **Update state**: Modify AGENCY.md frontmatter to reflect progress
-3. **Coordinate**: Respect task ownership and blocking states set by other agents
-4. **Bootstrap properly**: Use scripts/start_session.sh for Deep Work sessions
-
-## Tasks
-
-### Pending
-- [ ] Configure OpenRouter API key
-- [ ] Run initial Cortex cycle
-- [ ] Deploy GitHub Actions workflow
-- [ ] Create additional projects as needed
-
-### In Progress
-None.
-
-### Completed
-- [x] Initialize repository structure
-- [x] Create core files (GLOBAL.md, AGENCY.md template)
-- [x] Set up DevContainer with MCP
-
-## Notes
-
-This is the central nervous system of your agent swarm. All agents—regardless of vendor—should treat this file as the source of truth for system-wide context.
+- Use `hive project create` and `hive task create` for new work.
+- Use `hive migrate v1-to-v2` only when importing an older checklist-based repo.
+- Use `make session PROJECT=<project-id>` when you want a saved startup bundle for an agent.
 
 <!-- hive:begin projects -->
 ## Projects
@@ -92,7 +36,7 @@ This is the central nervous system of your agent swarm. All agents—regardless 
 |---|---|---:|---:|---:|---:|---:|
 | Agent Coordination Layer (Phase 4) | agent-coordination | completed | 2 | 3 | 0 | 0 |
 | Beads Pattern Adoption for Hive Orchestrator | beads-adoption | completed | 1 | 0 | 0 | 0 |
-| Demo Project - Agent Collaboration Example | demo | active | 2 | 19 | 0 | 0 |
+| Demo Project | demo | active | 2 | 19 | 0 | 0 |
 | Cross-Repository Improvement: Social Compliance Generator | cross-repo-social-compliance | active | 1 | 2 | 0 | 0 |
 | Hive MCP Server | hive-mcp | completed | 1 | 0 | 0 | 0 |
 | OpenCode Plugin for Agent Hive | opencode-plugin | active | 1 | 31 | 0 | 0 |

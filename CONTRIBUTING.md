@@ -1,161 +1,94 @@
 # Contributing to Agent Hive
 
-Thank you for your interest in contributing to Agent Hive! This document provides guidelines and instructions for contributing.
+Thanks for contributing. Hive is now a v2-first codebase, so the safest way to work here is to stay close to the CLI, the `.hive/` substrate, and the generated projection model.
 
-## Code of Conduct
+## Ground Rules
 
-By participating in this project, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
+- Treat `.hive/tasks/*.md` as canonical task state.
+- Treat `projects/*/AGENCY.md` as human-facing context, not the machine database.
+- Read `projects/*/PROGRAM.md` before changing evaluator or execution behavior.
+- Keep human-facing docs concrete, specific, and easy to read aloud.
+- Run `make check` before you open or update a PR.
 
-## How to Contribute
+## Local Setup
 
-### Reporting Bugs
-
-1. Check the [existing issues](https://github.com/intertwine/hive-orchestrator/issues) to avoid duplicates
-2. Use the bug report template when creating a new issue
-3. Include:
-   - A clear description of the bug
-   - Steps to reproduce
-   - Expected vs actual behavior
-   - Your environment (Python version, OS, etc.)
-
-### Suggesting Features
-
-1. Check existing issues and discussions for similar ideas
-2. Use the feature request template
-3. Explain the use case and why it would be valuable
-
-### Pull Requests
-
-1. Fork the repository
-2. Create a feature branch from `main`:
-   ```bash
-   git checkout -b feature/my-feature
-   ```
-3. Make your changes
-4. Ensure all checks pass (see below)
-5. Submit a pull request
-
-## Development Setup
-
-### Prerequisites
+Prerequisites:
 
 - Python 3.11+
-- [uv](https://github.com/astral-sh/uv) - Fast Python package installer
+- [`uv`](https://github.com/astral-sh/uv)
 
-### Installation
+Setup:
 
 ```bash
-# Clone your fork
-git clone https://github.com/YOUR_USERNAME/hive-orchestrator.git
+git clone https://github.com/intertwine/hive-orchestrator.git
 cd hive-orchestrator
-
-# Install dependencies
-make install
-
-# Install dev dependencies
 make install-dev
-
-# Set up environment
-make setup-env
-# Edit .env with your OPENROUTER_API_KEY
+make install-tool
+hive doctor --json
 ```
 
-## Code Quality Requirements
+If you want a fresh local workspace state:
 
-**All code must pass these checks before merging:**
+```bash
+hive init --json
+```
 
-### 1. Formatting
+## Daily Development Loop
 
 ```bash
 make format
+make check
 ```
 
-Uses `black` with 100-character line length.
+What those gates cover:
 
-### 2. Linting
+- `make format`: `black`
+- `make lint`: `pylint` with a repo fail-under of `9.0`
+- `make test`: `pytest`
 
-```bash
-make lint
-```
+## What To Build On
 
-Must achieve a pylint score of **9.0/10 or higher**.
+Prefer these surfaces:
 
-### 3. Tests
+- `src/hive/` for CLI, substrate, runs, memory, projections, and search
+- `src/hive_mcp/server.py` for the thin MCP adapter
+- `src/dashboard.py` for the optional dashboard
 
-```bash
-make test
-```
+Treat these as compatibility surfaces unless you are explicitly fixing them:
 
-All tests must pass. New features should include tests.
+- `src/cortex.py`
+- legacy checklist parsing helpers
+- any docs that describe direct `AGENCY.md` mutation as the primary workflow
 
-## Writing Tests
+## Writing and Docs
 
-- Place tests in the `tests/` directory
-- Follow pytest conventions
-- Use fixtures from `conftest.py`
-- Test both success and failure cases
-- Mock external dependencies (API calls, etc.)
+- Update [README.md](README.md) for user-facing workflow changes.
+- Update [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md) when agent-facing guidance changes.
+- Keep examples aligned with the current CLI-first model.
+- When rewriting docs, prefer plain language over generic product copy.
 
-Example:
+## Tests
 
-```python
-# tests/test_cortex.py
-import pytest
-from src.cortex import Cortex
+Add or update tests whenever behavior changes.
 
-class TestCortexFeature:
-    """Tests for a specific feature."""
+Good places to extend coverage:
 
-    def test_feature_success(self, temp_hive_dir):
-        """Test the happy path."""
-        cortex = Cortex(temp_hive_dir)
-        result = cortex.some_method()
-        assert result is not None
+- `tests/test_hive_v2.py` for CLI and substrate behavior
+- `tests/test_hive_run_worktree.py` for run lifecycle behavior
+- `tests/test_security.py` for sanitization and hardening
+- `tests/test_start_session.py` for session bootstrap UX
 
-    def test_feature_failure(self, temp_hive_dir):
-        """Test error handling."""
-        cortex = Cortex(temp_hive_dir)
-        with pytest.raises(ValueError):
-            cortex.some_method(invalid_input)
-```
+## Pull Requests
 
-## Commit Guidelines
+1. Branch from `main`.
+2. Keep the PR scoped to one coherent change.
+3. Include tests for behavior changes.
+4. Update docs when the user-facing story changes.
+5. Make sure `make check` passes before requesting review.
 
-- Write clear, descriptive commit messages
-- Keep commits focused on a single change
-- Emoji prefixes are optional but welcomed:
-  - `🚀` Features
-  - `🐛` Bug fixes
-  - `📝` Documentation
-  - `🧪` Tests
-  - `🔧` Configuration
-  - `🧠` Cortex/orchestration changes
-
-## Project Structure
-
-```
-agent-hive/
-├── src/                    # Source code
-│   ├── cortex.py          # Orchestration engine
-│   ├── coordinator.py     # Real-time coordination server
-│   ├── dashboard.py       # Streamlit UI
-│   └── hive_mcp/          # MCP server
-├── tests/                  # Test suite
-├── projects/               # Project workspaces
-├── examples/               # Example workflows
-└── .claude/skills/         # Claude Code skills
-```
-
-## Documentation
-
-- Update README.md for user-facing changes
-- Update CLAUDE.md for development process changes
-- Add docstrings to new functions (Google style)
-- Keep examples current
-
-## Questions?
+## Questions
 
 - Open a [Discussion](https://github.com/intertwine/hive-orchestrator/discussions)
-- Check existing documentation in README.md and CLAUDE.md
+- Check [README.md](README.md), [AGENTS.md](AGENTS.md), and [CLAUDE.md](CLAUDE.md)
 
-Thank you for contributing!
+Thanks for helping make Hive easier to use, easier to trust, and easier to extend.

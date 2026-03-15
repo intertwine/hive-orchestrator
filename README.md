@@ -48,6 +48,7 @@ This repo now includes release automation for PyPI and Homebrew. Until the first
 
 ```bash
 uv tool install agent-hive
+pipx install agent-hive
 pip install agent-hive
 brew install intertwine/tap/agent-hive
 ```
@@ -81,6 +82,12 @@ Refresh human-facing projections after canonical state changes:
 hive sync projections --json
 ```
 
+Need a copy-paste startup bundle for an agent session:
+
+```bash
+make session PROJECT=demo
+```
+
 If you want a visual view, run:
 
 ```bash
@@ -104,8 +111,8 @@ make dashboard
 ## Typical Workflow
 
 1. Create or sync a workspace with `hive init` and `hive sync projections`.
-2. Scaffold a project with `hive project create`, or migrate legacy checkbox projects with `hive migrate v1-to-v2`.
-3. Create canonical tasks with `hive task create`, or import them from older docs.
+2. Scaffold a project with `hive project create`.
+3. Create canonical tasks with `hive task create`.
 4. Use `hive task ready` to find work and `hive task claim` to lease it.
 5. Start work with `hive context startup` or a governed run via `hive run start`.
 6. Evaluate, accept, reject, or escalate with the `hive run` commands.
@@ -123,7 +130,7 @@ The CLI covers:
 - project-local and optional global memory
 - startup and handoff context assembly
 - workspace search
-- migration from legacy checkbox-based repos
+- one-time import for older checklist-based repos
 
 ### Optional adapters
 
@@ -203,13 +210,13 @@ WEAVE_PROJECT=agent-hive
 
 ## Migration
 
-If you still have older `AGENCY.md` checkbox projects, import them once and move on:
+If you are bringing an older repo forward, import it once and then stay in the canonical task flow:
 
 ```bash
 hive migrate v1-to-v2 --json
 ```
 
-If you want Hive to replace the old checklist section with a generated rollup, use:
+To replace the old checklist section with a generated rollup:
 
 ```bash
 hive migrate v1-to-v2 --rewrite --json

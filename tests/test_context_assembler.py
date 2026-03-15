@@ -109,7 +109,7 @@ class TestLegacyHelpers:
     """Compatibility helpers kept for legacy-shaped inputs."""
 
     def test_get_next_task_finds_first_open_checkbox(self):
-        """The compatibility parser still finds the first open checkbox task."""
+        """Legacy checklist parsing still finds the first open imported task."""
         content = """# Project
 
 ## Tasks

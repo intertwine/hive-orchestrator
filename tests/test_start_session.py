@@ -19,7 +19,7 @@ def test_start_session_script_generates_v2_context(temp_hive_dir, temp_project):
     env = dict(os.environ)
     env["HIVE_BASE_PATH"] = temp_hive_dir
     result = subprocess.run(
-        ["/bin/bash", str(script_path), "projects/test-project"],
+        ["/bin/bash", str(script_path), "test-project"],
         cwd=repo_root,
         env=env,
         capture_output=True,
@@ -33,3 +33,23 @@ def test_start_session_script_generates_v2_context(temp_hive_dir, temp_project):
     assert "HIVE STARTUP CONTEXT" in content
     assert "READY TASKS" in content
     assert first_task_title in content
+
+
+def test_start_session_script_still_accepts_project_paths(temp_hive_dir, temp_project):
+    """The bootstrap script should keep supporting project directory paths."""
+    migrate_v1_to_v2(temp_hive_dir)
+    repo_root = Path(__file__).resolve().parents[1]
+    script_path = repo_root / "scripts" / "start_session.sh"
+
+    env = dict(os.environ)
+    env["HIVE_BASE_PATH"] = temp_hive_dir
+    result = subprocess.run(
+        ["/bin/bash", str(script_path), "projects/test-project"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout

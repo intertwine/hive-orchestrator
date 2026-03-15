@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""
-Hive v2 compatibility wrapper.
+"""Hive v2 compatibility wrapper.
 
-`src.cortex` used to be the center of the v1 LLM orchestration engine. Hive 2.0
-is now CLI-first and `.hive/`-backed, so this module intentionally exposes only
-the thin compatibility surfaces that are still useful:
+`src.cortex` is no longer the control plane. Hive 2.0 is CLI-first and
+`.hive/`-backed, so this module exists only as a compatibility alias for:
 
-- projection sync (`python -m src.cortex`)
-- ready task queries (`--ready`)
-- dependency summaries (`--deps`)
+- projection sync
+- ready task queries
+- dependency summaries
 """
 
 from __future__ import annotations
@@ -88,9 +86,10 @@ def run_v2_projection_sync(base_path: str | Path | None, output_json: bool = Fal
         print(json.dumps(payload, indent=2))
     else:
         print("=" * 60)
-        print("HIVE V2 PROJECTION SYNC")
+        print("HIVE V2 PROJECTION SYNC (COMPATIBILITY ALIAS)")
         print("=" * 60)
         print(f"Path: {root}")
+        print("Prefer `hive sync projections --json` for new automation.")
         print("Rebuilt cache and synced GLOBAL.md / AGENCY.md / AGENTS.md projections")
         print("=" * 60)
     return True
@@ -230,27 +229,36 @@ class Cortex:
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Hive v2 compatibility wrapper for ready/deps/sync commands",
+        description="Compatibility wrapper for `hive sync projections`, `hive task ready`, and `hive deps`",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Run v2 projection sync
+Preferred commands:
+  hive sync projections --json
+  hive task ready --json
+  hive deps --json
+
+Compatibility aliases:
   python -m src.cortex
 
-  # Find ready work
   python -m src.cortex --ready
-
-  # Show dependency summary
   python -m src.cortex --deps
-
-  # Output as JSON for programmatic use
   python -m src.cortex --ready --json
   python -m src.cortex --deps --json
   python -m src.cortex --json
         """,
     )
-    parser.add_argument("--ready", "-r", action="store_true", help="Show ready canonical tasks")
-    parser.add_argument("--deps", "-d", action="store_true", help="Show dependency summary")
+    parser.add_argument(
+        "--ready",
+        "-r",
+        action="store_true",
+        help="Compatibility alias for `hive task ready`",
+    )
+    parser.add_argument(
+        "--deps",
+        "-d",
+        action="store_true",
+        help="Compatibility alias for `hive deps`",
+    )
     parser.add_argument("--json", "-j", action="store_true", help="Output JSON")
     parser.add_argument(
         "--path",

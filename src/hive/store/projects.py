@@ -123,15 +123,19 @@ def create_project(
     root = Path(path or Path.cwd())
     normalized_slug = _normalize_slug(slug)
     resolved_title = title.strip() if title else _title_from_slug(normalized_slug)
-    resolved_project_id = (
-        project_id.strip() if project_id else _project_id_from_slug(normalized_slug)
-    )
+    if project_id and project_id.strip():
+        resolved_project_id = project_id.strip()
+    else:
+        resolved_project_id = _project_id_from_slug(normalized_slug)
     project_dir = root / "projects" / normalized_slug
     agency_path = project_dir / "AGENCY.md"
     program_path = project_dir / "PROGRAM.md"
+    existing_ids = {project.id for project in discover_projects(root)}
 
     if agency_path.exists() or program_path.exists():
         raise FileExistsError(f"Project already exists at {project_dir}")
+    if resolved_project_id in existing_ids:
+        raise FileExistsError(f"A project with id '{resolved_project_id}' already exists")
 
     project_dir.mkdir(parents=True, exist_ok=True)
     metadata = {

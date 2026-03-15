@@ -1230,6 +1230,67 @@ class TestHiveV2Cli:
             for step in payload["next_steps"]
         )
 
+    def test_cli_project_create_whitespace_project_id_falls_back_to_slug(self, tmp_path, capsys):
+        """Whitespace-only project IDs should fall back to the normalized slug-derived ID."""
+        workspace = tmp_path / "whitespace-project-id"
+        hive_main(["--path", str(workspace), "--json", "init"])
+        capsys.readouterr()
+
+        exit_code = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "create",
+                "Launch Ready / API",
+                "--project-id",
+                "   ",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["project"]["id"] == "launch-ready-api"
+
+    def test_cli_project_create_rejects_duplicate_project_ids(self, tmp_path, capsys):
+        """Project creation should reject a project ID that is already in use."""
+        workspace = tmp_path / "duplicate-project-id"
+        hive_main(["--path", str(workspace), "--json", "init"])
+        capsys.readouterr()
+
+        first_exit = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "create",
+                "foo-bar",
+            ]
+        )
+        capsys.readouterr()
+        assert first_exit == 0
+
+        second_exit = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "create",
+                "foo/bar",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert second_exit == 1
+        payload = json.loads(captured.out)
+        assert payload["ok"] is False
+        assert "already exists" in payload["error"]
+        assert not (workspace / "projects" / "foo" / "bar" / "AGENCY.md").exists()
+
     def test_cli_task_ready_json_after_migration(self, temp_hive_dir, capsys):
         """The CLI should return stable JSON for ready tasks."""
         migrate_v1_to_v2(temp_hive_dir)

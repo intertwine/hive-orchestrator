@@ -344,16 +344,20 @@ def main(argv: list[str] | None = None) -> int:
         if args.project_command == "list":
             return _emit({"ok": True, "projects": project_summary(root)}, args.json)
         if args.project_command == "create":
-            project = create_project(
-                root,
-                args.slug,
-                title=args.title,
-                project_id=args.project_id,
-                status=args.status,
-                priority=args.priority,
-                objective=args.objective,
-                tags=args.tag,
-            )
+            try:
+                project = create_project(
+                    root,
+                    args.slug,
+                    title=args.title,
+                    project_id=args.project_id,
+                    status=args.status,
+                    priority=args.priority,
+                    objective=args.objective,
+                    tags=args.tag,
+                )
+            except (FileExistsError, ValueError) as exc:
+                _emit({"ok": False, "error": str(exc), "message": str(exc)}, args.json)
+                return 1
             sync_global_md(root)
             sync_agency_md(root)
             sync_agents_md(root)

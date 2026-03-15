@@ -125,7 +125,9 @@ those fields cleanly.
 
 ## Governed Runs
 
-When a task should run through the governed worktree flow, the shortest path is:
+When a task should run through the governed worktree flow, make sure `projects/*/PROGRAM.md` has at least one
+required evaluator and lists it under `promotion.requires_all`. The default stub is intentionally safe and will block
+autonomous acceptance until you make that decision. After that, the shortest path is:
 
 ```bash
 hive run start <task-id>

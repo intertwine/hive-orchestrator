@@ -35,6 +35,23 @@ class ProgramRecord:
     body: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    def unsafe_without_evaluators(self) -> bool:
+        """Return whether this program explicitly opts into ungated autonomous acceptance."""
+        promotion = self.metadata.get("promotion", {})
+        return bool(promotion.get("allow_unsafe_without_evaluators", False))
+
+    def evaluator_ids(self) -> list[str]:
+        """Return declared evaluator IDs in definition order."""
+        return [str(evaluator["id"]) for evaluator in self.metadata.get("evaluators", [])]
+
+    def required_evaluator_ids(self) -> list[str]:
+        """Return required evaluator IDs in definition order."""
+        return [
+            str(evaluator["id"])
+            for evaluator in self.metadata.get("evaluators", [])
+            if evaluator.get("required", True)
+        ]
+
     def validate(self) -> None:
         """Validate the MVP program schema."""
         required = ["program_version", "mode", "default_executor"]
@@ -68,6 +85,7 @@ class ProgramRecord:
         evaluators = self.metadata.setdefault("evaluators", [])
         if not isinstance(evaluators, list):
             raise ValueError("PROGRAM.md evaluators must be a list")
+        seen_ids: set[str] = set()
         for index, evaluator in enumerate(evaluators):
             if not isinstance(evaluator, dict):
                 raise ValueError(f"PROGRAM.md evaluators[{index}] must be a mapping")
@@ -76,11 +94,19 @@ class ProgramRecord:
                     raise ValueError(
                         f"PROGRAM.md evaluators[{index}].{key} must be a non-empty string"
                     )
+            evaluator["id"] = evaluator["id"].strip()
+            if evaluator["id"] in seen_ids:
+                raise ValueError(f"PROGRAM.md evaluator IDs must be unique: {evaluator['id']}")
+            seen_ids.add(evaluator["id"])
             if "required" in evaluator and not isinstance(evaluator["required"], bool):
                 raise ValueError(f"PROGRAM.md evaluators[{index}].required must be a boolean")
             evaluator.setdefault("required", True)
 
         promotion = _require_mapping(self.metadata.setdefault("promotion", {}), "promotion")
+        if not isinstance(promotion.setdefault("allow_unsafe_without_evaluators", False), bool):
+            raise ValueError(
+                "PROGRAM.md promotion.allow_unsafe_without_evaluators must be a boolean"
+            )
         _require_string_list(promotion.setdefault("requires_all", []), "promotion.requires_all")
         _require_string_list(
             promotion.setdefault("review_required_when_paths_match", []),
@@ -88,6 +114,29 @@ class ProgramRecord:
         )
         if not isinstance(promotion.setdefault("auto_close_task", False), bool):
             raise ValueError("PROGRAM.md promotion.auto_close_task must be a boolean")
+        evaluator_ids = self.evaluator_ids()
+        unknown_evaluators = [
+            evaluator_id
+            for evaluator_id in promotion["requires_all"]
+            if evaluator_id not in evaluator_ids
+        ]
+        if unknown_evaluators:
+            unknown = ", ".join(sorted(dict.fromkeys(unknown_evaluators)))
+            raise ValueError(
+                "PROGRAM.md promotion.requires_all contains unknown evaluator IDs: " + unknown
+            )
+        if not self.unsafe_without_evaluators():
+            required_ids = self.required_evaluator_ids()
+            if not required_ids:
+                raise ValueError(
+                    "PROGRAM.md must declare at least one required evaluator unless "
+                    "promotion.allow_unsafe_without_evaluators is true"
+                )
+            if not promotion["requires_all"]:
+                raise ValueError(
+                    "PROGRAM.md promotion.requires_all must list at least one evaluator unless "
+                    "promotion.allow_unsafe_without_evaluators is true"
+                )
 
         escalation = _require_mapping(self.metadata.setdefault("escalation", {}), "escalation")
         _require_string_list(

@@ -8,7 +8,7 @@ import re
 
 from src.hive.clock import utc_now_iso
 from src.hive.constants import PRIORITY_MAP
-from src.hive.runs.engine import generate_program_stub
+from src.hive.scaffold import generate_program_stub
 from src.hive.store.events import emit_event, event_file
 from src.hive.store.layout import ensure_layout
 from src.hive.store.projects import discover_projects, ensure_project_id

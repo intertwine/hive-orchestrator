@@ -41,6 +41,9 @@ hive context startup --project app --task <task-id>
 hive run start <task-id>
 ```
 
+That last step only works once `projects/app/PROGRAM.md` has at least one required evaluator and lists it under
+`promotion.requires_all`. The default stub keeps governed acceptance turned off until you choose the policy.
+
 If this repository is brand new or you want governed runs immediately after adding Hive, create a first commit for
 the workspace state:
 
@@ -80,6 +83,9 @@ hive task claim <task-id> --owner <your-name> --ttl-minutes 60
 hive context startup --project <project-id> --task <task-id>
 hive run start <task-id>
 ```
+
+`hive run start` assumes the project already has a real `PROGRAM.md` contract. If the file is still on the default
+stub, Hive will stop and tell you what to configure.
 
 When the run is ready to land, the cleanest supported finish is:
 

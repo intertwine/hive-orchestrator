@@ -62,7 +62,8 @@ hive context startup --project demo --task <task-id>
 That gives you a real workspace, a starter project, a conservative `PROGRAM.md`, and a first task chain with one
 ready task.
 
-If you want the governed run loop right away, continue with:
+If you want the governed run loop right away, edit `projects/demo/PROGRAM.md` first so it has at least one required
+evaluator and lists that evaluator under `promotion.requires_all`. Then continue with:
 
 ```bash
 hive run start <task-id>

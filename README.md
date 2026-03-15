@@ -99,7 +99,8 @@ chain that teaches the normal claim-and-context loop. The longer walkthrough liv
 
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
 
-If you want the full governed run loop, checkpoint the new workspace once, then:
+If you want the full governed run loop, edit `projects/demo/PROGRAM.md` first so it includes at least one required
+evaluator and lists that evaluator under `promotion.requires_all`. Then checkpoint the workspace and run:
 
 ```bash
 hive run start <task-id>

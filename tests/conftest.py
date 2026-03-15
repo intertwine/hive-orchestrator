@@ -1,6 +1,5 @@
 """Shared pytest fixtures for Agent Hive tests."""
 
-import json
 import tempfile
 import shutil
 from pathlib import Path
@@ -115,38 +114,6 @@ This project is blocked.
         f.write(frontmatter.dumps(agency_content))
 
     return str(agency_file)
-
-
-@pytest.fixture
-def mock_env_vars(monkeypatch):
-    """Mock environment variables for testing."""
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-api-key-12345")
-    monkeypatch.setenv("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5")
-
-
-@pytest.fixture
-def sample_llm_response():
-    """Sample LLM response for testing."""
-    return {
-        "summary": "System is running well with 2 active projects",
-        "blocked_tasks": [
-            {
-                "project_id": "blocked-project",
-                "task": "Blocked task",
-                "reason": "Waiting for API key",
-                "recommendation": "Provide the required API key",
-            }
-        ],
-        "state_updates": [],
-        "new_projects": [],
-        "notes": "All systems operational",
-    }
-
-
-@pytest.fixture
-def sample_api_response(sample_llm_response):  # pylint: disable=redefined-outer-name
-    """Sample OpenRouter API response structure."""
-    return {"choices": [{"message": {"content": json.dumps(sample_llm_response)}}]}
 
 
 @pytest.fixture

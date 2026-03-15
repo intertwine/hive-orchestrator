@@ -212,18 +212,17 @@ class TestMCPToolIntegration:
 
     def test_get_ready_work_workflow(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test the get_ready_work workflow."""
+        migrate_v1_to_v2(temp_hive_dir)
         cortex = Cortex(temp_hive_dir)
         projects = cortex.discover_projects()
         ready = cortex.ready_work(projects)
 
-        # Only test-project should be ready (blocked-project is blocked)
-        result = format_response(
-            success=True, data={"count": len(ready), "projects": [format_project(p) for p in ready]}
-        )
+        result = format_response(success=True, data={"count": len(ready), "tasks": ready})
 
         assert result["success"] is True
-        assert result["data"]["count"] == 1
-        assert result["data"]["projects"][0]["project_id"] == "test-project"
+        assert result["data"]["count"] >= 1
+        assert result["data"]["tasks"][0]["project_id"] == "test-project"
+        assert result["data"]["tasks"][0]["id"].startswith("task_")
 
     def test_claim_and_release_workflow(self, temp_hive_dir, temp_project):
         """Test claiming and releasing a project."""

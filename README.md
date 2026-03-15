@@ -1,6 +1,6 @@
 # 🧠 Agent Hive - Vendor-Agnostic Agent Orchestration OS
 
-[![Hive Projection Sync](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/cortex.yml?branch=main&label=Hive%20Projection%20Sync)](https://github.com/intertwine/hive-orchestrator/actions/workflows/cortex.yml)
+[![Hive Projection Sync](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/projection-sync.yml?branch=main&label=Hive%20Projection%20Sync)](https://github.com/intertwine/hive-orchestrator/actions/workflows/projection-sync.yml)
 
 ![Agent Hive](images/agent-hive-explainer-image-web.png)
 
@@ -52,7 +52,7 @@ Hive 2.0 keeps the human-friendly Markdown surface, but moves canonical machine 
 
 **This repository practices what it preaches.** The `projects/` directory contains real projects, and the repository now carries a live Hive 2.0 substrate under `.hive/`:
 
-- **Projection sync runs every 4 hours** via GitHub Actions (see `.github/workflows/cortex.yml`)
+- **Projection sync runs every 4 hours** via GitHub Actions (see `.github/workflows/projection-sync.yml`)
 - **Ready work snapshots are generated automatically** (see `.github/workflows/agent-assignment.yml`)
 - **The `projects/` directory stays readable** while `.hive/tasks/` holds canonical task state
 
@@ -108,12 +108,14 @@ uv run hive migrate v1-to-v2 --json
 ### Optional `.env` values
 
 ```bash
-OPENROUTER_API_KEY=your-api-key-here
-OPENROUTER_MODEL=anthropic/claude-haiku-4.5
 HIVE_BASE_PATH=/path/to/agent-hive
 
 # Optional: Real-time coordination server
 COORDINATOR_URL=http://localhost:8080
+
+# Optional: Weave tracing for custom integrations
+WANDB_API_KEY=your-wandb-api-key
+WEAVE_PROJECT=agent-hive
 ```
 
 ### Run the Dashboard
@@ -157,7 +159,7 @@ agent-hive/
 │   └── devcontainer.json       # DevContainer config (Codespaces/Cursor ready)
 ├── .github/
 │   └── workflows/
-│       ├── cortex.yml          # Automated v2 projection sync
+│       ├── projection-sync.yml # Automated v2 projection sync
 │       └── agent-assignment.yml # Automated ready-work snapshot
 ├── config/
 │   └── app-manifest.json       # GitHub App definition (for SaaS)
@@ -177,7 +179,7 @@ agent-hive/
 │   ├── start_session.sh        # Hive v2 session bootstrap
 │   └── generate-images-from-prompts.mjs # Prompt-to-image generator
 ├── src/
-│   ├── cortex.py               # v1 compatibility wrapper / legacy entrypoint
+│   ├── cortex.py               # v2 compatibility wrapper for sync/ready/deps
 │   ├── agent_dispatcher.py     # Optional manual GitHub issue dispatcher for ready tasks
 │   ├── context_assembler.py    # v2 task issue context builder
 │   ├── coordinator.py          # Real-time coordination server (optional)
@@ -283,31 +285,27 @@ What this project aims to achieve.
 | `dependencies.blocked_by` | Projects that must complete before this one      |
 | `dependencies.blocks`     | Projects waiting on this one                     |
 
-### 2. Cortex - The Orchestration Engine
+### 2. Cortex - Compatibility Wrapper
 
-`cortex.py` reads all AGENCY.md files, calls an LLM to analyze the state, and updates files accordingly. It:
+`cortex.py` is now a thin compatibility layer over Hive 2.0. It no longer runs the old LLM orchestration loop. Instead, it:
 
-- ✅ Never executes code blindly
-- ✅ Only updates Markdown frontmatter
-- ✅ Identifies blocked tasks
-- ✅ Suggests new project creation
-- ✅ Runs every 4 hours via GitHub Actions
-- ✅ **Ready Work Detection** - Find actionable projects without LLM calls
-- ✅ **Dependency Tracking** - Build and analyze dependency graphs
-- ✅ **Cycle Detection** - Prevent deadlocks from circular dependencies
+- ✅ Rebuilds the v2 cache and syncs generated projections
+- ✅ Updates compatibility timestamps in `GLOBAL.md`
+- ✅ Exposes ready-task queries for older scripts
+- ✅ Exposes dependency summaries for older scripts
 
 **CLI Commands:**
 
 ```bash
-# Full orchestration run (uses LLM)
-make cortex
+# Rebuild cache and refresh projections
+make sync-projections
 
-# Fast ready work detection (no LLM, instant)
+# Fast ready work detection
 make ready              # Human-readable output
 make ready-json         # JSON for programmatic use
 
-# Dependency analysis (no LLM, instant)
-make deps               # Human-readable dependency graph
+# Dependency analysis
+make deps               # Human-readable dependency summary
 make deps-json          # JSON for programmatic use
 ```
 
@@ -328,21 +326,10 @@ The `hive-mcp` server enables AI agents like Claude to interact with Agent Hive 
 
 **Available Tools:**
 
-| Tool                       | Description                                |
-| -------------------------- | ------------------------------------------ |
-| `list_projects`            | List all discovered projects with metadata |
-| `get_ready_work`           | Get projects ready for an agent to claim   |
-| `get_project`              | Get full details of a specific project     |
-| `claim_project`            | Set owner field to claim work              |
-| `release_project`          | Set owner to null                          |
-| `update_status`            | Change project status                      |
-| `add_note`                 | Append to agent notes section              |
-| `get_dependencies`         | Get dependency info for a project          |
-| `get_dependency_graph`     | Get full dependency graph                  |
-| `coordinator_status`       | Check if coordination server is available  |
-| `coordinator_claim`        | Claim project via coordination server      |
-| `coordinator_release`      | Release project via coordination server    |
-| `coordinator_reservations` | Get all active reservations                |
+| Tool      | Description                                                            |
+| --------- | ---------------------------------------------------------------------- |
+| `search`  | Search workspace state, API docs, schemas, examples, and project views |
+| `execute` | Run bounded Python against a typed local Hive client                   |
 
 **Claude Desktop Configuration:**
 
@@ -543,24 +530,23 @@ The agent then works on the external repository while using AGENCY.md as shared 
 
 ## 🎓 Usage Patterns
 
-### Pattern 1: Autonomous Orchestration
+### Pattern 1: Scheduled Projection Sync
 
-Let GitHub Actions run Cortex every 4 hours. It will:
+Let GitHub Actions refresh the derived workspace state every 4 hours. It will:
 
-1. Read all AGENCY.md files
-2. Identify blocked tasks
-3. Update project statuses
-4. Commit changes back to the repo
+1. Rebuild `.hive/cache/index.sqlite`
+2. Sync generated sections in `GLOBAL.md`, `AGENCY.md`, and `AGENTS.md`
+3. Commit generated projection updates back to the repo
 
 ```bash
 # Enable the workflow
 git push origin main
 
-# Monitor runs
-gh workflow view cortex.yml
+# Monitor sync runs
+gh workflow view projection-sync.yml
 ```
 
-### Pattern 2: Deep Work Sessions
+### Pattern 2: Hive v2 Sessions
 
 Use the bootstrap script to generate context for manual agent work:
 
@@ -588,25 +574,9 @@ Different agents can work on the same project:
 
 ## 🔧 Configuration
 
-### OpenRouter Models
-
-Edit `.env` to change the model:
-
-```bash
-# Fast and cheap (default)
-OPENROUTER_MODEL=anthropic/claude-haiku-4.5
-
-# More capable
-OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
-
-# Alternative providers
-OPENROUTER_MODEL=google/gemini-pro
-OPENROUTER_MODEL=x-ai/grok-beta
-```
-
 ### Weave Tracing (Observability)
 
-Agent Hive includes built-in observability via [Weights & Biases Weave](https://docs.wandb.ai/weave). Weave automatically traces all LLM calls, capturing latency, token usage, and costs.
+Agent Hive includes optional tracing utilities via [Weights & Biases Weave](https://docs.wandb.ai/weave). The core Hive 2.0 CLI does not require LLM calls, but custom integrations built on `src/tracing.py` can emit latency, token usage, and status metadata.
 
 **Enable Weave tracing:**
 
@@ -622,13 +592,12 @@ WEAVE_PROJECT=agent-hive  # Optional, defaults to "agent-hive"
 WEAVE_DISABLED=true
 ```
 
-**What gets traced:**
+**What can be traced:**
 
-- All LLM API calls to OpenRouter
+- Custom LLM API calls made through `src/tracing.py`
 - Request/response latency (milliseconds)
 - Token usage (prompt, completion, total)
 - Success/failure status
-- Cortex orchestration runs
 
 **Key features:**
 
@@ -678,7 +647,7 @@ For detailed security documentation, see the [Security article](articles/09-agen
 
 ### GitHub Actions Schedule
 
-Edit `.github/workflows/cortex.yml`:
+Edit `.github/workflows/projection-sync.yml`:
 
 ```yaml
 schedule:
@@ -723,7 +692,7 @@ To deploy Agent Hive as your own custom GitHub App (for webhooks/SaaS):
 
 ### Project Structure
 
-- `src/cortex.py` - Core orchestration logic
+- `src/cortex.py` - Compatibility ready/deps/sync wrapper
 - `src/dashboard.py` - Streamlit UI
 - `scripts/start_session.sh` - Session bootstrap
 - `.devcontainer/` - DevContainer configuration
@@ -795,21 +764,21 @@ Already configured! Just push to GitHub and enable Actions.
 
 **Required Secrets** (Settings → Secrets and variables → Actions):
 
-- `OPENROUTER_API_KEY` - For Cortex orchestration engine
 - `ANTHROPIC_API_KEY` - For Claude Code Action (@claude mentions)
+- `WANDB_API_KEY` - Optional, only if you want Weave tracing
 
 ### Option 2: Local Cron Job
 
 ```bash
 # Add to crontab
-0 */4 * * * cd /path/to/agent-hive && python src/cortex.py
+0 */4 * * * cd /path/to/agent-hive && make sync-projections
 ```
 
 ### Option 3: Cloud VM
 
 Deploy to AWS/GCP/Azure with:
 
-- Cron job running Cortex
+- Cron job running projection sync
 - Nginx serving Dashboard
 - GitHub App webhook receiver
 
@@ -838,11 +807,8 @@ uv run python -m hive_mcp
 
 This enables agents to:
 
-- 📋 List and query projects programmatically
-- 🎯 Find ready work without scanning files
-- 🔒 Claim/release projects atomically
-- 📝 Update status and add notes
-- 🔗 Navigate dependency graphs
+- 🔎 Search the workspace and Hive docs through one bounded surface
+- 🧪 Execute small Hive client programs in a bounded subprocess
 
 See [Hive MCP Server](#4-hive-mcp-server---ai-agent-integration) for configuration.
 
@@ -859,7 +825,7 @@ Agent Hive includes a set of [Claude Code Skills](https://www.anthropic.com/news
 | Skill                        | Description                                                    | Use When                                                    |
 | ---------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------- |
 | **hive-project-management**  | Managing AGENCY.md files, frontmatter fields, task tracking    | Creating/updating projects, managing ownership              |
-| **cortex-operations**        | Running Cortex CLI, dependency analysis, ready work detection  | Finding work, analyzing dependencies, running orchestration |
+| **cortex-operations**        | Using compatibility ready/deps commands during v2 transition   | Finding work, analyzing dependencies, using compatibility commands |
 | **deep-work-session**        | Focused work sessions, handoff protocol, session lifecycle     | Starting/ending work sessions, following protocols          |
 | **multi-agent-coordination** | Multi-agent patterns, conflict prevention, coordination server | Working with other agents, preventing conflicts             |
 | **hive-mcp**                 | MCP server tools, programmatic project access                  | Using MCP tools for project management                      |
@@ -919,7 +885,7 @@ Skills activate automatically based on your request. Examples:
 Each skill provides comprehensive guidance:
 
 - **hive-project-management**: AGENCY.md structure, all frontmatter fields, task management, ownership rules, dependency configuration
-- **cortex-operations**: CLI commands (`--ready`, `--deps`, `--json`), output interpretation, troubleshooting, programmatic usage
+- **cortex-operations**: compatibility CLI commands (`--ready`, `--deps`, `--json`), output interpretation, troubleshooting, programmatic usage
 - **deep-work-session**: Session lifecycle (enter → claim → work → update → handoff), checklist, blocking protocol
 - **multi-agent-coordination**: Ownership protocol, dependency flow, coordinator API, conflict resolution patterns
 - **hive-mcp**: All 12 MCP tools with arguments, response formats, workflow examples
@@ -953,7 +919,7 @@ All Agent Hive skills are available in `.opencode/skill/`:
 
 | Skill                        | Description                                                    |
 | ---------------------------- | -------------------------------------------------------------- |
-| **cortex-operations**        | Running Cortex CLI, dependency analysis, ready work detection  |
+| **cortex-operations**        | Using compatibility ready/deps commands during v2 transition   |
 | **deep-work-session**        | Focused work sessions, handoff protocol, session lifecycle     |
 | **hive-mcp**                 | MCP server tools, programmatic project access                  |
 | **hive-project-management**  | Managing AGENCY.md files, frontmatter fields, task tracking    |
@@ -1055,9 +1021,9 @@ MIT License - see LICENSE file for details.
 
 ## 🆘 Troubleshooting
 
-### "OPENROUTER_API_KEY not set"
+### "No canonical ready work found"
 
-Edit your `.env` file and add your API key from <https://openrouter.ai/>
+Run `uv run hive migrate v1-to-v2 --json` if you still have legacy checkbox projects that have not been imported into `.hive/tasks/` yet.
 
 ### "No projects found"
 
@@ -1066,8 +1032,7 @@ Make sure you have at least one `AGENCY.md` file in a subdirectory of `projects/
 ### GitHub Actions not running
 
 1. Check that the workflow is enabled in your repo settings
-2. Ensure `OPENROUTER_API_KEY` is set as a repository secret
-3. Verify the cron schedule in `.github/workflows/cortex.yml`
+2. Verify the cron schedule in `.github/workflows/projection-sync.yml`
 
 ### Streamlit dashboard won't start
 

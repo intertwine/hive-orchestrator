@@ -95,7 +95,7 @@ make install-dev
 
 # Set up environment
 make setup-env
-# Edit .env and add your OPENROUTER_API_KEY
+# Edit .env if you want custom paths or optional services
 ```
 
 ### Common Commands
@@ -108,7 +108,7 @@ make install-dev      # Install dev dependencies
 
 # Run the application
 make dashboard        # Launch Streamlit UI (port 8501)
-make cortex           # Run orchestration engine
+make sync-projections # Refresh v2 projections
 
 # Development
 make format           # Format code with black
@@ -124,7 +124,7 @@ make session PROJECT=projects/demo
 
 ```bash
 # Run commands in the uv environment
-uv run python src/cortex.py
+uv run hive sync projections --json
 uv run streamlit run src/dashboard.py
 uv run pytest tests/
 
@@ -276,9 +276,9 @@ relevant_files:
    - Set `project_id`, `status`, `priority`, `tags`
    - Define tasks in the markdown content
 
-3. **Run Cortex**
+3. **Sync projections**
    ```bash
-   make cortex
+   make sync-projections
    ```
 
 4. **Monitor in Dashboard**

@@ -63,6 +63,7 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
         projects = discover_projects(root)
         tasks = list_tasks(root)
         task_by_id = {task.id: task for task in tasks}
+        pending_edges: list[tuple[str, str, str, str, str, str]] = []
         search_docs: list[tuple[str, Path, str, str]] = []
 
         for project in projects:
@@ -119,28 +120,19 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                 ),
             )
             if task.parent_id and task.parent_id in task_by_id:
-                connection.execute(
-                    """
-                    INSERT OR IGNORE INTO task_edges
-                    (id, src_task_id, edge_type, dst_task_id, created_at, metadata_json)
-                    VALUES (?, ?, 'parent_of', ?, ?, ?)
-                    """,
+                pending_edges.append(
                     (
                         f"{task.parent_id}:parent_of:{task.id}",
                         task.parent_id,
+                        "parent_of",
                         task.id,
                         task.updated_at,
                         "{}",
-                    ),
+                    )
                 )
             for edge_type, targets in task.edges.items():
                 for target in targets:
-                    connection.execute(
-                        """
-                        INSERT OR IGNORE INTO task_edges
-                        (id, src_task_id, edge_type, dst_task_id, created_at, metadata_json)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        """,
+                    pending_edges.append(
                         (
                             f"{task.id}:{edge_type}:{target}",
                             task.id,
@@ -148,7 +140,7 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                             target,
                             task.updated_at,
                             "{}",
-                        ),
+                        )
                     )
             if task.owner and task.claimed_until:
                 connection.execute(
@@ -166,6 +158,16 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                         "{}",
                     ),
                 )
+
+        for edge_row in pending_edges:
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO task_edges
+                (id, src_task_id, edge_type, dst_task_id, created_at, metadata_json)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                edge_row,
+            )
 
         runs_root = root / ".hive" / "runs"
         if runs_root.exists():

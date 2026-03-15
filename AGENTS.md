@@ -4,75 +4,62 @@
 
 ## Project Overview
 
-**Agent Hive** is a vendor-agnostic orchestration operating system for autonomous AI agents. It enables coordination across different LLM providers using Markdown files with YAML frontmatter as shared memory.
+**Agent Hive** now runs on the Hive 2.0 model. The old v1 Cortex runtime is gone; this repository is centered on:
 
-### Core Philosophy
-
-1. **Vendor Agnostic**: Works with any LLM provider (Codex, Grok, Gemini, OpenAI, etc.)
-2. **Human-in-the-Loop**: Transparent orchestration, never fully autonomous
-3. **Simple Primitives**: Markdown files serve as shared memory between humans and agents
-4. **Git as Truth**: All state changes are version-controlled
-5. **Free Infrastructure**: Designed to run on GitHub Actions free tier
+1. **`hive` CLI first**: `uv run hive ... --json` is the stable machine interface.
+2. **`.hive/` as canonical state**: task files, runs, memory, events, and derived cache live there.
+3. **Markdown projections for humans**: `GLOBAL.md`, `AGENCY.md`, `PROGRAM.md`, and `AGENTS.md` stay readable and are regenerated where appropriate.
+4. **`PROGRAM.md`-gated autonomy**: autonomous runs are limited by project-local policy, evaluators, and path/command budgets.
+5. **Thin compatibility only**: `src/cortex.py` and the MCP server exist only as v2 adapters, not as primary orchestration surfaces.
 
 ## Technology Stack
 
 ### Package Management: uv
 
-This project uses **[uv](https://github.com/astral-sh/uv)** - a fast, modern Python package installer and resolver written in Rust.
-
-**Why uv?**
-- 10-100x faster than pip
-- Built-in virtual environment management
-- Lockfile support for reproducible builds
-- Modern pyproject.toml-based configuration
-- No need for separate tools like pip-tools or poetry
+This project uses **[uv](https://github.com/astral-sh/uv)** for dependency management, virtual environments, and reproducible lockfile-based installs.
 
 ### Core Dependencies
 
 Defined in `pyproject.toml`:
 
-- **openai** (>=1.12.0): OpenRouter API client (compatible with OpenAI SDK)
-- **requests** (>=2.31.0): HTTP library for API calls
-- **streamlit** (>=1.31.0): Web-based dashboard UI
-- **python-frontmatter** (>=1.0.0): Parse Markdown files with YAML frontmatter
-- **pyyaml** (>=6.0.1): YAML parsing and serialization
-- **python-dotenv** (>=1.0.0): Environment variable management
-- **weave** (>=0.51.0): Weights & Biases observability for LLM tracing
+- **requests**: HTTP utilities for optional integrations
+- **streamlit**: dashboard UI
+- **python-frontmatter** and **pyyaml**: markdown/frontmatter parsing
+- **python-dotenv**: optional environment loading
+- **weave**: optional tracing hooks
 
 ### Development Tools
 
-- **black**: Code formatting
-- **pylint**: Linting and code quality
-- **pytest**: Testing framework
+- **black**
+- **pylint**
+- **pytest**
 
 ## Project Structure
 
-```
+```text
 agent-hive/
-├── .devcontainer/
-│   └── devcontainer.json       # VS Code DevContainer + MCP support
-├── .github/
-│   └── workflows/
-│       ├── cortex.yml          # Automated 4-hour heartbeat
-│       └── agent-assignment.yml # Automated agent work dispatch
-├── config/
-│   └── app-manifest.json       # GitHub App configuration (future)
-├── projects/
-│   └── demo/
-│       └── AGENCY.md           # Example project
-├── scripts/
-│   └── start_session.sh        # Deep Work session bootstrap
+├── .github/workflows/
+│   ├── projection-sync.yml    # Regenerates projections and cache
+│   └── agent-assignment.yml   # Ready-work snapshots / dispatcher support
+├── projects/*/
+│   ├── AGENCY.md              # Narrative project document
+│   └── PROGRAM.md             # Autonomous work contract
+├── .hive/
+│   ├── tasks/                 # Canonical task files
+│   ├── runs/                  # Run artifacts and evaluator outputs
+│   ├── memory/                # Project-local memory docs
+│   ├── events/                # Append-only audit logs
+│   └── cache/                 # Derived SQLite cache
 ├── src/
-│   ├── cortex.py               # Orchestration engine
-│   ├── dashboard.py            # Streamlit dashboard
-│   ├── agent_dispatcher.py     # Agent work assignment
-│   ├── context_assembler.py    # Issue context builder
-│   └── tracing.py              # Weave observability integration
-├── GLOBAL.md                   # Root system state
-├── pyproject.toml              # Project configuration
-├── Makefile                    # Development commands
-├── AGENTS.md                   # This file
-└── README.md                   # User documentation
+│   ├── hive/                  # Hive 2.0 core implementation
+│   ├── cortex.py              # Thin v2 compatibility facade
+│   ├── agent_dispatcher.py    # Optional GitHub issue dispatcher
+│   ├── context_assembler.py   # Startup / handoff context helpers
+│   ├── dashboard.py           # Streamlit UI
+│   └── hive_mcp/              # Thin search/execute MCP adapter
+├── GLOBAL.md                  # Root narrative / generated project rollup
+├── AGENTS.md                  # This file
+└── README.md                  # User-facing guide
 ```
 
 ## Development Setup
@@ -80,186 +67,57 @@ agent-hive/
 ### Quick Start
 
 ```bash
-# Install uv (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Clone and enter the repository
 git clone <repo-url>
 cd agent-hive
-
-# Install dependencies
 make install
-
-# Install dev dependencies (optional)
 make install-dev
-
-# Set up environment
-make setup-env
-# Edit .env if you want custom paths or optional services
+uv run hive doctor --json
 ```
 
 ### Common Commands
 
 ```bash
-# Install/sync dependencies
-make install          # Install all dependencies
-make sync             # Sync dependencies from pyproject.toml
-make install-dev      # Install dev dependencies
+make dashboard
+make sync-projections
+make ready
+make deps
+make test
+make lint
 
-# Run the application
-make dashboard        # Launch Streamlit UI (port 8501)
-make sync-projections # Refresh v2 projections
-
-# Development
-make format           # Format code with black
-make lint             # Run pylint
-make test             # Run tests
-make clean            # Clean __pycache__ and temp files
-
-# Deep Work sessions
-make session PROJECT=projects/demo
-```
-
-### Using uv Directly
-
-```bash
-# Run commands in the uv environment
+uv run hive task ready --json
 uv run hive sync projections --json
-uv run streamlit run src/dashboard.py
-uv run pytest tests/
-
-# Add new dependencies
-uv add requests
-uv add --dev pytest
-
-# Remove dependencies
-uv remove requests
+uv run hive context startup --project <project-id> --json
+uv run hive migrate v1-to-v2 --dry-run --json
 ```
 
 ## Core Concepts
 
-### 1. AGENCY.md - The Shared Memory Primitive
+### 1. `AGENCY.md` is narrative, not canonical task state
 
-Every project has an `AGENCY.md` file with YAML frontmatter:
+Each project keeps a readable `AGENCY.md` with goals, notes, and generated task/run rollups. Legacy checkbox lists may still appear as imported context, but canonical task state lives in `.hive/tasks/*.md`.
 
-```markdown
----
-project_id: example-project
-status: active              # active, pending, blocked, completed
-owner: null                 # null or agent name (e.g., "Codex-3.5-sonnet")
-last_updated: 2025-01-15T10:30:00Z
-blocked: false
-blocking_reason: null
-priority: high              # low, medium, high, critical
-tags: [feature, backend]
----
+### 2. `PROGRAM.md` is the autonomous contract
 
-# Project Title
+Each project can define allowed paths, commands, evaluators, budgets, and promotion/escalation rules. Autonomous runs should read `PROGRAM.md` before making changes.
 
-## Objective
-What this project aims to achieve.
+### 3. `.hive/tasks/*.md` is the machine source of truth
 
-## Tasks
-- [ ] Task 1
-- [ ] Task 2
-- [x] Completed task
+Each canonical task file contains:
 
-## Agent Notes
-- **2025-01-15 10:30 - Codex**: Started work on Task 1
-```
+- stable immutable task ID
+- project ID and title
+- status / priority / claim info
+- typed edges such as `blocks`, `duplicates`, and `supersedes`
+- summary, notes, history, and preserved import metadata
 
-**Key Fields:**
+### 4. `src/cortex.py` is only a compatibility wrapper
 
-- `project_id`: Unique identifier
-- `status`: Current state of the project
-- `owner`: Which agent is currently working (set to your name when active)
-- `blocked`: Set to `true` if you need human intervention
-- `blocking_reason`: Explanation of what's blocking you
-- `priority`: Task prioritization
-- `tags`: Organizational labels
+Use it only for compatibility entrypoints like ready/deps/sync. Do not extend it as a new orchestration engine.
 
-### 2. GLOBAL.md - System State
+### 5. The dashboard and dispatcher are adapters on top of v2
 
-Root-level file tracking overall system state:
-
-```yaml
----
-last_cortex_run: 2025-01-15T14:00:00Z
-total_projects: 5
-active_projects: 2
-blocked_projects: 1
----
-
-# Agent Hive Global State
-```
-
-### 3. Cortex - The Orchestration Engine
-
-`src/cortex.py` is the autonomous orchestrator that:
-
-1. Reads all `AGENCY.md` files
-2. Calls an LLM to analyze current state
-3. Updates metadata (status, blocked flags, etc.)
-4. Commits changes back to Git
-5. **Never executes code directly** - only updates Markdown
-
-**Safety guarantees:**
-- Only modifies `AGENCY.md` and `GLOBAL.md` files
-- All changes are Git-tracked
-- Runs in read-analyze-update cycle
-- Human review via Pull Requests
-
-### 4. Dashboard - Human Oversight
-
-`src/dashboard.py` provides a Streamlit web UI for:
-
-- Viewing all projects and their status
-- Manually triggering Cortex runs
-- Generating Deep Work session contexts
-- Monitoring system health
-
-### 5. Agent Dispatcher - Automated Work Assignment
-
-`src/agent_dispatcher.py` proactively assigns work to Codex:
-
-1. **Finds ready work** - Uses Cortex to discover unblocked, unowned projects
-2. **Selects highest priority** - Priority level, then age (oldest first)
-3. **Builds rich context** - AGENCY.md content, file trees, relevant files
-4. **Creates GitHub issue** - With `@Codex` mention to trigger Codex
-5. **Claims the project** - Sets `owner: "Codex"` in AGENCY.md
-
-**Key features:**
-- One task per issue (clean PR scope)
-- Duplicate prevention via `owner` field
-- Dry-run mode for testing
-- Rate limiting (default: 1 issue per run)
-
-**Usage:**
-
-```bash
-# Run dispatcher (dispatch 1 project)
-uv run python -m src.agent_dispatcher
-
-# Dry run (preview without changes)
-uv run python -m src.agent_dispatcher --dry-run
-
-# Dispatch up to 3 projects
-uv run python -m src.agent_dispatcher --max 3
-```
-
-**AGENCY.md Extension - relevant_files:**
-
-Projects can specify files to include in the issue context:
-
-```yaml
----
-project_id: my-project
-relevant_files:
-  - src/api/routes.py
-  - src/models/user.py
-  - tests/test_api.py
----
-```
+`src/dashboard.py` reads the canonical substrate and projections. `src/agent_dispatcher.py` optionally turns ready tasks into GitHub issues, but the scheduler and task store live in Hive 2.0, not in legacy markdown mutation logic.
 
 ## Development Workflows
 
@@ -464,148 +322,49 @@ uv run pylint tests/ --max-line-length=100
 
 ### GitHub Actions
 
-**Cortex Heartbeat** (`.github/workflows/cortex.yml`):
+**Projection Sync** (`.github/workflows/projection-sync.yml`)
 
-- Runs every 4 hours (at minute 0)
-- Installs dependencies with `uv`
-- Executes Cortex to analyze and update state
-- Commits changes if state updated
-- Only modifies AGENCY.md and GLOBAL.md files
+- rebuilds the v2 cache
+- refreshes generated projection markers in `GLOBAL.md`, `AGENCY.md`, and `AGENTS.md`
+- keeps the readable docs aligned with canonical `.hive/` state
 
-**Agent Assignment** (`.github/workflows/agent-assignment.yml`):
+**Agent Assignment** (`.github/workflows/agent-assignment.yml`)
 
-- Runs every 4 hours (at minute 15, after Cortex)
-- Finds ready work using the Agent Dispatcher
-- Creates GitHub issues with `@Codex` mention
-- Claims projects by setting `owner` in AGENCY.md
-- Only modifies AGENCY.md files
+- captures ready-work snapshots from the v2 scheduler
+- can support manual dispatcher-driven GitHub issue creation
+- does not depend on the removed v1 Cortex runtime
 
-**Codex** (`.github/workflows/Codex.yml`):
+**Claude / Codex review flows**
 
-- Responds to `@Codex` mentions in issues and PR comments
-- Triggers on: issue comments, PR review comments, PR reviews, and new issues
-- Uses the official [anthropics/Codex-action](https://github.com/anthropics/Codex-action)
-- Automatically analyzes context and implements requested changes
-- Can create PRs, fix bugs, and answer questions
+- use the repository’s review workflows and PR comment triggers
+- should treat `hive` CLI output and canonical task files as the source of truth
 
-**Required Secrets:**
-- `OPENROUTER_API_KEY`: Your OpenRouter API key (for Cortex)
-- `ANTHROPIC_API_KEY`: Your Anthropic API key (for Codex Action)
-- `GITHUB_TOKEN`: Automatically provided (for issue creation)
+**Required secrets**
 
-**Setting up ANTHROPIC_API_KEY:**
-1. Go to your repository on GitHub
-2. Navigate to **Settings → Secrets and variables → Actions**
-3. Click **New repository secret**
-4. Name: `ANTHROPIC_API_KEY`
-5. Value: Your Anthropic API key from https://console.anthropic.com/
+- `ANTHROPIC_API_KEY` for Claude GitHub actions or review bots
+- `GITHUB_TOKEN` for issue / PR automation
 
 ### Local Development
 
-Use the DevContainer for consistent environment:
-
-```bash
-# In VS Code, use "Reopen in Container"
-# Or with GitHub Codespaces
-```
-
-The DevContainer includes:
-- Python 3.11
-- Node.js LTS
-- Git
-- uv (installed automatically)
-- MCP filesystem server (for Codex integration)
+The DevContainer remains a good default local environment. The important runtime assumption is simply: this repo expects Python 3.11+ and `uv`.
 
 ## API Integration
 
-### OpenRouter
+### Hive 2.0 core is deterministic
 
-Agent Hive uses [OpenRouter](https://openrouter.ai/) to access multiple LLM providers through a unified API.
+The core `hive` CLI does not require OpenRouter or any other LLM API to function. Migration, scheduling, projections, memory, runs, search, and execute all work locally against repository state.
 
-**Supported Models:**
-- `anthropic/Codex-3.5-sonnet` - Most capable
-- `anthropic/Codex-haiku-4.5` - Fast and cheap (default)
-- `google/gemini-pro` - Google's model
-- `x-ai/grok-beta` - X.AI's Grok
+### Optional tracing
 
-**Configuration:**
+`src/tracing.py` still provides optional Weave instrumentation for custom integrations. If you use it, the environment knobs are:
 
-Set in `.env`:
 ```bash
-OPENROUTER_API_KEY=sk-or-v1-xxxxx
-OPENROUTER_MODEL=anthropic/Codex-haiku-4.5
+WANDB_API_KEY=...
+WEAVE_PROJECT=agent-hive
+WEAVE_DISABLED=false
 ```
 
-**Usage in Code:**
-
-```python
-import os
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENROUTER_API_KEY")
-)
-
-response = client.chat.completions.create(
-    model=os.getenv("OPENROUTER_MODEL", "anthropic/Codex-haiku-4.5"),
-    messages=[{"role": "user", "content": "Hello"}]
-)
-```
-
-### Weave Tracing (Observability)
-
-Agent Hive uses [Weights & Biases Weave](https://docs.wandb.ai/weave) for LLM observability.
-All LLM calls are automatically traced with metrics including latency, token usage, and success/failure status.
-
-**Configuration:**
-
-Set in `.env`:
-```bash
-WANDB_API_KEY=your-wandb-api-key     # Required for remote logging
-WEAVE_PROJECT=agent-hive              # Optional, defaults to "agent-hive"
-WEAVE_DISABLED=false                  # Set to "true" to disable tracing
-```
-
-**Tracing Module (`src/tracing.py`):**
-
-The tracing module provides:
-- `init_tracing()` - Initialize Weave at application startup
-- `traced_llm_call()` - Make a traced LLM API call with metrics
-- `get_tracing_status()` - Check current tracing status
-- `is_tracing_enabled()` - Check if tracing is enabled
-- `trace_op()` - Decorator to trace custom functions
-- `LLMCallMetadata` - Data class for call metrics
-
-**Usage in Code:**
-
-```python
-from src.tracing import init_tracing, traced_llm_call, is_tracing_enabled
-
-# Initialize at startup (optional - degrades gracefully)
-if is_tracing_enabled():
-    init_tracing()
-
-# Make traced LLM call
-result = traced_llm_call(
-    api_url="https://openrouter.ai/api/v1/chat/completions",
-    headers={"Authorization": f"Bearer {api_key}"},
-    payload={"model": model, "messages": messages},
-    model=model,
-)
-
-# Access call metadata
-print(f"Latency: {result['metadata'].latency_ms}ms")
-print(f"Tokens: {result['metadata'].total_tokens}")
-```
-
-**Graceful Degradation:**
-
-Tracing is optional and safe:
-- If `WANDB_API_KEY` is not set, tracing is skipped
-- If `WEAVE_DISABLED=true`, tracing is disabled
-- If Weave fails to initialize, the application continues normally
-- All LLM calls work identically with or without tracing
+If tracing is unavailable or disabled, the rest of Hive continues normally.
 
 ## Troubleshooting
 

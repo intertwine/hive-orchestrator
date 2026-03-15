@@ -21,7 +21,7 @@ from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.cache import _memory_scope_parts, rebuild_cache
 from src.hive.store.layout import ensure_layout, global_memory_dir, tasks_dir
 from src.hive.store.projects import discover_projects
-from src.hive.store.task_files import get_task, link_tasks, save_task
+from src.hive.store.task_files import get_task, link_tasks, list_tasks, save_task
 
 
 def _program_markdown(
@@ -193,13 +193,108 @@ class TestHiveV2Migration:
         assert TASK_END in agency_content
         assert RUN_BEGIN in agency_content
         assert RUN_END in agency_content
-        assert "## Tasks" in agency_content
+        assert "## Imported Legacy Tasks" in agency_content
 
     def test_migration_dry_run_does_not_create_task_files(self, temp_hive_dir):
         """Dry-run migration should report without mutating task storage."""
         report = migrate_v1_to_v2(temp_hive_dir, dry_run=True)
         assert report.to_dict()["ok"] is True
         assert not list(tasks_dir(temp_hive_dir).glob("task_*.md"))
+
+    def test_migration_rewrite_replaces_legacy_checklist_section(
+        self, temp_hive_dir, temp_project
+    ):
+        """Rewrite mode should replace legacy checklists after import."""
+        report = migrate_v1_to_v2(temp_hive_dir, rewrite=True)
+        agency_content = Path(temp_project).read_text(encoding="utf-8")
+
+        assert report.to_dict()["tasks_imported"] >= 3
+        assert "## Imported Legacy Tasks" in agency_content
+        assert "- [ ] Task 1" not in agency_content
+        assert "generated task rollup" in agency_content.lower()
+
+    def test_migration_infers_dependency_duplicate_and_supersedes_edges(self, temp_hive_dir):
+        """Explicit relation notes should become canonical task edges."""
+        agency_path = Path(temp_hive_dir) / "projects" / "relations" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: relations
+status: active
+priority: high
+---
+# Relations Project
+
+## Tasks
+- [ ] Build foundation
+- [ ] Ship docs
+  depends on Build foundation
+- [ ] Legacy docs
+  duplicate of Ship docs
+- [ ] Replacement docs
+  supersedes Legacy docs
+""",
+            encoding="utf-8",
+        )
+
+        report = migrate_v1_to_v2(temp_hive_dir)
+        tasks = {
+            task.title: task
+            for task in list_tasks(temp_hive_dir)
+            if task.project_id == "relations"
+        }
+
+        assert report.edges_inferred == 3
+        assert tasks["Build foundation"].edges["blocks"] == [tasks["Ship docs"].id]
+        assert tasks["Ship docs"].edges["duplicates"] == [tasks["Legacy docs"].id]
+        assert tasks["Replacement docs"].edges["supersedes"] == [tasks["Legacy docs"].id]
+        assert tasks["Ship docs"].status == "blocked"
+
+    def test_migration_warns_on_ambiguous_relation_targets(self, temp_hive_dir):
+        """Ambiguous relation targets should warn and fall back to proposed tasks."""
+        agency_path = Path(temp_hive_dir) / "projects" / "ambiguous" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: ambiguous
+status: active
+priority: medium
+---
+# Ambiguous Project
+
+## Tasks
+- [ ] Shared dependency
+- [ ] Shared dependency
+- [ ] Waiting task
+  depends on Shared dependency
+""",
+            encoding="utf-8",
+        )
+
+        report = migrate_v1_to_v2(temp_hive_dir)
+        result = report.to_dict()
+        tasks = [task for task in list_tasks(temp_hive_dir) if task.project_id == "ambiguous"]
+        waiting_task = next(task for task in tasks if task.title == "Waiting task")
+
+        assert any(
+            "Ambiguous relation target 'Shared dependency'" in warning["message"]
+            for warning in result["warnings"]
+        )
+        assert waiting_task.status == "proposed"
+
+    def test_cli_migrate_supports_rewrite_mode(self, temp_hive_dir, temp_project, capsys):
+        """The CLI should execute rewrite migrations without the old placeholder warning."""
+        del temp_project
+        exit_code = hive_main(
+            ["--path", temp_hive_dir, "--json", "migrate", "v1-to-v2", "--rewrite"]
+        )
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+
+        assert exit_code == 0
+        assert payload["ok"] is True
+        assert payload["rewritten_files"]
+        assert "not implemented" not in captured.err
 
 
 class TestHiveV2Runs:

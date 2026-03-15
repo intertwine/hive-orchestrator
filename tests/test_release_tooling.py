@@ -149,12 +149,14 @@ def test_verify_claude_workspace_state_fails_when_ready_check_breaks(monkeypatch
 
 def test_release_smoke_script_exercises_python_module_entrypoint():
     """Release install smoke tests should cover `python -m hive`, not just console scripts."""
-    script = (Path(__file__).resolve().parents[1] / "scripts" / "smoke_release_install.sh").read_text(
-        encoding="utf-8"
-    )
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "smoke_release_install.sh"
+    script = script_path.read_text(encoding="utf-8")
 
+    assert (
+        '"$venv_dir/bin/python" -m hive --path "$workspace" doctor --json >/dev/null'
+        in script
+    )
     assert '"$venv_dir/bin/python" -m hive --version >/dev/null' in script
-    assert '"$venv_dir/bin/python" -m hive --path "$workspace" doctor --json >/dev/null' in script
 
 
 def test_release_workflow_requires_tag_and_homebrew_verification():
@@ -163,8 +165,15 @@ def test_release_workflow_requires_tag_and_homebrew_verification():
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
 
     publish_steps = workflow["jobs"]["publish-pypi"]["steps"]
-    guard_step = next(step for step in publish_steps if step["name"] == "Require a version tag ref")
+    guard_step = next(
+        (step for step in publish_steps if step["name"] == "Require a version tag ref"),
+        None,
+    )
+    assert (
+        guard_step is not None
+    ), "Missing 'Require a version tag ref' step in publish-pypi"
     assert "refs/tags/v*" in guard_step["run"]
+    assert publish_steps[1]["name"] == "Require a version tag ref"
 
     verify_homebrew = workflow["jobs"]["verify-homebrew"]
     assert verify_homebrew["runs-on"] == "macos-latest"

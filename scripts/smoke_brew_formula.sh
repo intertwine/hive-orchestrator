@@ -44,6 +44,8 @@ echo "🔎 Running Homebrew style checks..."
 brew style "$INSTALL_TARGET"
 
 echo "🔎 Running Homebrew audit..."
+# Keep both flags on purpose: `--strict` catches formula quality regressions and
+# `--online` validates remote resources the same way a real release install will.
 brew audit --strict --online "$INSTALL_TARGET"
 
 echo "🔎 Installing formula from temporary tap..."

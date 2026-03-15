@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from hashlib import sha256
+from importlib.resources import files
 from pathlib import Path
 
 from src.hive.store.events import load_events
@@ -21,8 +22,7 @@ def _json(value) -> str:
 
 
 def _schema_sql() -> str:
-    schema_path = Path(__file__).resolve().parents[3] / "docs" / "hive-v2-spec" / "SCHEMA.sql"
-    return schema_path.read_text(encoding="utf-8")
+    return files("src.hive.store").joinpath("SCHEMA.sql").read_text(encoding="utf-8")
 
 
 def _memory_scope_parts(relative_path: Path) -> tuple[str, str]:

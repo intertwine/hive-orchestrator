@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help install install-dev install-tool run dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install
+.PHONY: help install install-dev install-tool install-pipx run dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install release-check quickstart
 
 BUMP ?= patch
 HOMEBREW_TAP_DIR ?= ../homebrew-tap
@@ -16,6 +16,7 @@ help:
 	@echo "  make install        Install Python dependencies with uv"
 	@echo "  make install-dev    Install dev dependencies (black, pylint, pytest)"
 	@echo "  make install-tool   Install the hive CLI as a uv-managed tool from this checkout"
+	@echo "  make install-pipx   Install the hive CLI from this checkout with pipx"
 	@echo "  make sync           Sync dependencies from pyproject.toml"
 	@echo "  make setup-env      Create .env file template"
 	@echo ""
@@ -39,6 +40,7 @@ help:
 	@echo "  make test           Run tests (if available)"
 	@echo "  make check          Run lint + tests"
 	@echo "  make build          Build wheel and sdist"
+	@echo "  make release-check  Build, validate, and smoke-test release artifacts"
 	@echo "  make bump-version   Bump the package version (BUMP=patch|minor|major)"
 	@echo "  make publish-test   Publish dist/* to TestPyPI with twine"
 	@echo "  make publish        Publish dist/* to PyPI with twine"
@@ -52,6 +54,7 @@ help:
 	@echo "  make install"
 	@echo "  make hive-init"
 	@echo "  make session PROJECT=demo"
+	@echo "  make release-check"
 	@echo ""
 
 # Install dependencies
@@ -73,6 +76,12 @@ install-tool:
 	@command -v uv >/dev/null 2>&1 || { echo "❌ Error: uv not found. Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
 	uv tool install --force --from . agent-hive
 	@echo "✅ hive CLI installed. Verify with: hive doctor --json"
+
+install-pipx:
+	@echo "🛠️ Installing hive as a pipx app from this checkout..."
+	@command -v uv >/dev/null 2>&1 || { echo "❌ Error: uv not found. Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
+	uvx --from pipx pipx install --force .
+	@echo "✅ hive CLI installed via pipx. Verify with: hive doctor --json"
 
 # Sync dependencies
 sync:
@@ -175,6 +184,12 @@ build: clean
 	uv run --extra dev python -m build
 	@ls -lh dist/
 
+release-check: build
+	@echo "🔎 Validating release artifacts..."
+	uv run --extra dev twine check dist/*
+	@./scripts/smoke_release_install.sh
+	@echo "✅ Release artifacts passed build, metadata, and install smoke checks."
+
 bump-version:
 	@if [ "$(BUMP)" != "patch" ] && [ "$(BUMP)" != "minor" ] && [ "$(BUMP)" != "major" ]; then \
 		echo "❌ Error: BUMP must be patch, minor, or major"; \
@@ -186,6 +201,8 @@ publish-test: build
 	@echo "🚀 Publishing to TestPyPI..."
 	@echo "Requires TWINE_USERNAME=__token__ and TWINE_PASSWORD=<testpypi-token>"
 	uv run --extra dev twine upload --repository testpypi dist/*
+	@echo "Smoke-test with:"
+	@echo "  uv tool install --default-index https://test.pypi.org/simple --index https://pypi.org/simple agent-hive"
 
 publish: build
 	@echo "🚀 Publishing to PyPI..."
@@ -256,5 +273,5 @@ quickstart: install setup-env
 	@echo "Next steps:"
 	@echo "1. Run: make hive-init"
 	@echo "2. Run: uv run hive project create demo --title \"Demo project\" --json"
-	@echo "3. Run: make dashboard"
+	@echo "3. Run: make session PROJECT=demo"
 	@echo ""

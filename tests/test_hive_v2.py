@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import sqlite3
 
+import pytest
+
 from src.hive.cli.main import main as hive_main
 from src.hive.codemode.execute import MAX_EXECUTE_BYTES
 from src.hive.memory import observe_project, reflect_project, search_memory, startup_context
@@ -1131,6 +1133,15 @@ class TestHiveV2Memory:
 
 class TestHiveV2Cli:
     """Tests for the CLI JSON surface."""
+
+    def test_cli_version_flag_prints_package_version(self, capsys):
+        """The global version flag should expose the installed CLI version."""
+        with pytest.raises(SystemExit) as excinfo:
+            hive_main(["--version"])
+        captured = capsys.readouterr()
+
+        assert excinfo.value.code == 0
+        assert captured.out.strip().startswith("hive ")
 
     def test_cli_init_bootstraps_workspace_files(self, tmp_path, capsys):
         """Init should create a usable workspace, projections, and cache."""

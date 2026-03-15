@@ -1,0 +1,51 @@
+"""Regression tests for the checked-in onboarding story."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from src.hive.store.task_files import list_tasks
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_demo_project_uses_the_checked_in_three_step_onboarding_chain():
+    """The repo demo should stay aligned with the real quickstart story."""
+    demo_tasks = sorted(
+        [task for task in list_tasks(REPO_ROOT) if task.project_id == "demo"],
+        key=lambda task: (task.priority, task.title.lower()),
+    )
+
+    assert [task.title for task in demo_tasks] == [
+        "Claim the first demo task and capture startup context",
+        "Make one small docs-only improvement in the demo project",
+        "Sync projections, record the result, and leave a clean handoff",
+    ]
+    assert [task.status for task in demo_tasks] == ["ready", "proposed", "proposed"]
+    assert demo_tasks[0].edges["blocks"] == [demo_tasks[1].id]
+    assert demo_tasks[1].edges["blocks"] == [demo_tasks[2].id]
+    assert all(not values for values in demo_tasks[2].edges.values())
+
+
+def test_onboarding_docs_keep_everyday_user_flow_task_specific():
+    """The main docs should keep the installed-user and maintainer paths distinct."""
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    quickstart = (REPO_ROOT / "docs" / "QUICKSTART.md").read_text(encoding="utf-8")
+    demo_agency = (REPO_ROOT / "projects" / "demo" / "AGENCY.md").read_text(encoding="utf-8")
+
+    assert "### Everyday users" in readme
+    assert "### Maintainers" in readme
+    assert "Do this in a fresh workspace, not inside this repository checkout." in readme
+    assert "hive task ready --project-id demo" in readme
+    assert "hive task claim <task-id> --owner <your-name> --ttl-minutes 60" in readme
+    assert "hive context startup --project demo --task <task-id>" in readme
+    assert "[docs/MAINTAINING.md](docs/MAINTAINING.md)" in readme
+
+    assert "Use a fresh directory for this walkthrough." in quickstart
+    assert "If you are maintaining Hive itself" in quickstart
+    assert "Once you have more than one project and want the cross-project queue" in quickstart
+
+    assert "hive task ready --project-id demo" in demo_agency
+    assert "make session PROJECT=demo" in demo_agency
+    assert "checkout convenience, not the main product path" in demo_agency

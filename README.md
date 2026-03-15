@@ -72,6 +72,8 @@ make install-tool
 
 Use [docs/MAINTAINING.md](docs/MAINTAINING.md) for local development, CI, and release workflow details.
 
+If you want the actual product experience, stop here and use the installed `hive` commands below in a clean directory. The rest of this repository includes maintainer-only tasks, release tooling, and project docs for Hive itself.
+
 ## Five-Minute First Run
 
 Start in an empty directory and let Hive scaffold the first useful project:
@@ -80,17 +82,20 @@ Start in an empty directory and let Hive scaffold the first useful project:
 mkdir my-hive
 cd my-hive
 hive quickstart demo --title "Demo project"
-hive task ready
-hive context startup --project demo
+hive task ready --project-id demo
+hive task claim <task-id> --owner <your-name> --ttl-minutes 60
+hive context startup --project demo --task <task-id>
 ```
 
 If you want a reusable bundle for Claude, Codex, or another agent, save it directly:
 
 ```bash
-hive context startup --project demo --output SESSION_CONTEXT.md
+hive context startup --project demo --task <task-id> --output SESSION_CONTEXT.md
 ```
 
 That gives you a real workspace with `.hive/`, a starter project, a conservative `PROGRAM.md`, and a first task chain with one ready task. The longer walkthrough lives in [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
+Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
 
 `--json` is available for automation. The commands above are the normal human path.
 
@@ -101,9 +106,11 @@ Once the workspace exists, the daily path is short:
 ```bash
 hive task ready
 hive task claim <task-id> --owner <your-name> --ttl-minutes 60
-hive context startup --project demo --task <task-id>
+hive context startup --project <project-id> --task <task-id>
 hive sync projections
 ```
+
+If you are still following the demo project, use `hive task ready --project-id demo`. In a multi-project workspace, plain `hive task ready` shows the cross-project queue.
 
 Optional extras:
 
@@ -154,7 +161,7 @@ These are useful, but not required:
 
 - Streamlit dashboard via `hive dashboard` when installed with `agent-hive[dashboard]`
 - thin search/execute MCP adapter via `hive-mcp` when installed with `agent-hive[mcp]`
-- optional GitHub issue dispatcher in `src/agent_dispatcher.py`
+- optional checkout-only GitHub issue dispatcher in `src/agent_dispatcher.py`
 - optional Claude GitHub App integration in `docs/INSTALL_CLAUDE_APP.md`
 
 The core CLI does not require an LLM API key.

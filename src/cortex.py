@@ -1036,9 +1036,6 @@ Examples:
   # Run v2 projection sync (default when .hive/tasks exists)
   python -m src.cortex
 
-  # Run full legacy LLM-based analysis (only when no v2 substrate exists)
-  python -m src.cortex
-
   # Find ready work (fast, no LLM)
   python -m src.cortex --ready
 

@@ -5,11 +5,13 @@ import subprocess
 from pathlib import Path
 
 from src.hive.migrate import migrate_v1_to_v2
+from src.hive.scheduler.query import ready_tasks
 
 
 def test_start_session_script_generates_v2_context(temp_hive_dir, temp_project):
     """The bootstrap script should emit the new Hive v2 startup context."""
     migrate_v1_to_v2(temp_hive_dir)
+    first_task_title = ready_tasks(temp_hive_dir, project_id="test-project", limit=1)[0]["title"]
     repo_root = Path(__file__).resolve().parents[1]
     script_path = repo_root / "scripts" / "start_session.sh"
     session_file = Path(temp_hive_dir) / "projects" / "test-project" / "SESSION_CONTEXT.md"
@@ -30,4 +32,4 @@ def test_start_session_script_generates_v2_context(temp_hive_dir, temp_project):
     content = session_file.read_text(encoding="utf-8")
     assert "HIVE STARTUP CONTEXT" in content
     assert "READY TASKS" in content
-    assert "Task 1" in content
+    assert first_task_title in content

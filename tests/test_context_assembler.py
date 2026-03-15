@@ -209,6 +209,29 @@ class TestBuildIssueBodyV2:
         assert "https://github.com/example/repo" in body
         assert "Click to expand repository structure" in body
 
+    def test_missing_scheduler_task_file_falls_back_to_legacy_project_shape(
+        self, temp_hive_dir, temp_project
+    ):
+        """A missing task file from the scheduler path should not raise."""
+        project = {
+            "path": temp_project,
+            "project_id": "test-project",
+            "metadata": {"project_id": "test-project", "priority": "high"},
+            "content": "# Test Project\n\n## Tasks\n- [ ] Task 1\n",
+        }
+
+        with patch(
+            "context_assembler.scheduler_ready_tasks",
+            return_value=[
+                {"id": "task_missing", "project_id": "test-project", "title": "Ghost task"}
+            ],
+        ):
+            with patch("context_assembler.get_task", side_effect=FileNotFoundError):
+                body = build_issue_body(project, Path(temp_hive_dir))
+
+        assert "AGENCY.md Projection" in body
+        assert "test-project" in body
+
 
 class TestExternalRepoHelpers:
     """Tests for external repository helper functions."""

@@ -338,7 +338,10 @@ def _resolve_dispatch_item(
         ready = scheduler_ready_tasks(base_path, project_id=project_id, limit=1)
         if ready:
             task_id = str(ready[0]["id"])
-            task = get_task(base_path, task_id)
+            try:
+                task = get_task(base_path, task_id)
+            except FileNotFoundError:
+                task = None
 
     if task:
         project = get_project(base_path, task.project_id)

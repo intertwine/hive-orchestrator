@@ -356,6 +356,10 @@ class AgentDispatcher:
 
         print("   Claiming task...")
         if not self.claim_project(project, issue_url):
+            # TODO(hive-v2): If issue creation succeeds but the subsequent task claim fails,
+            # the task can be re-dispatched on a later run and create a duplicate issue.
+            # Fixing that race likely needs a durable "dispatch started" marker or
+            # claim-before-issue flow rather than a local retry tweak.
             print("   Failed to claim task (issue was created)")
             return False
 

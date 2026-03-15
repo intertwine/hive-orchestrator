@@ -279,10 +279,7 @@ def main():
         if global_file.exists():
             try:
                 global_parsed = safe_load_agency_md(global_file)
-                last_run = global_parsed.metadata.get("last_sync") or global_parsed.metadata.get(
-                    "last_cortex_run",
-                    "Never",
-                )
+                last_run = global_parsed.metadata.get("last_sync", "Never")
                 if last_run and last_run != "Never":
                     try:
                         last_run = datetime.fromisoformat(last_run.replace("Z", "+00:00"))

@@ -37,6 +37,16 @@ def _memory_scope_parts(relative_path: Path) -> tuple[str, str]:
     return scope, scope_key
 
 
+def _load_jsonl_entries(file_path: Path) -> list[dict]:
+    if not file_path.exists():
+        return []
+    entries: list[dict] = []
+    for line in file_path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            entries.append(json.loads(line))
+    return entries
+
+
 def rebuild_cache(path: str | Path | None = None) -> Path:
     """Rebuild the derived SQLite cache from canonical files."""
     root = Path(path or Path.cwd())
@@ -163,10 +173,17 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                 metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
                 if metadata.get("task_id") not in task_by_id:
                     continue
-                summary_path = Path(metadata["summary_path"]) if metadata.get("summary_path") else None
+                summary_path = (
+                    Path(metadata["summary_path"]) if metadata.get("summary_path") else None
+                )
                 if summary_path and summary_path.exists():
                     search_docs.append(
-                        ("run_summary", summary_path, summary_path.name, summary_path.read_text(encoding="utf-8"))
+                        (
+                            "run_summary",
+                            summary_path,
+                            summary_path.name,
+                            summary_path.read_text(encoding="utf-8"),
+                        )
                     )
                 connection.execute(
                     """
@@ -203,6 +220,31 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                         _json(metadata.get("metadata_json", {})),
                     ),
                 )
+                command_log_path = (
+                    Path(metadata["command_log_path"]) if metadata.get("command_log_path") else None
+                )
+                if command_log_path and command_log_path.exists():
+                    for entry in _load_jsonl_entries(command_log_path):
+                        connection.execute(
+                            """
+                            INSERT INTO run_steps
+                            (id, run_id, seq, step_type, status, summary, artifact_path,
+                             started_at, finished_at, metadata_json)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                f"{metadata['id']}:{entry.get('seq', 0)}",
+                                metadata["id"],
+                                int(entry.get("seq", 0)),
+                                entry.get("step_type", "command"),
+                                entry.get("status", "succeeded"),
+                                entry.get("summary", ""),
+                                entry.get("artifact_path"),
+                                entry.get("started_at"),
+                                entry.get("finished_at"),
+                                _json(entry.get("metadata_json", {})),
+                            ),
+                        )
                 eval_dir = metadata_path.parent / "eval"
                 if eval_dir.exists():
                     for eval_path in sorted(eval_dir.glob("*.json")):
@@ -263,7 +305,9 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
 
         global_path = root / "GLOBAL.md"
         if global_path.exists():
-            search_docs.append(("global", global_path, "GLOBAL.md", global_path.read_text(encoding="utf-8")))
+            search_docs.append(
+                ("global", global_path, "GLOBAL.md", global_path.read_text(encoding="utf-8"))
+            )
         for project in projects:
             search_docs.append(("agency", project.agency_path, project.title, project.content))
             if project.program_path.exists():

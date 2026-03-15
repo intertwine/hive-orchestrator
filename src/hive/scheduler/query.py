@@ -21,6 +21,13 @@ def _is_claim_active(task: TaskRecord) -> bool:
     return claim_time > datetime.now(timezone.utc)
 
 
+def _effective_status(task: TaskRecord) -> str:
+    """Return the task status after accounting for lease expiry."""
+    if task.status == "claimed" and not _is_claim_active(task):
+        return "ready"
+    return task.status
+
+
 def _blocked_by(task: TaskRecord, tasks_by_id: dict[str, TaskRecord]) -> list[str]:
     blockers = []
     for candidate in tasks_by_id.values():
@@ -63,7 +70,8 @@ def ready_tasks(
     for task in tasks:
         if project_id and task.project_id != project_id:
             continue
-        if task.status not in {"proposed", "ready"}:
+        effective_status = _effective_status(task)
+        if effective_status not in {"proposed", "ready"}:
             continue
         if _is_claim_active(task):
             continue
@@ -76,7 +84,7 @@ def ready_tasks(
                 "id": task.id,
                 "project_id": task.project_id,
                 "title": task.title,
-                "status": task.status,
+                "status": effective_status,
                 "priority": task.priority,
                 "owner": task.owner,
                 "blocked_by": blocked,

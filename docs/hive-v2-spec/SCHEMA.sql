@@ -193,13 +193,13 @@ CREATE VIEW IF NOT EXISTS ready_tasks AS
 SELECT
   t.*
 FROM tasks t
-WHERE t.status IN ('proposed','ready')
+WHERE t.status IN ('proposed','ready','claimed')
   AND NOT EXISTS (
     SELECT 1
     FROM claims c
     WHERE c.task_id = t.id
       AND c.status = 'active'
-      AND c.expires_at > datetime('now')
+      AND datetime(c.expires_at) > datetime('now')
   )
   AND NOT EXISTS (
     SELECT 1
@@ -215,7 +215,7 @@ CREATE VIEW IF NOT EXISTS active_claims AS
 SELECT c.*
 FROM claims c
 WHERE c.status = 'active'
-  AND c.expires_at > datetime('now');
+  AND datetime(c.expires_at) > datetime('now');
 
 -- Suggested rebuild contract:
 -- 1. parse GLOBAL.md / AGENCY.md / PROGRAM.md / task files / run artifacts / memory docs

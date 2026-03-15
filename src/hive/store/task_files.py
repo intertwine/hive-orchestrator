@@ -235,6 +235,7 @@ def link_tasks(
 ) -> TaskRecord:
     """Create a typed edge between tasks."""
     task = get_task(path, src_id)
+    get_task(path, dst_id)
     task.edges.setdefault(edge_type, [])
     if dst_id not in task.edges[edge_type]:
         task.edges[edge_type].append(dst_id)

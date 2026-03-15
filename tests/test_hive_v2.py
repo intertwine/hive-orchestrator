@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sqlite3
 
 from src.hive.cli.main import main as hive_main
 from src.hive.memory import observe_project, reflect_project, startup_context
@@ -17,7 +18,7 @@ from src.hive.scheduler.query import ready_tasks
 from src.hive.store.cache import rebuild_cache
 from src.hive.store.layout import ensure_layout, tasks_dir
 from src.hive.store.projects import discover_projects
-from src.hive.store.task_files import get_task, save_task
+from src.hive.store.task_files import get_task, link_tasks, save_task
 
 
 def _program_markdown(command: str, auto_close: bool = False) -> str:
@@ -81,6 +82,24 @@ class TestHiveV2TaskFiles:
         assert reloaded.summary_md == "Summary"
         assert reloaded.notes_md == "Notes"
 
+    def test_link_tasks_rejects_missing_destination(self, temp_hive_dir):
+        """Linking should fail fast when the destination task does not exist."""
+        ensure_layout(temp_hive_dir)
+        source = TaskRecord(
+            id="task_link_source",
+            project_id="test-project",
+            title="Link source",
+            status="ready",
+        )
+        save_task(temp_hive_dir, source)
+
+        try:
+            link_tasks(temp_hive_dir, source.id, "blocks", "task_missing")
+        except FileNotFoundError:
+            pass
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected missing destination task to raise FileNotFoundError")
+
 
 class TestHiveV2Migration:
     """Tests for v1 -> v2 migration."""
@@ -137,6 +156,21 @@ class TestHiveV2Runs:
         assert accepted["status"] == "accepted"
         assert task.status == "review"
 
+    def test_expired_claimed_task_returns_to_ready_queue(self, temp_hive_dir, temp_project):
+        """Expired claimed tasks should be surfaced by ready detection again."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        task = get_task(temp_hive_dir, task_id)
+        task.status = "claimed"
+        task.owner = "codex"
+        task.claimed_until = "2000-01-01T00:00:00Z"
+        save_task(temp_hive_dir, task)
+
+        ready = ready_tasks(temp_hive_dir, project_id=project.id)
+        ready_entry = next(item for item in ready if item["id"] == task_id)
+        assert ready_entry["status"] == "ready"
+
 
 class TestHiveV2Memory:
     """Tests for memory observe/reflect/context behavior."""
@@ -184,6 +218,28 @@ class TestHiveV2Cli:
         assert exit_code == 0
         payload = json.loads(captured.out)
         assert Path(payload["path"]).exists()
+
+    def test_cache_ready_and_active_claim_views_handle_iso_expiry(self, temp_hive_dir, temp_project):
+        """SQLite views should parse ISO timestamps when deciding claim expiry."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        task = get_task(temp_hive_dir, task_id)
+        task.status = "claimed"
+        task.owner = "codex"
+        task.claimed_until = "2000-01-01T00:00:00Z"
+        save_task(temp_hive_dir, task)
+
+        db_path = rebuild_cache(temp_hive_dir)
+        connection = sqlite3.connect(db_path)
+        try:
+            ready_ids = [row[0] for row in connection.execute("SELECT id FROM ready_tasks")]
+            active_claim_ids = [row[0] for row in connection.execute("SELECT task_id FROM active_claims")]
+        finally:
+            connection.close()
+
+        assert task_id in ready_ids
+        assert task_id not in active_claim_ids
 
     def test_cli_run_show_returns_metadata(self, temp_hive_dir, temp_project, capsys):
         """Run show should surface persisted metadata after start."""

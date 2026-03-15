@@ -15,6 +15,7 @@ from src.hive.projections.global_md import BEGIN as GLOBAL_BEGIN
 from src.hive.projections.global_md import END as GLOBAL_END
 from src.hive.runs import accept_run, eval_run, start_run
 from src.hive.runs.engine import escalate_run, reject_run
+from src.hive.search import search_workspace
 from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.cache import _memory_scope_parts, rebuild_cache
 from src.hive.store.layout import ensure_layout, tasks_dir
@@ -522,6 +523,26 @@ class TestHiveV2Cli:
         payload = json.loads(captured.out)
         assert payload["run"]["id"] == run.id
 
+    def test_cli_search_returns_json_hits(self, temp_hive_dir, temp_project, capsys):
+        """Workspace search should emit stable JSON results."""
+        migrate_v1_to_v2(temp_hive_dir)
+        task_id = ready_tasks(temp_hive_dir)[0]["id"]
+        task = get_task(temp_hive_dir, task_id)
+        task.summary_md = "Search token: crimson-parakeet"
+        save_task(temp_hive_dir, task)
+        observe_project(temp_hive_dir, note="crimson-parakeet memory")
+        reflect_project(temp_hive_dir)
+        rebuild_cache(temp_hive_dir)
+
+        exit_code = hive_main(["--path", temp_hive_dir, "--json", "search", "crimson-parakeet"])
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["version"]
+        assert any(result["kind"] == "task" for result in payload["results"])
+        assert any(result["kind"] == "memory" for result in payload["results"])
+
 
 class TestHiveV2Scheduler:
     """Tests for scheduler summaries."""
@@ -540,3 +561,33 @@ class TestHiveV2Scheduler:
 
         summary = next(item for item in project_summary(temp_hive_dir) if item["id"] == project.id)
         assert summary["ready"] == baseline["ready"]
+
+
+class TestHiveV2Search:
+    """Tests for the workspace search surface."""
+
+    def test_search_workspace_returns_workspace_hits(self, temp_hive_dir, temp_project):
+        """Search should surface task and memory content from the cache-backed workspace corpus."""
+        migrate_v1_to_v2(temp_hive_dir)
+        task_id = ready_tasks(temp_hive_dir)[0]["id"]
+        task = get_task(temp_hive_dir, task_id)
+        task.summary_md = "Unique task token: amber-kestrel"
+        save_task(temp_hive_dir, task)
+        observe_project(temp_hive_dir, note="amber-kestrel memory")
+        reflect_project(temp_hive_dir)
+        rebuild_cache(temp_hive_dir)
+
+        results = search_workspace(temp_hive_dir, "amber-kestrel", scopes=["workspace"], limit=10)
+        kinds = {item["kind"] for item in results}
+        assert "task" in kinds
+        assert "memory" in kinds
+
+    def test_search_workspace_returns_api_example_and_project_hits(self, temp_hive_dir, temp_project):
+        """Search should cover API docs, example files, and project summaries."""
+        migrate_v1_to_v2(temp_hive_dir)
+
+        results = search_workspace(temp_hive_dir, "ready", scopes=["api", "examples", "project"], limit=20)
+        kinds = {item["kind"] for item in results}
+        assert "command" in kinds
+        assert "example" in kinds
+        assert "project" in kinds

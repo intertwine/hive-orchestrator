@@ -13,6 +13,7 @@ from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
 from src.hive.memory.search import search
 from src.hive.migrate.v1_to_v2 import migrate_v1_to_v2
+from src.hive.search import search_workspace
 from src.hive.projections.agency_md import sync_agency_md
 from src.hive.projections.agents_md import sync_agents_md
 from src.hive.projections.global_md import sync_global_md
@@ -51,6 +52,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("init")
     subparsers.add_parser("doctor")
+    search_parser = subparsers.add_parser("search")
+    search_parser.add_argument("query")
+    search_parser.add_argument("--scope", action="append")
+    search_parser.add_argument("--limit", type=int, default=8)
 
     cache_parser = subparsers.add_parser("cache")
     cache_subparsers = cache_parser.add_subparsers(dest="cache_command")
@@ -185,6 +190,15 @@ def main(argv: list[str] | None = None) -> int:
                 "projects": len(projects),
                 "tasks": len(tasks),
                 "cache_exists": (root / ".hive" / "cache" / "index.sqlite").exists(),
+            },
+            args.json,
+        )
+
+    if args.command == "search":
+        return _emit(
+            {
+                "ok": True,
+                "results": search_workspace(root, args.query, scopes=args.scope, limit=args.limit),
             },
             args.json,
         )

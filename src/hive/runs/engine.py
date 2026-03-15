@@ -67,6 +67,7 @@ Define the autonomous work contract for this project.
 # Constraints
 
 - Fill in safe evaluator commands before autonomous runs.
+- Commands in `commands.allow` must match evaluator commands exactly.
 """
     target = project_dir / "PROGRAM.md"
     target.write_text(stub, encoding="utf-8")
@@ -176,6 +177,8 @@ def eval_run(path: str | Path | None, run_id: str) -> dict:
     """Execute all configured evaluators for a run."""
     root = Path(path or Path.cwd())
     metadata = load_run(root, run_id)
+    if metadata.get("status") != "running":
+        raise ValueError(f"Cannot evaluate run with status {metadata.get('status')!r}")
     program = load_program(Path(metadata["program_path"]))
     run_directory = _run_dir(root, run_id)
     results = []
@@ -210,6 +213,8 @@ def accept_run(path: str | Path | None, run_id: str) -> dict:
     """Accept a run when all required evaluators pass."""
     root = Path(path or Path.cwd())
     metadata = load_run(root, run_id)
+    if metadata.get("status") != "evaluating":
+        raise ValueError(f"Cannot accept run with status {metadata.get('status')!r}")
     evaluations = metadata.get("metadata_json", {}).get("evaluations", [])
     if any(result.get("required", True) and result["status"] != "pass" for result in evaluations):
         raise ValueError("Cannot accept run with failing required evaluators")

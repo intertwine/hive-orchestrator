@@ -15,7 +15,7 @@ from src.hive.projections.global_md import BEGIN as GLOBAL_BEGIN
 from src.hive.projections.global_md import END as GLOBAL_END
 from src.hive.runs import accept_run, eval_run, start_run
 from src.hive.scheduler.query import ready_tasks
-from src.hive.store.cache import rebuild_cache
+from src.hive.store.cache import _memory_scope_parts, rebuild_cache
 from src.hive.store.layout import ensure_layout, tasks_dir
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import get_task, link_tasks, save_task
@@ -226,6 +226,41 @@ class TestHiveV2Runs:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected terminal task status to block run creation")
 
+    def test_eval_run_rejects_non_running_statuses(self, temp_hive_dir, temp_project):
+        """Evaluators should only run from the running state."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        eval_run(temp_hive_dir, run.id)
+
+        try:
+            eval_run(temp_hive_dir, run.id)
+        except ValueError as exc:
+            assert "Cannot evaluate run" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected non-running run evaluation to fail")
+
+    def test_accept_run_requires_evaluating_status(self, temp_hive_dir, temp_project):
+        """Runs should not be accepted before evaluator execution."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+
+        try:
+            accept_run(temp_hive_dir, run.id)
+        except ValueError as exc:
+            assert "Cannot accept run" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected accept without evaluation to fail")
+
     def test_expired_claimed_task_returns_to_ready_queue(self, temp_hive_dir, temp_project):
         """Expired claimed tasks should be surfaced by ready detection again."""
         migrate_v1_to_v2(temp_hive_dir)
@@ -286,6 +321,40 @@ class TestHiveV2Memory:
 
         assert ("project:demo:observations", "project", "demo", "observations") in rows
         assert ("project:ops:observations", "project", "ops", "observations") in rows
+
+    def test_cache_rebuild_skips_unknown_memory_kinds(self, temp_hive_dir, temp_project):
+        """Custom memory markdown files should not abort cache rebuild."""
+        migrate_v1_to_v2(temp_hive_dir)
+        memory_root = Path(temp_hive_dir) / ".hive" / "memory" / "project" / "demo"
+        memory_root.mkdir(parents=True, exist_ok=True)
+        (memory_root / "notes.md").write_text("# Notes\n\ncustom\n", encoding="utf-8")
+        (memory_root / "observations.md").write_text("# Observations\n\nok\n", encoding="utf-8")
+
+        db_path = rebuild_cache(temp_hive_dir)
+        connection = sqlite3.connect(db_path)
+        try:
+            kinds = list(connection.execute("SELECT scope_key, kind FROM memory_docs ORDER BY kind"))
+        finally:
+            connection.close()
+
+        assert ("demo", "observations") in kinds
+        assert ("demo", "notes") not in kinds
+
+    def test_memory_scope_parts_rejects_invalid_shapes(self):
+        """Memory scope parsing should reject unsupported paths and scopes."""
+        try:
+            _memory_scope_parts(Path("observations.md"))
+        except ValueError as exc:
+            assert "Unsupported memory doc path" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected shallow memory path to fail")
+
+        try:
+            _memory_scope_parts(Path("custom/demo/observations.md"))
+        except ValueError as exc:
+            assert "Unsupported memory scope" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected unsupported memory scope to fail")
 
 
 class TestHiveV2Cli:

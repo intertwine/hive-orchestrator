@@ -12,6 +12,8 @@ from src.hive.store.layout import cache_dir
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import list_tasks
 
+KNOWN_MEMORY_KINDS = {"observations", "reflections", "profile", "active", "summary"}
+
 
 def _json(value) -> str:
     """Serialize values for cache storage."""
@@ -229,6 +231,8 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                 except ValueError:
                     continue
                 kind = file_path.stem
+                if kind not in KNOWN_MEMORY_KINDS:
+                    continue
                 content = file_path.read_text(encoding="utf-8")
                 connection.execute(
                     """

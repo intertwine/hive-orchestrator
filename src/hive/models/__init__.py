@@ -9,4 +9,12 @@ Program = ProgramRecord
 Project = ProjectRecord
 Task = TaskRecord
 
-__all__ = ["Program", "ProgramRecord", "Project", "ProjectRecord", "RunRecord", "Task", "TaskRecord"]
+__all__ = [
+    "Program",
+    "ProgramRecord",
+    "Project",
+    "ProjectRecord",
+    "RunRecord",
+    "Task",
+    "TaskRecord",
+]

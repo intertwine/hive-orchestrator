@@ -1,156 +1,78 @@
 # Installing the Claude Code GitHub App
 
-This guide walks you through installing the Claude Code GitHub App on your repository to enable automated AI agent work via `@claude` mentions.
+This is optional.
 
-## Overview
+Hive works fine with the CLI alone. Install the Claude Code GitHub App only if you want GitHub issues and `@claude` mentions to become part of your workflow.
 
-The Agent Hive system uses the [Claude Code GitHub App](https://github.com/apps/claude) to automatically assign work to Claude. When the Agent Dispatcher creates an issue with `@claude` mention, the Claude Code app responds and works on the task.
+## When it helps
 
-## Prerequisites
+Install the app if you want any of these:
 
-- Repository owner or admin access
-- GitHub account with access to install apps
+- issue-driven assignment instead of direct local CLI work
+- `@claude` responses on issues or PR comments
+- PRs opened by Claude after a GitHub-triggered work loop
 
-## Installation Steps
+If you mostly work locally with `hive task ready`, `hive context startup`, and normal Git branches, you can skip this guide.
 
-### Step 1: Visit the Claude Code App Page
+## Install
 
-Go to the official Claude Code GitHub App:
+1. Open the [Claude Code GitHub App](https://github.com/apps/claude).
+2. Click **Install** or **Configure**.
+3. Choose the organization or account that owns your repository.
+4. Grant access to this repository.
+5. Confirm the installation in **Settings > GitHub Apps**.
 
-**https://github.com/apps/claude**
+## Quick check
 
-### Step 2: Install the App
-
-1. Click **"Install"** or **"Configure"**
-2. Select the organization or account where you want to install
-3. Choose repository access:
-   - **All repositories** - Claude can respond to mentions in any repo
-   - **Only select repositories** - Choose specific repos (recommended for security)
-4. Select this repository: `intertwine/hive-orchestrator`
-5. Click **"Install"**
-
-### Step 3: Verify Installation
-
-After installation, verify it's working:
-
-1. Go to your repository settings
-2. Navigate to **Settings > GitHub Apps**
-3. Confirm "Claude" appears in the installed apps list
-
-### Step 4: Test the Integration
-
-Create a test issue to verify Claude responds:
+Open an issue and mention `@claude` in the body. A simple test is enough:
 
 ```markdown
-Title: Test Claude Integration
-
-Body:
-@claude Please confirm you can see this issue by responding with a brief acknowledgment.
+@claude Please confirm that you can read this issue.
 ```
 
-Claude should respond within a few minutes.
+If the app is installed correctly, Claude should reply within a few minutes.
 
-## How It Works with Agent Hive
+## How it fits into Hive
 
-1. **Hive projections/cache** can be refreshed on demand with `uv run hive sync projections --json`
-2. **Ready work** is available from `uv run hive task ready --json` and the dashboard
-3. **Optional manual dispatch** can open a GitHub issue with `@claude` if you want issue-based assignment
-4. **Claude Code** also responds directly to `@claude` mentions on issues and PR comments
-5. Claude creates a PR with the changes when it completes the requested work
+The normal Hive flow stays the same:
 
-### Workflow Diagram
+1. `hive task ready --json` finds ready work.
+2. `hive context startup --project <project-id> --json` builds context.
+3. Optional dispatch tools can turn that work into a GitHub issue.
+4. Claude can pick up the issue when it sees `@claude`.
 
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Ready Work     │────▶│ Optional Manual   │────▶│  GitHub Issue   │
-│  (`hive task`)  │     │ Dispatcher        │     │  (@claude)      │
-└─────────────────┘     └──────────────────┘     └────────┬────────┘
-                                                          │
-                                                          ▼
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   Pull Request  │◀────│   Claude Code    │◀────│  Claude App     │
-│   (changes)     │     │   (work on task) │     │  (picks up)     │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-```
+The app is a convenience layer. It is not the core orchestration engine.
 
-## Configuration
+## Repository settings
 
-### Repository Settings
+Make sure these are enabled:
 
-Ensure your repository has the following settings:
+- GitHub Issues
+- GitHub Actions
 
-1. **Issues enabled** - Settings > Features > Issues ✓
-2. **Actions enabled** - Settings > Actions > General > Allow all actions
-
-### Workflow Permissions
-
-The GitHub Actions workflows need proper permissions. Verify in `.github/workflows/agent-assignment.yml`:
-
-```yaml
-permissions:
-  contents: write
-  issues: write
-```
+If you use the optional dispatcher, the workflow or token that opens issues also needs `issues: write`.
 
 ## Troubleshooting
 
-### Claude doesn't respond to @mention
+### Claude does not respond
 
-1. Verify the app is installed: Settings > GitHub Apps
-2. Check the issue has a valid `@claude` mention in the body
-3. Ensure the repository is selected in the app's configuration
-4. Wait a few minutes - Claude may have processing delays
+- Check that the app is installed on the repository you are testing.
+- Check that the issue or PR comment includes `@claude`.
+- Give it a few minutes before assuming it failed.
 
-### Agent Dispatcher issues not created
+### The dispatcher does not open issues
 
-1. Run manually to debug: `uv run python -m src.agent_dispatcher --dry-run`
-2. Check canonical ready work: `uv run hive task ready --json`
-3. Verify `GITHUB_TOKEN` is set with `issues: write` permission
+- Dry-run it first: `uv run python -m src.agent_dispatcher --dry-run`
+- Verify ready work exists: `uv run hive task ready --json`
+- Verify the GitHub token has permission to create issues
 
-### Claude creates PR but can't push
+## Security notes
 
-1. Ensure Claude app has `contents: write` permission
-2. Check branch protection rules allow the app to push
-3. Verify the app is authorized for the target branch
+- The app only has access to repositories you authorize.
+- Claude still works through pull requests, so changes stay reviewable.
+- Branch protection remains your backstop.
 
-## Security Considerations
+## Related docs
 
-- Claude Code only responds to `@claude` mentions
-- The app only has access to repositories you explicitly authorize
-- All changes are made via Pull Requests for review
-- Branch protection rules are respected
-
-## Manual Trigger
-
-To manually trigger agent assignment:
-
-```bash
-# Inspect canonical ready tasks first
-uv run hive task ready --json
-
-# Dry run (preview without changes)
-uv run python -m src.agent_dispatcher --dry-run
-
-# Actually dispatch work
-uv run python -m src.agent_dispatcher
-```
-
-Or via GitHub Actions:
-
-1. Go to **Actions** tab
-2. Select **"Ready Work Snapshot"** workflow
-3. Click **"Run workflow"**
-
-## Additional Resources
-
-- [Claude Code Documentation](https://docs.anthropic.com/claude-code)
-- [GitHub Apps Documentation](https://docs.github.com/en/apps)
-- [Agent Hive README](../README.md)
-
-## Support
-
-If you encounter issues:
-
-1. Check the [Claude Code GitHub Issues](https://github.com/anthropics/claude-code/issues)
-2. Review workflow logs in the Actions tab
-3. Open an issue in this repository
+- [README](../README.md)
+- [Claude Code documentation](https://docs.anthropic.com/claude-code)

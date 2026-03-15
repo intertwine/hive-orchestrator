@@ -30,6 +30,7 @@ def client():
     ):
         # Need to reload the module to pick up the new env vars
         import src.coordinator as coordinator_module
+
         original_require_auth = coordinator_module.REQUIRE_AUTH
         original_api_key = coordinator_module.HIVE_API_KEY
         coordinator_module.REQUIRE_AUTH = False

@@ -21,8 +21,8 @@ from src.hive.projections.global_md import sync_global_md
 from src.hive.runs.engine import accept_run, escalate_run, eval_run, load_run, reject_run, start_run
 from src.hive.scheduler.query import dependency_summary, project_summary, ready_tasks
 from src.hive.store.cache import rebuild_cache
-from src.hive.store.layout import ensure_layout
-from src.hive.store.projects import discover_projects, get_project
+from src.hive.store.layout import bootstrap_workspace
+from src.hive.store.projects import create_project, discover_projects, get_project
 from src.hive.store.task_files import (
     claim_task,
     create_task,
@@ -56,6 +56,77 @@ def _load_execute_code(args: argparse.Namespace) -> str:
     return code
 
 
+def _doctor_payload(root: Path) -> dict[str, object]:
+    projects = discover_projects(root)
+    tasks = list_tasks(root)
+    ready = ready_tasks(root, limit=8)
+
+    checks = {
+        "git_repo": (root / ".git").exists(),
+        "layout": (root / ".hive").exists(),
+        "global_md": (root / "GLOBAL.md").exists(),
+        "agents_md": (root / "AGENTS.md").exists(),
+        "cache": (root / ".hive" / "cache" / "index.sqlite").exists(),
+        "projects_dir": (root / "projects").exists(),
+    }
+
+    next_steps: list[str] = []
+    if not checks["layout"]:
+        next_steps.append("Run `hive init --json` to bootstrap the workspace.")
+    if checks["layout"] and not checks["global_md"]:
+        next_steps.append("Run `hive sync projections --json` to create `GLOBAL.md`.")
+    if checks["layout"] and not checks["agents_md"]:
+        next_steps.append("Run `hive sync projections --json` to create `AGENTS.md`.")
+    if checks["layout"] and not projects:
+        next_steps.append(
+            'Run `hive project create demo --title "Demo project" --json` '
+            "to scaffold your first project."
+        )
+    elif projects and not tasks:
+        first_project = projects[0]
+        next_steps.append(
+            "Run "
+            f"`hive task create --project-id {first_project.id} "
+            f'--title "Define the first slice" --json` '
+            "to create canonical work."
+        )
+        next_steps.append(
+            "If you still have legacy checkbox tasks, run "
+            "`hive migrate v1-to-v2 --json` to import them."
+        )
+    elif ready:
+        top_task = ready[0]
+        next_steps.append(
+            "Run "
+            f"`hive context startup --project {top_task['project_id']} "
+            f"--task {top_task['id']} --json` "
+            "to start work on the top ready task."
+        )
+    elif tasks:
+        next_steps.append(
+            "Run `hive task list --json` to inspect blocked, claimed, or completed work."
+        )
+    if checks["layout"] and not checks["cache"]:
+        next_steps.append(
+            "Run `hive sync projections --json` to rebuild the cache and refresh rollups."
+        )
+
+    message = (
+        f"Hive workspace at {root}: {len(projects)} projects, "
+        f"{len(tasks)} tasks, {len(ready)} ready"
+    )
+    return {
+        "ok": True,
+        "message": message,
+        "workspace": str(root),
+        "projects": len(projects),
+        "tasks": len(tasks),
+        "ready": len(ready),
+        "checks": checks,
+        "next_steps": next_steps,
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the Hive CLI parser."""
     parser = argparse.ArgumentParser(prog="hive", description="Hive 2.0 CLI")
@@ -85,6 +156,14 @@ def build_parser() -> argparse.ArgumentParser:
     project_parser = subparsers.add_parser("project")
     project_subparsers = project_parser.add_subparsers(dest="project_command")
     project_subparsers.add_parser("list")
+    project_create = project_subparsers.add_parser("create")
+    project_create.add_argument("slug")
+    project_create.add_argument("--title")
+    project_create.add_argument("--project-id")
+    project_create.add_argument("--status", default="active")
+    project_create.add_argument("--priority", type=int, default=2)
+    project_create.add_argument("--objective")
+    project_create.add_argument("--tag", action="append")
     project_show = project_subparsers.add_parser("show")
     project_show.add_argument("project_id")
     project_sync = project_subparsers.add_parser("sync")
@@ -183,6 +262,19 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _project_payload(project) -> dict[str, object]:
+    return {
+        "id": project.id,
+        "slug": project.slug,
+        "title": project.title,
+        "status": project.status,
+        "priority": project.priority,
+        "owner": project.owner,
+        "path": str(project.agency_path),
+        "program_path": str(project.program_path),
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the Hive CLI."""
     if argv is None:
@@ -198,32 +290,26 @@ def main(argv: list[str] | None = None) -> int:
     root = Path(args.path).resolve()
 
     if args.command == "init":
-        layout = ensure_layout(root)
+        bootstrapped = bootstrap_workspace(root)
+        sync_global_md(root)
+        sync_agency_md(root)
+        sync_agents_md(root)
+        rebuild_cache(root)
+        doctor = _doctor_payload(root)
         return _emit(
             {
                 "ok": True,
                 "message": f"Initialized Hive layout at {root}",
-                "layout": {key: str(value) for key, value in layout.items()},
+                "layout": {key: str(value) for key, value in bootstrapped["layout"].items()},
+                "created_files": bootstrapped["created_files"],
+                "updated_files": bootstrapped["updated_files"],
+                "next_steps": doctor["next_steps"],
             },
             args.json,
         )
 
     if args.command == "doctor":
-        projects = discover_projects(root)
-        tasks = list_tasks(root)
-        return _emit(
-            {
-                "ok": True,
-                "message": (
-                    f"Hive workspace at {root}: {len(projects)} projects, {len(tasks)} tasks"
-                ),
-                "workspace": str(root),
-                "projects": len(projects),
-                "tasks": len(tasks),
-                "cache_exists": (root / ".hive" / "cache" / "index.sqlite").exists(),
-            },
-            args.json,
-        )
+        return _emit(_doctor_payload(root), args.json)
 
     if args.command == "search":
         return _emit(
@@ -257,24 +343,43 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "project":
         if args.project_command == "list":
             return _emit({"ok": True, "projects": project_summary(root)}, args.json)
-        if args.project_command == "show":
-            project = get_project(root, args.project_id)
+        if args.project_command == "create":
+            try:
+                project = create_project(
+                    root,
+                    args.slug,
+                    title=args.title,
+                    project_id=args.project_id,
+                    status=args.status,
+                    priority=args.priority,
+                    objective=args.objective,
+                    tags=args.tag,
+                )
+            except (FileExistsError, ValueError) as exc:
+                _emit({"ok": False, "error": str(exc), "message": str(exc)}, args.json)
+                return 1
+            sync_global_md(root)
+            sync_agency_md(root)
+            sync_agents_md(root)
+            rebuild_cache(root)
             return _emit(
                 {
                     "ok": True,
-                    "project": {
-                        "id": project.id,
-                        "slug": project.slug,
-                        "title": project.title,
-                        "status": project.status,
-                        "priority": project.priority,
-                        "owner": project.owner,
-                        "path": str(project.agency_path),
-                        "program_path": str(project.program_path),
-                    },
+                    "project": _project_payload(project),
+                    "next_steps": [
+                        "Run "
+                        f"`hive task create --project-id {project.id} "
+                        f'--title "Define the first slice" --json` '
+                        "to add canonical work.",
+                        f"Run `hive context startup --project {project.id} --json` "
+                        "to build startup context.",
+                    ],
                 },
                 args.json,
             )
+        if args.project_command == "show":
+            project = get_project(root, args.project_id)
+            return _emit({"ok": True, "project": _project_payload(project)}, args.json)
         if args.project_command == "sync":
             sync_global_md(root)
             sync_agency_md(root)

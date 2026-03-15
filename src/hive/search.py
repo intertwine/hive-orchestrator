@@ -29,6 +29,11 @@ COMMAND_DOCS = (
         "example": "hive doctor --json",
     },
     {
+        "title": "hive project create",
+        "summary": "Scaffold a new project with AGENCY.md and PROGRAM.md.",
+        "example": 'hive project create demo --title "Demo project" --json',
+    },
+    {
         "title": "hive search",
         "summary": "Search workspace state, API docs, schemas, examples, and project summaries.",
         "example": 'hive search "claim a task" --scope api --limit 8 --json',

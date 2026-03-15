@@ -244,9 +244,7 @@ def release_task(path: str | Path | None, task_id: str) -> TaskRecord:
     return task
 
 
-def link_tasks(
-    path: str | Path | None, src_id: str, edge_type: str, dst_id: str
-) -> TaskRecord:
+def link_tasks(path: str | Path | None, src_id: str, edge_type: str, dst_id: str) -> TaskRecord:
     """Create a typed edge between tasks."""
     task = get_task(path, src_id)
     get_task(path, dst_id)

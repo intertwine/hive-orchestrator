@@ -277,6 +277,7 @@ def start_run(path: str | Path | None, task_id: str) -> RunRecord:
         generate_program_stub(project.directory)
     program = load_program(project.program_path)
     executor_name = program.metadata.get("default_executor", "local")
+    # Validate executor name eagerly so invalid PROGRAM.md contracts fail before scaffolding.
     get_executor(executor_name)
 
     run_id = new_id("run")
@@ -458,6 +459,7 @@ def accept_run(path: str | Path | None, run_id: str) -> dict:
         raise ValueError(f"Cannot accept run with status {metadata.get('status')!r}")
 
     program = load_program(Path(metadata["program_path"]))
+    # Re-evaluate at accept time because worktree state may have changed since eval_run.
     metadata_json = _refresh_workspace_state(root, metadata)
     promotion = _promotion_decision(program, metadata)
     metadata_json["promotion_decision"] = promotion
@@ -470,6 +472,7 @@ def accept_run(path: str | Path | None, run_id: str) -> dict:
     metadata["status"] = "accepted"
     metadata["finished_at"] = utc_now_iso()
     _save_run(root, run_id, metadata)
+    # TODO: prune terminal run worktrees once downstream review tooling no longer depends on them.
     task = get_task(root, metadata["task_id"])
     auto_close = bool(program.metadata.get("promotion", {}).get("auto_close_task", False))
     task.status = "done" if auto_close else "review"

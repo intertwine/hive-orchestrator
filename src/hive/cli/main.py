@@ -14,6 +14,7 @@ from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
 from src.hive.memory.search import search
 from src.hive.migrate.v1_to_v2 import migrate_v1_to_v2
+from src.hive.scaffold import starter_task_specs
 from src.hive.search import search_workspace
 from src.hive.projections.agency_md import sync_agency_md
 from src.hive.projections.agents_md import sync_agents_md
@@ -72,12 +73,20 @@ def _doctor_payload(root: Path) -> dict[str, object]:
 
     next_steps: list[str] = []
     if not checks["layout"]:
+        next_steps.append(
+            'Run `hive quickstart demo --title "Demo project" --json` '
+            "to bootstrap a workspace with a starter project and ready task."
+        )
         next_steps.append("Run `hive init --json` to bootstrap the workspace.")
     if checks["layout"] and not checks["global_md"]:
         next_steps.append("Run `hive sync projections --json` to create `GLOBAL.md`.")
     if checks["layout"] and not checks["agents_md"]:
         next_steps.append("Run `hive sync projections --json` to create `AGENTS.md`.")
     if checks["layout"] and not projects:
+        next_steps.append(
+            'Run `hive quickstart demo --title "Demo project" --json` '
+            "to scaffold a working project with starter tasks."
+        )
         next_steps.append(
             'Run `hive project create demo --title "Demo project" --json` '
             "to scaffold your first project."
@@ -135,6 +144,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
     subparsers = parser.add_subparsers(dest="command")
+
+    quickstart_parser = subparsers.add_parser("quickstart")
+    quickstart_parser.add_argument("slug", nargs="?", default="demo")
+    quickstart_parser.add_argument("--title")
+    quickstart_parser.add_argument("--objective")
 
     subparsers.add_parser("init")
     subparsers.add_parser("doctor")
@@ -289,6 +303,70 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     args.json = bool(getattr(args, "json", False) or forced_json)
     root = Path(args.path).resolve()
+
+    if args.command == "quickstart":
+        try:
+            bootstrapped = bootstrap_workspace(root)
+            project = create_project(
+                root,
+                args.slug,
+                title=args.title,
+                objective=args.objective,
+            )
+            starter_tasks = []
+            for spec in starter_task_specs(project.title):
+                starter_tasks.append(
+                    create_task(
+                        root,
+                        project.id,
+                        str(spec["title"]),
+                        status=str(spec["status"]),
+                        priority=int(spec["priority"]),
+                        acceptance=list(spec["acceptance"]),
+                        summary_md=str(spec["summary_md"]),
+                    )
+                )
+            for current, nxt in zip(starter_tasks, starter_tasks[1:]):
+                link_tasks(root, current.id, "blocks", nxt.id)
+            sync_global_md(root)
+            sync_agency_md(root)
+            sync_agents_md(root)
+            rebuild_cache(root)
+            if not starter_tasks:
+                raise ValueError("Quickstart could not create starter tasks")
+            first_task = starter_tasks[0]
+            return _emit(
+                {
+                    "ok": True,
+                    "message": (
+                        f"Quickstarted Hive workspace at {root} with project {project.id} "
+                        f"and {len(starter_tasks)} starter tasks"
+                    ),
+                    "layout": {key: str(value) for key, value in bootstrapped["layout"].items()},
+                    "created_files": bootstrapped["created_files"],
+                    "updated_files": bootstrapped["updated_files"],
+                    "project": _project_payload(project),
+                    "tasks": [
+                        {
+                            "id": task.id,
+                            "project_id": task.project_id,
+                            "title": task.title,
+                            "status": task.status,
+                            "priority": task.priority,
+                        }
+                        for task in starter_tasks
+                    ],
+                    "next_steps": [
+                        f"hive task ready --project-id {project.id} --json",
+                        f"hive task claim {first_task.id} --owner <your-name> --ttl-minutes 60 --json",
+                        f"hive context startup --project {project.id} --task {first_task.id} --json",
+                    ],
+                },
+                args.json,
+            )
+        except (FileExistsError, ValueError) as exc:
+            _emit({"ok": False, "error": str(exc), "message": str(exc)}, args.json)
+            return 1
 
     if args.command == "init":
         bootstrapped = bootstrap_workspace(root)

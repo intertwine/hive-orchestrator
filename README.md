@@ -69,6 +69,25 @@ hive doctor --json
 
 If you prefer pipx from a checkout, run `make install-pipx`.
 
+## Fastest First Run
+
+If you are starting from an empty directory, skip the manual bootstrap steps and use the one-command path:
+
+```bash
+mkdir my-hive
+cd my-hive
+hive quickstart demo --title "Demo project" --json
+```
+
+That leaves you with:
+
+- a bootstrapped `.hive/` substrate
+- a starter project
+- a conservative `PROGRAM.md`
+- a small task chain with one real ready task
+
+For the full everyday-user path, see [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
 ## Five-Minute Tour
 
 Bootstrap a workspace:

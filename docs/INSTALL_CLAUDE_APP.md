@@ -4,6 +4,8 @@ This is optional.
 
 Hive works fine with the CLI alone. Install the Claude Code GitHub App only if you want GitHub issues and `@claude` mentions to become part of your workflow.
 
+If you are brand new to Hive, start with [docs/QUICKSTART.md](./QUICKSTART.md) first. Get one local project working through the CLI, then add the GitHub App if issue-driven dispatch actually helps your workflow.
+
 ## When it helps
 
 Install the app if you want any of these:
@@ -74,5 +76,6 @@ If you use the optional dispatcher, the workflow or token that opens issues also
 
 ## Related docs
 
+- [Quickstart](./QUICKSTART.md)
 - [README](../README.md)
 - [Claude Code documentation](https://docs.anthropic.com/claude-code)

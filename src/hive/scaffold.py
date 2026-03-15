@@ -55,3 +55,49 @@ def generate_program_stub(project_dir: Path) -> Path:
     target = project_dir / "PROGRAM.md"
     target.write_text(program_stub_markdown(), encoding="utf-8")
     return target
+
+
+def starter_task_specs(project_title: str) -> list[dict[str, object]]:
+    """Return a small, opinionated task chain for a fresh workspace."""
+    subject = project_title.strip() or "the project"
+    return [
+        {
+            "title": f"Define the first thin slice for {subject}",
+            "status": "ready",
+            "priority": 1,
+            "acceptance": [
+                "Scope is small enough to review in one PR or session.",
+                "Acceptance criteria are written down in the task or AGENCY.md.",
+                "Relevant files or directories are identified.",
+            ],
+            "summary_md": (
+                "Turn the project goal into the smallest useful slice that is safe to hand to "
+                "a human or agent."
+            ),
+        },
+        {
+            "title": f"Implement the first thin slice for {subject}",
+            "status": "proposed",
+            "priority": 1,
+            "acceptance": [
+                "The slice is implemented or documented in a reviewable form.",
+                "Run artifacts or handoff notes capture what changed.",
+                "The result is ready for review or explicit follow-up.",
+            ],
+            "summary_md": "Build the first useful slice once scope and boundaries are clear.",
+        },
+        {
+            "title": f"Review, document, and hand off the first thin slice for {subject}",
+            "status": "proposed",
+            "priority": 2,
+            "acceptance": [
+                "Human-facing projections are synced.",
+                "Open questions and next tasks are documented.",
+                "The task ends in review, done, or a clear handoff state.",
+            ],
+            "summary_md": (
+                "Close the loop with projections, notes, and the next clean handoff for the "
+                "workspace."
+            ),
+        },
+    ]

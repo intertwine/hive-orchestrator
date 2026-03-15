@@ -14,7 +14,6 @@ from src.hive.memory import (
     reflect_project,
 )
 from src.hive.migrate import migrate_v1_to_v2
-from src.hive.store.cache import rebuild_cache
 from src.hive.store.projects import discover_projects
 
 
@@ -43,8 +42,8 @@ def test_claude_session_hooks_round_trip_context_and_observation(
     assert Path(finished["paths"]["active"]).exists()
     archived = Path(temp_hive_dir) / ".hive" / "memory" / "transcripts" / "claude"
     assert list(archived.glob("*.md"))
-    db_path = rebuild_cache(temp_hive_dir)
-    connection = sqlite3.connect(db_path)
+    cache_path = Path(temp_hive_dir) / ".hive" / "cache" / "index.sqlite"
+    connection = sqlite3.connect(cache_path)
     try:
         memory_rows = list(connection.execute("SELECT kind FROM memory_docs"))
     finally:
@@ -79,8 +78,8 @@ def test_codex_observe_supports_explicit_notes_and_polling(
     archived_files = list(archived.glob("*.md"))
     assert archived_files
     assert any("002.md" in file_path.name for file_path in archived_files)
-    db_path = rebuild_cache(temp_hive_dir)
-    connection = sqlite3.connect(db_path)
+    cache_path = Path(temp_hive_dir) / ".hive" / "cache" / "index.sqlite"
+    connection = sqlite3.connect(cache_path)
     try:
         memory_rows = list(connection.execute("SELECT kind FROM memory_docs"))
     finally:

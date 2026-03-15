@@ -458,6 +458,46 @@ priority: medium
             warning["message"] for warning in real_run["warnings"]
         ]
 
+    def test_migration_ignores_generated_marker_blocks_in_dependency_sections(self, temp_hive_dir):
+        """Init-generated marker blocks should not become fake dependency warnings during migration."""
+        agency_path = Path(temp_hive_dir) / "projects" / "marker-dependencies" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: marker-dependencies
+status: active
+priority: medium
+---
+# Marker Dependencies Project
+
+## Tasks
+- [ ] Define the slice
+- [ ] Build the page
+
+## Dependencies
+Build the page depends on Define the slice
+""",
+            encoding="utf-8",
+        )
+
+        # Simulate a cautious adopter who runs `hive init` before migration, which inserts
+        # projection markers into the existing project doc.
+        hive_main(["--path", temp_hive_dir, "--json", "init"])
+
+        dry_run = migrate_v1_to_v2(temp_hive_dir, dry_run=True).to_dict()
+        real_run = migrate_v1_to_v2(temp_hive_dir).to_dict()
+
+        assert dry_run["edges_inferred"] == 1
+        assert real_run["edges_inferred"] == 1
+        assert all(
+            "Could not parse dependency line" not in warning["message"]
+            for warning in dry_run["warnings"]
+        )
+        assert all(
+            "Could not parse dependency line" not in warning["message"]
+            for warning in real_run["warnings"]
+        )
+
     def test_migration_handles_list_dependencies_frontmatter(self, temp_hive_dir):
         """Legacy list-form dependencies should not abort migration."""
         agency_path = Path(temp_hive_dir) / "projects" / "list-dependencies" / "AGENCY.md"

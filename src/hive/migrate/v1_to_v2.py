@@ -30,6 +30,8 @@ SECTION_RELATION_RE = re.compile(
     re.IGNORECASE,
 )
 LEGACY_TASK_HEADINGS = {"tasks", "imported legacy tasks"}
+GENERATED_MARKER_BEGIN = "<!-- hive:begin"
+GENERATED_MARKER_END = "<!-- hive:end"
 
 
 @dataclass
@@ -215,6 +217,11 @@ def _line_contains_relation_keyword(text: str) -> bool:
     )
 
 
+def _is_generated_marker(text: str) -> bool:
+    stripped = text.strip().lower()
+    return stripped.startswith(GENERATED_MARKER_BEGIN) or stripped.startswith(GENERATED_MARKER_END)
+
+
 def _relation_kind(phrase: str) -> str:
     lowered = phrase.casefold()
     if lowered in {"depends on", "blocked by", "requires"}:
@@ -280,6 +287,7 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
     parsed_tasks: list[ImportedTask] = []
     active_task: ImportedTask | None = None
     dependency_lines: list[tuple[int, str]] = []
+    inside_generated_block = False
     relative_path = str(project.agency_path.relative_to(root))
     project_dependencies = project.metadata.get("dependencies") or {}
     if not isinstance(project_dependencies, dict):
@@ -346,8 +354,16 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
 
         if active_task is None:
             stripped = raw_line.strip()
+            if stripped.startswith(GENERATED_MARKER_BEGIN):
+                inside_generated_block = True
+                continue
+            if stripped.startswith(GENERATED_MARKER_END):
+                inside_generated_block = False
+                continue
             if (
                 stripped
+                and not inside_generated_block
+                and not _is_generated_marker(stripped)
                 and heading_stack
                 and "dependencies" in heading_stack[-1][1].casefold()
             ):

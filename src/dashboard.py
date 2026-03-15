@@ -251,7 +251,10 @@ def main():
             )
             selected_project_path = project_options[selected_project_key]
         else:
-            st.warning("No projects found in `projects/` directory")
+            st.warning(
+                "No projects found yet. Run `hive quickstart demo --title \"Demo project\" --json` "
+                "from this workspace, then refresh."
+            )
             selected_project_path = None
 
         st.divider()
@@ -404,7 +407,11 @@ def main():
             elif (base_path / ".hive" / "tasks").exists():
                 st.caption("No canonical ready tasks for this project right now.")
             else:
-                st.info("No canonical task substrate found yet. Run `uv run hive init --json`.")
+                st.info(
+                    "No canonical task substrate found yet. Run `hive quickstart demo --title "
+                    "\"Demo project\" --json` for a full first project, or `uv run hive init "
+                    "--json` if you want an empty workspace."
+                )
 
             st.divider()
 
@@ -452,6 +459,21 @@ def main():
 
     else:
         st.info("👈 Select a project from the sidebar to view details")
+        st.markdown(
+            """
+### First-run path
+
+If this workspace is still empty, the fastest path is:
+
+```bash
+hive quickstart demo --title "Demo project" --json
+hive task ready --json
+hive context startup --project demo --json
+```
+
+Use the dashboard after that when you want a visual view of projects, ready tasks, and context.
+"""
+        )
 
         st.divider()
 

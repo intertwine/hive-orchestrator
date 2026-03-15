@@ -1151,7 +1151,7 @@ class TestHiveV2Cli:
         assert "<!-- hive:begin compatibility -->" in (workspace / "AGENTS.md").read_text(
             encoding="utf-8"
         )
-        assert any("hive project create demo" in step for step in payload["next_steps"])
+        assert any("hive quickstart demo" in step for step in payload["next_steps"])
 
     def test_cli_doctor_guides_empty_workspace_and_first_project(self, tmp_path, capsys):
         """Doctor should recommend bootstrap and first-project steps as the workspace evolves."""
@@ -1163,6 +1163,7 @@ class TestHiveV2Cli:
         payload = json.loads(captured.out)
 
         assert exit_code == 0
+        assert any("hive quickstart demo" in step for step in payload["next_steps"])
         assert any("hive init --json" in step for step in payload["next_steps"])
 
         hive_main(["--path", str(workspace), "--json", "init"])
@@ -1189,6 +1190,58 @@ class TestHiveV2Cli:
         assert any(
             "hive task create --project-id launch-demo" in step for step in payload["next_steps"]
         )
+
+    def test_cli_quickstart_bootstraps_first_project_and_task_chain(self, tmp_path, capsys):
+        """Quickstart should leave a new user with a project and a meaningful ready queue."""
+        workspace = tmp_path / "quickstart-hive"
+
+        exit_code = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "quickstart",
+                "launch/demo",
+                "--title",
+                "Launch Demo",
+                "--objective",
+                "Ship the launch-ready Hive demo workspace.",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["project"]["id"] == "launch-demo"
+        assert Path(payload["project"]["path"]).exists()
+        assert Path(payload["project"]["program_path"]).exists()
+        assert len(payload["tasks"]) == 3
+        assert payload["tasks"][0]["status"] == "ready"
+        assert payload["tasks"][1]["status"] == "proposed"
+        assert payload["tasks"][2]["status"] == "proposed"
+        ready = ready_tasks(workspace, project_id="launch-demo")
+        assert [item["title"] for item in ready] == [
+            "Define the first thin slice for Launch Demo"
+        ]
+        agency_content = Path(payload["project"]["path"]).read_text(encoding="utf-8")
+        assert "Ship the launch-ready Hive demo workspace." in agency_content
+        assert any("hive task claim" in step for step in payload["next_steps"])
+
+    def test_cli_quickstart_rejects_existing_project(self, tmp_path, capsys):
+        """Quickstart should fail cleanly if the starter slug already exists."""
+        workspace = tmp_path / "quickstart-duplicate"
+
+        first_exit = hive_main(["--path", str(workspace), "--json", "quickstart"])
+        capsys.readouterr()
+        assert first_exit == 0
+
+        second_exit = hive_main(["--path", str(workspace), "--json", "quickstart"])
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+
+        assert second_exit == 1
+        assert payload["ok"] is False
+        assert "already exists" in payload["error"]
 
     def test_cli_project_create_scaffolds_agency_and_program(self, tmp_path, capsys):
         """Project creation should normalize slugs and scaffold narrative and policy files."""

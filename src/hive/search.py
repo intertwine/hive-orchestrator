@@ -19,6 +19,11 @@ API_DOC_FILES = (
 )
 COMMAND_DOCS = (
     {
+        "title": "hive quickstart",
+        "summary": "Bootstrap a workspace, create a starter project, and seed a first task chain.",
+        "example": 'hive quickstart demo --title "Demo project" --json',
+    },
+    {
         "title": "hive init",
         "summary": "Initialize the .hive substrate layout for a workspace.",
         "example": "hive init --json",

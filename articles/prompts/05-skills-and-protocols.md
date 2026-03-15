@@ -16,27 +16,27 @@ Create an image of a new AI robot on its first day at work, standing at the entr
 ## Image 2: Skills as Knowledge Modules
 
 **Prompt:**
-Create an image showing five glowing skill modules floating in a circular display, like collectible gems or power-ups in a video game. Each module has a distinct icon and color: "PROJECT MANAGEMENT" (clipboard icon, blue), "CORTEX OPERATIONS" (gear/brain icon, purple), "DEEP WORK SESSION" (focus target icon, gold), "MULTI-AGENT COORDINATION" (network icon, green), "MCP TOOLS" (plug/connection icon, orange). A robot reaches toward one module which expands to reveal detailed instructions inside, while the others remain compact. The aesthetic is clean and game-like, suggesting collectible abilities that enhance the agent's capabilities. Modern UI/game design hybrid style, satisfying visual hierarchy, glowing effects.
+Create an image showing five glowing skill modules floating in a circular display, like collectible gems or power-ups in a video game. Each module has a distinct icon and color: "PROJECT MANAGEMENT" (clipboard icon, blue), "HIVE TASK FLOW" (terminal/task-card icon, purple), "DEEP WORK SESSION" (focus target icon, gold), "MULTI-AGENT COORDINATION" (network icon, green), "SEARCH / EXECUTE" (plug/connection icon, orange). A robot reaches toward one module which expands to reveal detailed instructions inside, while the others remain compact. The aesthetic is clean and game-like, suggesting collectible abilities that enhance the agent's capabilities. Modern UI/game design hybrid style, satisfying visual hierarchy, glowing effects.
 
-**Caption:** *Skills are modular instruction sets—only loaded when needed. Five built-in skills cover project management, Cortex CLI, deep work, coordination, and MCP tools.*
+**Caption:** *Skills are modular instruction sets. The modern set teaches project management, task flow, deep work, coordination, and bounded tool use.*
 
 ---
 
 ## Image 3: The Deep Work Lifecycle
 
 **Prompt:**
-Create an image showing the Deep Work session lifecycle as a circular journey with five distinct waypoints. Starting from the top and moving clockwise: 1) "ENTER" (robot arriving through a portal, reading orientation materials), 2) "CLAIM" (robot placing its badge on a project, ownership lock engaging), 3) "WORK" (robot intensely focused at workstation, tasks being completed), 4) "UPDATE" (robot writing notes that float up and merge with a document), 5) "HANDOFF" (robot passing a completion package through an exit portal, status resetting). The center shows the AGENCY.md document that connects all phases. Journey map illustration style, clear directional flow, warm productive colors, sense of purposeful cycle.
+Create an image showing the Deep Work session lifecycle as a circular journey with five distinct waypoints. Starting from the top and moving clockwise: 1) "ENTER" (robot arriving through a portal, reading orientation materials), 2) "CLAIM" (robot leasing a glowing task card, claim timer engaging), 3) "WORK" (robot intensely focused at workstation, tasks being completed), 4) "UPDATE" (robot writing notes that float up into run artifacts and memory pages), 5) "HANDOFF" (robot passing a completion package through an exit portal, claim released cleanly). The center shows a startup context bundle and canonical task card connecting all phases. Journey map illustration style, clear directional flow, warm productive colors, sense of purposeful cycle.
 
 **Caption:** *The Deep Work lifecycle: Enter → Claim → Work → Update → Handoff. A complete cycle ensures clean state for the next session.*
 
 ---
 
-## Image 4: The Ownership Protocol Ceremony
+## Image 4: The Claim Protocol Ceremony
 
 **Prompt:**
-Create an image depicting ownership as a formal ceremonial exchange. A robot approaches a pedestal where a glowing "PROJECT TOKEN" hovers. The robot performs a ritual gesture—scanning, verifying, confirming ownership is null—before the token transforms and bonds to the robot with a visible "OWNER: [agent-name]" label appearing. Other robots wait respectfully at designated waiting areas, observing the protocol. The atmosphere is like a formal key exchange or badge ceremony—serious, orderly, respected. When the owner-robot is ready to leave, another pedestal shows the release ceremony with the token floating free again. Ceremonial illustration style, dignified and orderly, emphasizing the sacredness of the ownership protocol.
+Create an image depicting task claiming as a formal ceremonial exchange. A robot approaches a pedestal where a glowing "TASK TOKEN" hovers above a structured task card. The robot performs a ritual gesture, scanning, verifying the task is free, and starting a visible lease timer before the token bonds to the robot. Other robots wait respectfully at designated waiting areas, observing the protocol. A nearby pedestal shows the clean release ceremony with the token floating free again. Ceremonial illustration style, dignified and orderly, emphasizing the seriousness of the claim protocol.
 
-**Caption:** *Ownership protocol is sacred: verify availability, claim formally, work with commitment, release properly. Only one owner at a time.*
+**Caption:** *Claim protocol matters: verify availability, lease the task formally, work with commitment, and release it cleanly.*
 
 ---
 
@@ -61,9 +61,9 @@ Create an image of a shared workspace wall covered with organized sticky notes a
 ## Image 7: MCP Tools in Action
 
 **Prompt:**
-Create an image showing a robot at a futuristic control console with MCP tools visualized as sleek, labeled control buttons and levers. The console displays tool names: "list_projects" (list icon), "get_ready_work" (checkmark icon), "claim_project" (lock icon), "add_note" (pencil icon), "release_project" (unlock icon). The robot activates the "get_ready_work" control, and a holographic response appears showing available projects. Data flows visually between the console and the Agent Hive system in the background. The aesthetic is clean sci-fi control room, emphasizing programmatic access as intuitive control interface. Technical illustration style, API/console aesthetic, satisfying cause-and-effect visualization.
+Create an image showing a robot at a futuristic control console with bounded tool surfaces visualized as sleek, labeled control buttons and levers. The console displays tool names: "search" (magnifying glass icon), "execute" (play button icon), "hive task ready" (checkmark icon), "hive context startup" (document icon), and "hive sync projections" (refresh icon). The robot activates the "search" control, and a holographic response appears showing ready work and related files. Data flows visually between the console and the Agent Hive system in the background. The aesthetic is clean sci-fi control room, emphasizing bounded programmatic access as intuitive control interface. Technical illustration style, API and console aesthetic, satisfying cause-and-effect visualization.
 
-**Caption:** *MCP tools enable programmatic interaction: list projects, find ready work, claim, update status, add notes, release—all without manual file editing.*
+**Caption:** *Modern Hive tooling is bounded and explicit: search the workspace, execute inside policy, and combine that with CLI commands for ready work and context.*
 
 ---
 
@@ -88,6 +88,6 @@ Create an image showing a before/after split-screen of agent coordination. Left 
 - Communication/collaboration (6, 7): 16:9 landscape for workspace scenes
 - Before/after (8): 16:9 landscape for dramatic split
 
-**Visual metaphors:** Skills as power-up modules, ownership as formal ceremony, blocking as proper escalation, notes as shared memory wall.
+**Visual metaphors:** Skills as power-up modules, task claims as formal ceremony, blocking as proper escalation, notes as shared memory wall.
 
 **Quality modifiers:** high-quality, detailed illustration, clean professional aesthetic, educational and approachable, warm colors

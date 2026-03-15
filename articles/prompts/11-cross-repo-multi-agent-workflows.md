@@ -16,9 +16,9 @@ Create an image showing AI agents breaking free from single-repository confineme
 ## Image 2: The target_repo Extension
 
 **Prompt:**
-Create an image showing the simplicity of the target_repo YAML extension as an elegant key unlocking external access. A glowing AGENCY.md document shows the target_repo field being added like inserting a key into a lock. The key (target_repo URL) opens a gateway portal that reveals a view into an external repository's structure (files, code, README). The concept is minimal addition, maximum new capability—just a few lines of YAML unlock entire new repositories. Clean conceptual illustration, key-and-lock metaphor, elegant simplicity, the power of a small extension.
+Create an image showing the simplicity of the target_repo YAML extension as an elegant key unlocking external access. A glowing project document shows the target_repo field being added like inserting a key into a lock. The key opens a gateway portal that reveals a view into an external repository's structure, including files, code, and README. The concept is minimal addition, maximum new capability. Clean conceptual illustration, key-and-lock metaphor, elegant simplicity, the power of a small extension.
 
-**Caption:** *One simple extension: Add target_repo to AGENCY.md and the Dispatcher automatically clones, extracts context, and includes external repository data.*
+**Caption:** *One simple extension: add target_repo to the project doc and the dispatcher can clone, inspect, and package external repository context.*
 
 ---
 
@@ -58,12 +58,12 @@ Create an image representing Phase 3 (Implementation) of a cross-repo improvemen
 
 ---
 
-## Image 7: Single AGENCY.md as Continuity Thread
+## Image 7: Narrative Continuity Thread
 
 **Prompt:**
-Create an image showing a single AGENCY.md file as a continuous thread or scroll that connects all three phases of a cross-repo workflow. The document unrolls vertically or horizontally, showing Phase 1 Analysis notes flowing into Phase 2 Strategy decisions flowing into Phase 3 Implementation details. Each phase can read and build upon the previous phase's content. Contrast this with an alternative (shown as fragmented separate files that don't connect well). The single-file approach provides continuity, context, and human readability. Scroll/thread illustration, continuity visualization, single source of truth aesthetic, connected and coherent.
+Create an image showing the narrative project document as a continuous thread or scroll that connects all three phases of a cross-repo workflow. The document unrolls vertically or horizontally, showing Phase 1 analysis notes flowing into Phase 2 strategy decisions flowing into Phase 3 implementation details. Around it, canonical task cards and run artifacts provide the structured machine layer for the same work. Contrast this with an alternative shown as fragmented notes that do not connect well. Scroll and thread illustration, continuity visualization, connected and coherent.
 
-**Caption:** *Single source of truth: One AGENCY.md captures all phases. Each phase reads what came before. Context flows through the entire workflow.*
+**Caption:** *Narrative continuity: the project doc carries the story across phases, while canonical task and run state stays structured under `.hive/`.*
 
 ---
 
@@ -93,7 +93,7 @@ Create an image showing three diverse cross-repository use cases as three scenes
 - Analysis phase (4): 4:3 for investigation scene
 - Strategy phase (5): 4:3 for planning board scene
 - Implementation phase (6): 4:3 for building scene
-- Single AGENCY.md (7): 16:9 for continuous scroll visualization
+- Narrative continuity thread (7): 16:9 for continuous scroll visualization
 - Use cases (8): 16:9 for triptych layout
 
 **Quality modifiers:** high-quality, detailed illustration, professional technical aesthetic, clear visual storytelling, expansion and connectivity themes

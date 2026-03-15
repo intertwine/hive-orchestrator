@@ -7,7 +7,7 @@
 ## Image 1: Hero Image - From Zero to Orchestration
 
 **Prompt:**
-Create an image showing a rocket launch pad preparation sequence, where the rocket represents an Agent Hive project ready for liftoff. A friendly robot technician stands at a control console, going through a startup checklist. The rocket has a hexagonal beehive pattern on its exterior and the Agent Hive logo. The launch pad is surrounded by the essential components floating as labeled icons: "Python 3.11+", "Git", "uv", "OpenRouter API". A progress bar at the bottom shows "READY FOR LAUNCH". The atmosphere is exciting but approachable—not intimidating, but aspirational. Retro space program poster aesthetic meets modern tech illustration, warm optimistic colors.
+Create an image showing a rocket launch pad preparation sequence, where the rocket represents an Agent Hive project ready for liftoff. A friendly robot technician stands at a control console, going through a startup checklist. The rocket has a hexagonal beehive pattern on its exterior and the Agent Hive logo. The launch pad is surrounded by the essential components floating as labeled icons: "Python 3.11+", "Git", "uv", and "hive". A progress bar at the bottom shows "READY FOR LAUNCH". The atmosphere is exciting but approachable, aspirational without being intimidating. Retro space program poster aesthetic meets modern tech illustration, warm optimistic colors.
 
 **Caption:** *From zero to orchestration: with a few prerequisites and simple setup, you're ready to launch your first Agent Hive project.*
 
@@ -16,36 +16,36 @@ Create an image showing a rocket launch pad preparation sequence, where the rock
 ## Image 2: Project Structure Overview
 
 **Prompt:**
-Create an image showing the Agent Hive file structure as an organized, well-lit storage facility or library. Different sections are clearly labeled: A "PROJECTS" wing shows a row of project folders each containing glowing AGENCY.md documents. A "SRC" wing shows code modules (cortex.py, dashboard.py, hive_mcp/) as distinct equipment stations. A "GLOBAL.md" file floats prominently as the central registry. A ".claude/skills/" section shows the skill modules on display. Small robot figures navigate the well-organized space easily, finding what they need. Clean architectural illustration style, organized and intuitive, satisfying spatial logic.
+Create an image showing the Agent Hive file structure as an organized, well-lit storage facility or library. Different sections are clearly labeled: a `.hive/` wing with tasks, runs, memory, and events arranged as structured shelves; a `projects/` wing with readable `AGENCY.md` and `PROGRAM.md` documents; and a smaller optional tools wing with the dashboard and MCP adapter shown as add-ons rather than the center of gravity. `GLOBAL.md` floats prominently as a short orientation board. Small robot figures navigate the well-organized space easily, finding what they need. Clean architectural illustration style, organized and intuitive, satisfying spatial logic.
 
-**Caption:** *The Agent Hive structure: projects in folders with AGENCY.md files, source code for engine and dashboard, skills for agent guidance, GLOBAL.md for system state.*
-
----
-
-## Image 3: The Dashboard Interface
-
-**Prompt:**
-Create an image showing a sleek dashboard interface displayed on a large modern monitor at a comfortable workstation. The screen shows the Streamlit-based dashboard: a sidebar with project listings (some with status indicators), a main panel showing project details with visible task checkboxes, a "Generate Context" button glowing invitingly, and system status indicators showing the last Cortex run time. A human figure sits comfortably at the workstation, reviewing the dashboard with a satisfied expression. A robot assistant stands nearby, ready to claim work. Modern UI design illustration, clean dark mode interface, professional but welcoming.
-
-**Caption:** *The Dashboard: view all projects, check statuses, generate Deep Work context for agents, and monitor system health—all from a friendly web interface.*
+**Caption:** *The Hive structure: canonical state under `.hive/`, readable project docs in `projects/`, and optional tools layered on top.*
 
 ---
 
-## Image 4: Creating Your First AGENCY.md
+## Image 3: The Optional Dashboard
 
 **Prompt:**
-Create an image showing the creation of an AGENCY.md file as a crafting or blueprint-building activity. A robot carefully places components onto a glowing document template: a YAML frontmatter section at top with fields like "project_id", "status", "priority" visible as discrete labeled blocks being positioned. Below, the markdown content section shows an "Objective" heading and a task checklist being assembled. The workspace has a creative, maker-space feel—tools for building the perfect project file. A "CONFIG-SYSTEM" label floats above the work-in-progress. Crafting/maker illustration style, satisfying assembly process, warm workshop lighting.
+Create an image showing a sleek dashboard interface displayed on a large modern monitor at a comfortable workstation. The screen shows the optional Streamlit dashboard: a sidebar with project listings, a main panel showing project details and recent task rollups, and a context-generation action that clearly sits on top of the canonical CLI workflow. A human figure sits comfortably at the workstation, reviewing the dashboard with a satisfied expression. A robot assistant stands nearby, ready to claim work through the same underlying task system. Modern UI design illustration, clean dark mode interface, professional but welcoming.
 
-**Caption:** *Creating your first project: craft an AGENCY.md file with YAML frontmatter for metadata and Markdown content for objectives, tasks, and notes.*
+**Caption:** *The dashboard is useful, but optional. The main product path is still the `hive` CLI and the canonical state it reads.*
+
+---
+
+## Image 4: Creating Your First Project
+
+**Prompt:**
+Create an image showing the creation of a first Hive project as a crafting or blueprint-building activity. A robot assembles a small project bundle: an `AGENCY.md` document for narrative context, a `PROGRAM.md` policy sheet, and a few canonical task cards flowing into `.hive/tasks/`. The workspace has a creative, maker-space feel, with labeled blocks like "objective", "constraints", and "first slice" being positioned into place. A "CONFIG-SYSTEM" label floats above the work-in-progress. Crafting/maker illustration style, satisfying assembly process, warm workshop lighting.
+
+**Caption:** *Creating your first project: readable project docs for humans, canonical tasks for the scheduler, and a policy file for autonomous work.*
 
 ---
 
 ## Image 5: The Workflow in Action
 
 **Prompt:**
-Create an image showing the complete Agent Hive workflow as a flowing cycle diagram with illustrated stages. Stage 1: "CREATE PROJECT" (robot creating AGENCY.md). Stage 2: "GENERATE CONTEXT" (dashboard creating a context package). Stage 3: "CLAIM & WORK" (robot with context entering a work pod). Stage 4: "UPDATE & HANDOFF" (robot documenting work, releasing ownership). Stage 5: "CORTEX RUNS" (orchestrator analyzing and updating system state). Arrows connect all stages in a continuous cycle. The center shows the AGENCY.md as the persistent state that connects everything. Clean workflow diagram illustration, modern infographic style, clear directional flow.
+Create an image showing the complete Agent Hive workflow as a flowing cycle diagram with illustrated stages. Stage 1: "CREATE PROJECT" (robot scaffolding `AGENCY.md`, `PROGRAM.md`, and starter tasks). Stage 2: "FIND READY WORK" (a ready queue emerging from canonical task cards). Stage 3: "CLAIM & BUILD CONTEXT" (robot claiming a task and receiving a startup bundle). Stage 4: "DO THE WORK" (robot inside a focused work pod). Stage 5: "SYNC PROJECTIONS" (updated rollups flowing back to `GLOBAL.md` and `AGENCY.md`). Arrows connect all stages in a continuous cycle. The center shows `.hive/tasks` as the persistent state that connects everything. Clean workflow diagram illustration, modern infographic style, clear directional flow.
 
-**Caption:** *The workflow cycle: create projects, generate context, work and update, handoff cleanly, let Cortex orchestrate. Repeat for continuous progress.*
+**Caption:** *The workflow cycle: create the project, find ready work, claim it, build context, do the work, sync projections, repeat.*
 
 ---
 
@@ -61,9 +61,9 @@ Create an image showing the establishment of project dependencies as a construct
 ## Image 7: Quick Reference Poster
 
 **Prompt:**
-Create an image styled as a beautiful command-line reference poster or cheat sheet suitable for a developer's wall. The poster shows essential Agent Hive commands in clean typography: "make install" (setup), "make dashboard" (launch UI), "make ready" (find work), "make deps" (view dependencies), "make cortex" (run orchestrator). Each command has a small icon and brief description. The design is modern developer aesthetic—dark background with syntax-highlighted commands, clean sans-serif fonts, subtle grid layout. A small Agent Hive logo and bee icon in the corner. Developer cheat sheet / poster art style, functional and beautiful, something you'd want on your wall.
+Create an image styled as a beautiful command-line reference poster or cheat sheet suitable for a developer's wall. The poster shows essential Agent Hive commands in clean typography: "uv tool install agent-hive" (install), "hive doctor" (check workspace), "hive task ready" (find work), "hive context startup" (build context), and "hive sync projections" (refresh views). Each command has a small icon and brief description. The design is modern developer aesthetic with a dark background, syntax-highlighted commands, clean sans-serif fonts, and a subtle grid layout. A small Agent Hive logo and bee icon sit in the corner. Developer cheat sheet poster art style, functional and beautiful.
 
-**Caption:** *Quick reference: the essential commands for daily Agent Hive operation. Install, dashboard, find work, view dependencies, run Cortex.*
+**Caption:** *Quick reference: install Hive, check the workspace, find ready work, build startup context, and refresh projections.*
 
 ---
 

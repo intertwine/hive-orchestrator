@@ -25,6 +25,8 @@ tags:
 
 # OpenCode Plugin for Agent Hive
 
+> Design note: this project started before the final v2 cutover. Treat the legacy references below to project ownership and direct `AGENCY.md` parsing as historical design material, not current product guidance. New integrations should claim canonical tasks, build startup context through `hive context startup --task ...`, and keep `AGENCY.md` as narrative context rather than machine state.
+
 ## Objective
 
 Create a full OpenCode plugin (`@agent-hive/opencode-plugin`) that provides deep integration with Agent Hive's orchestration system. The plugin will hook into OpenCode's execution lifecycle to automate project claiming, enforce the handoff protocol, inject context, and provide a seamless multi-agent coordination experience.
@@ -46,11 +48,11 @@ This covers ~80% of use cases but requires the agent to manually follow protocol
 ### Target State (Full Plugin)
 
 A TypeScript plugin that:
-1. **Automates** project discovery and claiming
-2. **Enforces** ownership before file edits
-3. **Injects** project context automatically
-4. **Tracks** all actions in Agent Notes
-5. **Ensures** clean handoff on session end
+1. **Automates** task discovery and claiming
+2. **Enforces** task-claim or policy checks before file edits
+3. **Injects** startup context automatically
+4. **Tracks** meaningful actions in Hive notes or artifacts
+5. **Ensures** clean handoff and projection sync on session end
 
 ---
 

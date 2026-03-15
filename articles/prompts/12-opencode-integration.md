@@ -43,7 +43,7 @@ Create an image showing a three-step setup process as an ascending staircase or 
 ## Image 5: Five Skills Overview
 
 **Prompt:**
-Create an image showing five skill modules arranged as interconnected puzzle pieces or a skill tree. Each piece represents one skill: 1) Cortex Operations (brain/analysis icon), 2) Hive Project Management (file/document icon), 3) Deep Work Session (focus/clock icon), 4) Multi-Agent Coordination (multiple agents icon), 5) Hive MCP (tools/API icon). The pieces connect to show workflow from finding work → managing projects → focused sessions → coordination → tool usage. The complete puzzle forms a workflow cycle. Modular design illustration, skill tree aesthetic, interconnected capabilities.
+Create an image showing five skill modules arranged as interconnected puzzle pieces or a skill tree. Each piece represents one skill: 1) Hive Task Flow (terminal/task-card icon), 2) Hive Project Management (file/document icon), 3) Deep Work Session (focus/clock icon), 4) Multi-Agent Coordination (multiple agents icon), 5) Search / Execute (tools/API icon). The pieces connect to show workflow from finding ready work to managing projects, focused sessions, coordination, and bounded tool usage. The complete puzzle forms a workflow cycle. Modular design illustration, skill tree aesthetic, interconnected capabilities.
 
 **Caption:** *Five skills, one complete workflow: From finding ready work to multi-agent coordination, OpenCode learns the full Agent Hive protocol.*
 
@@ -54,7 +54,7 @@ Create an image showing five skill modules arranged as interconnected puzzle pie
 **Prompt:**
 Create an image showing a conversation interface where natural language transforms into structured API calls. On top, a chat bubble says "Find projects ready for me to work on." Below, this transforms (visualized as a processing step with gears/circuits) into an MCP tool call (shown as a structured JSON-like block). The result flows back as a formatted project list. The scene shows the magic of natural language to programmatic action. Conversation-to-code illustration, transformation visualization, seamless translation between human and machine.
 
-**Caption:** *Natural language meets structured tools: Ask for ready work, claim projects, update status—all through conversational interaction.*
+**Caption:** *Natural language meets structured tools: ask for ready work, build context, search the workspace, and execute inside policy.*
 
 ---
 
@@ -70,9 +70,9 @@ Create an image showing a decision flowchart or crossroads with two paths. At th
 ## Image 8: Complete Workflow Diagram
 
 **Prompt:**
-Create an image showing a complete Agent Hive workflow cycle using OpenCode. Stage 1: Discovery - OpenCode queries for ready work (magnifying glass over projects). Stage 2: Review - project details displayed (document with metadata). Stage 3: Claim - ownership taken (lock icon, owner field set). Stage 4: Work - agent analyzes code and adds findings (code review in progress). Stage 5: Complete - task marked done, notes added (checkmark). Stage 6: Handoff - project released for next agent (hand passing baton). The cycle is circular, showing continuous orchestration. Workflow cycle illustration, process diagram aesthetic, clear progression through stages.
+Create an image showing a complete Agent Hive workflow cycle using OpenCode. Stage 1: Discovery - OpenCode queries for ready work from a ranked task queue. Stage 2: Review - task details and startup context displayed in a structured bundle. Stage 3: Claim - a task lease is taken, shown by a lock icon on a task card. Stage 4: Work - the agent analyzes code and adds findings. Stage 5: Complete - notes, artifacts, and task updates are recorded. Stage 6: Handoff - projections sync and the task is released for the next agent. The cycle is circular, showing continuous orchestration. Workflow cycle illustration, process diagram aesthetic, clear progression through stages.
 
-**Caption:** *From discovery to handoff: A complete work cycle using OpenCode with Agent Hive's orchestration primitives.*
+**Caption:** *From discovery to handoff: a complete OpenCode work cycle built on Hive's ready queue, task claims, startup context, and clean projection sync.*
 
 ---
 

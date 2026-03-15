@@ -16,7 +16,7 @@ Create an image of a futuristic monitoring dashboard for AI agents. A large curv
 ## Image 2: Tracing Architecture Flow
 
 **Prompt:**
-Create an architectural diagram showing how Weave tracing integrates with Agent Hive. On the left, three components (Cortex, Dashboard, Dispatcher) send requests through a central "traced_llm_call()" function. The function captures metadata (latency, tokens, success) while the request flows to an OpenRouter API on the right. Below the traced_llm_call, a Weave collector gathers the trace data and sends it to a W&B cloud icon at the bottom. Arrows show the flow of data and traces. Clean architecture diagram style, data flow visualization, integration concept.
+Create an architectural diagram showing how Weave tracing integrates with Agent Hive. On the left, three components (Run Engine, Dashboard, Optional Dispatcher) send requests through a central "traced_llm_call()" function. The function captures metadata like latency, tokens, and success while the request flows to a generic model-provider API on the right. Below the traced_llm_call, a Weave collector gathers the trace data and sends it to a W&B cloud icon at the bottom. Arrows show the flow of data and traces. Clean architecture diagram style, data flow visualization, integration concept.
 
 **Caption:** *Tracing architecture: All LLM calls flow through traced_llm_call(), which captures metrics and sends them to Weave for analysis.*
 

@@ -25,18 +25,18 @@ Create a visual legend or infographic showing four distinct dependency types as 
 ## Image 3: Ready Work Detection
 
 **Prompt:**
-Create an image of a smart traffic control center where an AI operator monitors a large display showing projects as vehicles at various traffic lights. Some vehicles (projects) are at green lights with clear roads ahead—these are highlighted with "READY" badges and pulled to the front. Other vehicles are stopped at red lights with visible blockers in front of them. The operator has a console showing a query "FIND READY WORK" with instant results populating. No LLM processing indicators—just pure graph traversal represented by a fast flow diagram. Clean technical illustration, traffic control room aesthetic, satisfying sense of organized flow, green highlighting for ready items.
+Create an image of a smart traffic control center where an AI operator monitors a large display showing task cards as vehicles at various traffic lights. Some vehicles (tasks) are at green lights with clear roads ahead, highlighted with "READY" badges and pulled to the front. Other vehicles are stopped at red lights with visible blockers in front of them. The operator has a console showing a query "FIND READY WORK" with instant results populating. No LLM processing indicators, just pure graph traversal represented by a fast flow diagram. Clean technical illustration, traffic control room aesthetic, satisfying sense of organized flow, green highlighting for ready items.
 
-**Caption:** *Finding ready work requires no LLM calls—just pure graph traversal. Projects with all blockers cleared light up as claimable.*
+**Caption:** *Finding ready work requires no LLM calls, just graph traversal. Tasks with all blockers cleared light up as claimable.*
 
 ---
 
 ## Image 4: Cycle Detection
 
 **Prompt:**
-Create an image showing a circular trap or endless loop in a stylized project network. Three project nodes are connected in a triangle, each pointing to the next, creating an infinite loop visually represented as a glowing red circular arrow that pulses with warning energy. Small robot figures are stuck walking in the circle endlessly, unable to escape. A Cortex analyzer drone hovers above, projecting a warning hologram: "CYCLE DETECTED" with the loop clearly diagrammed. The rest of the network beyond the cycle is dimmed but visible, waiting. Dramatic technical illustration, warning red and amber colors, clear visual of the deadlock trap, urgent but informative tone.
+Create an image showing a circular trap or endless loop in a stylized task network. Three task nodes are connected in a triangle, each pointing to the next, creating an infinite loop visually represented as a glowing red circular arrow that pulses with warning energy. Small robot figures are stuck walking in the circle endlessly, unable to escape. A Hive query surface hovers above, projecting a warning hologram: "CYCLE DETECTED" with the loop clearly diagrammed. The rest of the network beyond the cycle is dimmed but visible, waiting. Dramatic technical illustration, warning red and amber colors, clear visual of the deadlock trap, urgent but informative tone.
 
-**Caption:** *Circular dependencies are deadlocks that can never resolve. Each project waits for something that's waiting for it. Cortex detects these cycles automatically.*
+**Caption:** *Circular dependencies are deadlocks that can never resolve. Each task waits on something that is waiting back. Hive detects these cycles automatically.*
 
 ---
 

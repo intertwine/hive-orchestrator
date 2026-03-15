@@ -6,11 +6,12 @@ This repository is CLI-first. If you are operating here, use the commands and fi
 
 ## Working Rules
 
+- If you are just using Hive, prefer an installed `hive` CLI in a clean workspace. Repo checkout helpers are for maintainers.
 - Canonical task state lives in `.hive/tasks/*.md`.
 - Human project context lives in `projects/*/AGENCY.md`.
 - Autonomy policy lives in `projects/*/PROGRAM.md`.
-- Build context with `hive context startup --project <project-id> --json`.
-- Use `make session PROJECT=<project-id>` when you want a saved startup bundle.
+- Build context with `hive context startup --project <project-id> --task <task-id> --json`.
+- Use `make session PROJECT=<project-id>` only from a repo checkout when you want a saved startup bundle.
 - Refresh projections with `hive sync projections --json` after substrate changes.
 - Run `make check` before you hand work back.
 
@@ -19,7 +20,8 @@ This repository is CLI-first. If you are operating here, use the commands and fi
 ```bash
 hive doctor --json
 hive task ready --json
-hive context startup --project <project-id> --json
+hive task claim <task-id> --owner <your-name> --ttl-minutes 60 --json
+hive context startup --project <project-id> --task <task-id> --json
 make check
 ```
 

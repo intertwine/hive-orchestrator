@@ -2,21 +2,26 @@
 """
 Agent Hive Context Assembler
 
-Builds rich context for agent work assignments, including AGENCY.md content,
-relevant files, and structured instructions for Claude Code.
-
-Supports both local projects and external GitHub repositories via the
-`target_repo` metadata field.
+Builds rich context for manual GitHub issue dispatch using the Hive v2
+canonical substrate. Legacy project-shaped inputs are still accepted as a
+compatibility path, but canonical task data is preferred whenever available.
 """
 
+from __future__ import annotations
+
+import shutil
 import subprocess
 import tempfile
-import shutil
-from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Optional
 from urllib.parse import urlparse
 
+from src.hive.memory.context import startup_context
+from src.hive.models.task import TaskRecord
+from src.hive.scheduler.query import ready_tasks as scheduler_ready_tasks
+from src.hive.store.projects import get_project
+from src.hive.store.task_files import get_task
 from src.security import safe_dump_agency_md
 
 
@@ -43,8 +48,8 @@ def generate_file_tree(
         items = sorted(directory.iterdir(), key=lambda x: (not x.is_dir(), x.name))
         items = [i for i in items if not i.name.startswith(".") and i.name != "__pycache__"]
 
-        for i, item in enumerate(items):
-            is_last = i == len(items) - 1
+        for index, item in enumerate(items):
+            is_last = index == len(items) - 1
             current_prefix = "└── " if is_last else "├── "
             tree += f"{prefix}{current_prefix}{item.name}\n"
 
@@ -53,7 +58,6 @@ def generate_file_tree(
                 tree += generate_file_tree(item, prefix + extension, max_depth, current_depth + 1)
 
     except PermissionError:
-        # Intentionally ignore directories/files that cannot be accessed due to permission issues
         pass
 
     return tree
@@ -70,7 +74,6 @@ def clone_external_repo(url: str, branch: str = "main") -> Optional[Path]:
     Returns:
         Path to cloned repo, or None on failure
     """
-    # Validate URL - only allow https:// for security
     if not url.startswith("https://"):
         return None
 
@@ -79,9 +82,12 @@ def clone_external_repo(url: str, branch: str = "main") -> Optional[Path]:
         temp_dir = tempfile.mkdtemp(prefix="hive_external_")
         result = subprocess.run(
             [
-                "git", "clone",
-                "--depth", "1",
-                "--branch", branch,
+                "git",
+                "clone",
+                "--depth",
+                "1",
+                "--branch",
+                branch,
                 url,
                 temp_dir,
             ],
@@ -98,7 +104,6 @@ def clone_external_repo(url: str, branch: str = "main") -> Optional[Path]:
         return Path(temp_dir)
 
     except (subprocess.TimeoutExpired, OSError):
-        # Clean up temp directory on exception to prevent resource leaks
         if temp_dir:
             shutil.rmtree(temp_dir, ignore_errors=True)
         return None
@@ -106,8 +111,8 @@ def clone_external_repo(url: str, branch: str = "main") -> Optional[Path]:
 
 def get_external_repo_context(
     repo_path: Path,
-    key_files: Optional[List[str]] = None,
-) -> Tuple[str, str]:
+    key_files: Optional[list[str]] = None,
+) -> tuple[str, str]:
     """
     Generate context from an external repository.
 
@@ -118,9 +123,9 @@ def get_external_repo_context(
     Returns:
         Tuple of (file_tree, key_files_content)
     """
-    # Generate file tree (exclude common noise)
-    def filtered_tree(directory: Path, prefix: str = "", depth: int = 0, max_d: int = 4) -> str:
-        if depth >= max_d:
+
+    def filtered_tree(directory: Path, prefix: str = "", depth: int = 0, max_depth: int = 4) -> str:
+        if depth >= max_depth:
             return ""
         result = ""
         try:
@@ -128,22 +133,24 @@ def get_external_repo_context(
             noise = {"node_modules", "__pycache__", "dist", "build", ".git", ".venv", "venv"}
             items = [i for i in items if not i.name.startswith(".") and i.name not in noise]
 
-            for i, item in enumerate(items):
-                is_last = i == len(items) - 1
+            for index, item in enumerate(items):
+                is_last = index == len(items) - 1
                 current_prefix = "└── " if is_last else "├── "
                 result += f"{prefix}{current_prefix}{item.name}\n"
-                if item.is_dir() and depth < max_d - 1:
+                if item.is_dir():
                     extension = "    " if is_last else "│   "
-                    result += filtered_tree(item, prefix + extension, depth + 1, max_d)
+                    result += filtered_tree(
+                        item,
+                        prefix + extension,
+                        depth + 1,
+                        max_depth,
+                    )
         except PermissionError:
-            # Intentionally skip directories/files we cannot access to avoid breaking
-            # the file tree generation
             pass
         return result
 
     file_tree = filtered_tree(repo_path)
 
-    # Default key files to look for
     default_files = [
         "package.json",
         "pyproject.toml",
@@ -164,18 +171,12 @@ def get_external_repo_context(
                 file_content = file_path.read_text(encoding="utf-8")
                 if len(file_content) > 15000:
                     file_content = file_content[:15000] + "\n\n... (truncated)"
-                # Escape triple backticks to prevent markdown injection
-                file_content_escaped = file_content.replace("```", "`\u200B`\u200B`")
-                content_parts.append(
-                    f"### `{file_pattern}`\n\n```\n{file_content_escaped}\n```"
-                )
+                file_content_escaped = file_content.replace("```", "`\u200b`\u200b`")
+                content_parts.append(f"### `{file_pattern}`\n\n```\n{file_content_escaped}\n```")
             except (UnicodeDecodeError, PermissionError):
-                # Intentionally ignore files that cannot be read due to encoding
-                # or permission errors
                 pass
 
     key_files_content = "\n\n".join(content_parts) if content_parts else ""
-
     return file_tree, key_files_content
 
 
@@ -186,7 +187,7 @@ def cleanup_external_repo(repo_path: Path) -> None:
 
 
 def get_relevant_files_content(
-    project_dir: Path, relevant_files: List[str], base_path: Path
+    project_dir: Path, relevant_files: list[str], base_path: Path
 ) -> str:
     """
     Read and format content from relevant files.
@@ -202,15 +203,12 @@ def get_relevant_files_content(
     content_parts = []
 
     for file_path in relevant_files:
-        # Try to resolve the file path
         full_path = None
 
-        # First try relative to project dir
         candidate = project_dir / file_path
         if candidate.exists():
             full_path = candidate
         else:
-            # Try relative to base path
             candidate = base_path / file_path
             if candidate.exists():
                 full_path = candidate
@@ -218,15 +216,13 @@ def get_relevant_files_content(
         if full_path and full_path.is_file():
             try:
                 file_content = full_path.read_text(encoding="utf-8")
-                # Truncate very large files
                 if len(file_content) > 10000:
                     file_content = file_content[:10000] + "\n\n... (truncated)"
 
                 relative_path = full_path.relative_to(base_path)
                 content_parts.append(f"### `{relative_path}`\n\n```\n{file_content}\n```")
-            except (UnicodeDecodeError, PermissionError, OSError) as e:
-                # Log specific file access errors without exposing full exception details
-                error_type = type(e).__name__
+            except (UnicodeDecodeError, PermissionError, OSError) as exc:
+                error_type = type(exc).__name__
                 content_parts.append(f"### `{file_path}`\n\n*Error reading file: {error_type}*")
         else:
             content_parts.append(f"### `{file_path}`\n\n*File not found*")
@@ -236,21 +232,14 @@ def get_relevant_files_content(
 
 def get_next_task(content: str) -> Optional[str]:
     """
-    Extract the next uncompleted task from AGENCY.md content.
+    Extract the next uncompleted checkbox task from markdown content.
 
-    Args:
-        content: Markdown content from AGENCY.md
-
-    Returns:
-        The next uncompleted task, or None if all tasks are complete
+    This is kept as a compatibility helper for legacy project-shaped inputs.
     """
-    lines = content.split("\n")
-    for line in lines:
+    for line in content.split("\n"):
         stripped = line.strip()
         if stripped.startswith("- [ ]"):
-            # Extract task text
-            task = stripped[5:].strip()
-            return task
+            return stripped[5:].strip()
     return None
 
 
@@ -266,73 +255,181 @@ def build_issue_title(project_id: str, next_task: Optional[str]) -> str:
         Issue title string
     """
     if next_task:
-        # Truncate long task names
         task_preview = next_task[:60] + "..." if len(next_task) > 60 else next_task
         return f"[Agent Hive] {project_id}: {task_preview}"
     return f"[Agent Hive] Work on {project_id}"
 
 
+def _priority_name(priority: object) -> str:
+    if isinstance(priority, str):
+        return priority.lower()
+    mapping = {0: "critical", 1: "high", 2: "medium", 3: "low"}
+    return mapping.get(int(priority), "medium") if isinstance(priority, int) else "medium"
+
+
+def _render_task_sections(task: TaskRecord) -> str:
+    parts = [
+        "## Summary",
+        task.summary_md.strip() or f"Track work for `{task.title}`.",
+        "",
+        "## Notes",
+        task.notes_md.strip() or "- Imported or created by Hive 2.0.",
+        "",
+        "## History",
+        task.history_md.strip() or f"- {task.created_at} bootstrap created.",
+    ]
+    for name, content in task.extra_sections:
+        parts.extend(["", f"## {name}", content.strip()])
+    return "\n".join(parts).strip()
+
+
+def _render_task_markdown(task: TaskRecord) -> str:
+    return safe_dump_agency_md(task.to_frontmatter(), _render_task_sections(task))
+
+
+def _render_context_sections(context: dict[str, object]) -> str:
+    rendered = []
+    for section in context.get("sections", []):
+        content = str(section.get("content", "")).strip()
+        if not content:
+            continue
+        rendered.append(
+            f"""### {str(section.get("name", "context")).upper()}
+
+```markdown
+{content}
+```"""
+        )
+    search_hits = context.get("search_hits", [])
+    if search_hits:
+        rendered.append(
+            "### SEARCH HITS\n\n"
+            + "\n".join(
+                f"- `{hit.get('kind', 'result')}` {hit.get('title', 'untitled')}"
+                for hit in search_hits
+            )
+        )
+    return "\n\n".join(rendered) if rendered else "*No Hive v2 context was assembled.*"
+
+
+def _relative_display(path: Path, base_path: Path) -> str:
+    try:
+        return str(path.relative_to(base_path))
+    except ValueError:
+        return str(path)
+
+
+def _resolve_dispatch_item(
+    item: dict[str, Any],
+    base_path: Path,
+    next_task: Optional[str],
+) -> dict[str, Any]:
+    metadata = dict(item.get("metadata", {}))
+    project_id = item.get("project_id") or metadata.get("project_id", "unknown")
+    task_id = item.get("task_id") or item.get("id")
+
+    task = None
+    if task_id:
+        try:
+            task = get_task(base_path, task_id)
+        except FileNotFoundError:
+            task = None
+    elif project_id:
+        ready = scheduler_ready_tasks(base_path, project_id=project_id, limit=1)
+        if ready:
+            task_id = str(ready[0]["id"])
+            try:
+                task = get_task(base_path, task_id)
+            except FileNotFoundError:
+                task = None
+
+    if task:
+        project = get_project(base_path, task.project_id)
+        project_id = project.id
+        task_title = next_task or task.title
+        task_markdown = _render_task_markdown(task)
+        raw_agency = safe_dump_agency_md(project.metadata, project.content)
+        try:
+            context = startup_context(
+                base_path, project_id=project.id, profile="light", query=task.title
+            )
+        except FileNotFoundError:
+            context = {"sections": [], "search_hits": []}
+        return {
+            "project_id": project.id,
+            "project_title": project.title,
+            "project_dir": project.directory,
+            "project_path": project.agency_path,
+            "agency_markdown": raw_agency,
+            "task_id": task.id,
+            "task_title": task_title,
+            "task_markdown": task_markdown,
+            "priority": task.priority,
+            "labels": list(dict.fromkeys(task.labels + list(project.metadata.get("tags", [])))),
+            "relevant_files": task.relevant_files
+            or list(project.metadata.get("relevant_files", [])),
+            "target_repo": dict(project.metadata.get("target_repo", {})),
+            "context": context,
+            "acceptance": list(task.acceptance),
+        }
+
+    project_path = Path(item["path"])
+    project_dir = project_path.parent
+    task_title = next_task or get_next_task(item.get("content", "")) or project_id
+    return {
+        "project_id": project_id,
+        "project_title": project_id,
+        "project_dir": project_dir,
+        "project_path": project_path,
+        "agency_markdown": safe_dump_agency_md(metadata, item.get("content", "")),
+        "task_id": None,
+        "task_title": task_title,
+        "task_markdown": "",
+        "priority": metadata.get("priority", "medium"),
+        "labels": list(metadata.get("tags", [])),
+        "relevant_files": list(metadata.get("relevant_files", [])),
+        "target_repo": dict(metadata.get("target_repo", {})),
+        "context": {"sections": [], "search_hits": []},
+        "acceptance": [],
+    }
+
+
 def build_issue_body(
-    project: Dict[str, Any],
+    project: dict[str, Any],
     base_path: Path,
     next_task: Optional[str] = None,
 ) -> str:
     """
     Build a comprehensive GitHub issue body for agent assignment.
 
-    Supports both local projects and external GitHub repositories.
-    External repos are detected via `target_repo` in metadata.
-
-    Args:
-        project: Project data dictionary with path, metadata, content
-        base_path: Base path of the hive
-        next_task: The specific task to focus on (if identified)
-
-    Returns:
-        Formatted issue body as markdown string
+    Prefers canonical task data and v2 startup context, while still accepting
+    legacy project-shaped inputs as a compatibility path.
     """
-    project_path = Path(project["path"])
-    project_dir = project_path.parent
-    metadata = project["metadata"]
-    content = project["content"]
-    project_id = metadata.get("project_id", "unknown")
-    priority = metadata.get("priority", "medium")
-    tags = metadata.get("tags", [])
-    relevant_files = metadata.get("relevant_files", [])
-    target_repo = metadata.get("target_repo", {})
+    resolved = _resolve_dispatch_item(project, base_path, next_task)
+    project_dir = resolved["project_dir"]
+    relevant_files = resolved["relevant_files"]
+    target_repo = resolved["target_repo"]
+    context = resolved["context"]
 
-    # Build the raw AGENCY.md content using safe dump (prevents injection via frontmatter)
-    raw_agency = safe_dump_agency_md(metadata, content)
-
-    # Get file tree for project
-    file_tree = generate_file_tree(project_dir, max_depth=3)
-
-    # Get relevant files content if specified
     relevant_content = ""
     if relevant_files:
-        relevant_content = f"""
-### Relevant Files
+        relevant_content = (
+            "\n### Relevant Files\n\n"
+            + get_relevant_files_content(project_dir, relevant_files, base_path)
+            + "\n"
+        )
 
-{get_relevant_files_content(project_dir, relevant_files, base_path)}
-"""
-
-    # Handle external repository context
     external_repo_section = ""
     cloned_repo_path = None
-
-    if target_repo and target_repo.get("url"):
+    if target_repo.get("url"):
         repo_url = target_repo["url"]
         repo_branch = target_repo.get("branch", "main")
-
-        # Clone and get context
         cloned_repo_path = clone_external_repo(repo_url, repo_branch)
         if cloned_repo_path:
             try:
                 ext_tree, ext_files = get_external_repo_context(cloned_repo_path)
-                # Use urllib.parse for robust URL parsing
                 parsed_url = urlparse(repo_url)
                 repo_name = parsed_url.path.rstrip("/").split("/")[-1].replace(".git", "")
-
                 external_repo_section = f"""
 ### Target Repository
 
@@ -356,133 +453,147 @@ def build_issue_body(
 </details>''' if ext_files else ''}
 """
             finally:
-                # Clean up after getting context (or on exception)
                 cleanup_external_repo(cloned_repo_path)
 
-    # Build task focus section
-    task_section = ""
-    if next_task:
-        task_section = f"""
+    task_section = f"""
 ## Immediate Task
 
-Focus on completing this task first:
-> {next_task}
-
+Focus on this canonical Hive task first:
+> {resolved["task_title"]}
 """
 
-    # Determine instructions based on project type
-    if target_repo and target_repo.get("url"):
-        instructions = """
+    task_details = ""
+    if resolved["task_markdown"]:
+        task_details = f"""
+## Canonical Task
+
+<details>
+<summary>Click to expand canonical task file</summary>
+
+```yaml
+{resolved["task_markdown"]}
+```
+
+</details>
+"""
+
+    acceptance_section = ""
+    if resolved["acceptance"]:
+        acceptance_section = (
+            "\n## Acceptance Criteria\n\n"
+            + "\n".join(f"- [ ] {item}" for item in resolved["acceptance"])
+            + "\n"
+        )
+
+    instructions = """
 ## Instructions
 
-1. **Read the AGENCY.md** to understand the project objectives and current state
-2. **Work on the highest priority uncompleted task**
-3. **For external repository work**:
-   - Fork the target repository if needed
-   - Make the changes as specified in AGENCY.md
-   - Write the implementation details to the appropriate Phase section
-4. **Update AGENCY.md** when done:
-   - Mark completed tasks with `[x]`
-   - Write output to the appropriate section (Phase 1/2/3)
-   - Add timestamped notes to "Agent Notes" section
-   - Set `owner: null` to release the project
-5. **Create a PR** to the target repository when implementation is complete
+1. Treat the canonical Hive task as the source of truth for task state and notes
+2. Implement the requested change and satisfy any acceptance criteria
+3. Run the relevant tests and/or PROGRAM.md evaluators for the touched work
+4. Sync projections after changing task state or notes: `uv run hive sync projections --json`
+5. Create a PR and include any follow-up items in the task history or notes
 
 ## Success Criteria
 
-- [ ] Task(s) completed as described in AGENCY.md
-- [ ] Implementation written to the appropriate Phase section
-- [ ] AGENCY.md updated with progress
-- [ ] PR created to target repository (when ready)"""
-    else:
+- [ ] Canonical task updated in `.hive/tasks/`
+- [ ] Relevant tests/evaluators run
+- [ ] Projections synced
+- [ ] PR opened or clear handoff left
+"""
+
+    if target_repo.get("url"):
         instructions = """
 ## Instructions
 
-1. **Read the AGENCY.md** to understand the project objectives and current state
-2. **Work on the highest priority uncompleted task**
-3. **Write tests** for any new functionality
-4. **Ensure quality**: Run `make test` and `make lint` - all must pass
-5. **Update AGENCY.md** when done:
-   - Mark completed tasks with `[x]`
-   - Add timestamped notes to "Agent Notes" section
-   - Set `owner: null` to release the project
-6. **Create a PR** referencing this issue
+1. Treat the canonical Hive task as the source of truth for task state and notes
+2. Implement the requested change in the target repository
+3. Run the relevant tests and/or PROGRAM.md evaluators for the touched work
+4. Sync projections after changing task state or notes: `uv run hive sync projections --json`
+5. Create a PR to the target repository and record the result in the task history
 
 ## Success Criteria
 
-- [ ] Task(s) completed as described in AGENCY.md
-- [ ] Tests pass (`make test`)
-- [ ] Linting passes (`make lint` with score > 9.0)
-- [ ] AGENCY.md updated with progress
-- [ ] PR created and linked to this issue"""
+- [ ] Canonical task updated in `.hive/tasks/`
+- [ ] Relevant tests/evaluators run
+- [ ] Projections synced
+- [ ] PR opened against the target repository
+"""
 
-    # Build the issue body
-    body = f"""@claude Please work on this Agent Hive project.
+    rendered_context = _render_context_sections(context)
+    file_tree = generate_file_tree(project_dir, max_depth=3)
+    relative_project_path = _relative_display(resolved["project_path"], base_path)
+    priority_name = _priority_name(resolved["priority"])
+
+    body = f"""@claude Please work on this Agent Hive task.
 
 ## Task Assignment
 
 | Field | Value |
 |-------|-------|
-| **Project** | `{project_id}` |
-| **Priority** | {priority} |
-| **Tags** | {', '.join(tags) if tags else 'none'} |
-| **Path** | `{project_path.relative_to(base_path)}` |
+| **Project** | `{resolved["project_id"]}` |
+| **Task** | {resolved["task_title"]} |
+| **Task ID** | `{resolved["task_id"] or "legacy-project-task"}` |
+| **Priority** | {priority_name} |
+| **Path** | `{relative_project_path}` |
 
-{task_section}## Context
-
-### AGENCY.md
+{task_section}
+{task_details}
+## AGENCY.md Projection
 
 <details>
-<summary>Click to expand full AGENCY.md</summary>
+<summary>Click to expand AGENCY.md</summary>
 
 ```yaml
-{raw_agency}
+{resolved["agency_markdown"]}
 ```
 
 </details>
 
-### Project File Structure
+## Hive Context
+
+{rendered_context}
+
+## Project File Structure
 
 ```
 {project_dir.name}/
 {file_tree}```
 {relevant_content}{external_repo_section}
+{acceptance_section}
 {instructions}
 
 ## Handoff Protocol
 
 When you complete your work:
-1. Update AGENCY.md: mark tasks `[x]`, add agent notes, set `owner: null`
-2. Commit all changes including AGENCY.md updates
-3. Push to a feature branch
-4. Create a PR that closes this issue
+1. Update `.hive/tasks/{resolved["task_id"] or '<task-id>'}.md`
+2. Sync projections: `uv run hive sync projections --json`
+3. Release or transition the task appropriately in Hive
+4. Link the PR or leave a clear handoff note in the canonical task
 
 ---
 *Generated by Agent Hive Dispatcher at {datetime.now(timezone.utc).isoformat()}*
 """
-
     return body
 
 
-def build_issue_labels(project: Dict[str, Any]) -> List[str]:
+def build_issue_labels(project: dict[str, Any]) -> list[str]:
     """
     Build labels for the GitHub issue.
 
     Args:
-        project: Project data dictionary
+        project: Dispatch candidate or compatibility project dict
 
     Returns:
         List of label strings
     """
-    metadata = project["metadata"]
-    labels = ["agent-hive", "automated"]
+    metadata = project.get("metadata", {})
+    project_id = project.get("project_id") or metadata.get("project_id", "unknown")
+    task_id = project.get("task_id") or project.get("id")
+    priority = project.get("priority", metadata.get("priority", "medium"))
 
-    # Add priority label
-    priority = metadata.get("priority", "medium")
-    labels.append(f"priority:{priority}")
-
-    # Add project label
-    project_id = metadata.get("project_id", "unknown")
+    labels = ["agent-hive", "automated", f"priority:{_priority_name(priority)}"]
     labels.append(f"project:{project_id}")
-
+    if task_id:
+        labels.append(f"task:{task_id}")
     return labels

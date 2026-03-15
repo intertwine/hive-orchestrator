@@ -13,7 +13,12 @@ import glob
 from pathlib import Path
 from datetime import datetime, timezone
 import streamlit as st
-from src.cortex import Cortex
+from src.hive.memory.context import handoff_context, startup_context
+from src.hive.projections.agency_md import sync_agency_md
+from src.hive.projections.agents_md import sync_agents_md
+from src.hive.projections.global_md import sync_global_md
+from src.hive.scheduler.query import dependency_summary, ready_tasks
+from src.hive.store.cache import rebuild_cache
 from src.security import safe_load_agency_md, safe_dump_agency_md
 
 
@@ -79,7 +84,64 @@ def generate_file_tree(
 
 
 def generate_deep_work_context(project_path: str, base_path: Path):
-    """Generate a comprehensive context package for Deep Work sessions."""
+    """Generate a v2 startup context package for Deep Work sessions."""
+    return generate_hive_context(project_path, base_path, mode="startup", profile="light")
+
+
+def list_project_ready_tasks(base_path: Path, project_id: str, limit: int = 10):
+    """Return canonical ready tasks for a single project."""
+    return ready_tasks(base_path, project_id=project_id, limit=limit)
+
+
+def sync_hive_views(base_path: Path):
+    """Refresh generated projections and the derived cache."""
+    sync_global_md(base_path)
+    sync_agency_md(base_path)
+    sync_agents_md(base_path)
+    rebuild_cache(base_path)
+
+
+def _render_ready_task_lines(tasks):
+    if not tasks:
+        return "*No canonical ready tasks found for this project.*"
+    return "\n".join(f"- `{task['id']}` | p{task['priority']} | {task['title']}" for task in tasks)
+
+
+def _render_context_sections(context):
+    sections = []
+    for section in context.get("sections", []):
+        content = str(section.get("content", "")).strip()
+        if not content:
+            continue
+        sections.append(
+            f"""## {str(section.get("name", "context")).upper()}
+
+```markdown
+{content}
+```"""
+        )
+
+    search_hits = context.get("search_hits", [])
+    if search_hits:
+        sections.append(
+            "## SEARCH HITS\n\n"
+            + "\n".join(
+                f"- `{hit.get('kind', 'result')}` {hit.get('title', 'untitled')}"
+                for hit in search_hits
+            )
+        )
+
+    return "\n\n---\n\n".join(sections) if sections else "*No v2 context sections available.*"
+
+
+def generate_hive_context(
+    project_path: str,
+    base_path: Path,
+    *,
+    mode: str = "startup",
+    profile: str = "light",
+):
+    """Generate a formatted Hive v2 startup or handoff context."""
 
     project_data = load_project(project_path)
     if not project_data:
@@ -87,31 +149,54 @@ def generate_deep_work_context(project_path: str, base_path: Path):
 
     project_dir = Path(project_path).parent
     project_id = project_data["metadata"].get("project_id", "unknown")
+    ready = list_project_ready_tasks(base_path, project_id, limit=5)
+    query = ready[0]["title"] if ready else None
 
-    # Build the context
-    context = f"""# DEEP WORK SESSION CONTEXT
+    try:
+        context = (
+            handoff_context(base_path, project_id=project_id)
+            if mode == "handoff"
+            else startup_context(base_path, project_id=project_id, profile=profile, query=query)
+        )
+    except FileNotFoundError as exc:
+        st.error(f"Project is not available in Hive v2 context: {exc}")
+        return None
+
+    mode_label = "HANDOFF" if context.get("handoff") else "STARTUP"
+    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    rendered_sections = _render_context_sections(context)
+    return f"""# HIVE {mode_label} CONTEXT
 # Project: {project_id}
-# Generated: {datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}
+# Profile: {context.get('profile', profile)}
+# Target Tokens: {context.get('target_tokens', 'n/a')}
+# Generated: {generated_at}
 
 ---
 
 ## YOUR ROLE
 
-You are an AI agent entering a Deep Work session for the Agent Hive project: **{project_id}**.
-
-Your responsibilities:
-1. Read and understand the AGENCY.md file below
-2. Work on the assigned tasks
-3. Update the AGENCY.md frontmatter to reflect your progress
-4. Add notes about your work in the "Agent Notes" section
-5. Mark yourself as the owner while working (set `owner` field to your model name)
-6. Set `blocked: true` if you need human intervention or another agent
+You are entering a Hive v2 {mode_label.lower()} session for **{project_id}**.
+Use canonical tasks, `PROGRAM.md`, and the assembled context below as the source of truth.
 
 ---
 
-## AGENCY.md CONTENT
+## READY TASKS
 
+{_render_ready_task_lines(ready)}
+
+---
+
+## AGENCY.md
+
+```yaml
 {project_data['raw']}
+```
+
+---
+
+## HIVE CONTEXT
+
+{rendered_sections}
 
 ---
 
@@ -121,32 +206,14 @@ Your responsibilities:
 
 ---
 
-## AVAILABLE COMMANDS
-
-- Update AGENCY.md frontmatter fields (status, blocked, priority, etc.)
-- Create new files in the project directory
-- Read existing files
-- Add timestamped notes to the "Agent Notes" section
-
----
-
 ## HANDOFF PROTOCOL
 
 Before ending your session:
-1. Update all completed tasks (mark with [x])
-2. Update `last_updated` timestamp in frontmatter
-3. Add a note describing what you accomplished
-4. Set `owner: null` if you're done, or keep it set if you'll continue later
-5. Set `blocked: true` with `blocking_reason` if you need help
-
----
-
-## BOOTSTRAP COMPLETE
-
-You may now begin working on the project. Start by analyzing the current state and identifying the highest priority task you can complete.
+1. Update the relevant canonical task in `.hive/tasks/`
+2. Sync projections if task state or notes changed: `uv run hive sync projections --json`
+3. Release or transition the task appropriately in Hive
+4. Create a PR or leave a clear handoff note
 """
-
-    return context
 
 
 def main():
@@ -156,6 +223,11 @@ def main():
 
     # Determine base path
     base_path = Path(os.getenv("HIVE_BASE_PATH", os.getcwd()))
+    workspace_dependencies = dependency_summary(base_path)
+    dependency_map = {
+        entry["project_id"]: entry for entry in workspace_dependencies.get("projects", [])
+    }
+    workspace_ready_tasks = ready_tasks(base_path)
 
     st.title("🧠 Agent Hive Dashboard")
     st.caption("Vendor-Agnostic Agent Orchestration OS")
@@ -185,15 +257,11 @@ def main():
 
         st.header("⚙️ Actions")
 
-        if st.button("🧠 Run Cortex", type="primary", use_container_width=True):
-            with st.spinner("Running Cortex..."):
-                cortex = Cortex(str(base_path))
-                success = cortex.run()
-                if success:
-                    st.success("Cortex run completed!")
-                    st.rerun()
-                else:
-                    st.error("Cortex run failed. Check console for details.")
+        if st.button("🔄 Sync Hive Views", type="primary", use_container_width=True):
+            with st.spinner("Refreshing projections and cache..."):
+                sync_hive_views(base_path)
+                st.success("Hive projections and cache refreshed!")
+                st.rerun()
 
         if st.button("🔄 Refresh", use_container_width=True):
             st.rerun()
@@ -215,7 +283,7 @@ def main():
                     except ValueError:
                         # If the date string is malformed, keep the original value
                         pass
-                st.metric("Last Cortex Run", last_run)
+                st.metric("Last Sync", last_run)
                 st.metric("Total Projects", len(projects))
             except Exception as e:
                 st.error(f"Error loading GLOBAL.md: {e}")
@@ -224,27 +292,18 @@ def main():
 
         # Dependency Overview
         st.header("🔗 Dependencies")
-        sidebar_cortex = Cortex(str(base_path))
-        dep_summary = sidebar_cortex.get_dependency_summary()
+        if workspace_dependencies["has_cycles"]:
+            st.error(f"⚠️ {len(workspace_dependencies['cycles'])} cycle(s) detected!")
 
-        if dep_summary["has_cycles"]:
-            st.error(f"⚠️ {len(dep_summary['cycles'])} cycle(s) detected!")
-
-        blocked_count = sum(1 for p in dep_summary["projects"] if p["effectively_blocked"])
-        ready_count = sum(
-            1
-            for p in dep_summary["projects"]
-            if not p["effectively_blocked"] and p["status"] == "active"
+        blocked_count = sum(
+            1 for project in workspace_dependencies["projects"] if project["effectively_blocked"]
         )
 
         col1, col2 = st.columns(2)
         with col1:
             st.metric("Blocked", blocked_count)
         with col2:
-            st.metric("Ready", ready_count)
-
-    # Create cortex instance for dependency analysis
-    cortex = Cortex(str(base_path))
+            st.metric("Ready Tasks", len(workspace_ready_tasks))
 
     # Main area: Project details
     if selected_project_path:
@@ -308,11 +367,10 @@ def main():
                             for dep in related:
                                 st.markdown(f"- `{dep}`")
 
-                    # Check blocking status
-                    blocking_info = cortex.is_blocked(metadata.get("project_id", "unknown"))
-                    if blocking_info["is_blocked"]:
+                    blocking_info = dependency_map.get(metadata.get("project_id", "unknown"))
+                    if blocking_info and blocking_info["effectively_blocked"]:
                         st.warning("⚠️ This project is effectively blocked")
-                        for reason in blocking_info["reasons"]:
+                        for reason in blocking_info["blocking_reasons"]:
                             st.markdown(f"- {reason}")
 
             # Main content
@@ -321,30 +379,72 @@ def main():
 
             st.divider()
 
+            st.subheader("✅ Canonical Ready Tasks")
+            project_ready_tasks = list_project_ready_tasks(
+                base_path, metadata.get("project_id", "unknown"), limit=10
+            )
+            if project_ready_tasks:
+                st.dataframe(
+                    [
+                        {
+                            "Task": task["title"],
+                            "Task ID": task["id"],
+                            "Priority": task["priority"],
+                            "Status": task["status"],
+                        }
+                        for task in project_ready_tasks
+                    ],
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            elif (base_path / ".hive" / "tasks").exists():
+                st.caption("No canonical ready tasks for this project right now.")
+            else:
+                st.info(
+                    "No canonical task substrate found yet. Run `uv run hive migrate v1-to-v2 --json`."
+                )
+
+            st.divider()
+
             # Deep Work section
-            st.subheader("🚀 Deep Work Session")
+            st.subheader("🚀 Hive v2 Context")
             st.write(
-                "Generate a comprehensive context package for an AI agent to work on this project."
+                "Generate startup or handoff context from the canonical Hive v2 context pipeline."
             )
 
-            col1, col2 = st.columns([3, 1])
+            col1, col2, col3 = st.columns([2, 1, 1])
 
+            with col1:
+                profile = st.selectbox(
+                    "Context profile",
+                    options=["light", "default", "deep"],
+                    index=0,
+                )
             with col2:
+                mode = st.selectbox("Mode", options=["startup", "handoff"], index=0)
+
+            with col3:
                 if st.button("Generate Context", type="primary", use_container_width=True):
-                    context = generate_deep_work_context(selected_project_path, base_path)
+                    context = generate_hive_context(
+                        selected_project_path,
+                        base_path,
+                        mode=mode,
+                        profile=profile,
+                    )
                     if context:
                         st.session_state["deep_work_context"] = context
 
             if "deep_work_context" in st.session_state:
                 st.text_area(
-                    "Deep Work Context (copy and paste this to your AI agent)",
+                    "Hive v2 Context (copy and paste this to your AI agent)",
                     value=st.session_state["deep_work_context"],
                     height=400,
                     key="context_output",
                 )
 
                 st.info(
-                    "💡 Copy the above context and paste it into your AI agent (Claude, Grok, Gemini, etc.) to start a Deep Work session."
+                    "💡 Copy the above context or regenerate it locally with "
+                    f"`uv run hive context {mode} --project {metadata.get('project_id', 'unknown')} --json`."
                 )
 
     else:
@@ -362,29 +462,33 @@ def main():
         1. **Set up your environment**
            ```bash
            uv sync
-           export OPENROUTER_API_KEY="your-key-here"
            ```
 
-        2. **Run the Cortex** (orchestration engine)
+        2. **Inspect ready work**
            ```bash
-           uv run python src/cortex.py
+           uv run hive task ready --json
            ```
 
-        3. **Create a new project**
+        3. **Refresh generated views**
+           ```bash
+           uv run hive sync projections --json
+           ```
+
+        4. **Create a new project**
            - Create a folder in `projects/your-project-name/`
            - Add an `AGENCY.md` file using the same format as `projects/demo/AGENCY.md`
 
-        4. **Launch Deep Work sessions**
+        5. **Launch Deep Work sessions**
            - Select a project from the sidebar
-           - Click "Generate Context"
+           - Generate a `startup` or `handoff` context
            - Copy the context and paste it to your AI agent
 
         ### Architecture
 
-        - **AGENCY.md**: Shared memory for each project (human + machine readable)
-        - **GLOBAL.md**: System-wide context and state
-        - **Cortex**: Autonomous orchestration engine (runs every 4 hours via GitHub Actions)
-        - **Dashboard**: This UI for human oversight
+        - **.hive/tasks/**: Canonical machine-readable task substrate
+        - **AGENCY.md / GLOBAL.md / AGENTS.md**: Human-readable projections
+        - **PROGRAM.md**: Project workflow and evaluator policy
+        - **Dashboard**: This UI for human oversight and context assembly
 
         ### Learn More
 

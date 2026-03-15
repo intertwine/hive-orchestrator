@@ -1,4 +1,4 @@
-name: Cortex Heartbeat
+name: Hive Projection Sync
 
 on:
   schedule:
@@ -12,7 +12,7 @@ permissions:
   contents: write  # Required to commit state updates
 
 jobs:
-  cortex-run:
+  projection-sync:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -62,8 +62,8 @@ jobs:
 
       - name: Configure Git
         run: |
-          git config user.name "Agent Hive Cortex"
-          git config user.email "cortex@agent-hive.dev"
+          git config user.name "Agent Hive Projection Sync"
+          git config user.email "projection-sync@agent-hive.dev"
 
       - name: Commit and push changes
         run: |
@@ -79,7 +79,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cortex-logs-${{ github.run_number }}
+          name: projection-sync-logs-${{ github.run_number }}
           path: |
             *.log
             **/*.log

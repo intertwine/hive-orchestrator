@@ -1,6 +1,6 @@
 # 🧠 Agent Hive - Vendor-Agnostic Agent Orchestration OS
 
-[![Cortex Heartbeat](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/cortex.yml?branch=main&label=Cortex%20Heartbeat)](https://github.com/intertwine/hive-orchestrator/actions/workflows/cortex.yml)
+[![Hive Projection Sync](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/cortex.yml?branch=main&label=Hive%20Projection%20Sync)](https://github.com/intertwine/hive-orchestrator/actions/workflows/cortex.yml)
 
 ![Agent Hive](images/agent-hive-explainer-image-web.png)
 
@@ -174,12 +174,12 @@ agent-hive/
 │   ├── events/                 # Append-only audit logs
 │   └── cache/                  # Derived SQLite cache (gitignored)
 ├── scripts/
-│   ├── start_session.sh        # Deep Work session bootstrap
+│   ├── start_session.sh        # Hive v2 session bootstrap
 │   └── generate-images-from-prompts.mjs # Prompt-to-image generator
 ├── src/
 │   ├── cortex.py               # v1 compatibility wrapper / legacy entrypoint
-│   ├── agent_dispatcher.py     # Automated agent work assignment
-│   ├── context_assembler.py    # Issue context builder
+│   ├── agent_dispatcher.py     # Optional manual GitHub issue dispatcher for ready tasks
+│   ├── context_assembler.py    # v2 task issue context builder
 │   ├── coordinator.py          # Real-time coordination server (optional)
 │   ├── coordinator_client.py   # Coordinator client library
 │   ├── dashboard.py            # Streamlit UI
@@ -316,9 +316,9 @@ make deps-json          # JSON for programmatic use
 `dashboard.py` is a Streamlit app that:
 
 - 📊 Visualizes all projects
-- 🚀 Generates "Deep Work" contexts
-- 🧠 Triggers Cortex manually
-- 📋 Displays task lists and metadata
+- 🚀 Generates Hive v2 startup and handoff contexts
+- 🔄 Refreshes projections and cache from the canonical substrate
+- 📋 Displays canonical ready-task queues and project metadata
 - 🔗 Shows dependency graphs and blocking status
 - ⚠️ Alerts on dependency cycles
 
@@ -442,36 +442,35 @@ curl -X POST http://localhost:8080/claim \
 - Graceful degradation (clients fall back to git-only when unavailable)
 - OpenAPI documentation at `/docs`
 
-### 6. Agent Dispatcher - Automated Work Assignment
+### 6. Agent Dispatcher - Optional Manual Work Assignment
 
-The Agent Dispatcher proactively finds ready work and assigns it to Claude Code by creating GitHub issues.
+The Agent Dispatcher remains available as an optional manual compatibility path for creating GitHub issues that ping Claude Code.
 
 > **Prerequisite**: The Agent Dispatcher requires the [Claude Code GitHub App](#installing-claude-code-github-app) to be installed on your repository for `@claude` mentions to work.
 
 **How it works:**
 
-1. **Finds ready work** - Uses Cortex to discover unblocked, unowned projects
-2. **Selects highest priority** - Priority level first, then age (oldest first)
-3. **Builds rich context** - AGENCY.md content, file trees, relevant files
-4. **Creates GitHub issue** - With `@claude` mention to trigger Claude Code
-5. **Claims the project** - Sets `owner: "claude-code"` in AGENCY.md
+1. **You inspect ready work** - Use `uv run hive task ready --json` or the dashboard
+2. **Dispatcher can create an issue** - It builds a rich context package and opens a GitHub issue
+3. **Claude Code is triggered** - The dispatcher adds an `@claude` comment
+4. **Work proceeds on the issue/PR** - Claude Code responds through the normal GitHub flow
 
 **Run manually:**
 
 ```bash
-# Dispatch highest priority ready project
+# Dispatch highest priority ready task
 uv run python -m src.agent_dispatcher
 
 # Dry run (preview without changes)
 uv run python -m src.agent_dispatcher --dry-run
 
-# Dispatch up to 3 projects
+# Dispatch up to 3 tasks
 uv run python -m src.agent_dispatcher --max 3
 ```
 
 **GitHub Actions:**
 
-The Agent Dispatcher runs automatically every 4 hours (15 minutes after Cortex) via `.github/workflows/agent-assignment.yml`.
+The scheduled `.github/workflows/agent-assignment.yml` workflow currently captures a ready-work snapshot (`hive task ready` + `hive doctor`) and uploads it as an artifact. It does not auto-open issues or run the dispatcher.
 
 **Claude Code Integration:**
 
@@ -571,10 +570,10 @@ make session PROJECT=projects/demo
 
 This creates a `SESSION_CONTEXT.md` file with:
 
-- Full AGENCY.md content
-- File tree
-- Handoff instructions
-- Persona guidelines
+- Hive v2 startup context
+- Canonical ready tasks
+- AGENCY.md projection content
+- File tree and handoff instructions
 
 Copy this to your AI agent (Claude, Cursor, etc.) and let it work.
 
@@ -582,10 +581,10 @@ Copy this to your AI agent (Claude, Cursor, etc.) and let it work.
 
 Different agents can work on the same project:
 
-1. **Agent A (Claude)**: Does research, updates AGENCY.md
-2. **Cortex**: Detects completion, marks next task
-3. **Agent B (Grok)**: Picks up next task, continues work
-4. **Human**: Reviews in Dashboard, adds new tasks
+1. **Agent A (Claude)**: Works a canonical ready task and updates `.hive/tasks/`
+2. **Hive projections**: Sync generated `AGENCY.md` / `GLOBAL.md` views
+3. **Agent B (Grok)**: Picks up the next ready task from the canonical queue
+4. **Human**: Reviews in Dashboard, adds new tasks, or adjusts project state
 
 ## 🔧 Configuration
 
@@ -779,10 +778,11 @@ tags: [new-feature]
 Build a new feature that...
 ```
 
-1. Run Cortex:
+1. Sync projections and inspect ready work:
 
 ```bash
-make cortex
+make sync-projections
+make ready-json
 ```
 
 The project will now be tracked automatically.

@@ -14,16 +14,16 @@ help:
 	@echo ""
 	@echo "Runtime Commands:"
 	@echo "  make dashboard      Launch Streamlit dashboard (UI)"
-	@echo "  make cortex         Run Cortex orchestration engine"
-	@echo "  make ready          Find ready work (fast, no LLM)"
+	@echo "  make cortex         Compatibility alias for v2 projection sync"
+	@echo "  make ready          Find ready canonical tasks"
 	@echo "  make ready-json     Find ready work as JSON"
-	@echo "  make deps           Show dependency graph"
+	@echo "  make deps           Show dependency graph (compatibility view)"
 	@echo "  make deps-json      Show dependency graph as JSON"
 	@echo "  make hive           Show Hive 2.0 doctor output"
 	@echo "  make hive-init      Initialize the Hive 2.0 layout"
 	@echo "  make sync-projections  Refresh GLOBAL/AGENCY/AGENTS generated sections"
 	@echo "  make migrate-v2     Import v1 projects into the v2 substrate"
-	@echo "  make session        Start a Deep Work session (requires PROJECT=...)"
+	@echo "  make session        Start a Hive v2 session (requires PROJECT=...)"
 	@echo "  make verify-claude  Verify Claude Code GitHub App setup"
 	@echo ""
 	@echo "Development Commands:"
@@ -77,18 +77,19 @@ dashboard:
 	@echo ""
 	uv run streamlit run src/dashboard.py
 
-# Run Cortex orchestration
+# Compatibility alias for v2 projection sync
 cortex:
-	@echo "🧠 Running Cortex orchestration engine..."
-	uv run python src/cortex.py
+	@echo "🧠 Running Hive v2 projection sync..."
+	@uv run hive cache rebuild --json
+	@uv run hive sync projections --json
 
-# Find ready work (fast, no LLM)
+# Find ready work
 ready:
-	@uv run python src/cortex.py --ready
+	@uv run hive task ready
 
 # Find ready work as JSON (for programmatic use)
 ready-json:
-	@uv run python src/cortex.py --ready --json
+	@uv run hive task ready --json
 
 # Show dependency graph
 deps:
@@ -113,7 +114,7 @@ sync-projections:
 migrate-v2:
 	@uv run hive migrate v1-to-v2 --json
 
-# Start a Deep Work session
+# Start a Hive v2 session
 session:
 	@if [ -z "$(PROJECT)" ]; then \
 		echo "❌ Error: PROJECT variable not set"; \
@@ -165,5 +166,5 @@ quickstart: install setup-env
 	@echo "Next steps:"
 	@echo "1. Edit .env and add your OPENROUTER_API_KEY"
 	@echo "2. Run: make dashboard"
-	@echo "3. Or run: make cortex"
+	@echo "3. Or run: make sync-projections"
 	@echo ""

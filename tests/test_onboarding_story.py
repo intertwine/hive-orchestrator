@@ -34,8 +34,10 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     quickstart = (REPO_ROOT / "docs" / "QUICKSTART.md").read_text(encoding="utf-8")
     demo_agency = (REPO_ROOT / "projects" / "demo" / "AGENCY.md").read_text(encoding="utf-8")
 
-    assert "### Everyday users" in readme
-    assert "### Maintainers" in readme
+    assert "## Start Here" in readme
+    assert "[Install Hive](docs/START_HERE.md)" in readme
+    assert "## Adopt Hive In An Existing Repo" in readme
+    assert "## Maintainers" in readme
     assert "Do this in a fresh workspace, not inside this repository checkout." in readme
     assert "hive task ready --project-id demo" in readme
     assert "hive task claim <task-id> --owner <your-name> --ttl-minutes 60" in readme

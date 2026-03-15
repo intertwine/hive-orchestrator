@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help install install-dev install-tool install-pipx run dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install release-check quickstart
+.PHONY: help install install-dev install-tool install-pipx run dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install release-check dev-quickstart quickstart
 
 BUMP ?= patch
 HOMEBREW_TAP_DIR ?= ../homebrew-tap
@@ -10,10 +10,13 @@ HOMEBREW_PACKAGE_VERSION ?=
 # Default target
 help:
 	@echo "╔════════════════════════════════════════════════════════╗"
-	@echo "║            AGENT HIVE - MAKEFILE COMMANDS              ║"
+	@echo "║         AGENT HIVE - MAINTAINER COMMANDS               ║"
 	@echo "╚════════════════════════════════════════════════════════╝"
 	@echo ""
-	@echo "Setup Commands:"
+	@echo "This Makefile is for maintainers working from a source checkout."
+	@echo 'Installed users should use the `hive` CLI directly.'
+	@echo ""
+	@echo "Maintainer Setup:"
 	@echo "  make install        Install Python dependencies with uv"
 	@echo "  make install-dev    Install dev dependencies (black, pylint, pytest)"
 	@echo "  make install-tool   Install the hive CLI as a uv-managed tool from this checkout"
@@ -21,7 +24,7 @@ help:
 	@echo "  make sync           Sync dependencies from pyproject.toml"
 	@echo "  make setup-env      Create .env file template"
 	@echo ""
-	@echo "Runtime Commands:"
+	@echo "Checkout Workflow:"
 	@echo "  make dashboard      Launch the optional dashboard UI"
 	@echo "  make ready          Find ready canonical tasks"
 	@echo "  make ready-json     Find ready work as JSON"
@@ -35,7 +38,7 @@ help:
 	@echo "  make session        Save a Hive v2 startup bundle (PROJECT=<project-id> or path)"
 	@echo "  make verify-claude  Verify Claude Code GitHub App setup"
 	@echo ""
-	@echo "Development Commands:"
+	@echo "Release And Packaging:"
 	@echo "  make lint           Run code linting (pylint)"
 	@echo "  make format         Format code with black"
 	@echo "  make test           Run tests (if available)"
@@ -49,11 +52,12 @@ help:
 	@echo "  make brew-check     Audit the generated Homebrew formula"
 	@echo "  make release-homebrew  Copy the formula into a local Homebrew tap checkout"
 	@echo "  make brew-install   Install from the configured Homebrew tap"
+	@echo "  make dev-quickstart Checkout-only bootstrap for Hive maintainers"
 	@echo "  make clean          Clean up generated files"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make install"
-	@echo "  make hive-init"
+	@echo "  make install-dev"
+	@echo "  make sync-projections"
 	@echo "  make session PROJECT=demo"
 	@echo "  make release-check"
 	@echo ""
@@ -256,18 +260,26 @@ clean:
 	find . -type f -name "SESSION_CONTEXT.md" -delete 2>/dev/null || true
 	@echo "✅ Cleanup complete!"
 
-# Quick start (install + setup env + show help)
-quickstart: install setup-env
+# Checkout-only quick start (install + setup env + show help)
+dev-quickstart: install setup-env
 	@echo ""
 	@echo "╔════════════════════════════════════════════════════════╗"
-	@echo "║              AGENT HIVE QUICK START                    ║"
+	@echo "║        AGENT HIVE CHECKOUT QUICK START                 ║"
 	@echo "╚════════════════════════════════════════════════════════╝"
 	@echo ""
 	@echo "✅ Dependencies installed"
 	@echo "✅ .env template created"
 	@echo ""
-	@echo "Next steps:"
-	@echo "1. Run: uv run hive quickstart demo --title \"Demo project\""
-	@echo "2. Run: uv run hive task ready"
-	@echo "3. Run: uv run hive context startup --project demo"
+	@echo "This path is for maintainers working from the repository checkout."
+	@echo "Installed users should start with: hive quickstart demo --title \"Demo project\""
 	@echo ""
+	@echo "Maintainer next steps:"
+	@echo "1. Run: make sync-projections"
+	@echo "2. Run: make session PROJECT=demo"
+	@echo "3. Run: make check"
+	@echo ""
+
+quickstart:
+	@echo "⚠️  make quickstart is a maintainer shortcut from a source checkout."
+	@echo "Use the installed product path for everyday work: hive quickstart demo --title \"Demo project\""
+	@echo "Maintainers can use: make dev-quickstart"

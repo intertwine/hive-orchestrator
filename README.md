@@ -21,58 +21,56 @@ The center of gravity in this repository is Hive 2.0:
 - It keeps humans in the loop. Project docs stay readable, diffable, and easy to review.
 - It gives agents a real operating surface. Ready work, claims, runs, evaluators, search, context assembly, and migration are all available through the CLI.
 
-## Install
+## Start Here
 
-### Everyday users
+There are three clean ways into Hive:
 
-Pick the install path you already trust:
+- [Install Hive](docs/START_HERE.md) if you want a fresh workspace and the shortest path to real work
+- [Adopt Hive in an existing repo](docs/ADOPT_EXISTING_REPO.md) if you already have a codebase and want Hive inside it
+- [Maintain or publish Hive](docs/MAINTAINING.md) if you are working on this repository itself
+
+## Install Hive
+
+Pick the installer you already trust:
 
 ```bash
 uv tool install agent-hive
-hive --version
-hive doctor
 ```
 
 ```bash
 pipx install agent-hive
-hive --version
-hive doctor
+```
+
+```bash
+python -m pip install agent-hive
 ```
 
 ```bash
 brew tap intertwine/tap
 brew install intertwine/tap/agent-hive
+```
+
+Then verify:
+
+```bash
 hive --version
 hive doctor
 ```
 
-If you already manage a virtualenv yourself, `python -m pip install agent-hive` works too.
+Optional extras:
 
-If you want optional extras, install them explicitly:
+| Installer | Dashboard | MCP adapter | Notes |
+|---|---|---|---|
+| `uv tool` | `uv tool install --upgrade 'agent-hive[dashboard]'` | `uv tool install --upgrade 'agent-hive[mcp]'` | Cleanest path for most users |
+| `pipx` | `pipx install 'agent-hive[dashboard]'` | `pipx install 'agent-hive[mcp]'` | Best if you already use `pipx` |
+| `pip` | `python -m pip install 'agent-hive[dashboard]'` | `python -m pip install 'agent-hive[mcp]'` | Best inside your own virtualenv |
+| Homebrew | use one of the Python package installs above | use one of the Python package installs above | Homebrew currently ships the base CLI |
 
-- Dashboard: `uv tool install --upgrade 'agent-hive[dashboard]'`
-- MCP server: `uv tool install --upgrade 'agent-hive[mcp]'`
-
-If you're reading this before the first tagged public release lands on PyPI and Homebrew, use the git install:
+If you are reading this before the first tagged public release lands on PyPI and Homebrew, use the git install:
 
 ```bash
 uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git agent-hive
 ```
-
-### Maintainers
-
-If you are developing Hive itself, start from a checkout instead:
-
-```bash
-git clone https://github.com/intertwine/hive-orchestrator.git
-cd hive-orchestrator
-make install-dev
-make install-tool
-```
-
-Use [docs/MAINTAINING.md](docs/MAINTAINING.md) for local development, CI, and release workflow details.
-
-If you want the actual product experience, stop here and use the installed `hive` commands below in a clean directory. The rest of this repository includes maintainer-only tasks, release tooling, and project docs for Hive itself.
 
 ## Five-Minute First Run
 
@@ -87,17 +85,32 @@ hive task claim <task-id> --owner <your-name> --ttl-minutes 60
 hive context startup --project demo --task <task-id>
 ```
 
-If you want a reusable bundle for Claude, Codex, or another agent, save it directly:
+If you want a reusable bundle for Claude, Codex, or another agent session, write it directly:
 
 ```bash
 hive context startup --project demo --task <task-id> --output SESSION_CONTEXT.md
 ```
 
-That gives you a real workspace with `.hive/`, a starter project, a conservative `PROGRAM.md`, and a first task chain with one ready task. The longer walkthrough lives in [docs/QUICKSTART.md](docs/QUICKSTART.md).
+That gives you a real workspace with `.hive/`, a starter project, a conservative `PROGRAM.md`, and a small task
+chain that teaches the normal claim-and-context loop. The longer walkthrough lives in
+[docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
 
-`--json` is available for automation. The commands above are the normal human path.
+## Adopt Hive In An Existing Repo
+
+You do not need to start over to use Hive.
+
+If you already have a repository:
+
+```bash
+cd your-repo
+hive init
+```
+
+From there, either create a first project with `hive project create` or import an older checklist-based Hive setup
+with `hive migrate v1-to-v2`. The full path is documented in
+[docs/ADOPT_EXISTING_REPO.md](docs/ADOPT_EXISTING_REPO.md).
 
 ## Everyday Loop
 
@@ -111,11 +124,15 @@ hive sync projections
 ```
 
 If you are still following the demo project, use `hive task ready --project-id demo`. In a multi-project workspace, plain `hive task ready` shows the cross-project queue.
+`--json` is available across the CLI when you want to script Hive instead of reading it by eye.
 
-Optional extras:
+## Optional Integrations
 
-- Run `hive dashboard` after installing `agent-hive[dashboard]` if you want a visual workspace view.
-- Run `hive-mcp` after installing `agent-hive[mcp]` if you want the thin search and execute MCP surface.
+These are useful, but the base CLI works fine without them:
+
+- `hive dashboard` after installing `agent-hive[dashboard]`
+- `hive-mcp` after installing `agent-hive[mcp]`
+- the optional Claude Code GitHub App flow in [docs/INSTALL_CLAUDE_APP.md](docs/INSTALL_CLAUDE_APP.md)
 
 ## Core Model
 
@@ -131,88 +148,16 @@ Optional extras:
 | `GLOBAL.md` | Top-level workspace orientation |
 | `AGENTS.md` | Short compatibility shim for coding harnesses |
 
-## Typical Workflow
+## More Docs
 
-1. Create or sync a workspace with `hive init` and `hive sync projections`.
-2. Scaffold a project with `hive project create`.
-3. Create canonical tasks with `hive task create`.
-4. Use `hive task ready` to find work and `hive task claim` to lease it.
-5. Start work with `hive context startup` or a governed run via `hive run start`.
-6. Evaluate, accept, reject, or escalate with the `hive run` commands.
-
-## What Ships In This Repo
-
-### Core CLI
-
-The CLI covers:
-
-- workspace bootstrap and health checks
-- project discovery and scaffolding
-- task CRUD, claims, and ready ranking
-- governed runs and evaluator execution
-- project-local and optional global memory
-- startup and handoff context assembly
-- workspace search
-- one-time import for older checklist-based repos
-
-### Optional adapters
-
-These are useful, but not required:
-
-- Streamlit dashboard via `hive dashboard` when installed with `agent-hive[dashboard]`
-- thin search/execute MCP adapter via `hive-mcp` when installed with `agent-hive[mcp]`
-- optional checkout-only GitHub issue dispatcher in `src/agent_dispatcher.py`
-- optional Claude GitHub App integration in `docs/INSTALL_CLAUDE_APP.md`
-
-The core CLI does not require an LLM API key.
-
-## Maintainer Links
-
-- [docs/MAINTAINING.md](docs/MAINTAINING.md) for local development and day-to-day repository work
+- [docs/START_HERE.md](docs/START_HERE.md) for the lane chooser and install matrix
+- [docs/QUICKSTART.md](docs/QUICKSTART.md) for the fresh-workspace walkthrough
+- [docs/ADOPT_EXISTING_REPO.md](docs/ADOPT_EXISTING_REPO.md) for existing repositories and legacy imports
+- [docs/MAINTAINING.md](docs/MAINTAINING.md) for source-checkout work
 - [docs/RELEASING.md](docs/RELEASING.md) for tagged releases, PyPI, and Homebrew
-- [docs/INSTALL_CLAUDE_APP.md](docs/INSTALL_CLAUDE_APP.md) for the optional GitHub App path
 
-## Optional Environment Variables
+## Maintainers
 
-```bash
-HIVE_BASE_PATH=/path/to/workspace
-HIVE_GLOBAL_MEMORY_DIR=/custom/global-memory
-COORDINATOR_URL=http://localhost:8080
-WANDB_API_KEY=your-wandb-api-key
-WEAVE_PROJECT=agent-hive
-```
-
-`COORDINATOR_URL` and Weave tracing are optional. The core CLI works fine without them.
-
-## Migration
-
-If you are bringing an older repo forward, import it once and then stay in the canonical task flow:
-
-```bash
-hive migrate v1-to-v2
-```
-
-To replace the old checklist section with a generated rollup:
-
-```bash
-hive migrate v1-to-v2 --rewrite
-```
-
-## Repository Layout
-
-```text
-.
-├── .github/workflows/
-├── .hive/
-├── docs/
-├── examples/
-├── packaging/homebrew/
-├── projects/
-├── scripts/
-├── src/
-└── tests/
-```
-
-## Status
-
-This repository runs on the same Hive 2.0 substrate it ships. Projection sync and ready-work snapshots run in GitHub Actions, and the repo carries live canonical task, run, memory, and projection state.
+This repository runs on the same Hive 2.0 substrate it ships, but the source checkout is still a maintainer
+surface, not the normal installed-user path. If you are here to work on Hive itself, start with
+[docs/MAINTAINING.md](docs/MAINTAINING.md).

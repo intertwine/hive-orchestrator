@@ -85,29 +85,42 @@ gh run watch
 
 ## Verify The Public Install Paths
 
-Once the release is live, verify the actual user-facing commands:
+Once the release is live, verify the actual user-facing commands from throwaway directories. Do not run these
+checks from your maintainer checkout.
 
 ```bash
+release_verify_dir=$(mktemp -d)
+cd "$release_verify_dir"
+
 uv tool install --upgrade agent-hive
 hive --version
+hive doctor
 
-python -m pip install --upgrade agent-hive
-hive --version
+python -m venv pip-verify
+./pip-verify/bin/python -m pip install --upgrade agent-hive
+./pip-verify/bin/hive --version
+./pip-verify/bin/hive doctor --json
 
 pipx install --force agent-hive
-hive --version
+pipx run --spec agent-hive hive --version
 
 brew tap intertwine/tap
 brew install intertwine/tap/agent-hive
 hive --version
 ```
 
-Also check a real first-run flow:
+Homebrew verifies the base CLI path. If you also want to smoke-test dashboard or MCP extras, use the `uv tool`,
+`pipx`, or `pip` installs above.
+
+Also check a real first-run flow in a clean workspace:
 
 ```bash
-hive init --json
+workspace_dir=$(mktemp -d)
+cd "$workspace_dir"
+
+hive quickstart demo --title "Demo project"
 hive doctor --json
-hive project create demo --title "Demo project" --json
+hive task ready --project-id demo --json
 ```
 
 ## Local Maintainer Commands

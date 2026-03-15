@@ -2,9 +2,11 @@
 
 This is optional.
 
-Hive works fine with the CLI alone. Install the Claude Code GitHub App only if you want GitHub issues and `@claude` mentions to become part of your workflow.
+Hive works fine with the CLI alone. Install the Claude Code GitHub App only if you want GitHub issues and `@claude`
+mentions to become part of your workflow.
 
-If you are brand new to Hive, start with [docs/QUICKSTART.md](./QUICKSTART.md) first. Get one local project working through the CLI, then add the GitHub App if issue-driven dispatch actually helps your workflow.
+If you are brand new to Hive, start with [docs/START_HERE.md](./START_HERE.md) first. Get one local project working
+through the CLI, then add the GitHub App if issue-driven dispatch actually helps your workflow.
 
 ## When it helps
 
@@ -16,7 +18,7 @@ Install the app if you want any of these:
 
 If you mostly work locally with `hive task ready`, `hive context startup`, and normal Git branches, you can skip this guide.
 
-## Install
+## Installed-user setup
 
 1. Open the [Claude Code GitHub App](https://github.com/apps/claude).
 2. Click **Install** or **Configure**.
@@ -63,11 +65,14 @@ If you use the optional dispatcher, the workflow or token that opens issues also
 - Check that the issue or PR comment includes `@claude`.
 - Give it a few minutes before assuming it failed.
 
-### The dispatcher does not open issues
+## Checkout-only dispatcher diagnostics
 
-- Verify ready work exists first: `uv run hive task ready --json`
+This section is only for maintainers or teams running the optional dispatcher from a source checkout.
+
+- Verify ready work exists first: `hive task ready --json`
 - From a checkout, dry-run the optional dispatcher preview: `uv run python -m src.agent_dispatcher --dry-run`
 - Verify the GitHub token has permission to create issues
+- If you only want local Hive usage, skip the dispatcher entirely
 
 ## Security notes
 

@@ -140,6 +140,7 @@ That sequence:
 - marks the run accepted
 - merges the accepted run back into your main branch
 - prunes the run worktree when you pass `--cleanup-worktree`
+- deletes the merged local run branch after that cleanup step
 
 If you want to separate acceptance from merge, keep them separate:
 
@@ -169,7 +170,6 @@ The short version is:
 ## Optional Next Steps
 
 - Use `hive run start <task-id>` if the project has evaluator policy in `PROGRAM.md`
-- Use `hive workspace checkpoint --message "Checkpoint workspace"` before the first governed run in a new repo
 - Use `hive memory observe --note "..."` to preserve useful decisions
 - Use `hive sync projections` after task, run, or memory changes
 - Install `agent-hive[dashboard]` and run `hive dashboard` if you want a visual workspace view

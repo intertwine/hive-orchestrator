@@ -107,6 +107,8 @@ hive run eval <run-id>
 hive run accept <run-id> --promote --cleanup-worktree
 ```
 
+That promotion path merges the accepted branch back into your workspace. When you also pass
+`--cleanup-worktree`, Hive prunes the linked run worktree and deletes the merged local run branch too.
 Use `hive run cleanup --terminal` later if you want to prune old terminal worktrees in one pass.
 
 ## Adopt Hive In An Existing Repo

@@ -19,6 +19,7 @@ from src.hive.runs.worktree import (
     commit_paths,
     create_run_worktree,
     current_head,
+    delete_branch,
     merge_branch,
     remove_worktree,
     split_dirty_paths,
@@ -490,14 +491,29 @@ def promote_run(
     )
     merge_result = merge_branch(root, branch_name=branch_name, message=f"Merge {title} run")
     cleanup_result = None
-    if cleanup_worktree and metadata.get("worktree_path"):
+    worktree_path = metadata.get("worktree_path")
+    if cleanup_worktree and worktree_path:
         cleanup_result = cleanup_run(root, run_id)
+    can_delete_branch = cleanup_worktree or not worktree_path or not Path(worktree_path).exists()
+    if can_delete_branch:
+        branch_cleanup = delete_branch(root, branch_name)
+    else:
+        branch_cleanup = {
+            "deleted": False,
+            "already_missing": False,
+            "branch_name": branch_name,
+            "warning": (
+                "Branch kept because the linked run worktree still exists. "
+                "Re-run promotion with `--cleanup-worktree` or remove the worktree first."
+            ),
+        }
 
     return {
         "run": metadata,
         "branch_name": branch_name,
         "state_commit": state_commit,
         "merge": merge_result,
+        "branch_cleanup": branch_cleanup,
         "cleanup": cleanup_result,
     }
 
@@ -572,7 +588,9 @@ def cleanup_run(path: str | Path | None, run_id: str) -> dict[str, object]:
         "run_id": run_id,
         "cleaned": bool(result["removed"]),
         "already_missing": bool(result["already_missing"]),
+        "manual_cleanup": bool(result["manual_cleanup"]),
         "path": result["path"],
+        "warnings": list(result["warnings"]),
     }
 
 

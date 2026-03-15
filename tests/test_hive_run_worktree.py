@@ -7,7 +7,13 @@ import subprocess
 import pytest
 
 from src.hive.migrate import migrate_v1_to_v2
-from src.hive.runs.worktree import create_checkpoint_commit, ensure_clean_repo, split_dirty_paths
+from src.hive.runs import worktree as worktree_module
+from src.hive.runs.worktree import (
+    create_checkpoint_commit,
+    ensure_clean_repo,
+    remove_worktree,
+    split_dirty_paths,
+)
 
 
 class TestRunWorktree:
@@ -107,6 +113,22 @@ class TestRunWorktree:
         assert dirty["canonical"] == []
         assert dirty["noncanonical"] == []
 
+    def test_split_dirty_paths_ignores_local_worktree_directories(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Linked worktree directories should behave like local machinery, not tracked state."""
+        del temp_project
+        migrate_v1_to_v2(temp_hive_dir)
+        commit_workspace(temp_hive_dir, "baseline")
+        worktree_marker = Path(temp_hive_dir) / ".hive" / "worktrees" / "run_test" / ".git"
+        worktree_marker.parent.mkdir(parents=True, exist_ok=True)
+        worktree_marker.write_text("gitdir: /tmp/run_test\n", encoding="utf-8")
+
+        dirty = split_dirty_paths(temp_hive_dir)
+
+        assert dirty["canonical"] == []
+        assert dirty["noncanonical"] == []
+
     def test_create_checkpoint_commit_records_bootstrap_snapshot(self, temp_hive_dir):
         """Checkpoint commits should stage and commit the current workspace state."""
         subprocess.run(["git", "init", "-q"], cwd=temp_hive_dir, check=True)
@@ -130,3 +152,25 @@ class TestRunWorktree:
             text=True,
         )
         assert payload["commit"] == head.stdout.strip()
+
+    def test_remove_worktree_reports_manual_cleanup_fallback(self, temp_hive_dir, monkeypatch):
+        """Worktree cleanup should report when it falls back to filesystem deletion."""
+        subprocess.run(["git", "init", "-q"], cwd=temp_hive_dir, check=True)
+        worktree_path = Path(temp_hive_dir) / ".hive" / "worktrees" / "run_test"
+        worktree_path.mkdir(parents=True, exist_ok=True)
+        original_run_git = worktree_module._run_git
+
+        def fake_run_git(repo_root, *args, **kwargs):
+            if args[:3] == ("worktree", "remove", "--force"):
+                return subprocess.CompletedProcess(["git", *args], 1, "", "worktree locked")
+            if args[:2] == ("worktree", "prune"):
+                return subprocess.CompletedProcess(["git", *args], 0, "", "")
+            return original_run_git(repo_root, *args, **kwargs)
+
+        monkeypatch.setattr(worktree_module, "_run_git", fake_run_git)
+
+        result = remove_worktree(temp_hive_dir, worktree_path)
+
+        assert result["removed"] is True
+        assert result["manual_cleanup"] is True
+        assert result["warnings"]

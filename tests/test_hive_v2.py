@@ -29,7 +29,14 @@ from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.cache import _memory_scope_parts, rebuild_cache
 from src.hive.store.layout import ensure_layout, global_memory_dir, tasks_dir
 from src.hive.store.projects import discover_projects
-from src.hive.store.task_files import get_task, link_tasks, list_tasks, save_task
+from src.hive.store.task_files import (
+    create_task,
+    get_task,
+    link_tasks,
+    list_tasks,
+    save_task,
+    update_task,
+)
 
 hive_cli_main = importlib.import_module("hive.cli.main")
 
@@ -886,7 +893,7 @@ class TestHiveV2Runs:
 
         eval_run(temp_hive_dir, run.id)
         accept_run(temp_hive_dir, run.id)
-        promotion = promote_run(temp_hive_dir, run.id)
+        promotion = promote_run(temp_hive_dir, run.id, cleanup_worktree=True)
         status = subprocess.run(
             ["git", "status", "--short"],
             cwd=temp_hive_dir,
@@ -894,16 +901,26 @@ class TestHiveV2Runs:
             capture_output=True,
             text=True,
         )
-        merged = subprocess.run(
-            ["git", "merge-base", "--is-ancestor", run.branch_name, "HEAD"],
+        branch_check = subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{run.branch_name}"],
             cwd=temp_hive_dir,
             check=False,
         )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
         assert promotion["merge"]["merged"] is True
+        assert promotion["branch_cleanup"]["deleted"] is True
+        assert promotion["cleanup"]["cleaned"] is True
         assert promotion["state_commit"]
         assert (Path(temp_hive_dir) / "src" / "promoted.py").exists()
-        assert merged.returncode == 0
+        assert promotion["merge"]["commit"] == head.stdout.strip()
+        assert branch_check.returncode != 0
         assert status.stdout.strip() == ""
 
     def test_cleanup_run_removes_terminal_worktree(
@@ -925,6 +942,18 @@ class TestHiveV2Runs:
 
         assert result["cleaned"] is True
         assert not Path(run.worktree_path).exists()
+
+    def test_create_and_update_task_validate_empty_parent_id(self, temp_hive_dir, temp_project):
+        """Empty-string parent IDs should fail validation instead of skipping it."""
+        del temp_project
+        migrate_v1_to_v2(temp_hive_dir)
+
+        with pytest.raises(FileNotFoundError, match="Task not found"):
+            create_task(temp_hive_dir, project_id="test-project", title="Child", parent_id="")
+
+        task_id = ready_tasks(temp_hive_dir, project_id="test-project")[0]["id"]
+        with pytest.raises(FileNotFoundError, match="Task not found"):
+            update_task(temp_hive_dir, task_id, {"parent_id": ""})
 
     def test_accept_run_blocks_paths_requiring_review(
         self, temp_hive_dir, temp_project, commit_workspace
@@ -2179,9 +2208,66 @@ class TestHiveV2Cli:
 
         assert payload["run"]["status"] == "accepted"
         assert payload["promotion"]["merge"]["merged"] is True
+        assert payload["promotion"]["branch_cleanup"]["deleted"] is True
         assert payload["promotion"]["cleanup"]["cleaned"] is True
         assert (Path(temp_hive_dir) / "src" / "promoted_via_cli.py").exists()
         assert not worktree.exists()
+
+    def test_cli_run_promote_merges_branch_and_deletes_local_branch(
+        self, temp_hive_dir, temp_project, commit_workspace, capsys
+    ):
+        """Standalone CLI promotion should merge accepted work and delete the run branch."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        project.program_path.write_text(
+            _program_markdown("python -c \"print('ok')\""),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare CLI standalone promote workspace")
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+
+        worktree = Path(run.worktree_path)
+        promoted_file = worktree / "src" / "promoted_via_cli_only.py"
+        promoted_file.parent.mkdir(parents=True, exist_ok=True)
+        promoted_file.write_text("VALUE = 'cli-promote'\n", encoding="utf-8")
+        subprocess.run(["git", "add", "src/promoted_via_cli_only.py"], cwd=worktree, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add promoted CLI-only change"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "run", "eval", run.id])
+        _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "run", "accept", run.id])
+        payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    temp_hive_dir,
+                    "--json",
+                    "run",
+                    "promote",
+                    run.id,
+                    "--cleanup-worktree",
+                ],
+            )
+        )
+        branch_check = subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{run.branch_name}"],
+            cwd=temp_hive_dir,
+            check=False,
+        )
+
+        assert payload["ok"] is True
+        assert payload["merge"]["merged"] is True
+        assert payload["branch_cleanup"]["deleted"] is True
+        assert payload["cleanup"]["cleaned"] is True
+        assert (Path(temp_hive_dir) / "src" / "promoted_via_cli_only.py").exists()
+        assert branch_check.returncode != 0
 
     def test_cli_run_cleanup_terminal_prunes_terminal_worktrees(
         self, temp_hive_dir, temp_project, commit_workspace, capsys

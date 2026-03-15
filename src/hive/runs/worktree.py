@@ -11,13 +11,12 @@ STATE_PATTERNS = (
     ".hive/tasks/**",
     ".hive/events/**",
     ".hive/runs/**",
-    ".hive/worktrees/**",
     "GLOBAL.md",
     "AGENTS.md",
     "projects/**/AGENCY.md",
     "projects/**/PROGRAM.md",
 )
-IGNORED_PATTERNS = (".hive/cache/**",)
+IGNORED_PATTERNS = (".hive/cache/**", ".hive/worktrees/**")
 DIFF_EXCLUDES = (":(exclude).hive/cache", ":(exclude).hive/worktrees")
 
 
@@ -237,20 +236,74 @@ def merge_branch(
     }
 
 
+def delete_branch(path: str | Path | None, branch_name: str) -> dict[str, object]:
+    """Delete a merged local branch when it still exists."""
+    root = ensure_git_repo(path)
+    exists = _run_git(root, "show-ref", "--verify", "--quiet", f"refs/heads/{branch_name}")
+    if exists.returncode != 0:
+        return {"deleted": False, "already_missing": True, "branch_name": branch_name}
+
+    result = _run_git(root, "branch", "-d", branch_name)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "Unable to delete local branch"
+        return {
+            "deleted": False,
+            "already_missing": False,
+            "branch_name": branch_name,
+            "warning": detail,
+        }
+
+    return {"deleted": True, "already_missing": False, "branch_name": branch_name}
+
+
 def remove_worktree(path: str | Path | None, worktree_path: str | Path) -> dict[str, object]:
     """Remove a linked Git worktree if it still exists."""
     root = ensure_git_repo(path)
     target = Path(worktree_path).resolve()
     if not target.exists():
-        return {"removed": False, "already_missing": True, "path": str(target)}
+        return {
+            "removed": False,
+            "already_missing": True,
+            "manual_cleanup": False,
+            "path": str(target),
+            "warnings": [],
+        }
 
     result = _run_git(root, "worktree", "remove", "--force", str(target))
+    warnings: list[str] = []
+    manual_cleanup = False
     if result.returncode != 0 and target.exists():
-        raise ValueError(result.stderr.strip() or f"Unable to remove run worktree at {target}")
-    _run_git(root, "worktree", "prune")
+        manual_cleanup = True
+        detail = (
+            result.stderr.strip()
+            or result.stdout.strip()
+            or f"Unable to remove run worktree at {target}"
+        )
+        warnings.append(
+            "Git could not remove the linked worktree cleanly. "
+            f"Falling back to filesystem cleanup and prune: {detail}"
+        )
+        try:
+            shutil.rmtree(target)
+        except OSError as exc:
+            raise ValueError(f"Unable to remove run worktree at {target}: {exc}") from exc
+
+    prune_result = _run_git(root, "worktree", "prune")
+    if prune_result.returncode != 0:
+        warnings.append(prune_result.stderr.strip() or "Git worktree prune reported an error")
     if target.exists():
-        shutil.rmtree(target, ignore_errors=True)
-    return {"removed": not target.exists(), "already_missing": False, "path": str(target)}
+        manual_cleanup = True
+        try:
+            shutil.rmtree(target)
+        except OSError as exc:
+            raise ValueError(f"Unable to remove run worktree at {target}: {exc}") from exc
+    return {
+        "removed": not target.exists(),
+        "already_missing": False,
+        "manual_cleanup": manual_cleanup,
+        "path": str(target),
+        "warnings": warnings,
+    }
 
 
 def capture_worktree_state(
@@ -304,6 +357,7 @@ __all__ = [
     "create_checkpoint_commit",
     "create_run_worktree",
     "current_head",
+    "delete_branch",
     "ensure_clean_repo",
     "ensure_git_repo",
     "is_branch_merged",

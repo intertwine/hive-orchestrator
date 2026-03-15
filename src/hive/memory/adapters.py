@@ -7,6 +7,7 @@ from pathlib import Path
 from src.hive.memory.context import startup_context
 from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
+from src.hive.store.cache import rebuild_cache
 
 
 def _reflect_payload(path: str | Path | None, *, scope: str) -> dict[str, str]:
@@ -38,16 +39,19 @@ def claude_session_end(
     scope: str = "project",
 ) -> dict[str, object]:
     """Observe and reflect a Claude Code transcript at session end."""
+    root = Path(path or Path.cwd()).resolve()
     observation_path = observe(
-        path,
+        root,
         transcript_path=transcript_path,
         scope=scope,
         harness="claude",
     )
+    reflection_paths = _reflect_payload(root, scope=scope)
+    rebuild_cache(root)
     return {
         "harness": "claude",
         "observation_path": str(observation_path),
-        "paths": _reflect_payload(path, scope=scope),
+        "paths": reflection_paths,
     }
 
 
@@ -59,17 +63,20 @@ def codex_observe(
     scope: str = "project",
 ) -> dict[str, object]:
     """Observe and reflect explicit Codex memory input."""
+    root = Path(path or Path.cwd()).resolve()
     observation_path = observe(
-        path,
+        root,
         transcript_path=transcript_path,
         note=note,
         scope=scope,
         harness="codex",
     )
+    reflection_paths = _reflect_payload(root, scope=scope)
+    rebuild_cache(root)
     return {
         "harness": "codex",
         "observation_path": str(observation_path),
-        "paths": _reflect_payload(path, scope=scope),
+        "paths": reflection_paths,
     }
 
 
@@ -80,7 +87,10 @@ def codex_poll_latest(
     glob: str = "*.md",
     scope: str = "project",
 ) -> dict[str, object] | None:
-    """Observe the latest matching Codex transcript from a poll/cron path."""
+    """Observe the lexicographically latest Codex transcript from a poll/cron path.
+
+    This assumes transcript filenames sort in the same order you want them processed.
+    """
     directory = Path(transcripts_dir)
     if not directory.exists():
         return None

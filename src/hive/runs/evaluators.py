@@ -31,6 +31,7 @@ def _append_command_log(
         "seq": seq,
         "step_type": "eval",
         "status": (
+            # Treat a missing return code as failed so command-log status matches evaluator status.
             "failed"
             if step_result.returncode is None
             or step_result.returncode != 0

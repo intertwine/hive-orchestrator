@@ -176,6 +176,37 @@ class TestHiveControlPlane:
         with pytest.raises(ValueError, match="actively claimed by alice"):
             work_on_task(temp_hive_dir, task_id=task_id, owner="bob")
 
+    def test_work_on_task_validates_task_before_checkpoint(self, temp_hive_dir, capsys):
+        """Mistyped task IDs should fail before creating a checkpoint commit."""
+        _init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        _write_safe_program(temp_hive_dir, "demo")
+        marker = Path(temp_hive_dir) / "README.md"
+        marker.write_text("pending local change\n", encoding="utf-8")
+
+        with pytest.raises(FileNotFoundError, match="Task not found"):
+            work_on_task(temp_hive_dir, task_id="task_missing", owner="manager")
+
+        status = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD"],
+            cwd=temp_hive_dir,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert "README.md" in status.stdout
+        assert head.returncode != 0
+
     def test_cli_work_and_finish_happy_path(self, temp_hive_dir, capsys):
         """CLI `work` and `finish` should cover the common manager loop end to end."""
         _init_git_repo(temp_hive_dir)

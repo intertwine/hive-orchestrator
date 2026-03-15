@@ -59,11 +59,12 @@ def search(
         normalized_scopes.extend(["task", "run"])
     if scope == "global":
         normalized_scopes = ["memory"]
+    raw_limit = limit if scope == "all" else max(limit * 4, 24)
     raw_results = search_workspace_corpus(
         path,
         query,
         scopes=normalized_scopes,
-        limit=limit,
+        limit=raw_limit,
         project_id=project_id if scope != "global" else None,
         task_id=task_id if scope != "global" else None,
     )

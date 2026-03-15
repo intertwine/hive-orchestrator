@@ -306,14 +306,14 @@ def work_on_task(
             raise ValueError("No ready task is available for `hive work`.")
         task_id = str(recommendation["task"]["id"])
 
+    task = get_task(root, task_id)
+
     checkpoint_payload = None
     if checkpoint:
         checkpoint_payload = create_checkpoint_commit(
             root,
             message=checkpoint_message or f"Checkpoint before starting {task_id}",
         )
-
-    task = get_task(root, task_id)
     if task.owner and task.owner != resolved_owner:
         if task.status == "in_progress":
             raise ValueError(f"Task {task.id} is already in progress by {task.owner}.")

@@ -283,8 +283,8 @@ def _memory_search_docs(
         ]
 
     search_docs: list[tuple[str, Path, str, str, dict]] = []
-    for heading, body in chunks:
-        chunk_slug = _slugify_heading(heading)
+    for index, (heading, body) in enumerate(chunks, start=1):
+        chunk_slug = f"{_slugify_heading(heading)}-{index}"
         search_docs.append(
             _search_doc_payload(
                 doc_type="memory",

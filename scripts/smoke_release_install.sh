@@ -69,6 +69,8 @@ run_pip_smoke() {
     "$venv_dir/bin/hive" --version >/dev/null
     "$venv_dir/bin/hive" --path "$workspace" init --json >/dev/null
     "$venv_dir/bin/hive" --path "$workspace" doctor --json >/dev/null
+    "$venv_dir/bin/python" -m hive --version >/dev/null
+    "$venv_dir/bin/python" -m hive --path "$workspace" doctor --json >/dev/null
 }
 
 echo "🔎 Smoke-testing uv tool install..."

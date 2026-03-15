@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from dotenv import load_dotenv
 
+from src.hive.control import recommend_next_task
 from src.context_assembler import (
     build_issue_body,
     build_issue_labels,
@@ -150,6 +151,9 @@ class AgentDispatcher:
         2. Age (oldest created/updated timestamp first)
         3. Title / identifier for stable ordering
         """
+        if projects is None:
+            recommendation = recommend_next_task(self.base_path, emit_decision_event=False)
+            return recommendation["task"] if recommendation else None
         candidates = projects if projects is not None else self.ready_work()
         if not candidates:
             return None

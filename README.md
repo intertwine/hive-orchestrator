@@ -82,34 +82,28 @@ cd my-hive
 git init
 hive quickstart demo --title "Demo project"
 hive workspace checkpoint --message "Bootstrap Hive workspace"
-hive task ready --project-id demo
-hive task claim <task-id> --owner <your-name> --ttl-minutes 60
-hive context startup --project demo --task <task-id>
-```
-
-If you want a reusable bundle for Claude, Codex, or another agent session, write it directly:
-
-```bash
-hive context startup --project demo --task <task-id> --output SESSION_CONTEXT.md
+hive next --project-id demo
+hive work --project-id demo --owner <your-name> --output SESSION_CONTEXT.md
 ```
 
 That gives you a real workspace with `.hive/`, a starter project, a conservative `PROGRAM.md`, and a small task
-chain that teaches the normal claim-and-context loop. The longer walkthrough lives in
+chain that teaches the normal manager loop. `hive work` checkpoints the repo when needed, claims the task, starts a
+governed run, and writes a reusable context bundle when you pass `--output`. The longer walkthrough lives in
 [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
 
-If you want the full governed run loop, checkpoint the new workspace once, then:
+If you want the full governed run loop, edit `projects/demo/PROGRAM.md` first so it includes at least one required
+evaluator and lists that evaluator under `promotion.requires_all`. After that, the quickest operator path is:
 
 ```bash
-hive run start <task-id>
-hive run eval <run-id>
-hive run accept <run-id> --promote --cleanup-worktree
+hive next --project-id demo
+hive work <task-id> --owner <your-name>
+hive finish <run-id>
 ```
 
-That promotion path merges the accepted branch back into your workspace. When you also pass
-`--cleanup-worktree`, Hive prunes the linked run worktree and deletes the merged local run branch too.
-Use `hive run cleanup --terminal` later if you want to prune old terminal worktrees in one pass.
+`hive finish` evaluates the run, accepts or escalates it, and promotes accepted work back into the workspace by
+default. Use the lower-level `hive run *` commands when you want to step through the lifecycle yourself.
 
 ## Adopt Hive In An Existing Repo
 
@@ -131,14 +125,14 @@ with `hive migrate v1-to-v2`. The full path is documented in
 Once the workspace exists, the daily path is short:
 
 ```bash
-hive task ready
-hive task claim <task-id> --owner <your-name> --ttl-minutes 60
-hive context startup --project <project-id> --task <task-id>
-hive run start <task-id>
+hive next
+hive work --owner <your-name>
+hive finish <run-id>
 ```
 
-If you are still following the demo project, use `hive task ready --project-id demo`. In a multi-project workspace, plain `hive task ready` shows the cross-project queue.
-`--json` is available across the CLI when you want to script Hive instead of reading it by eye.
+If you want to stay closer to the underlying primitives, `hive task ready`, `hive task claim`, `hive context startup`,
+and `hive run start` are still there. `--json` is available across the CLI when you want to script Hive instead of
+reading it by eye.
 
 When you are defining new work instead of just taking ready work, stay in the CLI:
 
@@ -158,6 +152,9 @@ These are useful, but the base CLI works fine without them:
 - `hive dashboard` after installing `agent-hive[dashboard]`
 - `hive-mcp` after installing `agent-hive[mcp]`
 - the optional Claude Code GitHub App flow in [docs/INSTALL_CLAUDE_APP.md](docs/INSTALL_CLAUDE_APP.md)
+
+The MCP surface stays intentionally small: `search` and `execute`. `execute` is a bounded local Python helper, not a
+full sandbox.
 
 ## Core Model
 

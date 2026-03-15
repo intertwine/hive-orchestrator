@@ -39,9 +39,8 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     assert "## Adopt Hive In An Existing Repo" in readme
     assert "## Maintainers" in readme
     assert "Do this in a fresh workspace, not inside this repository checkout." in readme
-    assert "hive task ready --project-id demo" in readme
-    assert "hive task claim <task-id> --owner <your-name> --ttl-minutes 60" in readme
-    assert "hive context startup --project demo --task <task-id>" in readme
+    assert "hive next --project-id demo" in readme
+    assert "hive work --project-id demo --owner <your-name> --output SESSION_CONTEXT.md" in readme
     assert "[docs/MAINTAINING.md](docs/MAINTAINING.md)" in readme
 
     assert "Use a fresh directory for this walkthrough." in quickstart

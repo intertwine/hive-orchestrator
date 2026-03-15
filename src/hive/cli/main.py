@@ -9,10 +9,19 @@ import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 from src.hive import __version__
 from src.hive.cli.render import render_payload
 from src.hive.codemode.execute import MAX_EXECUTE_BYTES, execute_code
+from src.hive.control import (
+    finish_run_flow,
+    portfolio_status,
+    recommend_next_task,
+    steer_project,
+    tick_portfolio,
+    work_on_task,
+)
 from src.hive.context_bundle import build_context_bundle
 from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
@@ -45,7 +54,7 @@ from src.hive.store.task_files import (
     release_task,
     update_task,
 )
-from src.hive.workspace import WorkspaceBusyError, sync_workspace
+from src.hive.workspace import WorkspaceBusyError, resolve_workspace_path, sync_workspace
 
 
 def _emit(payload: dict, as_json: bool) -> int:
@@ -192,6 +201,37 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("init")
     subparsers.add_parser("doctor")
+    next_parser = subparsers.add_parser("next")
+    next_parser.add_argument("--project-id")
+    work_parser = subparsers.add_parser("work")
+    work_parser.add_argument("task_id", nargs="?")
+    work_parser.add_argument("--project-id")
+    work_parser.add_argument("--owner")
+    work_parser.add_argument("--ttl-minutes", type=int, default=60)
+    work_parser.add_argument("--profile", default="default")
+    work_parser.add_argument("--output")
+    work_parser.add_argument(
+        "--no-checkpoint",
+        action="store_true",
+        help="Skip the automatic workspace checkpoint before starting work.",
+    )
+    work_parser.add_argument(
+        "--checkpoint-message",
+        help="Override the automatic checkpoint commit message used by `hive work`.",
+    )
+    finish_parser = subparsers.add_parser("finish")
+    finish_parser.add_argument("run_id")
+    finish_parser.add_argument("--owner")
+    finish_parser.add_argument(
+        "--no-promote",
+        action="store_true",
+        help="Accept the run without merging it back into the workspace branch.",
+    )
+    finish_parser.add_argument(
+        "--keep-worktree",
+        action="store_true",
+        help="Keep the linked run worktree after promotion.",
+    )
     search_parser = subparsers.add_parser("search")
     search_parser.add_argument("query")
     search_parser.add_argument("--scope", action="append")
@@ -317,9 +357,11 @@ def build_parser() -> argparse.ArgumentParser:
     memory_observe.add_argument("--transcript-path")
     memory_observe.add_argument("--note")
     memory_observe.add_argument("--scope", choices=["project", "global"], default="project")
+    memory_observe.add_argument("--project")
     memory_observe.add_argument("--harness")
     memory_reflect = memory_subparsers.add_parser("reflect")
     memory_reflect.add_argument("--scope", choices=["project", "global"], default="project")
+    memory_reflect.add_argument("--project")
     memory_search = memory_subparsers.add_parser("search")
     memory_search.add_argument("query")
     memory_search.add_argument("--scope", choices=["project", "global", "all"], default="all")
@@ -342,6 +384,32 @@ def build_parser() -> argparse.ArgumentParser:
     sync_parser = subparsers.add_parser("sync")
     sync_subparsers = sync_parser.add_subparsers(dest="sync_command")
     sync_subparsers.add_parser("projections")
+
+    portfolio_parser = subparsers.add_parser("portfolio")
+    portfolio_subparsers = portfolio_parser.add_subparsers(dest="portfolio_command")
+    portfolio_subparsers.add_parser("status")
+    portfolio_steer = portfolio_subparsers.add_parser("steer")
+    portfolio_steer.add_argument("project_ref")
+    portfolio_steer.add_argument("--pause", action="store_true")
+    portfolio_steer.add_argument("--resume", action="store_true")
+    portfolio_steer.add_argument("--focus-task")
+    portfolio_steer.add_argument("--clear-focus", action="store_true")
+    portfolio_steer.add_argument("--boost", type=int)
+    portfolio_steer.add_argument("--force-review", action="store_true")
+    portfolio_steer.add_argument("--clear-force-review", action="store_true")
+    portfolio_steer.add_argument("--note")
+    portfolio_steer.add_argument("--owner")
+    portfolio_tick = portfolio_subparsers.add_parser("tick")
+    portfolio_tick.add_argument(
+        "--mode",
+        choices=["recommend", "start", "review", "cleanup"],
+        default="recommend",
+    )
+    portfolio_tick.add_argument("--project-id")
+    portfolio_tick.add_argument("--owner")
+    portfolio_tick.add_argument("--profile", default="default")
+    portfolio_tick.add_argument("--output")
+    portfolio_tick.add_argument("--run-id")
 
     migrate_parser = subparsers.add_parser("migrate")
     migrate_subparsers = migrate_parser.add_subparsers(dest="migrate_command")
@@ -514,6 +582,116 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "doctor":
         return _emit(_doctor_payload(root), args.json)
+
+    if args.command == "next":
+        try:
+            recommendation = recommend_next_task(root, project_id=args.project_id)
+            if recommendation is None:
+                return _emit(
+                    {
+                        "ok": True,
+                        "message": "No ready task is available right now.",
+                        "recommendation": None,
+                    },
+                    args.json,
+                )
+            recommendation_payload = cast(dict[str, Any], recommendation)
+            recommendation_task = cast(dict[str, Any], recommendation_payload["task"])
+            return _emit(
+                {
+                    "ok": True,
+                    "message": (
+                        "Recommended next task "
+                        f"{recommendation_task['id']} for project "
+                        f"{recommendation_task['project_id']}"
+                    ),
+                    "task": recommendation_task,
+                    "project": recommendation_payload["project"],
+                    "recommendation": recommendation_payload,
+                    "next_steps": [
+                        f"hive work {recommendation_task['id']} --owner <your-name>",
+                    ],
+                },
+                args.json,
+            )
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
+
+    if args.command == "work":
+        try:
+            payload = work_on_task(
+                root,
+                task_id=args.task_id,
+                project_id=args.project_id,
+                owner=args.owner,
+                ttl_minutes=args.ttl_minutes,
+                profile=args.profile,
+                output_path=args.output,
+                checkpoint=not args.no_checkpoint,
+                checkpoint_message=args.checkpoint_message,
+            )
+            response = {
+                "ok": True,
+                "message": (
+                    f"Started governed work on {payload['task']['id']} "
+                    f"with run {payload['run']['id']}"
+                ),
+                "task": payload["task"],
+                "run": payload["run"],
+                "project": payload["project"],
+                "recommendation": payload["recommendation"],
+                "checkpoint": payload["checkpoint"],
+                "output_path": payload["output_path"],
+            }
+            if payload["output_path"] is None:
+                response["rendered_context"] = payload["rendered_context"]
+            return _emit(response, args.json)
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
+
+    if args.command == "finish":
+        try:
+            payload = finish_run_flow(
+                root,
+                args.run_id,
+                promote=not args.no_promote,
+                cleanup_worktree=not args.keep_worktree,
+                actor=args.owner,
+            )
+            return _emit(
+                {
+                    "ok": True,
+                    "message": (
+                        f"Finished run {args.run_id} with action {payload['action']!r}"
+                    ),
+                    "run": payload["run"],
+                    "evaluation": payload["evaluation"],
+                    "promotion_decision": payload["promotion_decision"],
+                    "promotion": payload["promotion"],
+                    "action": payload["action"],
+                },
+                args.json,
+            )
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
 
     if args.command == "dashboard":
         return _launch_dashboard(root, args.host, args.port, args.json)
@@ -827,6 +1005,7 @@ def main(argv: list[str] | None = None) -> int:
                     note=args.note,
                     scope=args.scope,
                     harness=args.harness,
+                    project_id=args.project,
                 )
                 rebuild_cache(root)
                 return _emit(
@@ -839,7 +1018,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if args.memory_command == "reflect":
                 output_paths = {
-                    key: str(value) for key, value in reflect(root, scope=args.scope).items()
+                    key: str(value)
+                    for key, value in reflect(root, scope=args.scope, project_id=args.project).items()
                 }
                 rebuild_cache(root)
                 return _emit(
@@ -879,10 +1059,10 @@ def main(argv: list[str] | None = None) -> int:
                     profile=args.profile,
                     query=args.query,
                     task_id=args.task,
-                    refresh=False,
+                    refresh=True,
                 )
                 if args.output:
-                    output_path = Path(args.output).expanduser().resolve()
+                    output_path = resolve_workspace_path(root, args.output)
                     output_path.parent.mkdir(parents=True, exist_ok=True)
                     output_path.write_text(str(bundle["rendered"]), encoding="utf-8")
                     return _emit(
@@ -907,10 +1087,10 @@ def main(argv: list[str] | None = None) -> int:
                     root,
                     project_ref=args.project,
                     mode="handoff",
-                    refresh=False,
+                    refresh=True,
                 )
                 if args.output:
-                    output_path = Path(args.output).expanduser().resolve()
+                    output_path = resolve_workspace_path(root, args.output)
                     output_path.parent.mkdir(parents=True, exist_ok=True)
                     output_path.write_text(str(bundle["rendered"]), encoding="utf-8")
                     return _emit(
@@ -970,6 +1150,76 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "deps":
         return _emit({"ok": True, "summary": dependency_summary(root)}, args.json)
+
+    if args.command == "portfolio":
+        try:
+            if args.portfolio_command == "status":
+                payload = portfolio_status(root)
+                return _emit(
+                    {
+                        "ok": True,
+                        "message": "Loaded portfolio status",
+                        "projects": payload["projects"],
+                        "tasks": payload["ready_tasks"],
+                        "active_runs": payload["active_runs"],
+                        "evaluating_runs": payload["evaluating_runs"],
+                        "recommendation": payload["recommended_next"],
+                        "recent_events": payload["recent_events"],
+                    },
+                    args.json,
+                )
+            if args.portfolio_command == "steer":
+                if args.pause and args.resume:
+                    raise ValueError("Use either --pause or --resume, not both.")
+                if args.force_review and args.clear_force_review:
+                    raise ValueError(
+                        "Use either --force-review or --clear-force-review, not both."
+                    )
+                payload = steer_project(
+                    root,
+                    args.project_ref,
+                    paused=True if args.pause else False if args.resume else None,
+                    focus_task_id=args.focus_task,
+                    clear_focus=args.clear_focus,
+                    boost=args.boost,
+                    force_review=(
+                        True
+                        if args.force_review
+                        else False if args.clear_force_review else None
+                    ),
+                    note=args.note,
+                    actor=args.owner,
+                )
+                return _emit(
+                    {
+                        "ok": True,
+                        "message": f"Updated steering for {payload['project']['id']}",
+                        "project": payload["project"],
+                        "steering": payload["steering"],
+                    },
+                    args.json,
+                )
+            if args.portfolio_command == "tick":
+                payload = tick_portfolio(
+                    root,
+                    mode=args.mode,
+                    owner=args.owner,
+                    project_id=args.project_id,
+                    profile=args.profile,
+                    output_path=args.output,
+                    run_id=args.run_id,
+                )
+                response = {"ok": True, "message": f"Completed portfolio tick in {args.mode} mode"}
+                response.update(payload)
+                return _emit(response, args.json)
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
 
     parser.print_help()
     return 0

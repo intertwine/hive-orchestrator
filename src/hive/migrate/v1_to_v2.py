@@ -8,7 +8,7 @@ import re
 
 from src.hive.clock import utc_now_iso
 from src.hive.constants import PRIORITY_MAP
-from src.hive.runs.engine import generate_program_stub
+from src.hive.scaffold import generate_program_stub
 from src.hive.store.events import emit_event, event_file
 from src.hive.store.layout import ensure_layout
 from src.hive.store.projects import discover_projects, ensure_project_id
@@ -19,11 +19,17 @@ from src.security import safe_dump_agency_md
 CHECKBOX_RE = re.compile(r"^(?P<indent>\s*)[-*]\s+\[(?P<checked>[ xX])\]\s+(?P<title>.+?)\s*$")
 HEADING_RE = re.compile(r"^(?P<level>#{1,6})\s+(?P<title>.+?)\s*$")
 DEPENDENCY_RE = re.compile(
-    r"\b(?:depends on|blocked by|requires)\s+(?P<target>[^.;]+)",
+    r"\b(?:depends on|blocked by|requires)\s*:?\s+(?P<target>[^.;]+)",
     re.IGNORECASE,
 )
 DUPLICATE_RE = re.compile(r"\bduplicate of\s+(?P<target>[^.;]+)", re.IGNORECASE)
 SUPERSEDES_RE = re.compile(r"\bsupersedes\s+(?P<target>[^.;]+)", re.IGNORECASE)
+INLINE_RELATION_SUFFIX_RE = re.compile(
+    r"^(?P<title>.+?)\s*\((?P<relation>"
+    r"(?:depends on|blocked by|requires|duplicate of|supersedes)\s*:?\s+[^()]+"
+    r")\)\s*$",
+    re.IGNORECASE,
+)
 SECTION_RELATION_RE = re.compile(
     r"^(?P<src>.+?)\s+(?P<phrase>depends on|blocked by|requires|duplicate of|supersedes)\s+"
     r"(?P<target>[^.;]+)",
@@ -130,6 +136,20 @@ def _clean_relation_target(value: str) -> str:
     target = target.rstrip(").,:;")
     target = target.removeprefix("task ").strip()
     return target
+
+
+def _split_inline_relation_suffixes(title: str, *, line: int) -> tuple[str, list[RelationHint]]:
+    """Strip trailing parenthetical relation hints from a legacy task title."""
+    cleaned_title = title.strip()
+    relation_hints: list[RelationHint] = []
+    while True:
+        match = INLINE_RELATION_SUFFIX_RE.match(cleaned_title)
+        if not match:
+            break
+        relation_text = match.group("relation").strip()
+        relation_hints = _extract_relation_hints(relation_text, [], line=line) + relation_hints
+        cleaned_title = match.group("title").strip()
+    return cleaned_title or title.strip(), relation_hints
 
 
 def _project_matches_filter(project, project_filter: str | None, root: Path) -> bool:
@@ -311,7 +331,10 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
         checkbox_match = CHECKBOX_RE.match(raw_line)
         if checkbox_match:
             indent = len(checkbox_match.group("indent").replace("\t", "  "))
-            title = checkbox_match.group("title").strip()
+            title, inline_relation_hints = _split_inline_relation_suffixes(
+                checkbox_match.group("title").strip(),
+                line=line_number,
+            )
             checked = checkbox_match.group("checked").lower() == "x"
             blocked_heading = any("blocked" in heading.casefold() for _, heading in heading_stack)
             status = (
@@ -347,6 +370,7 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
                 status=status,
                 heading_path=[heading for _, heading in heading_stack],
                 parent_line=parent_line,
+                relation_hints=inline_relation_hints,
             )
             parsed_tasks.append(imported)
             active_task = imported
@@ -392,7 +416,9 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
         active_task = None
 
     for imported in parsed_tasks:
-        imported.relation_hints = _extract_relation_hints(
+        # Inline parenthetical hints are stripped before persistence, so this second pass only
+        # scans the cleaned title plus indented detail lines and does not duplicate those hints.
+        imported.relation_hints = imported.relation_hints + _extract_relation_hints(
             imported.title,
             imported.detail_lines,
             line=imported.line,

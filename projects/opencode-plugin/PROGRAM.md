@@ -22,6 +22,7 @@ commands:
     - terraform apply
 evaluators: []
 promotion:
+  allow_unsafe_without_evaluators: false
   requires_all: []
   review_required_when_paths_match: []
   auto_close_task: false
@@ -37,3 +38,5 @@ Define the autonomous work contract for this project.
 # Constraints
 
 - Fill in safe evaluator commands before autonomous runs.
+- Governed runs stay disabled until you add at least one required evaluator and list it in
+  `promotion.requires_all`.

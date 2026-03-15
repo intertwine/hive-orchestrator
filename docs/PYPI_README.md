@@ -54,21 +54,25 @@ cd my-hive
 git init
 hive quickstart demo --title "Demo project"
 hive workspace checkpoint --message "Bootstrap Hive workspace"
-hive task ready --project-id demo
-hive task claim <task-id> --owner <your-name> --ttl-minutes 60
-hive context startup --project demo --task <task-id>
+hive next --project-id demo
+hive work --project-id demo --owner <your-name> --output SESSION_CONTEXT.md
 ```
 
 That gives you a real workspace, a starter project, a conservative `PROGRAM.md`, and a first task chain with one
 ready task.
 
-If you want the governed run loop right away, continue with:
+If you want the governed run loop right away, edit `projects/demo/PROGRAM.md` first so it has at least one required
+evaluator and lists that evaluator under `promotion.requires_all`. Then continue with:
 
 ```bash
-hive run start <task-id>
-hive run eval <run-id>
-hive run accept <run-id> --promote --cleanup-worktree
+hive work --project-id demo --owner <your-name>
+hive finish <run-id>
 ```
+
+Optional extras stay intentionally small:
+
+- `agent-hive[dashboard]` adds the observe-and-steer dashboard
+- `agent-hive[mcp]` adds the thin `search` + bounded local `execute` adapter
 
 ## Choose The Right Guide
 

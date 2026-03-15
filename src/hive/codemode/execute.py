@@ -1,4 +1,4 @@
-"""Bounded execute surface for thin Code Mode-style integrations."""
+"""Bounded local execute surface for thin Code Mode-style integrations."""
 
 from __future__ import annotations
 
@@ -47,10 +47,11 @@ def execute_code(
     profile: str = "default",
     timeout_seconds: int = 20,
 ) -> dict[str, Any]:
-    """Execute bounded Python code against the typed Hive client.
+    """Execute bounded local Python code against the typed Hive client.
 
-    This MVP isolates time and environment shape, but it does not isolate filesystem access,
-    Python imports, or shelling out through forwarded executables on PATH.
+    This helper constrains wall-clock time, working directory, environment shape, and applies
+    best-effort network denial. It does not provide a full sandbox: filesystem reads, Python
+    imports, and shelling out through forwarded executables on PATH are still possible.
     """
     root = Path(path or Path.cwd()).resolve()
     normalized = language.lower()
@@ -58,7 +59,8 @@ def execute_code(
         return {
             "ok": False,
             "error": (
-                f"Unsupported execute language: {language}. " "MVP currently supports Python only."
+                f"Unsupported execute language: {language}. "
+                "Bounded local execute currently supports Python only."
             ),
             "stdout": "",
             "stderr": "",

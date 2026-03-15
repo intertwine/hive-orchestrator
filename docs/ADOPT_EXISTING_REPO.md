@@ -35,11 +35,12 @@ hive task create \
 Then run the normal loop:
 
 ```bash
-hive task ready --project-id app
-hive task claim <task-id> --owner <your-name> --ttl-minutes 60
-hive context startup --project app --task <task-id>
-hive run start <task-id>
+hive next --project-id app
+hive work --project-id app --owner <your-name> --output SESSION_CONTEXT.md
 ```
+
+That manager loop only works once `projects/app/PROGRAM.md` has at least one required evaluator and lists it under
+`promotion.requires_all`. The default stub keeps governed acceptance turned off until you choose the policy.
 
 If this repository is brand new or you want governed runs immediately after adding Hive, create a first commit for
 the workspace state:
@@ -75,18 +76,13 @@ That keeps the old history available in git while moving the machine state into 
 Once Hive is in the repo, the daily path is the same everywhere:
 
 ```bash
-hive task ready
-hive task claim <task-id> --owner <your-name> --ttl-minutes 60
-hive context startup --project <project-id> --task <task-id>
-hive run start <task-id>
+hive next
+hive work --project-id <project-id> --owner <your-name>
+hive finish <run-id>
 ```
 
-When the run is ready to land, the cleanest supported finish is:
-
-```bash
-hive run eval <run-id>
-hive run accept <run-id> --promote --cleanup-worktree
-```
+`hive work` assumes the project already has a real `PROGRAM.md` contract. If the file is still on the default
+stub, Hive will stop and tell you what to configure.
 
 The short mental model is simple:
 
@@ -99,5 +95,5 @@ The short mental model is simple:
 Start with the base CLI. Add extras only when you need them:
 
 - install `agent-hive[dashboard]` if you want the optional Streamlit dashboard
-- install `agent-hive[mcp]` if you want the thin MCP adapter
+- install `agent-hive[mcp]` if you want the thin `search` + bounded local `execute` adapter
 - install the Claude Code GitHub App only if issue-driven dispatch is part of your workflow

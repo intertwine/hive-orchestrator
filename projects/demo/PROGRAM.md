@@ -24,6 +24,7 @@ commands:
     - terraform apply
 evaluators: []
 promotion:
+  allow_unsafe_without_evaluators: false
   requires_all: []
   review_required_when_paths_match: []
   auto_close_task: false
@@ -42,4 +43,5 @@ Teach the standard Hive loop on a safe, docs-only surface.
 - Prefer docs and narrative updates over product changes in this demo project.
 - This walkthrough is intentionally manual: claiming tasks and closing the loop happens through the CLI,
   so the demo policy does not grant autonomous writes to `.hive/tasks/*.md`.
-- Add evaluator commands only if you are deliberately turning the demo into a governed run example.
+- Governed runs stay disabled until you add at least one required evaluator and list it in
+  `promotion.requires_all`.

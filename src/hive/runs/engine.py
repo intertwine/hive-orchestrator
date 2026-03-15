@@ -20,11 +20,11 @@ from src.hive.runs.worktree import (
     create_run_worktree,
     current_head,
     delete_branch,
+    ensure_clean_repo,
     merge_branch,
     remove_worktree,
     split_dirty_paths,
 )
-from src.hive.scaffold import generate_program_stub
 from src.hive.store.events import emit_event
 from src.hive.store.layout import runs_dir, worktrees_dir
 from src.hive.store.projects import get_project
@@ -37,6 +37,53 @@ def load_program(project_path: Path) -> ProgramRecord:
     parsed = safe_load_agency_md(project_path)
     program = ProgramRecord(path=project_path, body=parsed.content, metadata=dict(parsed.metadata))
     program.validate()
+    return program
+
+
+def _program_sha(path: Path) -> str:
+    return sha256(path.read_bytes()).hexdigest()
+
+
+def _load_run_program(metadata: dict) -> ProgramRecord:
+    """Load the recorded run contract and reject policy drift."""
+    program_path = Path(metadata["program_path"])
+    if not program_path.exists():
+        raise FileNotFoundError(
+            "PROGRAM.md no longer exists for this run. Restore it or start a new run under the "
+            "current project contract."
+        )
+    current_sha = _program_sha(program_path)
+    expected_sha = metadata.get("program_sha256")
+    if expected_sha and current_sha != expected_sha:
+        raise ValueError(
+            "PROGRAM.md changed after this run started. Start a new run so evaluation uses the "
+            "current contract."
+        )
+    return load_program(program_path)
+
+
+def _preflight_program_for_run(root: Path, project_path: Path) -> ProgramRecord:
+    """Validate the run contract and repo state before scaffolding."""
+    issues: list[str] = []
+    if not project_path.exists():
+        raise FileNotFoundError(
+            f"Run start requires PROGRAM.md at {project_path}. "
+            "Create or restore the project contract before starting autonomous work."
+        )
+    try:
+        program = load_program(project_path)
+    except ValueError as exc:
+        program = None
+        issues.append(str(exc))
+
+    try:
+        ensure_clean_repo(root)
+    except ValueError as exc:
+        issues.append(str(exc))
+
+    if issues:
+        raise ValueError("Run start preflight failed:\n- " + "\n- ".join(issues))
+    assert program is not None  # pragma: no cover - guarded by the issues check above.
     return program
 
 
@@ -100,6 +147,26 @@ def _task_title(metadata: dict) -> str:
     return metadata.setdefault("metadata_json", {}).get("task_title") or metadata["task_id"]
 
 
+def _filtered_dirty_paths(root: Path, metadata: dict) -> dict[str, list[str]]:
+    """Filter local manager-generated artifacts out of dirty-path checks."""
+    dirty = split_dirty_paths(root)
+    context_output_path = metadata.get("metadata_json", {}).get("context_output_path")
+    if not context_output_path:
+        return dirty
+    context_path = Path(str(context_output_path)).expanduser()
+    candidates = {str(context_path)}
+    try:
+        candidates.add(str(context_path.resolve()))
+    except OSError:  # pragma: no cover - defensive
+        pass
+    try:
+        candidates.add(str(context_path.resolve().relative_to(root)))
+    except (OSError, ValueError):  # pragma: no cover - path outside repo or unresolved.
+        pass
+    dirty["noncanonical"] = [path for path in dirty["noncanonical"] if path not in candidates]
+    return dirty
+
+
 def _artifact_exists(path_value: str | None) -> bool:
     if not path_value:
         return False
@@ -113,6 +180,7 @@ def _promotion_decision(program: ProgramRecord, metadata: dict) -> dict[str, obj
     evaluation_by_id = {entry["evaluator_id"]: entry for entry in evaluations}
     touched_paths = list(metadata_json.get("touched_paths", []))
     commands = list(metadata_json.get("commands", []))
+    has_changes = bool(metadata_json.get("has_changes", False))
     reject_reasons: list[str] = []
     escalate_reasons: list[str] = []
 
@@ -120,6 +188,16 @@ def _promotion_decision(program: ProgramRecord, metadata: dict) -> dict[str, obj
         reject_reasons.append("summary.md is missing or empty")
     if not _artifact_exists(metadata.get("review_path")):
         reject_reasons.append("review.md is missing or empty")
+    if not has_changes and not program.allow_accept_without_changes():
+        reject_reasons.append(
+            "Run did not produce workspace changes. Add a real change or set "
+            "promotion.allow_accept_without_changes: true for deliberate no-op flows."
+        )
+    if not evaluations and not program.unsafe_without_evaluators():
+        reject_reasons.append(
+            "No evaluator results recorded. Add required evaluators to PROGRAM.md or opt into "
+            "promotion.allow_unsafe_without_evaluators explicitly."
+        )
 
     for result in evaluations:
         if result.get("required", True) and result["status"] != "pass":
@@ -221,7 +299,10 @@ def _write_review_and_summary(metadata: dict, promotion: dict[str, object]) -> N
     if reasons:
         review_lines.extend(f"- {reason}" for reason in reasons)
     else:
-        review_lines.append("- All promotion gates passed.")
+        if promotion["decision"] == "accept":
+            review_lines.append("- All promotion gates passed.")
+        else:
+            review_lines.append("- No promotion gates passed cleanly.")
 
     eval_results = metadata.setdefault("metadata_json", {}).get("evaluations", [])
     if eval_results:
@@ -241,9 +322,7 @@ def start_run(path: str | Path | None, task_id: str) -> RunRecord:
     if task.status not in {"proposed", "ready", "claimed"}:
         raise ValueError(f"Cannot start run on task with status {task.status!r}")
     project = get_project(root, task.project_id)
-    if not project.program_path.exists():
-        generate_program_stub(project.directory)
-    program = load_program(project.program_path)
+    program = _preflight_program_for_run(root, project.program_path)
     executor_name = program.metadata.get("default_executor", "local")
     # Validate executor name eagerly so invalid PROGRAM.md contracts fail before scaffolding.
     get_executor(executor_name)
@@ -314,7 +393,7 @@ def start_run(path: str | Path | None, task_id: str) -> RunRecord:
         branch_name=branch_name,
         worktree_path=str(worktree_path),
         program_path=str(project.program_path),
-        program_sha256=sha256(project.program_path.read_bytes()).hexdigest(),
+        program_sha256=_program_sha(project.program_path),
         plan_path=str(plan_path),
         summary_path=str(summary_path),
         review_path=str(review_path),
@@ -373,7 +452,7 @@ def eval_run(path: str | Path | None, run_id: str) -> dict:
     metadata = load_run(root, run_id)
     if metadata.get("status") != "running":
         raise ValueError(f"Cannot evaluate run with status {metadata.get('status')!r}")
-    program = load_program(Path(metadata["program_path"]))
+    program = _load_run_program(metadata)
     run_directory = _run_dir(root, run_id)
     command_log_path = Path(metadata["command_log_path"])
     timeout_seconds = max(
@@ -426,7 +505,7 @@ def accept_run(path: str | Path | None, run_id: str) -> dict:
     if metadata.get("status") != "evaluating":
         raise ValueError(f"Cannot accept run with status {metadata.get('status')!r}")
 
-    program = load_program(Path(metadata["program_path"]))
+    program = _load_run_program(metadata)
     # Re-evaluate at accept time because worktree state may have changed since eval_run.
     metadata_json = _refresh_workspace_state(root, metadata)
     promotion = _promotion_decision(program, metadata)
@@ -475,7 +554,7 @@ def promote_run(
     if not branch_name:
         raise ValueError(f"Run {run_id} does not have a mergeable branch")
 
-    dirty = split_dirty_paths(root)
+    dirty = _filtered_dirty_paths(root, metadata)
     if dirty["noncanonical"]:
         details = ", ".join(dirty["noncanonical"][:5])
         raise ValueError(

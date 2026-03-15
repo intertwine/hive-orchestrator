@@ -1,8 +1,9 @@
-"""Workspace and API search surfaces for Hive 2.0."""
+"""Workspace and API search surfaces for Hive 2.1."""
 
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from pathlib import Path
 from typing import Iterable
@@ -44,19 +45,24 @@ COMMAND_DOCS = (
         "example": 'hive search "claim a task" --scope api --limit 8 --json',
     },
     {
-        "title": "hive task claim",
-        "summary": "Claim a task lease with an owner and optional TTL.",
-        "example": "hive task claim task_... --owner codex --ttl-minutes 30",
+        "title": "hive next",
+        "summary": "Recommend the next task for an agent-manager loop.",
+        "example": "hive next --json",
+    },
+    {
+        "title": "hive work",
+        "summary": "Claim a task, checkpoint the repo, start a governed run, and build context.",
+        "example": "hive work --project-id demo --owner codex --json",
+    },
+    {
+        "title": "hive finish",
+        "summary": "Evaluate, close, promote, and optionally clean up a run in one step.",
+        "example": "hive finish run_... --owner codex --json",
     },
     {
         "title": "hive task ready",
         "summary": "Return ranked ready tasks for the workspace or a single project.",
         "example": "hive task ready --project-id demo --limit 5",
-    },
-    {
-        "title": "hive run start",
-        "summary": "Create a run scaffold for a task and move the task into progress.",
-        "example": "hive run start task_... --json",
     },
     {
         "title": "hive run eval",
@@ -70,11 +76,20 @@ COMMAND_DOCS = (
     },
     {
         "title": "hive context startup",
-        "summary": "Assemble startup context from AGENTS, AGENCY, PROGRAM, and memory.",
+        "summary": "Assemble startup context from AGENTS, AGENCY, PROGRAM, memory, and recent runs.",
         "example": "hive context startup --project demo --profile light",
     },
 )
 EXAMPLE_TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".py", ".sql", ".txt", ".yaml", ".yml"}
+DOC_TYPE_BOOST = {
+    "task": 60,
+    "memory": 36,
+    "run_summary": 30,
+    "workspace_doc": 26,
+    "program": 16,
+    "agency": 12,
+    "global": 8,
+}
 
 
 def _repo_root() -> Path:
@@ -91,32 +106,155 @@ def _normalized_scopes(scopes: Iterable[str] | None) -> set[str]:
     return expanded
 
 
-def _score(text: str, query: str) -> int:
-    haystack = text.lower()
-    terms = [term for term in query.lower().split() if term]
+def _query_terms(query: str) -> list[str]:
+    return [term.casefold() for term in re.findall(r"[A-Za-z0-9_-]+", query) if term.strip()]
+
+
+def _fts_query(query: str) -> str:
+    terms = _query_terms(query)
     if not terms:
-        return 0
+        return ""
+    return " OR ".join(f'"{term}"*' for term in terms)
+
+
+def _count_term_hits(text: str, terms: list[str]) -> int:
+    haystack = text.casefold()
     return sum(haystack.count(term) for term in terms)
 
 
 def _snippet(text: str, query: str, width: int = 220) -> str:
-    lowered = text.lower()
-    terms = [term for term in query.lower().split() if term]
+    lowered = text.casefold()
+    terms = _query_terms(query)
     first_index = min((lowered.find(term) for term in terms if lowered.find(term) >= 0), default=0)
     start = max(0, first_index - 40)
     end = min(len(text), start + width)
     return text[start:end].strip()
 
 
-def _search_cache(root: Path, query: str, scopes: set[str], limit: int) -> list[dict[str, object]]:
-    db_path = root / ".hive" / "cache" / "index.sqlite"
-    if not db_path.exists():
-        db_path = rebuild_cache(root)
+def _match_reasons(
+    *,
+    doc_type: str,
+    title: str,
+    body: str,
+    query: str,
+    metadata: dict[str, object],
+) -> list[str]:
+    terms = _query_terms(query)
+    title_hits = [term for term in terms if term in title.casefold()]
+    body_hits = [term for term in terms if term in body.casefold() and term not in title_hits]
+    reasons: list[str] = []
+    if doc_type == "task":
+        reasons.append("canonical task record")
+    elif doc_type == "memory":
+        reasons.append("project memory record")
+    elif doc_type == "run_summary":
+        reasons.append("accepted run summary")
+    elif doc_type == "workspace_doc":
+        reasons.append("workspace document")
+    if title_hits:
+        reasons.append("matched title terms: " + ", ".join(title_hits))
+    acceptance_hits = [
+        term
+        for term in terms
+        if term in " ".join(str(item) for item in metadata.get("acceptance", [])).casefold()
+    ]
+    if acceptance_hits:
+        reasons.append("matched acceptance criteria")
+    file_hits = [
+        term
+        for term in terms
+        if term in " ".join(str(item) for item in metadata.get("relevant_files", [])).casefold()
+    ]
+    if file_hits:
+        reasons.append("matched relevant files")
+    note_hits = [
+        term
+        for term in terms
+        if term
+        in " ".join(str(metadata.get(key, "")) for key in ("summary", "notes", "history")).casefold()
+    ]
+    if note_hits and not body_hits:
+        reasons.append("matched task narrative")
+    if body_hits:
+        reasons.append("matched body terms: " + ", ".join(body_hits[:4]))
+    if metadata.get("project_id") and not metadata.get("shared_project_memory"):
+        reasons.append("project-local")
+    if metadata.get("project_id"):
+        reasons.append(f"project: {metadata['project_id']}")
+    return reasons or ["matched indexed workspace content"]
+
+
+def _cache_result(
+    *,
+    doc_type: str,
+    path: str,
+    title: str,
+    body: str,
+    metadata: dict[str, object],
+    fts_rank: float,
+    query: str,
+) -> dict[str, object]:
+    terms = _query_terms(query)
+    title_hits = _count_term_hits(title, terms)
+    body_hits = _count_term_hits(body, terms)
+    phrase_bonus = 12 if query.casefold() in body.casefold() else 0
+    score = DOC_TYPE_BOOST.get(doc_type, 6) + (title_hits * 14) + (body_hits * 3) + phrase_bonus
+    score += max(0.0, 12.0 - min(abs(fts_rank), 12.0))
+    reasons = _match_reasons(
+        doc_type=doc_type,
+        title=title,
+        body=body,
+        query=query,
+        metadata=metadata,
+    )
+    scope = str(metadata.get("scope") or ("project" if doc_type in {"task", "run_summary"} else ""))
+    return {
+        "kind": doc_type,
+        "title": title,
+        "path": path,
+        "score": round(score, 3),
+        "snippet": _snippet(body, query),
+        "why": reasons,
+        "matches": reasons,
+        "metadata": metadata,
+        **({"scope": scope} if scope else {}),
+    }
+
+
+def _matches_project_filter(metadata: dict[str, object], project_id: str | None) -> bool:
+    if not project_id:
+        return True
+    if metadata.get("scope") == "global":
+        return True
+    if metadata.get("project_id") == project_id:
+        return True
+    return bool(metadata.get("shared_project_memory"))
+
+
+def _matches_task_filter(metadata: dict[str, object], task_id: str | None) -> bool:
+    if not task_id:
+        return True
+    return metadata.get("task_id") == task_id or metadata.get("entity_id") == task_id
+
+
+def search_cache_documents(
+    root: Path,
+    query: str,
+    *,
+    scopes: Iterable[str] | None = None,
+    limit: int = 8,
+    project_id: str | None = None,
+    task_id: str | None = None,
+) -> list[dict[str, object]]:
+    """Search cache-backed workspace documents using SQLite FTS."""
+    normalized_scopes = _normalized_scopes(scopes)
+    db_path = rebuild_cache(root)
 
     doc_type_map = {
         "task": "task",
         "run": "run_summary",
         "memory": "memory",
+        "doc": "workspace_doc",
         "program": "program",
         "agency": "agency",
         "global": "global",
@@ -124,53 +262,79 @@ def _search_cache(root: Path, query: str, scopes: set[str], limit: int) -> list[
     doc_types = {
         doc_type
         for scope, doc_type in doc_type_map.items()
-        if scope in scopes or "workspace" in scopes
+        if scope in normalized_scopes or "workspace" in normalized_scopes
     }
     if not doc_types:
         return []
 
-    placeholders = ",".join("?" for _ in sorted(doc_types))
+    fts_query = _fts_query(query)
+    if not fts_query:
+        return []
+
+    where_clause = f"d.doc_type IN ({','.join('?' for _ in sorted(doc_types))})"
+    params: list[object] = [fts_query, *sorted(doc_types)]
+
     connection = sqlite3.connect(db_path)
     try:
-        # NOTE: This still fetches all matching doc types before scoring in Python.
-        # Move to SQLite FTS5 or at least a LIKE pre-filter once workspace corpora get larger.
         rows = list(
             connection.execute(
                 f"""
-                SELECT doc_type, path, title, body, metadata_json
-                FROM search_docs
-                WHERE doc_type IN ({placeholders})
+                SELECT
+                  d.doc_type,
+                  d.path,
+                  d.title,
+                  d.body,
+                  d.metadata_json,
+                  bm25(search_docs_fts, 2.0, 1.0) AS fts_rank
+                FROM search_docs_fts
+                JOIN search_docs d ON d.rowid = search_docs_fts.rowid
+                WHERE search_docs_fts MATCH ?
+                  AND {where_clause}
+                ORDER BY fts_rank ASC, d.updated_at DESC
+                LIMIT ?
                 """,
-                tuple(sorted(doc_types)),
+                (*params, max(limit * 8, 24)),
             )
         )
     finally:
         connection.close()
 
-    results: list[dict[str, object]] = []
-    for doc_type, path, title, body, metadata_json in rows:
-        title_score = _score(title, query)
-        body_score = _score(body, query)
-        # Weight title hits heavily, then use a small post-filter boost so canonical tasks
-        # outrank tied projection docs without letting zero-match tasks into the result set.
-        score = (title_score * 4) + body_score
-        if not score:
-            continue
-        if doc_type == "task":
-            score += 2
+    deduped: list[dict[str, object]] = []
+    seen_keys: set[str] = set()
+    for doc_type, path, title, body, metadata_json, fts_rank in rows:
         metadata = json.loads(metadata_json or "{}")
-        snippet = _snippet(body, query)
-        results.append(
-            {
-                "kind": doc_type,
-                "title": title,
-                "path": path,
-                "score": score,
-                "snippet": snippet,
-                "metadata": metadata,
-            }
+        if not _matches_project_filter(metadata, project_id):
+            continue
+        if not _matches_task_filter(metadata, task_id):
+            continue
+        entity_key = str(metadata.get("entity_key") or f"{doc_type}:{path}")
+        if entity_key in seen_keys:
+            continue
+        seen_keys.add(entity_key)
+        deduped.append(
+            _cache_result(
+                doc_type=doc_type,
+                path=path,
+                title=title,
+                body=body,
+                metadata=metadata,
+                fts_rank=float(fts_rank),
+                query=query,
+            )
         )
-    return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[:limit]
+
+    deduped.sort(
+        key=lambda item: (-float(item["score"]), str(item["title"]).lower(), str(item["path"]))
+    )
+    return deduped[:limit]
+
+
+def _score(text: str, query: str) -> int:
+    haystack = text.casefold()
+    terms = _query_terms(query)
+    if not terms:
+        return 0
+    return sum(haystack.count(term) for term in terms)
 
 
 def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str, object]]:
@@ -191,6 +355,8 @@ def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str,
                 "score": score,
                 "summary": command["summary"],
                 "example": command["example"],
+                "why": ["command reference", "matched command docs"],
+                "matches": ["command reference", "matched command docs"],
             }
         )
 
@@ -204,14 +370,15 @@ def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str,
         score = _score(body, query)
         if not score:
             continue
-        snippet = _snippet(body, query)
         results.append(
             {
                 "kind": kind,
                 "title": title,
                 "path": str(file_path),
                 "score": score,
-                "snippet": snippet,
+                "snippet": _snippet(body, query),
+                "why": [f"matched {kind} docs"],
+                "matches": [f"matched {kind} docs"],
             }
         )
 
@@ -238,14 +405,15 @@ def _search_examples(query: str, scopes: set[str], limit: int) -> list[dict[str,
         score = _score(body, query)
         if not score:
             continue
-        snippet = _snippet(body, query)
         results.append(
             {
                 "kind": "example",
                 "title": str(file_path.relative_to(examples_root)),
                 "path": str(file_path),
                 "score": score,
-                "snippet": snippet,
+                "snippet": _snippet(body, query),
+                "why": ["matched spec example"],
+                "matches": ["matched spec example"],
             }
         )
     return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[:limit]
@@ -265,13 +433,14 @@ def _search_project_summary(
     graph_text = json.dumps(workspace_graph, indent=2, sort_keys=True)
     graph_score = _score(graph_text, query)
     if graph_score:
-        graph_snippet = _snippet(graph_text, query)
         results.append(
             {
                 "kind": "project",
                 "title": "Workspace Graph Summary",
                 "score": graph_score,
-                "snippet": graph_snippet,
+                "snippet": _snippet(graph_text, query),
+                "why": ["matched project graph summary"],
+                "matches": ["matched project graph summary"],
             }
         )
 
@@ -280,14 +449,15 @@ def _search_project_summary(
         score = _score(body, query)
         if not score:
             continue
-        snippet = _snippet(body, query)
         results.append(
             {
                 "kind": "project",
                 "title": project["title"],
                 "score": score,
-                "snippet": snippet,
+                "snippet": _snippet(body, query),
                 "metadata": project,
+                "why": ["matched project summary"],
+                "matches": ["matched project summary"],
             }
         )
 
@@ -300,17 +470,60 @@ def search_workspace(
     *,
     scopes: Iterable[str] | None = None,
     limit: int = 8,
+    project_id: str | None = None,
+    task_id: str | None = None,
 ) -> list[dict[str, object]]:
     """Search workspace state, API docs, examples, and project summaries."""
     root = Path(path or Path.cwd()).resolve()
     normalized_scopes = _normalized_scopes(scopes)
     results: list[dict[str, object]] = []
-    results.extend(_search_cache(root, query, normalized_scopes, limit))
+    results.extend(
+        search_cache_documents(
+            root,
+            query,
+            scopes=normalized_scopes,
+            limit=limit,
+            project_id=project_id,
+            task_id=task_id,
+        )
+    )
     results.extend(_search_api_docs(query, normalized_scopes, limit))
     results.extend(_search_examples(query, normalized_scopes, limit))
     results.extend(_search_project_summary(root, query, normalized_scopes, limit))
-    results.sort(key=lambda item: (-int(item["score"]), str(item["title"])))
-    return results[:limit]
+
+    deduped: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for item in sorted(results, key=lambda result: (-float(result["score"]), str(result["title"]))):
+        metadata = item.get("metadata")
+        key = str(metadata.get("entity_key") if isinstance(metadata, dict) else "")
+        if not key:
+            key = str(item.get("path") or f"{item.get('kind')}:{item.get('title')}")
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped[:limit]
 
 
-__all__ = ["search_workspace"]
+def search_workspace_corpus(
+    path: str | Path | None,
+    query: str,
+    *,
+    scopes: Iterable[str] | None = None,
+    limit: int = 8,
+    project_id: str | None = None,
+    task_id: str | None = None,
+) -> list[dict[str, object]]:
+    """Search only the cache-backed canonical workspace corpus."""
+    root = Path(path or Path.cwd()).resolve()
+    return search_cache_documents(
+        root,
+        query,
+        scopes=scopes,
+        limit=limit,
+        project_id=project_id,
+        task_id=task_id,
+    )
+
+
+__all__ = ["search_cache_documents", "search_workspace", "search_workspace_corpus"]

@@ -5,13 +5,22 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.hive.memory.search import iter_accepted_runs, search
-from src.hive.store.layout import global_memory_dir, memory_project_dir
+from src.hive.store.layout import global_memory_dir, project_memory_candidates
 from src.hive.store.projects import get_project
 from src.hive.store.task_files import get_task
 
 
 def _load_if_exists(path: Path) -> str:
     return path.read_text(encoding="utf-8").strip() if path.exists() else ""
+
+
+def _memory_text(root: Path, project_id: str, filename: str) -> str:
+    texts = []
+    for directory in project_memory_candidates(root, project_id=project_id):
+        candidate = directory / filename
+        if candidate.exists():
+            texts.append(_load_if_exists(candidate))
+    return "\n\n".join(text for text in texts if text)
 
 
 def _recent_accepted_runs(root: Path, *, project_id: str, limit: int) -> list[dict[str, str]]:
@@ -44,10 +53,10 @@ def startup_context(
     """Assemble startup context in the v2 order."""
     root = Path(path or Path.cwd()).resolve()
     project = get_project(root, project_id)
-    memory_root = memory_project_dir(root)
     agents_text = _load_if_exists(root / "AGENTS.md")
-    profile_text = _load_if_exists(memory_root / "profile.md")
-    active_text = _load_if_exists(memory_root / "active.md")
+    profile_text = _memory_text(root, project_id, "profile.md")
+    active_text = _memory_text(root, project_id, "active.md")
+    reflections_text = _memory_text(root, project_id, "reflections.md")
     global_profile_text = _load_if_exists(global_memory_dir() / "profile.md")
     global_active_text = _load_if_exists(global_memory_dir() / "active.md")
     program_text = _load_if_exists(project.program_path)
@@ -79,12 +88,15 @@ def startup_context(
         {"name": "project-profile", "content": profile_text},
         {"name": "project-active", "content": active_text},
     ]
+    if profile == "deep" and reflections_text:
+        sections.append({"name": "project-reflections", "content": reflections_text})
     if search_hits:
         sections.append(
             {
                 "name": "search",
                 "content": "\n".join(
-                    f"- [{hit['kind']}/{hit['scope']}] {hit['title']}: {hit['snippet']}"
+                    f"- [{hit['kind']}/{hit['scope']}] {hit['title']} "
+                    f"({', '.join(hit.get('why', [])) or 'relevance match'}): {hit['snippet']}"
                     for hit in search_hits
                 ),
             }

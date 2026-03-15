@@ -59,6 +59,10 @@ def _program_markdown(
     escalation_paths: list[str] | None = None,
     escalation_commands: list[str] | None = None,
     executor: str = "local",
+    evaluators: list[dict[str, object]] | None = None,
+    requires_all: list[str] | None = None,
+    allow_unsafe_without_evaluators: bool = False,
+    allow_accept_without_changes: bool = False,
 ) -> str:
     allowed = allow_commands if allow_commands is not None else [command]
     allowed_paths = allow_paths if allow_paths is not None else ["src/**", "tests/**", "docs/**"]
@@ -66,6 +70,14 @@ def _program_markdown(
     review_required = review_paths if review_paths is not None else []
     escalate_when_paths = escalation_paths if escalation_paths is not None else []
     escalate_when_commands = escalation_commands if escalation_commands is not None else []
+    configured_evaluators = evaluators
+    if configured_evaluators is None:
+        configured_evaluators = [{"id": "unit", "command": command, "required": True}]
+    promotion_requires = requires_all if requires_all is not None else [
+        str(evaluator["id"])
+        for evaluator in configured_evaluators
+        if bool(evaluator.get("required", True))
+    ]
     allow_block = (
         "\n" + "\n".join(f"    - {json.dumps(item)}" for item in allowed) if allowed else " []"
     )
@@ -90,6 +102,24 @@ def _program_markdown(
         if escalate_when_commands
         else " []"
     )
+    if configured_evaluators:
+        evaluator_lines: list[str] = []
+        for evaluator in configured_evaluators:
+            evaluator_lines.extend(
+                [
+                    f"  - id: {evaluator['id']}",
+                    f"    command: {json.dumps(str(evaluator['command']))}",
+                    f"    required: {str(bool(evaluator.get('required', True))).lower()}",
+                ]
+            )
+        evaluators_block = "\n" + "\n".join(evaluator_lines)
+    else:
+        evaluators_block = " []"
+    requires_all_block = (
+        "\n" + "\n".join(f"    - {json.dumps(item)}" for item in promotion_requires)
+        if promotion_requires
+        else " []"
+    )
     return f"""---
 program_version: 1
 mode: workflow
@@ -105,13 +135,11 @@ paths:
 commands:
   allow:{allow_block}
   deny: []
-evaluators:
-  - id: unit
-    command: {json.dumps(command)}
-    required: true
+evaluators:{evaluators_block}
 promotion:
-  requires_all:
-    - unit
+  allow_unsafe_without_evaluators: {str(allow_unsafe_without_evaluators).lower()}
+  allow_accept_without_changes: {str(allow_accept_without_changes).lower()}
+  requires_all:{requires_all_block}
   review_required_when_paths_match:{review_paths_block}
   auto_close_task: {str(auto_close).lower()}
 escalation:
@@ -403,6 +431,40 @@ depends on Build foundation
         )
         assert tasks["Ship docs"].status == "ready"
 
+    def test_migration_infers_parenthetical_inline_dependency_hints(self, temp_hive_dir):
+        """Checklist titles with parenthetical dependency hints should import cleanly."""
+        agency_path = Path(temp_hive_dir) / "projects" / "parenthetical-relations" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: parenthetical-relations
+status: active
+priority: medium
+---
+# Parenthetical Relations Project
+
+## Tasks
+- [ ] Define the launch outline
+- [ ] Implement the launch page (depends on: Define the launch outline)
+""",
+            encoding="utf-8",
+        )
+
+        report = migrate_v1_to_v2(temp_hive_dir)
+        tasks = {
+            task.title: task
+            for task in list_tasks(temp_hive_dir)
+            if task.project_id == "parenthetical-relations"
+        }
+
+        assert report.edges_inferred == 1
+        assert "Implement the launch page" in tasks
+        assert "Implement the launch page (depends on: Define the launch outline)" not in tasks
+        assert tasks["Define the launch outline"].edges["blocks"] == [
+            tasks["Implement the launch page"].id
+        ]
+        assert tasks["Implement the launch page"].status == "blocked"
+
     def test_migration_infers_dependency_section_relations(self, temp_hive_dir):
         """Dependency sections should map plain-English relation lines into canonical edges."""
         agency_path = Path(temp_hive_dir) / "projects" / "dependency-section" / "AGENCY.md"
@@ -604,7 +666,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -620,6 +685,104 @@ class TestHiveV2Runs:
         assert plan["branch_name"] == run.branch_name
         assert plan["base_commit"]
 
+    def test_run_start_requires_program_contract_file(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Governed runs should fail cleanly when PROGRAM.md is missing."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        project.program_path.unlink()
+        commit_workspace(temp_hive_dir, "remove program contract")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+
+        with pytest.raises(FileNotFoundError, match="Run start requires PROGRAM.md"):
+            start_run(temp_hive_dir, task_id)
+
+    def test_run_start_rejects_programs_without_required_evaluators(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Default stubs should not allow autonomous runs until evaluators are configured."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        commit_workspace(temp_hive_dir, "prepare unsafe stub workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+
+        with pytest.raises(ValueError, match="at least one required evaluator"):
+            start_run(temp_hive_dir, task_id)
+
+    def test_run_start_rejects_unknown_promotion_evaluators(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Promotion rules should not reference evaluator IDs that do not exist."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, requires_all=["missing-evaluator"]),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare invalid promotion workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+
+        with pytest.raises(ValueError, match="unknown evaluator IDs"):
+            start_run(temp_hive_dir, task_id)
+
+    def test_run_start_rejects_duplicate_evaluator_ids(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Programs should fail validation when evaluator IDs collide."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(
+                command,
+                evaluators=[
+                    {"id": "unit", "command": command, "required": True},
+                    {"id": "unit", "command": command, "required": True},
+                ],
+                requires_all=["unit"],
+            ),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare duplicate evaluator workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+
+        with pytest.raises(ValueError, match="must be unique"):
+            start_run(temp_hive_dir, task_id)
+
+    def test_explicit_unsafe_program_can_still_run_when_opted_in(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Ungated acceptance should require an explicit unsafe opt-in in PROGRAM.md."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        project.program_path.write_text(
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                evaluators=[],
+                requires_all=[],
+                allow_commands=[],
+                allow_unsafe_without_evaluators=True,
+                allow_accept_without_changes=True,
+            ),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare explicit unsafe workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        evaluated = eval_run(temp_hive_dir, run.id)
+        accepted = accept_run(temp_hive_dir, run.id)
+
+        assert evaluated["evaluations"] == []
+        assert evaluated["promotion_decision"]["decision"] == "accept"
+        assert accepted["status"] == "accepted"
+
     def test_run_start_eval_and_accept_respects_auto_close(
         self, temp_hive_dir, temp_project, commit_workspace
     ):
@@ -628,7 +791,8 @@ class TestHiveV2Runs:
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False), encoding="utf-8"
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
+            encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
@@ -641,6 +805,48 @@ class TestHiveV2Runs:
         task = get_task(temp_hive_dir, task_id)
         assert accepted["status"] == "accepted"
         assert task.status == "review"
+
+    def test_eval_run_rejects_noop_runs_by_default(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Passing evaluators should not accept runs that made no workspace changes by default."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare no-op workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        result = eval_run(temp_hive_dir, run.id)
+
+        assert result["promotion_decision"]["decision"] == "reject"
+        assert any(
+            "did not produce workspace changes" in reason
+            for reason in result["promotion_decision"]["reasons"]
+        )
+
+    def test_eval_run_allows_noop_runs_when_program_explicitly_opts_in(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Report-only flows can still opt into no-op acceptance explicitly."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare explicit no-op workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        result = eval_run(temp_hive_dir, run.id)
+
+        assert result["promotion_decision"]["decision"] == "accept"
 
     def test_eval_run_rejects_commands_outside_allow_list(
         self, temp_hive_dir, temp_project, commit_workspace
@@ -663,6 +869,29 @@ class TestHiveV2Runs:
             assert "allow-listed" in str(exc)
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected evaluator allow-list validation to fail")
+
+    def test_eval_run_rejects_program_contract_drift(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Runs should not evaluate against a PROGRAM.md that changed after startup."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare program drift workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        project.program_path.write_text(
+            _program_markdown("python -c \"print('changed')\""),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="PROGRAM.md changed after this run started"):
+            eval_run(temp_hive_dir, run.id)
 
     def test_start_run_rejects_terminal_task_statuses(
         self, temp_hive_dir, temp_project, commit_workspace
@@ -690,7 +919,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -711,7 +943,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -731,7 +966,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -779,7 +1017,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare run workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -930,7 +1171,10 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, allow_accept_without_changes=True),
+            encoding="utf-8",
+        )
         commit_workspace(temp_hive_dir, "prepare cleanup workspace")
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
@@ -1138,7 +1382,7 @@ class TestHiveV2Memory:
         results = search_memory(temp_hive_dir, "nested-aurora", scope="global", limit=8)
 
         assert any(hit["scope"] == "global" for hit in results)
-        assert any(str(hit["title"]).endswith("work/notes.md") for hit in results)
+        assert any(str(hit["title"]).startswith("work/notes.md") for hit in results)
 
     def test_memory_search_and_context_include_recent_accepted_runs(
         self, temp_hive_dir, temp_project, commit_workspace
@@ -1148,7 +1392,7 @@ class TestHiveV2Memory:
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False),
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare memory run workspace")
@@ -1189,7 +1433,7 @@ class TestHiveV2Memory:
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False),
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare relative summary run workspace")
@@ -1231,7 +1475,7 @@ class TestHiveV2Memory:
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False),
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare acceptance order workspace")
@@ -1244,7 +1488,7 @@ class TestHiveV2Memory:
         commit_workspace(temp_hive_dir, "snapshot first accepted run")
         project = discover_projects(temp_hive_dir)[0]
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False),
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "restore program after snapshot")
@@ -1285,7 +1529,7 @@ class TestHiveV2Memory:
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
         project.program_path.write_text(
-            _program_markdown(command, auto_close=False),
+            _program_markdown(command, auto_close=False, allow_accept_without_changes=True),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare workspace search run workspace")
@@ -1834,7 +2078,7 @@ class TestHiveV2Cli:
                 "--project",
                 "projects/launch/demo",
                 "--output",
-                str(output_path),
+                "SESSION_CONTEXT.md",
             ]
         )
         captured = capsys.readouterr()
@@ -2169,7 +2413,10 @@ class TestHiveV2Cli:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         project.program_path.write_text(
-            _program_markdown("python -c \"print('ok')\""),
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare CLI promote workspace")
@@ -2220,7 +2467,10 @@ class TestHiveV2Cli:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         project.program_path.write_text(
-            _program_markdown("python -c \"print('ok')\""),
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare CLI standalone promote workspace")
@@ -2276,7 +2526,10 @@ class TestHiveV2Cli:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         project.program_path.write_text(
-            _program_markdown("python -c \"print('ok')\""),
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
             encoding="utf-8",
         )
         commit_workspace(temp_hive_dir, "prepare CLI terminal cleanup workspace")

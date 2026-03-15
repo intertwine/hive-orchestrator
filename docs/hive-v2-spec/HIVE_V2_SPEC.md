@@ -628,6 +628,9 @@ Search targets:
 7. recent accepted run summaries
 8. optional user-global `profile.md` / `active.md`
 
+The startup-context section keys SHOULD be `project-profile`, `project-active`,
+`global-profile`, and `global-active` so project-local and user-global memory stay distinct.
+
 Profiles:
 - `light`: ~2k tokens
 - `default`: ~4k tokens

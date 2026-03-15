@@ -138,6 +138,10 @@ def check_workspace_state() -> bool:
         return False
 
     ready_payload = run_hive_json(["task", "ready"])
+    if ready_payload is None:
+        print("✗ Could not read ready-task state through `python -m hive task ready --json`")
+        return False
+
     ready_count = len(ready_payload.get("tasks", [])) if ready_payload else 0
     print(
         "✓ Hive workspace detected: "

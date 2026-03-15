@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import tomllib
@@ -111,3 +112,28 @@ def test_pyproject_all_extra_covers_optional_runtime_surfaces():
         "uvicorn>=0.32.0,<1.0.0",
         "weave>=0.51.0,<1.0.0",
     ]
+
+
+def test_opencode_mcp_command_requests_optional_extra():
+    """The OpenCode MCP config should bootstrap the optional runtime dependency."""
+    config_path = Path(__file__).resolve().parents[1] / ".opencode" / "opencode.json"
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert payload["mcp"]["hive"]["command"] == ["uv", "run", "--extra", "mcp", "hive-mcp"]
+
+
+def test_verify_claude_workspace_state_fails_when_ready_check_breaks(monkeypatch, capsys):
+    """Workspace verification should fail if `hive task ready` cannot be read."""
+    module = _load_module("verify_claude_app_script", "scripts/verify_claude_app.py")
+
+    responses = iter(
+        [
+            {"checks": {"layout": True}, "projects": 1, "tasks": 3},
+            None,
+        ]
+    )
+    monkeypatch.setattr(module, "run_hive_json", lambda args: next(responses))
+
+    assert module.check_workspace_state() is False
+    captured = capsys.readouterr()
+    assert "Could not read ready-task state" in captured.out

@@ -3,7 +3,7 @@
   "mcp": {
     "hive": {
       "type": "local",
-      "command": ["uv", "run", "hive-mcp"],
+      "command": ["uv", "run", "--extra", "mcp", "hive-mcp"],
       "enabled": true,
       "environment": {
         "HIVE_BASE_PATH": "."

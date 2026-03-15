@@ -281,6 +281,31 @@ class TestHiveV2Runs:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected rejecting an accepted run to fail")
 
+    def test_reject_run_requeues_claimed_task(self, temp_hive_dir, temp_project):
+        """Rejected runs should return claimed tasks to the ready queue."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        task = get_task(temp_hive_dir, task_id)
+        task.status = "claimed"
+        task.owner = "codex"
+        task.claimed_until = "2099-01-01T00:00:00Z"
+        save_task(temp_hive_dir, task)
+
+        run = start_run(temp_hive_dir, task_id)
+        rejected = reject_run(temp_hive_dir, run.id, reason="retry")
+        reloaded = get_task(temp_hive_dir, task_id)
+        ready_ids = [item["id"] for item in ready_tasks(temp_hive_dir, project_id=project.id)]
+
+        assert rejected["status"] == "rejected"
+        assert reloaded.status == "ready"
+        assert reloaded.owner is None
+        assert reloaded.claimed_until is None
+        assert task_id in ready_ids
+
     def test_escalate_run_rejects_terminal_statuses(self, temp_hive_dir, temp_project):
         """Escalation should not reopen finalized runs or tasks."""
         migrate_v1_to_v2(temp_hive_dir)

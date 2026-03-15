@@ -246,6 +246,11 @@ def reject_run(path: str | Path | None, run_id: str, reason: str | None = None) 
     metadata["status"] = "rejected"
     metadata["finished_at"] = utc_now_iso()
     metadata["exit_reason"] = reason
+    task = get_task(path, metadata["task_id"])
+    task.status = "ready"
+    task.owner = None
+    task.claimed_until = None
+    save_task(path, task)
     return _save_run(path, run_id, metadata)
 
 

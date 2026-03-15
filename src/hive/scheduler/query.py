@@ -73,8 +73,6 @@ def ready_tasks(
         effective_status = _effective_status(task)
         if effective_status not in {"proposed", "ready"}:
             continue
-        if _is_claim_active(task):
-            continue
         blocked = _blocked_by(task, tasks_by_id)
         if blocked or _is_superseded(task, tasks_by_id):
             continue

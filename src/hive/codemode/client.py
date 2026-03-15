@@ -158,17 +158,35 @@ class MemoryModule:
     root: Path
 
     def search(self, input: dict[str, Any]) -> list[dict[str, Any]]:
-        return search_memory(self.root, input["query"])
+        return search_memory(
+            self.root,
+            input["query"],
+            scope=input.get("scope", "all"),
+            project_id=input.get("projectId"),
+            task_id=input.get("taskId"),
+            limit=int(input.get("limit", 8)),
+        )
 
     def observe(self, input: dict[str, Any] | None = None) -> dict[str, Any]:
         input = input or {}
-        path = observe(self.root, transcript_path=input.get("transcriptPath"), note=input.get("note"))
+        path = observe(
+            self.root,
+            transcript_path=input.get("transcriptPath"),
+            note=input.get("note"),
+            scope=input.get("scope", "project"),
+            harness=input.get("harness"),
+        )
         rebuild_cache(self.root)
         return {"path": str(path)}
 
     def reflect(self, input: dict[str, Any] | None = None) -> dict[str, str]:
-        del input
-        return {key: str(value) for key, value in reflect(self.root).items()}
+        input = input or {}
+        payload = {
+            key: str(value)
+            for key, value in reflect(self.root, scope=input.get("scope", "project")).items()
+        }
+        rebuild_cache(self.root)
+        return payload
 
 
 @dataclass
@@ -181,6 +199,7 @@ class ContextModule:
             project_id=input["projectId"],
             profile=input.get("profile", "default"),
             query=input.get("query"),
+            task_id=input.get("taskId"),
         )
 
     def handoff(self, input: dict[str, Any]) -> dict[str, Any]:

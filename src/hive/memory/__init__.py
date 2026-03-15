@@ -1,5 +1,11 @@
 """Observational memory helpers."""
 
+from src.hive.memory.adapters import (
+    claude_session_end,
+    claude_session_start,
+    codex_observe,
+    codex_poll_latest,
+)
 from src.hive.memory.context import handoff_context, startup_context
 from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
@@ -18,4 +24,8 @@ __all__ = [
     "search_memory",
     "startup_context",
     "handoff_context",
+    "claude_session_start",
+    "claude_session_end",
+    "codex_observe",
+    "codex_poll_latest",
 ]

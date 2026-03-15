@@ -144,9 +144,16 @@ def build_parser() -> argparse.ArgumentParser:
     memory_observe = memory_subparsers.add_parser("observe")
     memory_observe.add_argument("--transcript-path")
     memory_observe.add_argument("--note")
-    memory_subparsers.add_parser("reflect")
+    memory_observe.add_argument("--scope", choices=["project", "global"], default="project")
+    memory_observe.add_argument("--harness")
+    memory_reflect = memory_subparsers.add_parser("reflect")
+    memory_reflect.add_argument("--scope", choices=["project", "global"], default="project")
     memory_search = memory_subparsers.add_parser("search")
     memory_search.add_argument("query")
+    memory_search.add_argument("--scope", choices=["project", "global", "all"], default="all")
+    memory_search.add_argument("--project")
+    memory_search.add_argument("--task")
+    memory_search.add_argument("--limit", type=int, default=8)
 
     context_parser = subparsers.add_parser("context")
     context_subparsers = context_parser.add_subparsers(dest="context_command")
@@ -154,6 +161,7 @@ def build_parser() -> argparse.ArgumentParser:
     context_startup.add_argument("--project", required=True)
     context_startup.add_argument("--profile", default="default")
     context_startup.add_argument("--query")
+    context_startup.add_argument("--task")
     context_handoff = context_subparsers.add_parser("handoff")
     context_handoff.add_argument("--project", required=True)
 
@@ -369,18 +377,45 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "memory":
         if args.memory_command == "observe":
-            output_path = observe(root, transcript_path=args.transcript_path, note=args.note)
+            output_path = observe(
+                root,
+                transcript_path=args.transcript_path,
+                note=args.note,
+                scope=args.scope,
+                harness=args.harness,
+            )
+            rebuild_cache(root)
             return _emit({"ok": True, "path": str(output_path)}, args.json)
         if args.memory_command == "reflect":
-            output_paths = {key: str(value) for key, value in reflect(root).items()}
+            output_paths = {
+                key: str(value) for key, value in reflect(root, scope=args.scope).items()
+            }
+            rebuild_cache(root)
             return _emit({"ok": True, "paths": output_paths}, args.json)
         if args.memory_command == "search":
-            return _emit({"ok": True, "results": search(root, args.query)}, args.json)
+            return _emit(
+                {
+                    "ok": True,
+                    "results": search(
+                        root,
+                        args.query,
+                        scope=args.scope,
+                        project_id=args.project,
+                        task_id=args.task,
+                        limit=args.limit,
+                    ),
+                },
+                args.json,
+            )
 
     if args.command == "context":
         if args.context_command == "startup":
             payload = startup_context(
-                root, project_id=args.project, profile=args.profile, query=args.query
+                root,
+                project_id=args.project,
+                profile=args.profile,
+                query=args.query,
+                task_id=args.task,
             )
             return _emit({"ok": True, "context": payload}, args.json)
         if args.context_command == "handoff":

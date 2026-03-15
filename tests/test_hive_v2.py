@@ -8,7 +8,7 @@ import sqlite3
 
 from src.hive.cli.main import main as hive_main
 from src.hive.codemode.execute import MAX_EXECUTE_BYTES
-from src.hive.memory import observe_project, reflect_project, startup_context
+from src.hive.memory import observe_project, reflect_project, search_memory, startup_context
 from src.hive.migrate import migrate_v1_to_v2
 from src.hive.models.task import TaskRecord
 from src.hive.projections.agency_md import RUN_BEGIN, RUN_END, TASK_BEGIN, TASK_END
@@ -19,7 +19,7 @@ from src.hive.runs.engine import escalate_run, reject_run
 from src.hive.search import search_workspace
 from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.cache import _memory_scope_parts, rebuild_cache
-from src.hive.store.layout import ensure_layout, tasks_dir
+from src.hive.store.layout import ensure_layout, global_memory_dir, tasks_dir
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import get_task, link_tasks, save_task
 
@@ -546,7 +546,72 @@ class TestHiveV2Memory:
             temp_hive_dir, project_id=project.id, profile="light", query="migration"
         )
         assert context["project_id"] == project.id
-        assert any(section["name"] == "profile" for section in context["sections"])
+        assert any(section["name"] == "project-profile" for section in context["sections"])
+
+    def test_memory_global_scope_merges_into_startup_context(
+        self, temp_hive_dir, temp_project, monkeypatch
+    ):
+        """Startup context should merge optional user-global memory when present."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        monkeypatch.setenv("XDG_DATA_HOME", str(Path(temp_hive_dir) / ".xdg"))
+
+        observe_project(temp_hive_dir, note="project continuity note")
+        reflect_project(temp_hive_dir)
+        observe_project(temp_hive_dir, note="global-firefly continuity note", scope="global")
+        reflect_project(temp_hive_dir, scope="global")
+
+        context = startup_context(
+            temp_hive_dir,
+            project_id=project.id,
+            profile="default",
+            query="global-firefly",
+        )
+
+        assert (global_memory_dir() / "profile.md").exists()
+        assert any(section["name"] == "global-profile" for section in context["sections"])
+        assert any(hit["scope"] == "global" for hit in context["search_hits"])
+
+    def test_memory_search_and_context_include_recent_accepted_runs(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Memory search and startup context should include accepted run summaries."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(
+            _program_markdown(command, auto_close=False),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare memory run workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        eval_run(temp_hive_dir, run.id)
+        accept_run(temp_hive_dir, run.id)
+        summary_path = Path(run.summary_path)
+        summary_path.write_text("# Summary\n\naccepted-orchid continuity\n", encoding="utf-8")
+        rebuild_cache(temp_hive_dir)
+
+        results = startup_context(
+            temp_hive_dir,
+            project_id=project.id,
+            profile="default",
+            task_id=task_id,
+            query="accepted-orchid",
+        )
+        memory_hits = search_memory(
+            temp_hive_dir,
+            "accepted-orchid",
+            scope="all",
+            project_id=project.id,
+            task_id=task_id,
+            limit=8,
+        )
+
+        assert any(hit["kind"] == "run_summary" for hit in results["search_hits"])
+        assert any(run_summary["id"] == run.id for run_summary in results["recent_runs"])
+        assert any(hit["kind"] == "run_summary" for hit in memory_hits)
 
     def test_cache_rebuild_keeps_memory_docs_unique_per_scope_key(
         self, temp_hive_dir, temp_project
@@ -742,6 +807,40 @@ class TestHiveV2Cli:
         assert payload["version"]
         assert any(result["kind"] == "task" for result in payload["results"])
         assert any(result["kind"] == "memory" for result in payload["results"])
+
+    def test_cli_memory_search_supports_scope_and_task_filters(
+        self, temp_hive_dir, temp_project, monkeypatch, capsys
+    ):
+        """Memory search should accept scope and task-aware query shaping."""
+        migrate_v1_to_v2(temp_hive_dir)
+        monkeypatch.setenv("XDG_DATA_HOME", str(Path(temp_hive_dir) / ".xdg"))
+        project = discover_projects(temp_hive_dir)[0]
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        observe_project(temp_hive_dir, note="global-lantern context", scope="global")
+        reflect_project(temp_hive_dir, scope="global")
+
+        exit_code = hive_main(
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "memory",
+                "search",
+                "global-lantern",
+                "--scope",
+                "global",
+                "--project",
+                project.id,
+                "--task",
+                task_id,
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["results"]
+        assert all(result["scope"] == "global" for result in payload["results"])
 
 
 class TestHiveV2Scheduler:

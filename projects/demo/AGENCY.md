@@ -44,6 +44,8 @@ If you are working from this repository checkout and want a saved prompt bundle,
 - Keep operational truth in `.hive/tasks/*.md`.
 - Keep edits inside `projects/demo/**`, `docs/**`, or `README.md` unless you deliberately widen the exercise.
 - Read `PROGRAM.md` before any autonomous run or evaluator work.
+- The handoff task is lower priority on purpose so the queue teaches "claim first, improve second, wrap up
+  last" instead of presenting all three steps as equally urgent.
 
 <!-- hive:begin task-rollup -->
 ## Task Rollup

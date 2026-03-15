@@ -36,7 +36,29 @@ WORKSPACE_ROOT="${HIVE_BASE_PATH:-$REPO_ROOT}"
 export PROJECT_REF
 export WORKSPACE_ROOT
 
-if ! PROJECT_JSON=$(cd "$REPO_ROOT" && uv run hive --path "$WORKSPACE_ROOT" --json project show "$PROJECT_REF" 2>/dev/null); then
+HIVE_CMD=()
+PYTHON_CMD=()
+if [ -x "$REPO_ROOT/.venv/bin/hive" ]; then
+    HIVE_CMD=("$REPO_ROOT/.venv/bin/hive")
+    PYTHON_CMD=("$REPO_ROOT/.venv/bin/python")
+elif command -v hive >/dev/null 2>&1; then
+    HIVE_CMD=("$(command -v hive)")
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_CMD=("$(command -v python3)")
+    else
+        PYTHON_CMD=("$(command -v python)")
+    fi
+elif command -v uv >/dev/null 2>&1; then
+    export UV_CACHE_DIR="${UV_CACHE_DIR:-$REPO_ROOT/.uv-cache}"
+    HIVE_CMD=(uv run hive)
+    PYTHON_CMD=(uv run python)
+else
+    echo -e "${RED}Error: Could not find a Hive CLI to run${NC}"
+    echo "Install Hive or run make install-dev from the repository root."
+    exit 1
+fi
+
+if ! PROJECT_JSON=$(cd "$REPO_ROOT" && "${HIVE_CMD[@]}" --path "$WORKSPACE_ROOT" --json project show "$PROJECT_REF" 2>/dev/null); then
     echo -e "${RED}Error: Could not resolve project '$PROJECT_REF'${NC}"
     exit 1
 fi
@@ -46,7 +68,7 @@ if [ -z "$PROJECT_JSON" ]; then
     exit 1
 fi
 
-PROJECT_INFO="$(PROJECT_JSON="$PROJECT_JSON" uv run python - <<'PY'
+PROJECT_INFO="$(PROJECT_JSON="$PROJECT_JSON" "${PYTHON_CMD[@]}" - <<'PY'
 import json
 import os
 
@@ -73,7 +95,7 @@ SESSION_FILE="$PROJECT_DIR/SESSION_CONTEXT.md"
 echo -e "${YELLOW}Generating session context...${NC}"
 
 cd "$REPO_ROOT"
-if ! uv run hive --path "$WORKSPACE_ROOT" context startup --project "$PROJECT_REF" --output "$SESSION_FILE" >/dev/null; then
+if ! "${HIVE_CMD[@]}" --path "$WORKSPACE_ROOT" context startup --project "$PROJECT_ID" --output "$SESSION_FILE" >/dev/null; then
     echo -e "${RED}Error: Could not generate startup context for '$PROJECT_REF'${NC}"
     exit 1
 fi
@@ -87,7 +109,7 @@ echo "1. Open $SESSION_FILE"
 echo "2. Copy the entire content"
 echo "3. Paste it into your AI agent (Claude, Grok, Gemini, etc.)"
 echo "4. Let the agent work against the canonical Hive v2 task context"
-echo "5. Review the updated `.hive/tasks/` state and projections when done"
+echo '5. Review the updated `.hive/tasks/` state and projections when done'
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo ""

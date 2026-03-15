@@ -40,4 +40,6 @@ Teach the standard Hive loop on a safe, docs-only surface.
 
 - Keep changes small enough to review in one session or PR.
 - Prefer docs and narrative updates over product changes in this demo project.
+- This walkthrough is intentionally manual: claiming tasks and closing the loop happens through the CLI,
+  so the demo policy does not grant autonomous writes to `.hive/tasks/*.md`.
 - Add evaluator commands only if you are deliberately turning the demo into a governed run example.

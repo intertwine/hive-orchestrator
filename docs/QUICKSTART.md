@@ -63,6 +63,8 @@ Claim the first task:
 hive task claim <task-id> --owner <your-name> --ttl-minutes 60
 ```
 
+Use the task ID that `hive task ready --project-id demo` just returned.
+
 Build a startup context:
 
 ```bash
@@ -78,6 +80,10 @@ hive context startup --project demo --task <task-id> --output SESSION_CONTEXT.md
 That is the normal daily-use loop in Hive. Add `--json` when you are scripting the CLI instead of reading it yourself.
 
 Once you have more than one project and want the cross-project queue, drop `--project-id demo`.
+
+If you are working from a source checkout and want a saved prompt bundle, `make session PROJECT=demo`
+writes the same startup context to `projects/demo/SESSION_CONTEXT.md`. Treat that as a maintainer
+convenience, not the normal installed-user path.
 
 ## The Files That Matter
 

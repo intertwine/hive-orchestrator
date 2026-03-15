@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 
 from src.hive.memory import (
     claude_session_end,
@@ -41,6 +42,13 @@ def test_claude_session_hooks_round_trip_context_and_observation(
     assert Path(finished["paths"]["active"]).exists()
     archived = Path(temp_hive_dir) / ".hive" / "memory" / "transcripts" / "claude"
     assert list(archived.glob("*.md"))
+    cache_path = Path(temp_hive_dir) / ".hive" / "cache" / "index.sqlite"
+    connection = sqlite3.connect(cache_path)
+    try:
+        memory_rows = list(connection.execute("SELECT kind FROM memory_docs"))
+    finally:
+        connection.close()
+    assert memory_rows
 
 
 def test_codex_observe_supports_explicit_notes_and_polling(
@@ -70,6 +78,13 @@ def test_codex_observe_supports_explicit_notes_and_polling(
     archived_files = list(archived.glob("*.md"))
     assert archived_files
     assert any("002.md" in file_path.name for file_path in archived_files)
+    cache_path = Path(temp_hive_dir) / ".hive" / "cache" / "index.sqlite"
+    connection = sqlite3.connect(cache_path)
+    try:
+        memory_rows = list(connection.execute("SELECT kind FROM memory_docs"))
+    finally:
+        connection.close()
+    assert memory_rows
 
 
 def test_codex_poll_latest_returns_none_for_missing_transcript_dir(temp_hive_dir):

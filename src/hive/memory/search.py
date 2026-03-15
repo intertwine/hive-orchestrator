@@ -81,17 +81,44 @@ def _task_docs(root: Path, *, project_id: str | None) -> list[dict[str, object]]
     return docs
 
 
-def _accepted_run_docs(root: Path, *, project_id: str | None) -> list[dict[str, object]]:
-    docs: list[dict[str, object]] = []
+def _resolve_run_artifact_path(root: Path, metadata_path: Path, value: str | None) -> Path | None:
+    if not value:
+        return None
+    candidate = Path(value)
+    if candidate.is_absolute():
+        return candidate
+    metadata_dir = metadata_path.parent
+    run_root = metadata_dir.parent.parent
+    for base in (metadata_dir, run_root, root):
+        resolved = (base / candidate).resolve()
+        if resolved.exists():
+            return resolved
+    return (metadata_dir / candidate).resolve()
+
+
+def iter_accepted_runs(
+    root: Path,
+    *,
+    project_id: str | None,
+) -> list[tuple[dict[str, object], Path, Path]]:
+    """Return accepted run metadata plus resolved summary paths."""
+    accepted: list[tuple[dict[str, object], Path, Path]] = []
     for metadata_path in sorted(runs_dir(root).glob("*/metadata.json")):
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         if metadata.get("status") != "accepted":
             continue
         if project_id and metadata.get("project_id") != project_id:
             continue
-        summary_path = Path(metadata["summary_path"]) if metadata.get("summary_path") else None
+        summary_path = _resolve_run_artifact_path(root, metadata_path, metadata.get("summary_path"))
         if summary_path is None or not summary_path.exists():
             continue
+        accepted.append((metadata, metadata_path, summary_path))
+    return accepted
+
+
+def _accepted_run_docs(root: Path, *, project_id: str | None) -> list[dict[str, object]]:
+    docs: list[dict[str, object]] = []
+    for metadata, _, summary_path in iter_accepted_runs(root, project_id=project_id):
         docs.append(
             {
                 "kind": "run_summary",

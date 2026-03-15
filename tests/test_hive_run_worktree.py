@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import pytest
 
 from src.hive.migrate import migrate_v1_to_v2
 from src.hive.runs.worktree import ensure_clean_repo
@@ -23,6 +24,32 @@ class TestRunWorktree:
 
         ensure_clean_repo(temp_hive_dir)
 
+    def test_ensure_clean_repo_allows_dirty_run_artifacts(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Dirty run metadata should not block subsequent run scaffolding."""
+        del temp_project
+        migrate_v1_to_v2(temp_hive_dir)
+        commit_workspace(temp_hive_dir, "baseline")
+        run_metadata = Path(temp_hive_dir) / ".hive" / "runs" / "run_test" / "metadata.json"
+        run_metadata.parent.mkdir(parents=True, exist_ok=True)
+        run_metadata.write_text('{"id": "run_test"}\n', encoding="utf-8")
+
+        ensure_clean_repo(temp_hive_dir)
+
+    def test_ensure_clean_repo_allows_dirty_worktree_artifacts(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Dirty worktree directories should not block subsequent run scaffolding."""
+        del temp_project
+        migrate_v1_to_v2(temp_hive_dir)
+        commit_workspace(temp_hive_dir, "baseline")
+        worktree_marker = Path(temp_hive_dir) / ".hive" / "worktrees" / "run_test" / ".git"
+        worktree_marker.parent.mkdir(parents=True, exist_ok=True)
+        worktree_marker.write_text("gitdir: /tmp/run_test\n", encoding="utf-8")
+
+        ensure_clean_repo(temp_hive_dir)
+
     def test_ensure_clean_repo_rejects_dirty_noncanonical_paths(
         self, temp_hive_dir, temp_project, commit_workspace
     ):
@@ -34,9 +61,5 @@ class TestRunWorktree:
         source_path.parent.mkdir(parents=True, exist_ok=True)
         source_path.write_text("print('dirty')\n", encoding="utf-8")
 
-        try:
+        with pytest.raises(ValueError, match="Dirty paths"):
             ensure_clean_repo(temp_hive_dir)
-        except ValueError as exc:
-            assert "Dirty paths" in str(exc)
-        else:  # pragma: no cover - defensive
-            raise AssertionError("Expected non-canonical dirty paths to block run setup")

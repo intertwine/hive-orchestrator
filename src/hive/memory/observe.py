@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 from src.hive.clock import utc_now_iso
 from src.hive.ids import new_id

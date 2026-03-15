@@ -47,6 +47,21 @@ def _load_jsonl_entries(file_path: Path) -> list[dict]:
     return entries
 
 
+def _resolve_run_artifact_path(metadata_path: Path, value: str | None, root: Path) -> Path | None:
+    if not value:
+        return None
+    candidate = Path(value)
+    if candidate.is_absolute():
+        return candidate
+    metadata_dir = metadata_path.parent
+    run_root = metadata_dir.parent.parent
+    for base in (metadata_dir, run_root, root):
+        resolved = (base / candidate).resolve()
+        if resolved.exists():
+            return resolved
+    return (metadata_dir / candidate).resolve()
+
+
 def rebuild_cache(path: str | Path | None = None) -> Path:
     """Rebuild the derived SQLite cache from canonical files."""
     root = Path(path or Path.cwd())
@@ -175,8 +190,10 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                 metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
                 if metadata.get("task_id") not in task_by_id:
                     continue
-                summary_path = (
-                    Path(metadata["summary_path"]) if metadata.get("summary_path") else None
+                summary_path = _resolve_run_artifact_path(
+                    metadata_path,
+                    metadata.get("summary_path"),
+                    root,
                 )
                 if summary_path and summary_path.exists():
                     search_docs.append(

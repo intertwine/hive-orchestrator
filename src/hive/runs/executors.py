@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
+from typing import Protocol
 
 from src.hive.clock import utc_now_iso
 
@@ -20,6 +21,13 @@ class CommandResult:
     stdout: str
     stderr: str
     timed_out: bool = False
+
+
+class Executor(Protocol):
+    """Common executor surface for local and remote run backends."""
+
+    def run_command(self, command: str, *, cwd: Path, timeout_seconds: int) -> CommandResult:
+        """Execute a shell command within a run workspace."""
 
 
 class LocalExecutor:
@@ -80,7 +88,7 @@ class GitHubActionsExecutor:
         raise NotImplementedError("The github-actions executor is a stub in this MVP")
 
 
-def get_executor(name: str):
+def get_executor(name: str) -> Executor:
     """Return a named executor implementation."""
     normalized = name.strip().lower()
     if normalized == "local":
@@ -90,4 +98,4 @@ def get_executor(name: str):
     raise ValueError(f"Unsupported executor: {name}")
 
 
-__all__ = ["CommandResult", "GitHubActionsExecutor", "LocalExecutor", "get_executor"]
+__all__ = ["CommandResult", "Executor", "GitHubActionsExecutor", "LocalExecutor", "get_executor"]

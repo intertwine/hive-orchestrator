@@ -38,6 +38,8 @@ cd my-hive
 hive quickstart demo --title "Demo project"
 ```
 
+Use a fresh directory for this walkthrough. If you run these commands inside the Hive repository checkout, `hive task ready` will also see the maintainer tasks that ship with this repo.
+
 That command:
 
 - bootstraps `.hive/`
@@ -52,7 +54,7 @@ You do not need to hand-write any of that to begin.
 ## Find Work
 
 ```bash
-hive task ready
+hive task ready --project-id demo
 ```
 
 Claim the first task:
@@ -74,6 +76,8 @@ hive context startup --project demo --task <task-id> --output SESSION_CONTEXT.md
 ```
 
 That is the normal daily-use loop in Hive. Add `--json` when you are scripting the CLI instead of reading it yourself.
+
+Once you have more than one project and want the cross-project queue, drop `--project-id demo`.
 
 ## The Files That Matter
 

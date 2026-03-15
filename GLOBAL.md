@@ -36,7 +36,7 @@ hive sync projections --json
 |---|---|---:|---:|---:|---:|---:|
 | Agent Coordination Layer (Phase 4) | agent-coordination | completed | 2 | 3 | 0 | 0 |
 | Beads Pattern Adoption for Hive Orchestrator | beads-adoption | completed | 1 | 0 | 0 | 0 |
-| Demo Project | demo | active | 2 | 19 | 0 | 0 |
+| Demo Project | demo | active | 2 | 3 | 0 | 0 |
 | Cross-Repository Improvement: Social Compliance Generator | cross-repo-social-compliance | active | 1 | 2 | 0 | 0 |
 | Hive MCP Server | hive-mcp | completed | 1 | 0 | 0 | 0 |
 | OpenCode Plugin for Agent Hive | opencode-plugin | active | 1 | 31 | 0 | 0 |

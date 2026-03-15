@@ -38,10 +38,11 @@ If the app is installed correctly, Claude should reply within a few minutes.
 
 The normal Hive flow stays the same:
 
-1. `hive task ready` finds ready work.
-2. `hive context startup --project <project-id>` builds context.
-3. Optional dispatch tools can turn that work into a GitHub issue.
-4. Claude can pick up the issue when it sees `@claude`.
+1. `hive task ready` finds ready work. If you are following the demo walkthrough, use `hive task ready --project-id demo`.
+2. `hive task claim <task-id> --owner <your-name> --ttl-minutes 60` leases one task.
+3. `hive context startup --project <project-id> --task <task-id>` builds task-specific context.
+4. Optional dispatch tools can turn that work into a GitHub issue.
+5. Claude can pick up the issue when it sees `@claude`.
 
 The app is a convenience layer. It is not the core orchestration engine.
 
@@ -64,8 +65,8 @@ If you use the optional dispatcher, the workflow or token that opens issues also
 
 ### The dispatcher does not open issues
 
-- From a checkout, dry-run it first: `uv run python -m src.agent_dispatcher --dry-run`
-- Verify ready work exists: `hive task ready`
+- Verify ready work exists first: `uv run hive task ready --json`
+- From a checkout, dry-run the optional dispatcher preview: `uv run python -m src.agent_dispatcher --dry-run`
 - Verify the GitHub token has permission to create issues
 
 ## Security notes

@@ -18,10 +18,21 @@ from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
 from src.hive.memory.search import search
 from src.hive.migrate.v1_to_v2 import migrate_v1_to_v2
-from src.hive.runs.engine import accept_run, escalate_run, eval_run, load_run, reject_run, start_run
+from src.hive.runs.engine import (
+    accept_run,
+    cleanup_run,
+    cleanup_terminal_runs,
+    escalate_run,
+    eval_run,
+    load_run,
+    promote_run,
+    reject_run,
+    start_run,
+)
 from src.hive.scaffold import starter_task_specs
 from src.hive.search import search_workspace
 from src.hive.scheduler.query import dependency_summary, project_summary, ready_tasks
+from src.hive.runs.worktree import create_checkpoint_commit
 from src.hive.store.cache import CacheBusyError, rebuild_cache
 from src.hive.store.layout import bootstrap_workspace
 from src.hive.store.projects import create_project, discover_projects, get_project
@@ -77,6 +88,15 @@ def _load_execute_code(args: argparse.Namespace) -> str:
     if len(code.encode("utf-8")) > MAX_EXECUTE_BYTES:
         raise ValueError(f"Execute input exceeds {MAX_EXECUTE_BYTES} bytes")
     return code
+
+
+def _clean_string_list(values: list[str] | None) -> list[str]:
+    cleaned: list[str] = []
+    for value in values or []:
+        stripped = value.strip()
+        if stripped:
+            cleaned.append(stripped)
+    return cleaned
 
 
 def _doctor_payload(root: Path) -> dict[str, object]:
@@ -138,9 +158,7 @@ def _doctor_payload(root: Path) -> dict[str, object]:
     elif tasks:
         next_steps.append("Run `hive task list` to inspect blocked, claimed, or completed work.")
     if checks["layout"] and not checks["cache"]:
-        next_steps.append(
-            "Run `hive sync projections` to rebuild the cache and refresh rollups."
-        )
+        next_steps.append("Run `hive sync projections` to rebuild the cache and refresh rollups.")
 
     message = (
         f"Hive workspace at {root}: {len(projects)} projects, "
@@ -209,6 +227,15 @@ def build_parser() -> argparse.ArgumentParser:
     project_sync = project_subparsers.add_parser("sync")
     project_sync.add_argument("target", nargs="?")
 
+    workspace_parser = subparsers.add_parser("workspace")
+    workspace_subparsers = workspace_parser.add_subparsers(dest="workspace_command")
+    workspace_checkpoint = workspace_subparsers.add_parser("checkpoint")
+    workspace_checkpoint.add_argument(
+        "--message",
+        default="Checkpoint workspace",
+        help="Git commit message for the checkpoint commit",
+    )
+
     task_parser = subparsers.add_parser("task")
     task_subparsers = task_parser.add_subparsers(dest="task_command")
     task_list = task_subparsers.add_parser("list")
@@ -222,11 +249,29 @@ def build_parser() -> argparse.ArgumentParser:
     task_create.add_argument("--kind", default="task")
     task_create.add_argument("--status", default="ready")
     task_create.add_argument("--priority", type=int, default=2)
+    task_create.add_argument("--parent-id")
+    task_create.add_argument("--label", action="append")
+    task_create.add_argument("--relevant-file", action="append")
+    task_create.add_argument("--acceptance", action="append")
+    task_create.add_argument("--summary")
+    task_create.add_argument("--notes")
+    task_create.add_argument("--history")
     task_update = task_subparsers.add_parser("update")
     task_update.add_argument("task_id")
     task_update.add_argument("--title")
     task_update.add_argument("--status")
     task_update.add_argument("--priority", type=int)
+    task_update.add_argument("--parent-id")
+    task_update.add_argument("--clear-parent", action="store_true")
+    task_update.add_argument("--label", action="append")
+    task_update.add_argument("--clear-labels", action="store_true")
+    task_update.add_argument("--relevant-file", action="append")
+    task_update.add_argument("--clear-relevant-files", action="store_true")
+    task_update.add_argument("--acceptance", action="append")
+    task_update.add_argument("--clear-acceptance", action="store_true")
+    task_update.add_argument("--summary")
+    task_update.add_argument("--notes")
+    task_update.add_argument("--history")
     task_claim = task_subparsers.add_parser("claim")
     task_claim.add_argument("task_id")
     task_claim.add_argument("--owner", required=True)
@@ -251,12 +296,20 @@ def build_parser() -> argparse.ArgumentParser:
     run_eval.add_argument("run_id")
     run_accept = run_subparsers.add_parser("accept")
     run_accept.add_argument("run_id")
+    run_accept.add_argument("--promote", action="store_true")
+    run_accept.add_argument("--cleanup-worktree", action="store_true")
     run_reject = run_subparsers.add_parser("reject")
     run_reject.add_argument("run_id")
     run_reject.add_argument("--reason")
     run_escalate = run_subparsers.add_parser("escalate")
     run_escalate.add_argument("run_id")
     run_escalate.add_argument("--reason")
+    run_promote = run_subparsers.add_parser("promote")
+    run_promote.add_argument("run_id")
+    run_promote.add_argument("--cleanup-worktree", action="store_true")
+    run_cleanup = run_subparsers.add_parser("cleanup")
+    run_cleanup.add_argument("run_id", nargs="?")
+    run_cleanup.add_argument("--terminal", action="store_true")
 
     memory_parser = subparsers.add_parser("memory")
     memory_subparsers = memory_parser.add_subparsers(dest="memory_command")
@@ -555,6 +608,16 @@ def main(argv: list[str] | None = None) -> int:
         ) as exc:
             return _emit_error(exc, args.json)
 
+    if args.command == "workspace":
+        try:
+            if args.workspace_command == "checkpoint":
+                payload = create_checkpoint_commit(root, message=args.message)
+                return _emit({"ok": True} | payload, args.json)
+        except FileNotFoundError as exc:
+            return _emit_error(exc, args.json)
+        except ValueError as exc:
+            return _emit_error(exc, args.json)
+
     if args.command == "task":
         try:
             if args.task_command == "list":
@@ -590,6 +653,13 @@ def main(argv: list[str] | None = None) -> int:
                     kind=args.kind,
                     status=args.status,
                     priority=args.priority,
+                    parent_id=args.parent_id,
+                    labels=_clean_string_list(args.label),
+                    relevant_files=_clean_string_list(args.relevant_file),
+                    acceptance=_clean_string_list(args.acceptance),
+                    summary_md=(args.summary or "").strip(),
+                    notes_md=(args.notes or "").strip(),
+                    history_md=(args.history or "").strip(),
                 )
                 sync_workspace(root)
                 return _emit(
@@ -609,6 +679,28 @@ def main(argv: list[str] | None = None) -> int:
                     value = getattr(args, field)
                     if value is not None:
                         patch[field] = value
+                if args.clear_parent:
+                    patch["parent_id"] = None
+                elif args.parent_id is not None:
+                    patch["parent_id"] = args.parent_id
+                if args.clear_labels:
+                    patch["labels"] = []
+                elif args.label is not None:
+                    patch["labels"] = _clean_string_list(args.label)
+                if args.clear_relevant_files:
+                    patch["relevant_files"] = []
+                elif args.relevant_file is not None:
+                    patch["relevant_files"] = _clean_string_list(args.relevant_file)
+                if args.clear_acceptance:
+                    patch["acceptance"] = []
+                elif args.acceptance is not None:
+                    patch["acceptance"] = _clean_string_list(args.acceptance)
+                if args.summary is not None:
+                    patch["summary_md"] = args.summary.strip()
+                if args.notes is not None:
+                    patch["notes_md"] = args.notes.strip()
+                if args.history is not None:
+                    patch["history_md"] = args.history.strip()
                 task = update_task(root, args.task_id, patch)
                 sync_workspace(root)
                 return _emit(
@@ -684,7 +776,14 @@ def main(argv: list[str] | None = None) -> int:
             if args.run_command == "accept":
                 payload = accept_run(root, args.run_id)
                 sync_workspace(root)
-                return _emit({"ok": True, "run": payload}, args.json)
+                response: dict[str, object] = {"ok": True, "run": payload}
+                if args.promote:
+                    response["promotion"] = promote_run(
+                        root,
+                        args.run_id,
+                        cleanup_worktree=args.cleanup_worktree,
+                    )
+                return _emit(response, args.json)
             if args.run_command == "reject":
                 payload = reject_run(root, args.run_id, args.reason)
                 sync_workspace(root)
@@ -693,6 +792,23 @@ def main(argv: list[str] | None = None) -> int:
                 payload = escalate_run(root, args.run_id, args.reason)
                 sync_workspace(root)
                 return _emit({"ok": True, "run": payload}, args.json)
+            if args.run_command == "promote":
+                payload = promote_run(
+                    root,
+                    args.run_id,
+                    cleanup_worktree=args.cleanup_worktree,
+                )
+                return _emit({"ok": True} | payload, args.json)
+            if args.run_command == "cleanup":
+                if not args.run_id and not args.terminal:
+                    raise ValueError("Specify a run ID or use `hive run cleanup --terminal`.")
+                if args.run_id and args.terminal:
+                    raise ValueError("Use either a run ID or `--terminal`, not both.")
+                if args.terminal:
+                    payload = {"cleanups": cleanup_terminal_runs(root)}
+                else:
+                    payload = {"cleanup": cleanup_run(root, args.run_id)}
+                return _emit({"ok": True} | payload, args.json)
         except (
             CacheBusyError,
             WorkspaceBusyError,

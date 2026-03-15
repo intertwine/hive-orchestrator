@@ -14,7 +14,15 @@ from src.hive.models.program import ProgramRecord
 from src.hive.models.run import RunRecord
 from src.hive.runs.evaluators import run_evaluator, validate_evaluator_command
 from src.hive.runs.executors import get_executor
-from src.hive.runs.worktree import capture_worktree_state, create_run_worktree, current_head
+from src.hive.runs.worktree import (
+    capture_worktree_state,
+    commit_paths,
+    create_run_worktree,
+    current_head,
+    merge_branch,
+    remove_worktree,
+    split_dirty_paths,
+)
 from src.hive.scaffold import generate_program_stub
 from src.hive.store.events import emit_event
 from src.hive.store.layout import runs_dir, worktrees_dir
@@ -75,6 +83,7 @@ def _refresh_workspace_state(root: Path, metadata: dict) -> dict[str, object]:
     state = capture_worktree_state(
         metadata["worktree_path"],
         patch_path=metadata["patch_path"],
+        base_ref=metadata.setdefault("metadata_json", {}).get("base_commit"),
     )
     metadata_json = metadata.setdefault("metadata_json", {})
     command_log = _read_command_log(Path(metadata["command_log_path"]))
@@ -84,6 +93,10 @@ def _refresh_workspace_state(root: Path, metadata: dict) -> dict[str, object]:
     metadata_json["command_count"] = len(command_log)
     metadata_json["base_commit"] = metadata_json.get("base_commit") or current_head(root)
     return metadata_json
+
+
+def _task_title(metadata: dict) -> str:
+    return metadata.setdefault("metadata_json", {}).get("task_title") or metadata["task_id"]
 
 
 def _artifact_exists(path_value: str | None) -> bool:
@@ -445,6 +458,50 @@ def accept_run(path: str | Path | None, run_id: str) -> dict:
     return metadata
 
 
+def promote_run(
+    path: str | Path | None,
+    run_id: str,
+    *,
+    cleanup_worktree: bool = False,
+) -> dict[str, object]:
+    """Commit canonical run state and merge an accepted run branch into the workspace."""
+    root = Path(path or Path.cwd()).resolve()
+    metadata = load_run(root, run_id)
+    if metadata.get("status") != "accepted":
+        raise ValueError(f"Cannot promote run with status {metadata.get('status')!r}")
+
+    branch_name = metadata.get("branch_name")
+    if not branch_name:
+        raise ValueError(f"Run {run_id} does not have a mergeable branch")
+
+    dirty = split_dirty_paths(root)
+    if dirty["noncanonical"]:
+        details = ", ".join(dirty["noncanonical"][:5])
+        raise ValueError(
+            "Run promotion requires a clean repo outside of canonical Hive state files. "
+            f"Dirty paths: {details}"
+        )
+
+    title = _task_title(metadata)
+    state_commit = commit_paths(
+        root,
+        paths=dirty["canonical"],
+        message=f"Accept {title} run",
+    )
+    merge_result = merge_branch(root, branch_name=branch_name, message=f"Merge {title} run")
+    cleanup_result = None
+    if cleanup_worktree and metadata.get("worktree_path"):
+        cleanup_result = cleanup_run(root, run_id)
+
+    return {
+        "run": metadata,
+        "branch_name": branch_name,
+        "state_commit": state_commit,
+        "merge": merge_result,
+        "cleanup": cleanup_result,
+    }
+
+
 def reject_run(path: str | Path | None, run_id: str, reason: str | None = None) -> dict:
     """Reject a run."""
     root = Path(path or Path.cwd()).resolve()
@@ -499,3 +556,33 @@ def escalate_run(path: str | Path | None, run_id: str, reason: str | None = None
         payload={"task_id": task.id, "reason": reason},
     )
     return metadata
+
+
+def cleanup_run(path: str | Path | None, run_id: str) -> dict[str, object]:
+    """Remove a terminal run's linked worktree."""
+    root = Path(path or Path.cwd()).resolve()
+    metadata = load_run(root, run_id)
+    if metadata.get("status") not in {"accepted", "rejected", "escalated", "aborted"}:
+        raise ValueError(f"Cannot clean up run with status {metadata.get('status')!r}")
+    worktree_path = metadata.get("worktree_path")
+    if not worktree_path:
+        return {"run_id": run_id, "cleaned": False, "already_missing": True, "path": None}
+    result = remove_worktree(root, worktree_path)
+    return {
+        "run_id": run_id,
+        "cleaned": bool(result["removed"]),
+        "already_missing": bool(result["already_missing"]),
+        "path": result["path"],
+    }
+
+
+def cleanup_terminal_runs(path: str | Path | None) -> list[dict[str, object]]:
+    """Remove linked worktrees for all terminal runs in the workspace."""
+    root = Path(path or Path.cwd()).resolve()
+    results: list[dict[str, object]] = []
+    for metadata_path in sorted(runs_dir(root).glob("run_*/metadata.json")):
+        run_id = metadata_path.parent.name
+        metadata = load_run(root, run_id)
+        if metadata.get("status") in {"accepted", "rejected", "escalated", "aborted"}:
+            results.append(cleanup_run(root, run_id))
+    return results

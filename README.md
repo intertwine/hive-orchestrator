@@ -79,7 +79,9 @@ Start in an empty directory and let Hive scaffold the first useful project:
 ```bash
 mkdir my-hive
 cd my-hive
+git init
 hive quickstart demo --title "Demo project"
+hive workspace checkpoint --message "Bootstrap Hive workspace"
 hive task ready --project-id demo
 hive task claim <task-id> --owner <your-name> --ttl-minutes 60
 hive context startup --project demo --task <task-id>
@@ -96,6 +98,16 @@ chain that teaches the normal claim-and-context loop. The longer walkthrough liv
 [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
+
+If you want the full governed run loop, checkpoint the new workspace once, then:
+
+```bash
+hive run start <task-id>
+hive run eval <run-id>
+hive run accept <run-id> --promote --cleanup-worktree
+```
+
+Use `hive run cleanup --terminal` later if you want to prune old terminal worktrees in one pass.
 
 ## Adopt Hive In An Existing Repo
 
@@ -120,11 +132,22 @@ Once the workspace exists, the daily path is short:
 hive task ready
 hive task claim <task-id> --owner <your-name> --ttl-minutes 60
 hive context startup --project <project-id> --task <task-id>
-hive sync projections
+hive run start <task-id>
 ```
 
 If you are still following the demo project, use `hive task ready --project-id demo`. In a multi-project workspace, plain `hive task ready` shows the cross-project queue.
 `--json` is available across the CLI when you want to script Hive instead of reading it by eye.
+
+When you are defining new work instead of just taking ready work, stay in the CLI:
+
+```bash
+hive task create \
+  --project-id <project-id> \
+  --title "Add the next thin slice" \
+  --label launch \
+  --relevant-file src/app.py \
+  --acceptance "Tests pass for the new slice."
+```
 
 ## Optional Integrations
 

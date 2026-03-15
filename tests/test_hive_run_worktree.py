@@ -7,7 +7,7 @@ import subprocess
 import pytest
 
 from src.hive.migrate import migrate_v1_to_v2
-from src.hive.runs.worktree import ensure_clean_repo
+from src.hive.runs.worktree import create_checkpoint_commit, ensure_clean_repo, split_dirty_paths
 
 
 class TestRunWorktree:
@@ -72,3 +72,61 @@ class TestRunWorktree:
 
         with pytest.raises(ValueError, match="Dirty paths"):
             ensure_clean_repo(temp_hive_dir)
+
+    def test_split_dirty_paths_separates_canonical_and_noncanonical(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Dirty-path classification should distinguish Hive state from source edits."""
+        del temp_project
+        migrate_v1_to_v2(temp_hive_dir)
+        commit_workspace(temp_hive_dir, "baseline")
+        task_file = next((Path(temp_hive_dir) / ".hive" / "tasks").glob("task_*.md"))
+        task_file.write_text(task_file.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+        source_path = Path(temp_hive_dir) / "src" / "dirty.py"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text("print('dirty')\n", encoding="utf-8")
+
+        dirty = split_dirty_paths(temp_hive_dir)
+
+        assert any(path.startswith(".hive/tasks/") for path in dirty["canonical"])
+        assert dirty["noncanonical"] == ["src/dirty.py"]
+
+    def test_split_dirty_paths_ignores_derived_cache_files(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Derived cache files should not block promotion or run startup decisions."""
+        del temp_project
+        migrate_v1_to_v2(temp_hive_dir)
+        commit_workspace(temp_hive_dir, "baseline")
+        cache_file = Path(temp_hive_dir) / ".hive" / "cache" / "index.sqlite"
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text("derived-cache\n", encoding="utf-8")
+
+        dirty = split_dirty_paths(temp_hive_dir)
+
+        assert dirty["canonical"] == []
+        assert dirty["noncanonical"] == []
+
+    def test_create_checkpoint_commit_records_bootstrap_snapshot(self, temp_hive_dir):
+        """Checkpoint commits should stage and commit the current workspace state."""
+        subprocess.run(["git", "init", "-q"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "tests@example.com"], cwd=temp_hive_dir, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Agent Hive Tests"], cwd=temp_hive_dir, check=True
+        )
+        Path(temp_hive_dir, "README.md").write_text("# Demo\n", encoding="utf-8")
+
+        payload = create_checkpoint_commit(temp_hive_dir, message="Bootstrap workspace")
+
+        assert payload["committed"] is True
+        assert payload["commit"]
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert payload["commit"] == head.stdout.strip()

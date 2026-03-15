@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fnmatch import fnmatch
 from pathlib import Path
+import shutil
 import subprocess
 
 STATE_PATTERNS = (
@@ -16,7 +17,15 @@ STATE_PATTERNS = (
     "projects/**/AGENCY.md",
     "projects/**/PROGRAM.md",
 )
+IGNORED_PATTERNS = (".hive/cache/**",)
 DIFF_EXCLUDES = (":(exclude).hive/cache", ":(exclude).hive/worktrees")
+
+
+def _status_path(line: str) -> str:
+    candidate = line[3:]
+    if " -> " in candidate:
+        candidate = candidate.split(" -> ", 1)[1]
+    return candidate.strip()
 
 
 def _run_git(
@@ -53,31 +62,53 @@ def _has_committed_head(root: Path) -> bool:
     return result.returncode == 0
 
 
+def _git_commit_error(result: subprocess.CompletedProcess[str]) -> str:
+    detail = (result.stderr or result.stdout or "").strip()
+    if "Please tell me who you are" in detail or "unable to auto-detect email address" in detail:
+        return (
+            "Git needs user.name and user.email before Hive can create commits. "
+            "Set them with `git config user.name ...` and `git config user.email ...`, then retry."
+        )
+    return detail or "Unable to create Git commit"
+
+
+def split_dirty_paths(path: str | Path | None) -> dict[str, list[str]]:
+    """Return dirty canonical and noncanonical paths for the workspace."""
+    root = ensure_git_repo(path)
+    result = _run_git(root, "status", "--porcelain", "--untracked-files=all")
+    if result.returncode != 0:
+        raise ValueError(result.stderr.strip() or "Unable to inspect Git status")
+
+    canonical: list[str] = []
+    noncanonical: list[str] = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        candidate = _status_path(line)
+        if _matches_any(candidate, IGNORED_PATTERNS):
+            continue
+        if _matches_any(candidate, STATE_PATTERNS):
+            canonical.append(candidate)
+        else:
+            noncanonical.append(candidate)
+    return {
+        "canonical": sorted(dict.fromkeys(canonical)),
+        "noncanonical": sorted(dict.fromkeys(noncanonical)),
+    }
+
+
 def ensure_clean_repo(path: str | Path | None) -> None:
     """Require a clean repo outside of known Hive state files."""
     root = ensure_git_repo(path)
     if not _has_committed_head(root):
         raise ValueError(
             "Hive runs need an initial Git commit before the first run. "
-            "Commit the bootstrapped workspace, then retry `hive run start`."
+            'Run `hive workspace checkpoint --message "Bootstrap workspace"` '
+            "or commit the workspace manually, then retry `hive run start`."
         )
-    result = _run_git(root, "status", "--porcelain")
-    if result.returncode != 0:
-        raise ValueError(result.stderr.strip() or "Unable to inspect Git status")
-
-    dirty_paths: list[str] = []
-    for line in result.stdout.splitlines():
-        if not line.strip():
-            continue
-        candidate = line[3:]
-        if " -> " in candidate:
-            candidate = candidate.split(" -> ", 1)[1]
-        if _matches_any(candidate, STATE_PATTERNS):
-            continue
-        dirty_paths.append(candidate)
-
-    if dirty_paths:
-        details = ", ".join(sorted(dirty_paths)[:5])
+    dirty = split_dirty_paths(root)
+    if dirty["noncanonical"]:
+        details = ", ".join(dirty["noncanonical"][:5])
         raise ValueError(
             "Hive runs require a clean repo outside of canonical Hive state files. "
             f"Dirty paths: {details}"
@@ -90,7 +121,8 @@ def current_head(path: str | Path | None) -> str:
     if not _has_committed_head(root):
         raise ValueError(
             "Hive runs need an initial Git commit before the first run. "
-            "Commit the bootstrapped workspace, then retry `hive run start`."
+            'Run `hive workspace checkpoint --message "Bootstrap workspace"` '
+            "or commit the workspace manually, then retry `hive run start`."
         )
     result = _run_git(root, "rev-parse", "HEAD")
     if result.returncode != 0:
@@ -124,20 +156,119 @@ def create_run_worktree(
     return target
 
 
+def create_checkpoint_commit(
+    path: str | Path | None,
+    *,
+    message: str,
+) -> dict[str, object]:
+    """Stage all repo changes and create a checkpoint commit."""
+    root = ensure_git_repo(path)
+    add_result = _run_git(root, "add", "-A", ".")
+    if add_result.returncode != 0:
+        raise ValueError(add_result.stderr.strip() or "Unable to stage workspace changes")
+    status_result = _run_git(root, "status", "--porcelain")
+    if status_result.returncode != 0:
+        raise ValueError(status_result.stderr.strip() or "Unable to inspect Git status")
+    if not status_result.stdout.strip():
+        return {"commit": None, "committed": False, "message": "Workspace already clean"}
+
+    commit_result = _run_git(root, "commit", "-m", message)
+    if commit_result.returncode != 0:
+        raise ValueError(_git_commit_error(commit_result))
+    return {"commit": current_head(root), "committed": True, "message": message}
+
+
+def commit_paths(
+    path: str | Path | None,
+    *,
+    paths: list[str],
+    message: str,
+) -> str | None:
+    """Stage specific paths and commit them if they changed."""
+    root = ensure_git_repo(path)
+    if not paths:
+        return None
+    add_result = _run_git(root, "add", "-A", "--", *paths)
+    if add_result.returncode != 0:
+        raise ValueError(add_result.stderr.strip() or "Unable to stage canonical Hive state")
+    cached = _run_git(root, "diff", "--cached", "--name-only", "--")
+    if cached.returncode != 0:
+        raise ValueError(cached.stderr.strip() or "Unable to inspect staged changes")
+    if not cached.stdout.strip():
+        return None
+    commit_result = _run_git(root, "commit", "-m", message)
+    if commit_result.returncode != 0:
+        raise ValueError(_git_commit_error(commit_result))
+    return current_head(root)
+
+
+def is_branch_merged(path: str | Path | None, branch_name: str) -> bool:
+    """Return whether a branch is already reachable from HEAD."""
+    root = ensure_git_repo(path)
+    result = _run_git(root, "merge-base", "--is-ancestor", branch_name, "HEAD")
+    return result.returncode == 0
+
+
+def merge_branch(
+    path: str | Path | None,
+    *,
+    branch_name: str,
+    message: str,
+) -> dict[str, object]:
+    """Merge a branch into the current workspace branch."""
+    root = ensure_git_repo(path)
+    if is_branch_merged(root, branch_name):
+        return {
+            "already_merged": True,
+            "merged": False,
+            "branch_name": branch_name,
+            "commit": current_head(root),
+        }
+    result = _run_git(root, "merge", "--no-ff", branch_name, "-m", message)
+    if result.returncode != 0:
+        raise ValueError(
+            result.stderr.strip() or result.stdout.strip() or "Unable to merge run branch"
+        )
+    return {
+        "already_merged": False,
+        "merged": True,
+        "branch_name": branch_name,
+        "commit": current_head(root),
+    }
+
+
+def remove_worktree(path: str | Path | None, worktree_path: str | Path) -> dict[str, object]:
+    """Remove a linked Git worktree if it still exists."""
+    root = ensure_git_repo(path)
+    target = Path(worktree_path).resolve()
+    if not target.exists():
+        return {"removed": False, "already_missing": True, "path": str(target)}
+
+    result = _run_git(root, "worktree", "remove", "--force", str(target))
+    if result.returncode != 0 and target.exists():
+        raise ValueError(result.stderr.strip() or f"Unable to remove run worktree at {target}")
+    _run_git(root, "worktree", "prune")
+    if target.exists():
+        shutil.rmtree(target, ignore_errors=True)
+    return {"removed": not target.exists(), "already_missing": False, "path": str(target)}
+
+
 def capture_worktree_state(
     worktree_path: str | Path,
     *,
     patch_path: str | Path,
+    base_ref: str | None = None,
 ) -> dict[str, object]:
     """Capture the current worktree patch and touched paths."""
     worktree = Path(worktree_path).resolve()
     patch_target = Path(patch_path).resolve()
     _run_git(worktree, "add", "-N", "--all", ".", cwd=worktree)
+    diff_base = base_ref or "HEAD"
     diff = _run_git(
         worktree,
         "diff",
         "--binary",
-        "HEAD",
+        diff_base,
         "--",
         ".",
         *DIFF_EXCLUDES,
@@ -147,7 +278,7 @@ def capture_worktree_state(
         worktree,
         "diff",
         "--name-only",
-        "HEAD",
+        diff_base,
         "--",
         ".",
         *DIFF_EXCLUDES,
@@ -168,9 +299,15 @@ def capture_worktree_state(
 
 
 __all__ = [
+    "commit_paths",
     "capture_worktree_state",
+    "create_checkpoint_commit",
     "create_run_worktree",
     "current_head",
     "ensure_clean_repo",
     "ensure_git_repo",
+    "is_branch_merged",
+    "merge_branch",
+    "remove_worktree",
+    "split_dirty_paths",
 ]

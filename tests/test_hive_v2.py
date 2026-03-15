@@ -12,7 +12,7 @@ import sys
 
 import pytest
 
-from src.hive.cli.main import main as hive_main
+from hive.cli.main import main as hive_main
 from src.hive.cli.render import render_payload
 from src.hive.codemode.execute import MAX_EXECUTE_BYTES
 from src.hive.context_bundle import build_context_bundle
@@ -23,7 +23,7 @@ from src.hive.projections.agency_md import RUN_BEGIN, RUN_END, TASK_BEGIN, TASK_
 from src.hive.projections.global_md import BEGIN as GLOBAL_BEGIN
 from src.hive.projections.global_md import END as GLOBAL_END
 from src.hive.runs import accept_run, eval_run, start_run
-from src.hive.runs.engine import escalate_run, reject_run
+from src.hive.runs.engine import cleanup_run, escalate_run, promote_run, reject_run
 from src.hive.search import search_workspace
 from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.cache import _memory_scope_parts, rebuild_cache
@@ -31,7 +31,15 @@ from src.hive.store.layout import ensure_layout, global_memory_dir, tasks_dir
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import get_task, link_tasks, list_tasks, save_task
 
-hive_cli_main = importlib.import_module("src.hive.cli.main")
+hive_cli_main = importlib.import_module("hive.cli.main")
+
+
+def _invoke_cli_json(capsys, argv: list[str]) -> str:
+    """Run the CLI and return the captured JSON payload."""
+    exit_code = hive_main(argv)
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    return captured.out
 
 
 def _program_markdown(
@@ -822,6 +830,102 @@ class TestHiveV2Runs:
         assert '"step_type": "eval"' in command_log
         assert metadata["command_count"] == 1
 
+    def test_eval_run_tracks_committed_branch_changes(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Committed worktree changes should still appear in run metadata and patch artifacts."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare committed change workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        committed_path = Path(run.worktree_path) / "src" / "committed.py"
+        committed_path.parent.mkdir(parents=True, exist_ok=True)
+        committed_path.write_text("print('committed')\n", encoding="utf-8")
+        subprocess.run(["git", "add", "src/committed.py"], cwd=run.worktree_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add committed path"],
+            cwd=run.worktree_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        result = eval_run(temp_hive_dir, run.id)
+        patch = Path(result["run"]["patch_path"]).read_text(encoding="utf-8")
+
+        assert "src/committed.py" in result["run"]["metadata_json"]["touched_paths"]
+        assert "committed.py" in patch
+
+    def test_promote_run_commits_canonical_state_and_merges_branch(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Promoting an accepted run should commit state and merge the run branch."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare promotion workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        merged_file = Path(run.worktree_path) / "src" / "promoted.py"
+        merged_file.parent.mkdir(parents=True, exist_ok=True)
+        merged_file.write_text("print('promoted')\n", encoding="utf-8")
+        subprocess.run(["git", "add", "src/promoted.py"], cwd=run.worktree_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add promoted file"],
+            cwd=run.worktree_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        eval_run(temp_hive_dir, run.id)
+        accept_run(temp_hive_dir, run.id)
+        promotion = promote_run(temp_hive_dir, run.id)
+        status = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        merged = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", run.branch_name, "HEAD"],
+            cwd=temp_hive_dir,
+            check=False,
+        )
+
+        assert promotion["merge"]["merged"] is True
+        assert promotion["state_commit"]
+        assert (Path(temp_hive_dir) / "src" / "promoted.py").exists()
+        assert merged.returncode == 0
+        assert status.stdout.strip() == ""
+
+    def test_cleanup_run_removes_terminal_worktree(
+        self, temp_hive_dir, temp_project, commit_workspace
+    ):
+        """Cleanup should prune linked worktrees after a terminal run."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        command = "python -c \"print('ok')\""
+        project.program_path.write_text(_program_markdown(command), encoding="utf-8")
+        commit_workspace(temp_hive_dir, "prepare cleanup workspace")
+
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        eval_run(temp_hive_dir, run.id)
+        accept_run(temp_hive_dir, run.id)
+
+        result = cleanup_run(temp_hive_dir, run.id)
+
+        assert result["cleaned"] is True
+        assert not Path(run.worktree_path).exists()
+
     def test_accept_run_blocks_paths_requiring_review(
         self, temp_hive_dir, temp_project, commit_workspace
     ):
@@ -1379,9 +1483,7 @@ class TestHiveV2Cli:
         assert payload["tasks"][1]["status"] == "proposed"
         assert payload["tasks"][2]["status"] == "proposed"
         ready = ready_tasks(workspace, project_id="launch-demo")
-        assert [item["title"] for item in ready] == [
-            "Define the first thin slice for Launch Demo"
-        ]
+        assert [item["title"] for item in ready] == ["Define the first thin slice for Launch Demo"]
         agency_content = Path(payload["project"]["path"]).read_text(encoding="utf-8")
         assert "Ship the launch-ready Hive demo workspace." in agency_content
         assert any("hive task claim" in step for step in payload["next_steps"])
@@ -1459,6 +1561,216 @@ class TestHiveV2Cli:
             for step in payload["next_steps"]
         )
         assert all("--json" not in step for step in payload["next_steps"])
+
+    def test_cli_task_create_accepts_rich_fields(self, tmp_path, capsys):
+        """Task creation should support labels, files, acceptance, and narrative sections."""
+        workspace = tmp_path / "rich-task-create"
+        hive_main(["--path", str(workspace), "--json", "init"])
+        capsys.readouterr()
+        hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "create",
+                "website",
+                "--title",
+                "Website",
+            ]
+        )
+        capsys.readouterr()
+        parent_payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    str(workspace),
+                    "--json",
+                    "task",
+                    "create",
+                    "--project-id",
+                    "website",
+                    "--title",
+                    "Parent task",
+                ],
+            )
+        )
+
+        exit_code = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "task",
+                "create",
+                "--project-id",
+                "website",
+                "--title",
+                "Polish launch copy",
+                "--parent-id",
+                parent_payload["task"]["id"],
+                "--label",
+                "launch",
+                "--label",
+                "copy",
+                "--relevant-file",
+                "src/App.jsx",
+                "--relevant-file",
+                "docs/site-plan.md",
+                "--acceptance",
+                "Keep the install story obvious.",
+                "--acceptance",
+                "Separate user and maintainer paths.",
+                "--summary",
+                "Ship the final copy pass.",
+                "--notes",
+                "- Keep it concrete.",
+                "--history",
+                "- Seeded from the CLI.",
+            ]
+        )
+        payload = json.loads(capsys.readouterr().out)
+        task = get_task(workspace, payload["task"]["id"])
+
+        assert exit_code == 0
+        assert task.parent_id == parent_payload["task"]["id"]
+        assert task.labels == ["launch", "copy"]
+        assert task.relevant_files == ["src/App.jsx", "docs/site-plan.md"]
+        assert task.acceptance == [
+            "Keep the install story obvious.",
+            "Separate user and maintainer paths.",
+        ]
+        assert task.summary_md == "Ship the final copy pass."
+        assert task.notes_md == "- Keep it concrete."
+        assert task.history_md == "- Seeded from the CLI."
+
+    def test_cli_task_update_accepts_rich_fields_and_clear_flags(self, tmp_path, capsys):
+        """Task updates should replace and clear rich list fields from the CLI."""
+        workspace = tmp_path / "rich-task-update"
+        hive_main(["--path", str(workspace), "--json", "init"])
+        capsys.readouterr()
+        hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "create",
+                "website",
+                "--title",
+                "Website",
+            ]
+        )
+        capsys.readouterr()
+        create_payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    str(workspace),
+                    "--json",
+                    "task",
+                    "create",
+                    "--project-id",
+                    "website",
+                    "--title",
+                    "Polish launch copy",
+                ],
+            )
+        )
+        task_id = create_payload["task"]["id"]
+
+        update_payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    str(workspace),
+                    "--json",
+                    "task",
+                    "update",
+                    task_id,
+                    "--label",
+                    "launch",
+                    "--relevant-file",
+                    "src/App.jsx",
+                    "--acceptance",
+                    "Keep the install story obvious.",
+                    "--summary",
+                    "Updated summary",
+                    "--notes",
+                    "Updated notes",
+                ],
+            )
+        )
+        updated = get_task(workspace, task_id)
+        assert update_payload["ok"] is True
+        assert updated.labels == ["launch"]
+        assert updated.relevant_files == ["src/App.jsx"]
+        assert updated.acceptance == ["Keep the install story obvious."]
+        assert updated.summary_md == "Updated summary"
+        assert updated.notes_md == "Updated notes"
+
+        clear_payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    str(workspace),
+                    "--json",
+                    "task",
+                    "update",
+                    task_id,
+                    "--clear-labels",
+                    "--clear-relevant-files",
+                    "--clear-acceptance",
+                ],
+            )
+        )
+        cleared = get_task(workspace, task_id)
+        assert clear_payload["ok"] is True
+        assert cleared.labels == []
+        assert cleared.relevant_files == []
+        assert cleared.acceptance == []
+
+    def test_cli_workspace_checkpoint_commits_workspace(self, tmp_path, capsys):
+        """Workspace checkpoint should create a Git commit for a bootstrapped repo."""
+        workspace = tmp_path / "workspace-checkpoint"
+        workspace.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init", "-q"], cwd=workspace, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "tests@example.com"], cwd=workspace, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Agent Hive Tests"], cwd=workspace, check=True
+        )
+        hive_main(["--path", str(workspace), "--json", "init"])
+        capsys.readouterr()
+
+        exit_code = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "workspace",
+                "checkpoint",
+                "--message",
+                "Bootstrap workspace",
+            ]
+        )
+        payload = json.loads(capsys.readouterr().out)
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=workspace,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        assert exit_code == 0
+        assert payload["committed"] is True
+        assert payload["commit"] == head.stdout.strip()
 
     def test_cli_context_startup_text_renders_markdown_bundle(self, tmp_path, capsys):
         """Text-mode startup context should print a readable session bundle."""
@@ -1660,7 +1972,7 @@ class TestHiveV2Cli:
         repo_root = Path(__file__).resolve().parents[1]
 
         init_result = subprocess.run(
-            [sys.executable, "-m", "src.hive.cli.main", "--path", str(workspace), "--json", "init"],
+            [sys.executable, "-m", "hive", "--path", str(workspace), "--json", "init"],
             cwd=repo_root,
             check=False,
             capture_output=True,
@@ -1672,7 +1984,7 @@ class TestHiveV2Cli:
             [
                 sys.executable,
                 "-m",
-                "src.hive.cli.main",
+                "hive",
                 "--path",
                 str(workspace),
                 "--json",
@@ -1685,7 +1997,7 @@ class TestHiveV2Cli:
             [
                 sys.executable,
                 "-m",
-                "src.hive.cli.main",
+                "hive",
                 "--path",
                 str(workspace),
                 "--json",
@@ -1719,7 +2031,7 @@ class TestHiveV2Cli:
             [
                 sys.executable,
                 "-m",
-                "src.hive.cli.main",
+                "hive",
                 "--path",
                 str(workspace),
                 "--json",
@@ -1820,6 +2132,85 @@ class TestHiveV2Cli:
         assert exit_code == 0
         payload = json.loads(captured.out)
         assert payload["run"]["id"] == run.id
+
+    def test_cli_run_accept_with_promote_merges_branch_and_cleans_worktree(
+        self, temp_hive_dir, temp_project, commit_workspace, capsys
+    ):
+        """Accept with promotion should merge the run branch and optionally prune its worktree."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        project.program_path.write_text(
+            _program_markdown("python -c \"print('ok')\""),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare CLI promote workspace")
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+
+        worktree = Path(run.worktree_path)
+        promoted_file = worktree / "src" / "promoted_via_cli.py"
+        promoted_file.parent.mkdir(parents=True, exist_ok=True)
+        promoted_file.write_text("VALUE = 'cli-promotion'\n", encoding="utf-8")
+        subprocess.run(["git", "add", "src/promoted_via_cli.py"], cwd=worktree, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add promoted CLI change"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "run", "eval", run.id])
+        payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    temp_hive_dir,
+                    "--json",
+                    "run",
+                    "accept",
+                    run.id,
+                    "--promote",
+                    "--cleanup-worktree",
+                ],
+            )
+        )
+
+        assert payload["run"]["status"] == "accepted"
+        assert payload["promotion"]["merge"]["merged"] is True
+        assert payload["promotion"]["cleanup"]["cleaned"] is True
+        assert (Path(temp_hive_dir) / "src" / "promoted_via_cli.py").exists()
+        assert not worktree.exists()
+
+    def test_cli_run_cleanup_terminal_prunes_terminal_worktrees(
+        self, temp_hive_dir, temp_project, commit_workspace, capsys
+    ):
+        """Terminal cleanup should remove linked worktrees for finished runs."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        project.program_path.write_text(
+            _program_markdown("python -c \"print('ok')\""),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare CLI terminal cleanup workspace")
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+        eval_run(temp_hive_dir, run.id)
+        accept_run(temp_hive_dir, run.id)
+
+        payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                ["--path", temp_hive_dir, "--json", "run", "cleanup", "--terminal"],
+            )
+        )
+
+        assert payload["ok"] is True
+        assert any(
+            item["path"] == run.worktree_path and item["cleaned"] for item in payload["cleanups"]
+        )
+        assert not Path(run.worktree_path).exists()
 
     def test_cli_search_returns_json_hits(self, temp_hive_dir, temp_project, capsys):
         """Workspace search should emit stable JSON results."""

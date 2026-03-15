@@ -11,6 +11,8 @@ git clone https://github.com/intertwine/hive-orchestrator.git
 cd hive-orchestrator
 make install-dev
 make install-tool
+hive --version
+python -m hive --version
 ```
 
 That gives you:
@@ -35,6 +37,8 @@ Useful local commands:
 - `make session PROJECT=demo` writes a startup bundle into the project directory
 - `make verify-claude` checks the optional GitHub App setup against the current workspace
 - `make brew-formula` regenerates the Homebrew formula from the current package metadata
+- `hive workspace checkpoint --message "Checkpoint workspace"` creates a clean Git checkpoint before a run
+- `hive run cleanup --terminal` prunes linked worktrees left behind by terminal runs
 
 ## Install Paths While Developing
 
@@ -56,6 +60,16 @@ For local checkout smoke tests, prefer `uv tool install --force --from . ...` or
 virtualenv install over `uv tool run --from . ...`. The install path reliably rebuilds the local
 checkout, while `uv tool run --from .` can reuse a stale cached build when the package version has
 not changed yet.
+
+When you invoke the CLI from a source checkout, prefer the public surfaces:
+
+```bash
+hive doctor --json
+python -m hive doctor --json
+```
+
+Do not use `python -m src.hive.cli.main`. That path is an internal module layout detail, not part of the
+supported maintainer or user experience.
 
 ## CI And Release Surfaces
 

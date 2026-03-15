@@ -1,376 +1,163 @@
 # Multi-Agent Coordination Without Chaos
 
-_This is the third article in a series exploring Agent Hive and AI agent orchestration._
+_Parallel work is easy to imagine and hard to keep clean._
 
 ---
 
 ![Hero: The Promise vs Reality](images/multi-agent-coordination-without-chaos/img-01_v1.png)
-_The promise: agents working in parallel, completing in hours what takes days. The reality without coordination: chaos, conflicts, and corrupted work._
+_The hard part is not getting multiple agents to work. The hard part is getting them to share a project without corrupting state or tripping over each other._
 
 ---
 
-## The Promise and the Problem
+## The Real Coordination Problems
 
-The vision is compelling: multiple AI agents working in parallel, each contributing their strengths, completing in hours what would take days with a single agent. Claude researches the architecture. GPT-5 drafts the documentation. Grok implements the edge cases. A symphony of artificial intelligence.
+When multiple agents touch related work, the failure modes are predictable:
 
-Without coordination, though? Chaos.
+- two agents take the same task
+- downstream work starts before blockers are done
+- somebody marks something "done" when it is only locally done
+- important decisions never make it into durable state
 
-Two agents modify the same file simultaneously. One agent "completes" work another agent was depending on, but does it wrong. A third agent spins in circles, unable to find work because everything appears claimed. The git history becomes an archaeological disaster.
+None of that requires malicious behavior. It is what happens when coordination is implied instead of encoded.
 
-I built Agent Hive to make multi-agent coordination actually work.
+## Hive's Coordination Model
 
-## The Coordination Problem
+Hive v2 coordinates through explicit state, not through hope.
 
-When multiple agents work on related projects, several things can go wrong:
+The main ingredients are:
 
-### 1. Race Conditions
+- canonical task files
+- explicit edge types such as `blocks`
+- task claims with expiry
+- ready queue calculation
+- project policy in `PROGRAM.md`
+- runs with artifacts and acceptance states
 
-Agent A starts working on the authentication feature. Agent B, milliseconds later, also starts working on authentication. Neither knows about the other. Both make changes. Git explodes.
+This gives you a coordination loop that does not depend on everybody sharing the same live conversation.
 
-### 2. Dependency Violations
+## Claims Are The First Guardrail
 
-Agent A is supposed to complete the database schema before Agent B starts the API layer. But Agent B doesn't know about this dependency, starts early, and builds on assumptions that Agent A's work will eventually invalidate.
-
-### 3. Premature Claims of Victory
-
-Agent A finishes "phase 1" and marks the project complete. Agent B, seeing the completion, starts the downstream work. But Agent A's "phase 1" was actually "phase 1 of their internal plan." The real phase 1 has three more tasks that nobody will ever complete.
-
-### 4. Communication Breakdown
-
-Agent A makes an important architectural decision and documents it... somewhere. Agent B never sees it. Agent B makes a conflicting decision. The codebase becomes internally inconsistent.
-
-![The Four Coordination Problems](images/multi-agent-coordination-without-chaos/img-02_v1.png)
-_Four ways multi-agent coordination fails: race conditions, dependency violations, premature victory declarations, and communication breakdowns._
-
-## Agent Hive's Coordination Layers
-
-Agent Hive provides three complementary coordination mechanisms, each appropriate for different scenarios.
-
-### Layer 1: Git-Based Coordination (Always Available)
-
-The foundation is simple: AGENCY.md files are committed to git, and git handles synchronization.
-
-```yaml
-# In AGENCY.md frontmatter
-owner: "claude-sonnet-4"
-last_updated: "2025-01-15T14:30:00Z"
-```
-
-When an agent wants to work on a project:
-
-1. Pull latest changes
-2. Check if `owner` is `null`
-3. Set `owner` to their identifier
-4. Commit and push
-5. If push fails (someone else pushed first), pull and check again
-
-This is optimistic locking. It works, but it's slow. Every coordination decision requires a git round-trip.
-
-**Best for**: Asynchronous workflows, single-agent-at-a-time scenarios, environments where git is the only shared resource.
-
-### Layer 2: Cortex Orchestration (Automated Oversight)
-
-The Cortex engine runs on a schedule (every 4 hours by default via GitHub Actions) and provides system-wide oversight:
+If work is worth doing, it is worth claiming:
 
 ```bash
-# What Cortex does each run:
-# 1. Read all AGENCY.md files
-# 2. Analyze project states
-# 3. Identify blocked tasks
-# 4. Update project metadata
-# 5. Commit changes
+hive task claim task_ABC --owner claude-code --ttl-minutes 60 --json
 ```
 
-Cortex acts as an external coordinator that can:
+That does two useful things:
 
-- Detect when dependencies are satisfied and update downstream projects
-- Identify projects that have stalled (no updates for extended periods)
-- Flag inconsistencies between related projects
-- Provide a system-wide view that no individual agent has
+- it makes ownership visible
+- it prevents abandoned claims from blocking work forever
 
-**Best for**: Background coordination, dependency management, detecting system-wide issues.
+Expiry matters more than people think. Coordination systems rot when a dead session can strand useful work for days.
 
-### Layer 3: Real-Time Coordinator (Optional, Fast)
+## Ready Work Should Be Computed, Not Guessed
 
-For scenarios where multiple agents need to work simultaneously, the optional HTTP coordinator provides immediate coordination:
+Hive computes ready work from canonical state:
 
 ```bash
-# Start the coordinator
-uv run python -m src.coordinator
-
-# Agent claims a project
-curl -X POST http://localhost:8080/claim \
-  -H "Content-Type: application/json" \
-  -d '{"project_id": "auth-feature", "agent_name": "claude-sonnet-4", "ttl_seconds": 3600}'
+hive task ready --json
 ```
 
-The coordinator maintains in-memory state about which projects are claimed:
+That result already accounts for:
 
-```json
-// Successful claim
-{
-  "success": true,
-  "claim_id": "uuid-here",
-  "project_id": "auth-feature",
-  "expires_at": "2025-01-15T15:30:00Z"
-}
+- blockers
+- superseded or duplicate tasks
+- project scoping
+- expired claims
 
-// Conflict (409)
-{
-  "success": false,
-  "error": "Project already claimed",
-  "current_owner": "grok-beta",
-  "expires_at": "2025-01-15T15:00:00Z"
-}
-```
+This is much stronger than "look around and see what seems free."
 
-Claims have a TTL (time-to-live) and automatically expire. This prevents abandoned claims from blocking work indefinitely.
+## Dependency Edges Beat Social Conventions
 
-**Best for**: Parallel agent sessions, real-time conflict prevention, high-throughput scenarios.
+A lot of multi-agent chaos comes from unwritten assumptions:
 
-![The Three Coordination Layers](images/multi-agent-coordination-without-chaos/img-03_v1.png)
-_Agent Hive provides three complementary coordination layers: git for foundation, Cortex for oversight, real-time coordinator for speed._
+- "I thought you were waiting on me"
+- "I did not realize that task unlocked yours"
+- "I assumed that checklist item meant the whole thing was finished"
 
-## The Ownership Protocol
-
-Regardless of which coordination layer you use, Agent Hive enforces a consistent ownership protocol.
-
-### Claiming Work
-
-Before starting on any project:
-
-```yaml
-# 1. Verify the project is claimable
-status: active         # Must be active
-blocked: false         # Must not be blocked
-owner: null            # Must be unclaimed
-
-# 2. Set yourself as owner
-owner: "claude-sonnet-4"
-last_updated: "2025-01-15T14:30:00Z"
-```
-
-### During Work
-
-While working, keep the project updated:
-
-```markdown
-## Agent Notes
-
-- **2025-01-15 14:45 - claude-sonnet-4**: Completed research phase.
-  Found three viable approaches, recommending option B.
-- **2025-01-15 14:30 - claude-sonnet-4**: Starting work on auth feature.
-  Will begin with OAuth2 research.
-```
-
-### Releasing Work
-
-When finished:
-
-```yaml
-# If completely done:
-owner: null
-status: completed
-
-# If handing off to another agent:
-owner: null
-status: active  # Leave active for next agent
-
-# If blocked and need help:
-owner: null  # Release so others can potentially help
-blocked: true
-blocking_reason: "Need database credentials from DevOps"
-```
-
-![The Ownership Protocol](images/multi-agent-coordination-without-chaos/img-04_v1.png)
-_The ownership protocol: explicitly claim before working, one owner at a time, release when done. These rules prevent coordination chaos._
-
-## Multi-Agent Patterns
-
-### Pattern 1: Sequential Handoff
-
-Agents work one after another, each building on the previous work:
-
-```text
-Claude (Research) → GPT-5 (Design) → Grok (Implementation)
-```
-
-The protocol:
-
-1. Claude completes research, adds detailed notes, sets `owner: null`
-2. GPT-5 sees unclaimed project, claims it, reads Claude's notes
-3. GPT-5 completes design, documents decisions, sets `owner: null`
-4. Grok claims, implements based on accumulated context
-
-**Key success factor**: Thorough documentation in Agent Notes. Each agent must leave enough context for the next. No notes, no handoff.
-
-![Sequential Handoff Pattern](images/multi-agent-coordination-without-chaos/img-05_v1.png)
-_Sequential handoff: Claude researches, GPT-5 designs, Grok implements. Each leaves thorough notes for the next runner._
-
-### Pattern 2: Parallel Independence
-
-Multiple agents work on completely independent projects simultaneously:
-
-```text
-Claude → [Project A]
-GPT-5  → [Project B]
-Grok   → [Project C]
-```
-
-The protocol:
-
-1. Each agent claims a different project
-2. Work proceeds independently
-3. Use the coordinator to prevent accidental overlap
-
-**Key success factor**: Clear project boundaries. If projects aren't truly independent, use dependency tracking.
-
-![Parallel Independence Pattern](images/multi-agent-coordination-without-chaos/img-06_v1.png)
-_Parallel independence: multiple agents working simultaneously on separate projects, with coordination preventing accidental overlap._
-
-### Pattern 3: Dependency Chain
-
-Projects have explicit ordering requirements:
-
-```text
-[Database Schema] → [API Layer] → [Frontend Integration]
-     Claude            GPT-5            Grok
-```
-
-Configured in AGENCY.md:
-
-```yaml
-# api-layer/AGENCY.md
-dependencies:
-  blocked_by: [database-schema]
-  blocks: [frontend-integration]
-```
-
-The protocol:
-
-1. Claude works on database-schema
-2. GPT-5 cannot start api-layer (blocked_by not satisfied)
-3. Claude completes, sets `status: completed`
-4. Cortex detects completion, api-layer becomes ready
-5. GPT-5 claims and starts api-layer
-
-**Key success factor**: Accurate dependency declarations. Missing dependencies cause coordination failures.
-
-### Pattern 4: Ensemble Collaboration
-
-Multiple agents contribute to the same project through task-level coordination:
-
-```yaml
-# In AGENCY.md
-## Tasks
-- [ ] Research existing solutions (claimed: claude-sonnet-4)
-- [ ] Analyze competitor approaches (claimed: gpt-4-turbo)
-- [ ] Synthesize findings (waiting on above)
-```
-
-The protocol:
-
-1. Agents claim specific tasks via notes, not the whole project
-2. Multiple agents can work on different tasks simultaneously
-3. Final synthesis task waits for inputs
-4. One agent does the merge work
-
-**Key success factor**: Atomic task definitions. Tasks must be independent enough to parallelize.
-
-## Communication Through Agent Notes
-
-Since agents can't directly message each other, Agent Notes serve as the communication channel:
-
-```markdown
-## Agent Notes
-
-- **2025-01-15 16:00 - grok-beta**: @claude-sonnet-4 - found an issue with
-  the auth token refresh logic. See line 145 in auth.py. Implementing
-  workaround but needs your review.
-
-- **2025-01-15 15:30 - gpt-4-turbo**: DECISION: Using JWT instead of
-  sessions. Rationale: stateless scaling, industry standard, matches
-  existing infrastructure.
-
-- **2025-01-15 15:00 - claude-sonnet-4**: BLOCKED on external dependency.
-  Need AWS credentials before proceeding. Created ticket DEV-123.
-```
-
-### Note Conventions
-
-- **@agent-name** - Direct mention (for when specific agent context is needed)
-- **BLOCKED** - Signals an impediment
-- **DECISION** - Records important choices for future agents
-- **TODO** - Items the current agent is leaving for the next
-
-![Communication Through Agent Notes](images/multi-agent-coordination-without-chaos/img-07_v1.png)
-_Since agents can't directly message each other, Agent Notes become the communication channel. Timestamped. Attributed. Persistent._
-
-## Conflict Resolution
-
-Despite best efforts, conflicts happen. Agent Hive provides mechanisms for resolution.
-
-### Git Merge Conflicts
-
-When two agents modify the same AGENCY.md:
-
-1. Git detects the conflict during push
-2. Later agent must pull and resolve
-3. Compare both versions' Agent Notes
-4. Merge task completions and metadata sensibly
-5. Commit resolved version
-
-The Markdown format makes conflicts relatively easy to resolve. You can usually accept both sets of changes.
-
-### Coordinator Conflicts
-
-When the coordinator returns 409:
-
-1. Agent receives conflict response with current owner info
-2. Agent should find different work
-3. Optionally wait for claim expiration
-4. Claims auto-expire based on TTL
-
-### Dependency Deadlocks
-
-Cortex detects cycles in the dependency graph:
+Hive is better when those relationships are explicit:
 
 ```bash
-uv run python -m src.cortex --deps
-
-# Output:
-!!! CYCLES DETECTED !!!
-    project-a -> project-b -> project-c -> project-a
+hive task link task_design blocks task_impl --json
 ```
 
-Resolution requires human intervention to break the cycle by removing or redefining dependencies. The system can detect the problem but can't solve it.
+Once the dependency is encoded, the scheduler and reviewers have something concrete to reason about.
 
-## Best Practices
+## Runs Add A Second Layer Of Coordination
 
-1. **Claim before reading deeply** - Minimize the window for race conditions
-2. **Use the coordinator for parallel work** - Git-only coordination is too slow for real-time scenarios
-3. **Keep sessions short** - Longer sessions increase conflict probability
-4. **Document thoroughly** - Future agents depend on your notes
-5. **Release promptly** - Don't hold claims you're not actively using
-6. **Respect the protocol** - Coordination only works if everyone follows the rules
-7. **Define clear boundaries** - The more independent the projects, the easier the coordination
+Claims tell you who is working.
+Runs tell you what happened.
 
-## The Human in the Loop
+For governed work, that matters:
 
-Multi-agent coordination here doesn't mean fully autonomous agent swarms. Humans remain essential:
+```bash
+hive run start task_impl --json
+hive run eval run_ABC --json
+hive run accept run_ABC --json
+```
 
-- **Defining project boundaries** and dependencies
-- **Reviewing agent work** before it affects production
-- **Breaking deadlocks** when agents get stuck
-- **Intervening** when coordination fails
+Now the handoff is not just "trust me, I finished it."
 
-The goal is to enable agents to do more useful work in parallel while keeping humans informed and in control. Transparency through readable AGENCY.md files and git history makes this possible. Agents coordinate. Humans orchestrate.
+It can include:
 
-![Human in the Loop](images/multi-agent-coordination-without-chaos/img-08_v1.png)
-_Multi-agent coordination doesn't mean autonomous swarms. Humans define boundaries, review work, break deadlocks, and intervene when needed. Transparency makes this possible._
+- plan
+- patch
+- summary
+- command log
+- evaluator result
+- accept / reject / escalate decision
 
----
+That is the difference between informal coordination and a real review loop.
 
-_Next in the series: "Dependency Graphs in Practice" - real examples of modeling complex project relationships._
+## Human Oversight Is Part Of The Design
 
-_Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator)._
+Hive is not trying to remove the human from the system.
+
+It is trying to make human intervention cheaper and better timed.
+
+Humans step in to:
+
+- review sensitive changes
+- resolve blocked tasks
+- adjust policy
+- accept or reject runs
+- rewrite project narrative when reality changes
+
+That is not a fallback path. It is part of the architecture.
+
+## What Makes Hive Work Across Different Harnesses
+
+Claude Code, OpenCode, Codex, and other harnesses can all behave differently in practice.
+
+Hive absorbs some of that variation because the coordination surface is outside the harness:
+
+- claim through Hive
+- build context through Hive
+- record work through Hive
+- sync projections through Hive
+
+That keeps the shared operating model stable even when the interactive shell changes.
+
+## The Habit That Matters Most
+
+The single best coordination habit is simple:
+
+do not leave important state trapped in a session.
+
+Put it in:
+
+- a canonical task update
+- an accepted or rejected run
+- memory
+- `AGENCY.md`
+- projection sync
+
+Multi-agent systems stay sane when the next person can read what matters without replaying the whole session in their head.
+
+## Bottom Line
+
+Hive does not solve multi-agent coordination with a magic conversation loop.
+
+It solves it with explicit claims, explicit dependencies, explicit policy, and explicit artifacts.
+
+That sounds less glamorous than the usual demo. It also scales better once multiple agents and reviewers are touching the same real codebase.

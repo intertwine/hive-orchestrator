@@ -1,478 +1,311 @@
 # Getting Started: Your First Agent Hive Project
 
-_This is the sixth article in a series exploring Agent Hive and AI agent orchestration._
+_This is the hands-on entry point for the Hive article series._
 
 ---
 
 ![Hero: From Zero to Orchestration](images/getting-started/img-01_v1.png)
-_From zero to orchestration: with a few prerequisites and simple setup, you're ready to launch your first Agent Hive project._
+_Hive is easiest to understand when you use it. Install the CLI, create a workspace, make a project, and run a real work loop._
 
 ---
 
-## From Zero to Orchestration
+## Start Here
 
-You've read about the theory. You understand why agent memory matters, how dependencies work, and what protocols to follow. Now let's build something.
+Hive does not ask you to buy into a giant framework before you can get useful work done.
 
-This guide walks through setting up Agent Hive from scratch and creating your first orchestrated project.
+You install a CLI. You initialize a workspace. You create a project. You create canonical tasks. Then you let people and agents work against the same durable state.
 
-## Prerequisites
+Two things are worth calling out up front:
 
-Before starting, you'll need:
+- You do not need an LLM API key to use the core Hive CLI.
+- Everyday users and maintainers have different jobs. Everyday users should focus on `hive` commands. Maintainers of Hive itself should worry about release automation, Homebrew, and PyPI.
 
-- **Python 3.11+** installed
-- **Git** for version control
-- **[uv](https://github.com/astral-sh/uv)** - Fast Python package installer
-- **OpenRouter API key** (for Cortex LLM calls) - [Get one here](https://openrouter.ai/)
+This guide is for the first group.
 
-Install uv if you haven't:
+## Step 1: Install Hive
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+Use the public install path that matches how you normally work.
 
-## Step 1: Clone and Install
+If you like standalone tools managed by `uv`:
 
 ```bash
-# Clone the repository
-git clone https://github.com/intertwine/hive-orchestrator.git
-cd hive-orchestrator
-
-# Install dependencies
-make install
-
-# Create environment file
-make setup-env
+uv tool install agent-hive
+hive --version
 ```
 
-Edit `.env` with your API key:
+If you prefer `pipx`:
 
 ```bash
-OPENROUTER_API_KEY=your-api-key-here
-OPENROUTER_MODEL=anthropic/claude-haiku-4.5
-HIVE_BASE_PATH=/path/to/hive-orchestrator
+pipx install agent-hive
+hive --version
 ```
 
-## Step 2: Explore the Structure
+If you use Homebrew:
 
-Take a look at what's included:
+```bash
+brew tap intertwine/tap
+brew install intertwine/tap/agent-hive
+hive --version
+```
+
+If you're reading this before the public package is live, the GitHub fallback works too:
+
+```bash
+uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git agent-hive
+hive --version
+```
+
+## Step 2: Create a Workspace
+
+Pick a clean directory and bootstrap it:
+
+```bash
+mkdir my-hive
+cd my-hive
+hive init --json
+hive doctor --json
+```
+
+After `hive init`, you will have a workspace that looks roughly like this:
 
 ```text
-hive-orchestrator/
-├── projects/           # Your projects live here
-│   └── demo/
-│       └── AGENCY.md   # Example project
-├── src/
-│   ├── cortex.py       # Orchestration engine
-│   ├── dashboard.py    # Web UI
-│   └── hive_mcp/       # MCP server
-├── GLOBAL.md           # System-wide state
-└── .claude/skills/     # Agent skills
+my-hive/
+├── .hive/
+│   ├── cache/
+│   ├── events/
+│   ├── memory/
+│   ├── runs/
+│   └── tasks/
+├── AGENTS.md
+├── GLOBAL.md
+└── projects/
 ```
 
-Read the demo project:
+The split matters:
 
-```bash
-cat projects/demo/AGENCY.md
-```
-
-This shows the AGENCY.md format in action.
+- `.hive/` is the machine substrate.
+- `projects/*/AGENCY.md` is the human project document.
+- `projects/*/PROGRAM.md` is the autonomy and evaluator policy.
 
 ![Project Structure Overview](images/getting-started/img-02_v1.png)
-_The Agent Hive structure: projects in folders with AGENCY.md files, source code for engine and dashboard, skills for agent guidance, GLOBAL.md for system state._
+_Hive keeps machine state and human context separate on purpose. Agents need structure. Humans need readable documents._
 
-## Step 3: Run the Dashboard
+## Step 3: Create Your First Project
 
-Launch the web interface:
+Let's make something concrete:
 
 ```bash
-make dashboard
+hive project create demo --title "Configuration system" \
+  --objective "Build a configuration layer with file defaults and environment overrides." \
+  --json
 ```
 
-Open <http://localhost:8501> in your browser. You'll see:
+That creates:
 
-- **Project list** in the sidebar
-- **Project details** in the main area
-- **System status** showing last Cortex run
-- **Deep Work context generator** for agent sessions
+- `projects/demo/AGENCY.md`
+- `projects/demo/PROGRAM.md`
 
-Explore the demo project to see how information is displayed.
+Open both files once before you go further.
+
+`AGENCY.md` is where you keep narrative context, architecture notes, links, and handoffs.  
+`PROGRAM.md` is where you define what autonomous runs are allowed to do.
+
+For a new project, the default `PROGRAM.md` is intentionally conservative. That's a feature, not a missing piece.
+
+## Step 4: Create Canonical Tasks
+
+Now add real work:
+
+```bash
+hive task create --project-id demo --title "Design the configuration schema" --priority 1 --json
+hive task create --project-id demo --title "Implement the configuration loader" --priority 1 --json
+hive task create --project-id demo --title "Write tests for environment overrides" --priority 2 --json
+```
+
+If one task depends on another, link it explicitly:
+
+```bash
+hive task link task_ABC blocks task_DEF --json
+```
+
+Then check the ready queue:
+
+```bash
+hive task ready --json
+```
+
+This is one of the biggest mental shifts in Hive v2: checkbox lists are no longer the machine database. Ready work comes from canonical task state under `.hive/tasks/*.md`.
+
+## Step 5: Claim Work and Build Context
+
+When you're ready to work, claim a task:
+
+```bash
+hive task claim task_ABC --owner bryan --ttl-minutes 60 --json
+```
+
+Then build a startup bundle:
+
+```bash
+hive context startup --project demo --task task_ABC --json
+```
+
+That context pulls together:
+
+- the project narrative from `AGENCY.md`
+- the task you claimed
+- `PROGRAM.md` policy
+- recent memory
+- relevant search hits and accepted run summaries
+
+This is the normal daily-use path for Hive. You do not need a dashboard or dispatcher to get value from it.
 
 ![The Dashboard Interface](images/getting-started/img-03_v1.png)
-_The Dashboard: view all projects, check statuses, generate Deep Work context for agents, and monitor system health from a friendly web interface._
+_The dashboard is optional. The real center of gravity is the CLI and the canonical state it operates on._
 
-## Step 4: Create Your First Project
+## Step 6: Do the Work
 
-Let's create a real project. I'll walk through a simple one: implementing a configuration system.
+You have two common options.
 
-### Create the Directory
+### Option A: Work directly
 
-```bash
-mkdir -p projects/config-system
-```
-
-### Create AGENCY.md
-
-Create `projects/config-system/AGENCY.md`:
-
-```markdown
----
-project_id: config-system
-status: active
-owner: null
-last_updated: null
-blocked: false
-blocking_reason: null
-priority: high
-tags: [feature, infrastructure]
-dependencies:
-  blocked_by: []
-  blocks: []
-  parent: null
-  related: []
----
-
-# Configuration System
-
-## Objective
-
-Implement a configuration management system that supports:
-
-- Environment-based configuration (dev, staging, prod)
-- YAML configuration files
-- Environment variable overrides
-- Type validation
-
-## Tasks
-
-- [ ] Research existing configuration libraries
-- [ ] Design configuration schema
-- [ ] Implement configuration loader
-- [ ] Add environment variable override support
-- [ ] Write unit tests
-- [ ] Document usage
-
-## Success Criteria
-
-- Configuration loads from YAML files
-- Environment variables override file values
-- Invalid configurations raise clear errors
-- 90%+ test coverage
-
-## Agent Notes
-
-_No notes yet_
-```
-
-### Verify It's Discovered
+Use the startup context yourself, make code changes, and update task state as you go:
 
 ```bash
-uv run python -m src.cortex --ready
+hive task update task_ABC --status running --json
 ```
 
-You should see your new project listed as ready work.
+When the work is ready for review:
+
+```bash
+hive task update task_ABC --status review --json
+hive sync projections --json
+```
+
+### Option B: Use a governed run
+
+If the project's `PROGRAM.md` defines allowed evaluator commands, you can use the run engine:
+
+```bash
+hive run start task_ABC --json
+hive run show run_ABC --json
+hive run eval run_ABC --json
+```
+
+Then one of three things happens:
+
+```bash
+hive run accept run_ABC --json
+hive run reject run_ABC --reason "Tests still failing" --json
+hive run escalate run_ABC --reason "Needs human review on infra changes" --json
+```
+
+That gives you artifacts, logs, patch data, summaries, and evaluation results under `.hive/runs/`.
+
+## Step 7: Keep Human Docs Fresh
+
+When task state, runs, or memory change, regenerate the human-facing rollups:
+
+```bash
+hive sync projections --json
+```
+
+That refreshes:
+
+- `GLOBAL.md`
+- `projects/*/AGENCY.md`
+- `AGENTS.md`
+
+The important detail is that these files are projections now. They help humans stay oriented, but they are not the canonical machine state.
 
 ![Creating Your First AGENCY.md](images/getting-started/img-04_v1.png)
-_Creating your first project: craft an AGENCY.md file with YAML frontmatter for metadata and Markdown content for objectives, tasks, and notes._
+_`AGENCY.md` still matters. It just has a better job now: human context, handoffs, and bounded generated rollups._
 
-## Step 5: Generate Deep Work Context
+## Step 8: Add Memory
 
-In the dashboard:
-
-1. Select "config-system" from the sidebar
-2. Click "Generate Context"
-3. Copy the generated context
-
-This context package contains everything an agent needs to start working: the AGENCY.md content, file structure, protocols, and instructions.
-
-## Step 6: Work on the Project
-
-Now you can either:
-
-### Option A: Work Manually
-
-Edit files directly, updating AGENCY.md as you progress:
-
-```markdown
-## Tasks
-
-- [x] Research existing configuration libraries
-- [ ] Design configuration schema
-      ...
-
-## Agent Notes
-
-- **2025-01-15 14:30 - human**: Researched pydantic-settings, dynaconf,
-  and python-dotenv. Recommending pydantic-settings for type safety.
-```
-
-### Option B: Use an AI Agent
-
-Paste the Deep Work context into Claude, GPT-5, or your agent of choice. The context instructs the agent to:
-
-1. Claim ownership
-2. Work on highest priority tasks
-3. Update progress
-4. Document decisions
-5. Follow handoff protocol
-
-### Option C: Use MCP Tools (Advanced)
-
-If you have the MCP server configured:
+If you want Hive to carry more context across sessions, record observations:
 
 ```bash
-# Start the MCP server
-uv run python -m hive_mcp
+hive memory observe --note "Chose env var precedence over file defaults for local overrides." --json
+hive memory reflect --json
 ```
 
-Agents with MCP integration can then use tools like:
-
-- `claim_project("config-system", "claude-sonnet-4")`
-- `add_note("config-system", "claude-sonnet-4", "Starting research...")`
-- `update_status("config-system", "active")`
-
-## Step 7: Run Cortex
-
-After some work has been done, run the orchestration engine:
+Then search that memory later:
 
 ```bash
-make cortex
+hive memory search "configuration precedence" --project demo --json
 ```
 
-Cortex will:
+This is especially useful when multiple agents, or the same human across several days, are touching the same project.
 
-1. Read all AGENCY.md files
-2. Analyze project states
-3. Identify blocked tasks
-4. Update metadata as needed
-5. Report findings
+## Optional Extras
 
-This runs automatically every 4 hours via GitHub Actions.
+These are useful, but they are not required to get started:
 
-![The Workflow in Action](images/getting-started/img-05_v1.png)
-_The workflow cycle: create projects, generate context, work and update, handoff cleanly, let Cortex orchestrate. Repeat for continuous progress._
+- `make dashboard` if you're working from a local checkout and want a Streamlit view
+- `make session PROJECT=demo` if you want a saved startup bundle from the repo checkout
+- the Claude GitHub App if you want issue-driven workflows
+- the MCP server if you want a thin `search` and `execute` surface for agent harnesses
 
-## Step 8: Add Dependencies
-
-Let's say your config system will be used by an API project. Create the dependency:
-
-### Create the Dependent Project
-
-```bash
-mkdir -p projects/api-server
-```
-
-Create `projects/api-server/AGENCY.md`:
-
-```markdown
----
-project_id: api-server
-status: active
-owner: null
-last_updated: null
-blocked: false
-blocking_reason: null
-priority: high
-tags: [feature, api]
-dependencies:
-  blocked_by: [config-system]
-  blocks: []
----
-
-# API Server
-
-## Objective
-
-Build REST API server using the configuration system.
-
-## Tasks
-
-- [ ] Set up FastAPI application
-- [ ] Integrate configuration system
-- [ ] Implement health endpoint
-- [ ] Add authentication middleware
-- [ ] Write API tests
-
-## Agent Notes
-
-_Waiting for config-system to complete_
-```
-
-### Check the Dependency Graph
-
-```bash
-uv run python -m src.cortex --deps
-```
-
-Output shows:
-
-```text
-BLOCKED PROJECTS:
-----------------------------------------
-*** api-server
-    Status: active
-    Blocked by: config-system
-    Reason: Blocked by uncompleted: config-system
-
-UNBLOCKED PROJECTS:
-----------------------------------------
-    config-system [active]
-      Blocks: api-server
-```
-
-The api-server won't appear in ready work until config-system is completed.
-
-![Adding Dependencies](images/getting-started/img-06_v1.png)
-_Adding dependencies: declare that API-SERVER is blocked by CONFIG-SYSTEM. When CONFIG-SYSTEM completes, API-SERVER unlocks and becomes ready._
-
-## Step 9: Complete and Hand Off
-
-When config-system is done, update its status:
-
-```yaml
----
-project_id: config-system
-status: completed
-owner: null
-last_updated: 2025-01-15T16:30:00Z
----
-```
-
-Now check ready work again:
-
-```bash
-uv run python -m src.cortex --ready
-```
-
-api-server should now appear as ready!
-
-## Step 10: Enable GitHub Actions (Optional)
-
-To run Cortex automatically:
-
-1. Push your fork to GitHub
-2. Add `OPENROUTER_API_KEY` as a repository secret
-3. Enable Actions in your repository settings
-
-The `.github/workflows/cortex.yml` workflow runs Cortex every 4 hours, analyzing your projects and committing any state updates.
-
-## Common Patterns
-
-### Pattern: Sequential Feature Development
-
-```text
-research → design → implement → test → deploy
-```
-
-Create five projects with linear `blocked_by` dependencies.
-
-### Pattern: Parallel Workstreams
-
-```text
-frontend-feature (no deps)
-backend-feature (no deps)
-mobile-feature (no deps)
-integration-tests (blocked_by: all above)
-```
-
-Three independent projects, then one that waits for all.
-
-### Pattern: Epic with Sub-Projects
-
-```text
-user-epic (parent)
-├── user-auth (parent: user-epic)
-├── user-profile (parent: user-epic)
-└── user-settings (parent: user-epic)
-```
-
-Group related work under a parent for organization.
+Use them because they help, not because Hive needs them to function.
 
 ## Troubleshooting
 
-### "OPENROUTER_API_KEY not set"
+### "I initialized the workspace, but nothing is ready"
 
-Edit `.env` and add your API key:
+That usually means one of two things:
 
-```bash
-OPENROUTER_API_KEY=sk-or-v1-xxxxx
-```
+- you haven't created any canonical tasks yet
+- all current tasks are blocked, claimed, or done
 
-### "No projects found"
-
-Ensure AGENCY.md files are in subdirectories of `projects/`:
-
-```text
-projects/
-└── my-project/
-    └── AGENCY.md  ← Must be named exactly this
-```
-
-### Dashboard won't start
-
-Reinstall dependencies:
+Run:
 
 ```bash
-make install
-make dashboard
+hive doctor --json
+hive task list --json
 ```
 
-### Cortex finds cycles
+### "I edited AGENCY.md, but the ready queue didn't change"
 
-Review your dependencies. Cycles can't be resolved automatically:
+That's expected if you only changed narrative content. The ready queue comes from `.hive/tasks/*.md`.
 
-```bash
-uv run python -m src.cortex --deps
-# Look for "CYCLES DETECTED" in output
-```
+### "The run engine says my evaluator command is not allowed"
 
-Break the cycle by removing or restructuring dependencies.
+Open `projects/<slug>/PROGRAM.md` and check `commands.allow` plus `evaluators`. Hive is strict on purpose.
 
-### Agent not following protocol
+## What Good Looks Like
 
-Ensure the Deep Work context was fully copied. The protocol instructions tell the agent how to behave. Without them, agents may not know to update AGENCY.md.
+After your first hour with Hive, you should have:
 
-## Next Steps
+- a clean workspace bootstrapped with `hive init`
+- one real project in `projects/demo/`
+- a handful of canonical tasks in `.hive/tasks/`
+- a repeatable way to find ready work
+- a startup context you can hand to yourself, Claude Code, OpenCode, Codex, or another harness
 
-You now have a working Agent Hive setup. Here's where to go next:
+That is enough to start doing real work.
 
-1. **Read the other articles** in this series for deeper understanding
-2. **Explore the examples/** directory for more patterns
-3. **Try the MCP server** for programmatic agent integration
-4. **Set up the coordinator** for real-time multi-agent work
-5. **Contribute** - PRs and issues welcome!
+Everything else in Hive builds on top of that loop.
 
 ## Quick Reference
 
 ```bash
 # Install
-make install
+uv tool install agent-hive
 
-# Dashboard
-make dashboard
+# Bootstrap workspace
+hive init --json
+hive doctor --json
 
-# Find ready work
-make ready          # Human-readable
-make ready-json     # JSON
+# Create project + tasks
+hive project create demo --title "Demo project" --json
+hive task create --project-id demo --title "Define the first slice" --json
 
-# View dependencies
-make deps           # Human-readable
-make deps-json      # JSON
+# Find and claim work
+hive task ready --json
+hive task claim task_ABC --owner bryan --json
 
-# Run Cortex (LLM analysis)
-make cortex
-
-# Start coordinator (optional)
-uv run python -m src.coordinator
-
-# Start MCP server (for agents)
-uv run python -m hive_mcp
+# Build context and refresh projections
+hive context startup --project demo --task task_ABC --json
+hive sync projections --json
 ```
-
-![Quick Reference Poster](images/getting-started/img-07_v1.png)
-_Quick reference: the essential commands for daily Agent Hive operation. Install, dashboard, find work, view dependencies, run Cortex._
-
----
-
-_Welcome to Agent Hive. Build something great._
-
-_Agent Hive is open source at [github.com/intertwine/hive-orchestrator](https://github.com/intertwine/hive-orchestrator)._

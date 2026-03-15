@@ -207,6 +207,14 @@ def _extract_relation_hints(
     return relation_hints
 
 
+def _line_contains_relation_keyword(text: str) -> bool:
+    return bool(
+        DEPENDENCY_RE.search(text)
+        or DUPLICATE_RE.search(text)
+        or SUPERSEDES_RE.search(text)
+    )
+
+
 def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[ImportedTask]:
     heading_stack: list[tuple[int, str]] = []
     parent_line_by_indent: dict[int, int] = {}
@@ -289,6 +297,15 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
         if note_indent > active_task.indent:
             active_task.detail_lines.append(stripped)
             continue
+        if _line_contains_relation_keyword(stripped):
+            report.warn(
+                path=relative_path,
+                line=line_number,
+                message=(
+                    f"Relation hint '{stripped}' was not indented under "
+                    f"'{active_task.title}', so it was ignored."
+                ),
+            )
         active_task = None
 
     for imported in parsed_tasks:
@@ -378,6 +395,7 @@ def _infer_edges(
             task.parent_id = task_by_line[imported.parent_line]
             save_task(root, task)
 
+        needs_proposed_downgrade = False
         for relation in imported.relation_hints:
             target_id = _resolve_relation_target(
                 title_index,
@@ -388,8 +406,7 @@ def _infer_edges(
             )
             if target_id is None:
                 if imported.relation_blocking and task.status == "blocked":
-                    task.status = "proposed"
-                    save_task(root, task)
+                    needs_proposed_downgrade = True
                 continue
             if relation.kind == "depends_on":
                 _append_edge(root, src_id=target_id, edge_type="blocks", dst_id=task.id)
@@ -401,6 +418,9 @@ def _infer_edges(
             elif relation.kind == "supersedes":
                 _append_edge(root, src_id=task.id, edge_type="supersedes", dst_id=target_id)
             report.edges_inferred += 1
+        if needs_proposed_downgrade:
+            task.status = "proposed"
+            save_task(root, task)
 
 
 def migrate_v1_to_v2(
@@ -502,7 +522,7 @@ def migrate_v1_to_v2(
                 source="migrate",
                 payload={"path": source_path},
             )
-            del event_record
+            _ = event_record
             report.add_created_file(str(event_file(root).relative_to(root)))
 
     if not dry_run:

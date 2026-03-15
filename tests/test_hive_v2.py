@@ -250,6 +250,41 @@ priority: high
         assert tasks["Replacement docs"].edges["supersedes"] == [tasks["Legacy docs"].id]
         assert tasks["Ship docs"].status == "blocked"
 
+    def test_migration_infers_dependency_synonyms(self, temp_hive_dir):
+        """Relation synonym phrases should map to dependency edges."""
+        agency_path = Path(temp_hive_dir) / "projects" / "dependency-synonyms" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: dependency-synonyms
+status: active
+priority: high
+---
+# Dependency Synonyms
+
+## Tasks
+- [ ] Shared foundation
+- [ ] Review docs
+  blocked by Shared foundation
+- [ ] Publish docs
+  requires Review docs
+""",
+            encoding="utf-8",
+        )
+
+        report = migrate_v1_to_v2(temp_hive_dir)
+        tasks = {
+            task.title: task
+            for task in list_tasks(temp_hive_dir)
+            if task.project_id == "dependency-synonyms"
+        }
+
+        assert report.edges_inferred == 2
+        assert tasks["Shared foundation"].edges["blocks"] == [tasks["Review docs"].id]
+        assert tasks["Review docs"].edges["blocks"] == [tasks["Publish docs"].id]
+        assert tasks["Review docs"].status == "blocked"
+        assert tasks["Publish docs"].status == "blocked"
+
     def test_migration_warns_on_ambiguous_relation_targets(self, temp_hive_dir):
         """Ambiguous relation targets should warn and fall back to proposed tasks."""
         agency_path = Path(temp_hive_dir) / "projects" / "ambiguous" / "AGENCY.md"
@@ -281,6 +316,73 @@ priority: medium
             for warning in result["warnings"]
         )
         assert waiting_task.status == "proposed"
+
+    def test_migration_warns_on_missing_relation_targets(self, temp_hive_dir):
+        """Missing relation targets should warn and fall back to proposed tasks."""
+        agency_path = Path(temp_hive_dir) / "projects" / "missing-relation" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: missing-relation
+status: active
+priority: medium
+---
+# Missing Relation Project
+
+## Tasks
+- [ ] Waiting task
+  depends on Missing dependency
+""",
+            encoding="utf-8",
+        )
+
+        report = migrate_v1_to_v2(temp_hive_dir)
+        result = report.to_dict()
+        task = next(
+            task
+            for task in list_tasks(temp_hive_dir)
+            if task.project_id == "missing-relation"
+        )
+
+        assert any(
+            "Could not confidently infer relation target 'Missing dependency'" in warning["message"]
+            for warning in result["warnings"]
+        )
+        assert task.status == "proposed"
+
+    def test_migration_warns_on_unindented_relation_notes(self, temp_hive_dir):
+        """Top-level relation hints should warn when they are not indented under a task."""
+        agency_path = Path(temp_hive_dir) / "projects" / "inline-relations" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: inline-relations
+status: active
+priority: medium
+---
+# Inline Relations Project
+
+## Tasks
+- [ ] Build foundation
+- [ ] Ship docs
+depends on Build foundation
+""",
+            encoding="utf-8",
+        )
+
+        report = migrate_v1_to_v2(temp_hive_dir)
+        result = report.to_dict()
+        tasks = {
+            task.title: task
+            for task in list_tasks(temp_hive_dir)
+            if task.project_id == "inline-relations"
+        }
+
+        assert any(
+            "Relation hint 'depends on Build foundation' was not indented" in warning["message"]
+            for warning in result["warnings"]
+        )
+        assert tasks["Ship docs"].status == "ready"
 
     def test_cli_migrate_supports_rewrite_mode(self, temp_hive_dir, temp_project, capsys):
         """The CLI should execute rewrite migrations without the old placeholder warning."""

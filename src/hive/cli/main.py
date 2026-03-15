@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -17,14 +18,11 @@ from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
 from src.hive.memory.search import search
 from src.hive.migrate.v1_to_v2 import migrate_v1_to_v2
+from src.hive.runs.engine import accept_run, escalate_run, eval_run, load_run, reject_run, start_run
 from src.hive.scaffold import starter_task_specs
 from src.hive.search import search_workspace
-from src.hive.projections.agency_md import sync_agency_md
-from src.hive.projections.agents_md import sync_agents_md
-from src.hive.projections.global_md import sync_global_md
-from src.hive.runs.engine import accept_run, escalate_run, eval_run, load_run, reject_run, start_run
 from src.hive.scheduler.query import dependency_summary, project_summary, ready_tasks
-from src.hive.store.cache import rebuild_cache
+from src.hive.store.cache import CacheBusyError, rebuild_cache
 from src.hive.store.layout import bootstrap_workspace
 from src.hive.store.projects import create_project, discover_projects, get_project
 from src.hive.store.task_files import (
@@ -36,6 +34,7 @@ from src.hive.store.task_files import (
     release_task,
     update_task,
 )
+from src.hive.workspace import WorkspaceBusyError, sync_workspace
 
 
 def _emit(payload: dict, as_json: bool) -> int:
@@ -45,6 +44,26 @@ def _emit(payload: dict, as_json: bool) -> int:
     else:
         print(render_payload(payload))
     return 0
+
+
+def _error_message(exc: Exception) -> str:
+    """Convert expected exceptions into product-level CLI errors."""
+    if isinstance(exc, WorkspaceBusyError):
+        return str(exc)
+    if isinstance(exc, CacheBusyError):
+        return str(exc)
+    if isinstance(exc, sqlite3.Error):
+        return (
+            "Hive hit a temporary cache refresh error while rebuilding derived state. "
+            "Retry the command, or run `hive sync projections` once the workspace is idle."
+        )
+    return str(exc)
+
+
+def _emit_error(exc: Exception, as_json: bool) -> int:
+    message = _error_message(exc)
+    _emit({"ok": False, "error": message, "message": message}, as_json)
+    return 1
 
 
 def _load_execute_code(args: argparse.Namespace) -> str:
@@ -372,10 +391,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             for current, nxt in zip(starter_tasks, starter_tasks[1:]):
                 link_tasks(root, current.id, "blocks", nxt.id)
-            sync_global_md(root)
-            sync_agency_md(root)
-            sync_agents_md(root)
-            rebuild_cache(root)
+            sync_workspace(root)
             if not starter_tasks:
                 raise ValueError("Quickstart could not create starter tasks")
             first_task = starter_tasks[0]
@@ -408,28 +424,40 @@ def main(argv: list[str] | None = None) -> int:
                 },
                 args.json,
             )
-        except (FileExistsError, ValueError) as exc:
-            _emit({"ok": False, "error": str(exc), "message": str(exc)}, args.json)
-            return 1
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileExistsError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
 
     if args.command == "init":
-        bootstrapped = bootstrap_workspace(root)
-        sync_global_md(root)
-        sync_agency_md(root)
-        sync_agents_md(root)
-        rebuild_cache(root)
-        doctor = _doctor_payload(root)
-        return _emit(
-            {
-                "ok": True,
-                "message": f"Initialized Hive layout at {root}",
-                "layout": {key: str(value) for key, value in bootstrapped["layout"].items()},
-                "created_files": bootstrapped["created_files"],
-                "updated_files": bootstrapped["updated_files"],
-                "next_steps": doctor["next_steps"],
-            },
-            args.json,
-        )
+        try:
+            bootstrapped = bootstrap_workspace(root)
+            sync_workspace(root)
+            doctor = _doctor_payload(root)
+            return _emit(
+                {
+                    "ok": True,
+                    "message": f"Initialized Hive layout at {root}",
+                    "layout": {key: str(value) for key, value in bootstrapped["layout"].items()},
+                    "created_files": bootstrapped["created_files"],
+                    "updated_files": bootstrapped["updated_files"],
+                    "next_steps": doctor["next_steps"],
+                },
+                args.json,
+            )
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
 
     if args.command == "doctor":
         return _emit(_doctor_payload(root), args.json)
@@ -438,14 +466,19 @@ def main(argv: list[str] | None = None) -> int:
         return _launch_dashboard(root, args.host, args.port, args.json)
 
     if args.command == "search":
-        return _emit(
-            {
-                "ok": True,
-                "message": f"Found search results for {args.query!r}",
-                "results": search_workspace(root, args.query, scopes=args.scope, limit=args.limit),
-            },
-            args.json,
-        )
+        try:
+            return _emit(
+                {
+                    "ok": True,
+                    "message": f"Found search results for {args.query!r}",
+                    "results": search_workspace(
+                        root, args.query, scopes=args.scope, limit=args.limit
+                    ),
+                },
+                args.json,
+            )
+        except (CacheBusyError, FileNotFoundError, ValueError, sqlite3.Error) as exc:
+            return _emit_error(exc, args.json)
 
     if args.command == "execute":
         try:
@@ -462,16 +495,24 @@ def main(argv: list[str] | None = None) -> int:
         return _emit(payload, args.json)
 
     if args.command == "cache" and args.cache_command == "rebuild":
-        db_path = rebuild_cache(root)
-        return _emit(
-            {"ok": True, "message": f"Rebuilt cache at {db_path}", "path": str(db_path)}, args.json
-        )
+        try:
+            db_path = rebuild_cache(root)
+            return _emit(
+                {
+                    "ok": True,
+                    "message": f"Rebuilt cache at {db_path}",
+                    "path": str(db_path),
+                },
+                args.json,
+            )
+        except (CacheBusyError, FileNotFoundError, ValueError, sqlite3.Error) as exc:
+            return _emit_error(exc, args.json)
 
     if args.command == "project":
-        if args.project_command == "list":
-            return _emit({"ok": True, "projects": project_summary(root)}, args.json)
-        if args.project_command == "create":
-            try:
+        try:
+            if args.project_command == "list":
+                return _emit({"ok": True, "projects": project_summary(root)}, args.json)
+            if args.project_command == "create":
                 project = create_project(
                     root,
                     args.slug,
@@ -482,246 +523,334 @@ def main(argv: list[str] | None = None) -> int:
                     objective=args.objective,
                     tags=args.tag,
                 )
-            except (FileExistsError, ValueError) as exc:
-                _emit({"ok": False, "error": str(exc), "message": str(exc)}, args.json)
-                return 1
-            sync_global_md(root)
-            sync_agency_md(root)
-            sync_agents_md(root)
-            rebuild_cache(root)
-            return _emit(
-                {
-                    "ok": True,
-                    "project": _project_payload(project),
-                    "next_steps": [
-                        "Run "
-                        f"`hive task create --project-id {project.id} "
-                        f'--title "Define the first slice"` '
-                        "to add canonical work.",
-                        f"Run `hive context startup --project {project.id}` "
-                        "to build startup context.",
-                    ],
-                },
-                args.json,
-            )
-        if args.project_command == "show":
-            project = get_project(root, args.project_id)
-            return _emit({"ok": True, "project": _project_payload(project)}, args.json)
-        if args.project_command == "sync":
-            sync_global_md(root)
-            sync_agency_md(root)
-            sync_agents_md(root)
-            rebuild_cache(root)
-            return _emit({"ok": True, "message": "Synced projections"}, args.json)
-
-    if args.command == "task":
-        if args.task_command == "list":
-            tasks = list_tasks(root)
-            if args.project_id:
-                tasks = [task for task in tasks if task.project_id == args.project_id]
-            if args.status:
-                statuses = set(args.status)
-                tasks = [task for task in tasks if task.status in statuses]
-            return _emit(
-                {
-                    "ok": True,
-                    "tasks": [task.to_frontmatter() | {"path": str(task.path)} for task in tasks],
-                },
-                args.json,
-            )
-        if args.task_command == "show":
-            task = get_task(root, args.task_id)
-            return _emit(
-                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
-            )
-        if args.task_command == "create":
-            task = create_task(
-                root,
-                args.project_id,
-                args.title,
-                kind=args.kind,
-                status=args.status,
-                priority=args.priority,
-            )
-            return _emit(
-                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
-            )
-        if args.task_command == "update":
-            patch = {}
-            for field in ["title", "status", "priority"]:
-                value = getattr(args, field)
-                if value is not None:
-                    patch[field] = value
-            task = update_task(root, args.task_id, patch)
-            return _emit(
-                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
-            )
-        if args.task_command == "claim":
-            task = claim_task(root, args.task_id, args.owner, args.ttl_minutes)
-            rebuild_cache(root)
-            return _emit(
-                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
-            )
-        if args.task_command == "release":
-            task = release_task(root, args.task_id)
-            rebuild_cache(root)
-            return _emit(
-                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
-            )
-        if args.task_command == "link":
-            task = link_tasks(root, args.src_id, args.edge_type, args.dst_id)
-            rebuild_cache(root)
-            return _emit(
-                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
-            )
-        if args.task_command == "ready":
-            return _emit(
-                {
-                    "ok": True,
-                    "tasks": ready_tasks(root, project_id=args.project_id, limit=args.limit),
-                },
-                args.json,
-            )
-
-    if args.command == "run":
-        if args.run_command == "start":
-            run = start_run(root, args.task_id)
-            rebuild_cache(root)
-            return _emit({"ok": True, "run": run.to_dict()}, args.json)
-        if args.run_command == "show":
-            return _emit({"ok": True, "run": load_run(root, args.run_id)}, args.json)
-        if args.run_command == "eval":
-            payload = eval_run(root, args.run_id)
-            rebuild_cache(root)
-            return _emit({"ok": True} | payload, args.json)
-        if args.run_command == "accept":
-            payload = accept_run(root, args.run_id)
-            rebuild_cache(root)
-            return _emit({"ok": True, "run": payload}, args.json)
-        if args.run_command == "reject":
-            payload = reject_run(root, args.run_id, args.reason)
-            rebuild_cache(root)
-            return _emit({"ok": True, "run": payload}, args.json)
-        if args.run_command == "escalate":
-            payload = escalate_run(root, args.run_id, args.reason)
-            rebuild_cache(root)
-            return _emit({"ok": True, "run": payload}, args.json)
-
-    if args.command == "memory":
-        if args.memory_command == "observe":
-            output_path = observe(
-                root,
-                transcript_path=args.transcript_path,
-                note=args.note,
-                scope=args.scope,
-                harness=args.harness,
-            )
-            rebuild_cache(root)
-            return _emit(
-                {
-                    "ok": True,
-                    "message": f"Recorded observation at {output_path}",
-                    "path": str(output_path),
-                },
-                args.json,
-            )
-        if args.memory_command == "reflect":
-            output_paths = {
-                key: str(value) for key, value in reflect(root, scope=args.scope).items()
-            }
-            rebuild_cache(root)
-            return _emit(
-                {
-                    "ok": True,
-                    "message": "Wrote reflection documents",
-                    "paths": output_paths,
-                },
-                args.json,
-            )
-        if args.memory_command == "search":
-            return _emit(
-                {
-                    "ok": True,
-                    "message": f"Found memory results for {args.query!r}",
-                    "results": search(
-                        root,
-                        args.query,
-                        scope=args.scope,
-                        project_id=args.project,
-                        task_id=args.task,
-                        limit=args.limit,
-                    ),
-                },
-                args.json,
-            )
-
-    if args.command == "context":
-        if args.context_command == "startup":
-            bundle = build_context_bundle(
-                root,
-                project_ref=args.project,
-                mode="startup",
-                profile=args.profile,
-                query=args.query,
-                task_id=args.task,
-            )
-            if args.output:
-                output_path = Path(args.output).expanduser().resolve()
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                output_path.write_text(str(bundle["rendered"]), encoding="utf-8")
+                sync_workspace(root)
                 return _emit(
                     {
                         "ok": True,
-                        "message": f"Wrote startup context to {output_path}",
-                        "output_path": str(output_path),
-                        "project": bundle["project_payload"],
+                        "project": _project_payload(project),
                         "next_steps": [
-                            f"Open {output_path}",
-                            "Copy the bundle into your agent, or reuse it as a handoff artifact.",
+                            "Run "
+                            f"`hive task create --project-id {project.id} "
+                            f'--title "Define the first slice"` '
+                            "to add canonical work.",
+                            f"Run `hive context startup --project {project.id}` "
+                            "to build startup context.",
                         ],
                     },
                     args.json,
                 )
-            if args.json:
-                return _emit({"ok": True, "context": bundle["context"]}, args.json)
-            return _emit({"ok": True, "rendered_context": bundle["rendered"]}, args.json)
-        if args.context_command == "handoff":
-            bundle = build_context_bundle(root, project_ref=args.project, mode="handoff")
-            if args.output:
-                output_path = Path(args.output).expanduser().resolve()
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                output_path.write_text(str(bundle["rendered"]), encoding="utf-8")
+            if args.project_command == "show":
+                project = get_project(root, args.project_id)
+                return _emit({"ok": True, "project": _project_payload(project)}, args.json)
+            if args.project_command == "sync":
+                sync_workspace(root)
+                return _emit({"ok": True, "message": "Synced projections"}, args.json)
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileExistsError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
+
+    if args.command == "task":
+        try:
+            if args.task_command == "list":
+                tasks = list_tasks(root)
+                if args.project_id:
+                    tasks = [task for task in tasks if task.project_id == args.project_id]
+                if args.status:
+                    statuses = set(args.status)
+                    tasks = [task for task in tasks if task.status in statuses]
                 return _emit(
                     {
                         "ok": True,
-                        "message": f"Wrote handoff context to {output_path}",
-                        "output_path": str(output_path),
-                        "project": bundle["project_payload"],
+                        "tasks": [
+                            task.to_frontmatter() | {"path": str(task.path)} for task in tasks
+                        ],
                     },
                     args.json,
                 )
-            if args.json:
-                return _emit({"ok": True, "context": bundle["context"]}, args.json)
-            return _emit({"ok": True, "rendered_context": bundle["rendered"]}, args.json)
+            if args.task_command == "show":
+                task = get_task(root, args.task_id)
+                return _emit(
+                    {
+                        "ok": True,
+                        "task": task.to_frontmatter() | {"path": str(task.path)},
+                    },
+                    args.json,
+                )
+            if args.task_command == "create":
+                task = create_task(
+                    root,
+                    args.project_id,
+                    args.title,
+                    kind=args.kind,
+                    status=args.status,
+                    priority=args.priority,
+                )
+                sync_workspace(root)
+                return _emit(
+                    {
+                        "ok": True,
+                        "task": task.to_frontmatter() | {"path": str(task.path)},
+                        "next_steps": [
+                            f"hive task ready --project-id {task.project_id}",
+                            f"hive context startup --project {task.project_id} --task {task.id}",
+                        ],
+                    },
+                    args.json,
+                )
+            if args.task_command == "update":
+                patch = {}
+                for field in ["title", "status", "priority"]:
+                    value = getattr(args, field)
+                    if value is not None:
+                        patch[field] = value
+                task = update_task(root, args.task_id, patch)
+                sync_workspace(root)
+                return _emit(
+                    {
+                        "ok": True,
+                        "task": task.to_frontmatter() | {"path": str(task.path)},
+                    },
+                    args.json,
+                )
+            if args.task_command == "claim":
+                task = claim_task(root, args.task_id, args.owner, args.ttl_minutes)
+                sync_workspace(root)
+                return _emit(
+                    {
+                        "ok": True,
+                        "task": task.to_frontmatter() | {"path": str(task.path)},
+                        "next_steps": [
+                            f"hive context startup --project {task.project_id} --task {task.id}",
+                        ],
+                    },
+                    args.json,
+                )
+            if args.task_command == "release":
+                task = release_task(root, args.task_id)
+                sync_workspace(root)
+                return _emit(
+                    {
+                        "ok": True,
+                        "task": task.to_frontmatter() | {"path": str(task.path)},
+                    },
+                    args.json,
+                )
+            if args.task_command == "link":
+                task = link_tasks(root, args.src_id, args.edge_type, args.dst_id)
+                sync_workspace(root)
+                return _emit(
+                    {
+                        "ok": True,
+                        "task": task.to_frontmatter() | {"path": str(task.path)},
+                    },
+                    args.json,
+                )
+            if args.task_command == "ready":
+                return _emit(
+                    {
+                        "ok": True,
+                        "tasks": ready_tasks(root, project_id=args.project_id, limit=args.limit),
+                    },
+                    args.json,
+                )
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileExistsError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
+
+    if args.command == "run":
+        try:
+            if args.run_command == "start":
+                run = start_run(root, args.task_id)
+                sync_workspace(root)
+                return _emit({"ok": True, "run": run.to_dict()}, args.json)
+            if args.run_command == "show":
+                return _emit({"ok": True, "run": load_run(root, args.run_id)}, args.json)
+            if args.run_command == "eval":
+                payload = eval_run(root, args.run_id)
+                sync_workspace(root)
+                return _emit({"ok": True} | payload, args.json)
+            if args.run_command == "accept":
+                payload = accept_run(root, args.run_id)
+                sync_workspace(root)
+                return _emit({"ok": True, "run": payload}, args.json)
+            if args.run_command == "reject":
+                payload = reject_run(root, args.run_id, args.reason)
+                sync_workspace(root)
+                return _emit({"ok": True, "run": payload}, args.json)
+            if args.run_command == "escalate":
+                payload = escalate_run(root, args.run_id, args.reason)
+                sync_workspace(root)
+                return _emit({"ok": True, "run": payload}, args.json)
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
+
+    if args.command == "memory":
+        try:
+            if args.memory_command == "observe":
+                output_path = observe(
+                    root,
+                    transcript_path=args.transcript_path,
+                    note=args.note,
+                    scope=args.scope,
+                    harness=args.harness,
+                )
+                rebuild_cache(root)
+                return _emit(
+                    {
+                        "ok": True,
+                        "message": f"Recorded observation at {output_path}",
+                        "path": str(output_path),
+                    },
+                    args.json,
+                )
+            if args.memory_command == "reflect":
+                output_paths = {
+                    key: str(value) for key, value in reflect(root, scope=args.scope).items()
+                }
+                rebuild_cache(root)
+                return _emit(
+                    {
+                        "ok": True,
+                        "message": "Wrote reflection documents",
+                        "paths": output_paths,
+                    },
+                    args.json,
+                )
+            if args.memory_command == "search":
+                return _emit(
+                    {
+                        "ok": True,
+                        "message": f"Found memory results for {args.query!r}",
+                        "results": search(
+                            root,
+                            args.query,
+                            scope=args.scope,
+                            project_id=args.project,
+                            task_id=args.task,
+                            limit=args.limit,
+                        ),
+                    },
+                    args.json,
+                )
+        except (CacheBusyError, FileNotFoundError, ValueError, sqlite3.Error) as exc:
+            return _emit_error(exc, args.json)
+
+    if args.command == "context":
+        try:
+            if args.context_command == "startup":
+                bundle = build_context_bundle(
+                    root,
+                    project_ref=args.project,
+                    mode="startup",
+                    profile=args.profile,
+                    query=args.query,
+                    task_id=args.task,
+                    refresh=False,
+                )
+                if args.output:
+                    output_path = Path(args.output).expanduser().resolve()
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    output_path.write_text(str(bundle["rendered"]), encoding="utf-8")
+                    return _emit(
+                        {
+                            "ok": True,
+                            "message": f"Wrote startup context to {output_path}",
+                            "output_path": str(output_path),
+                            "project": bundle["project_payload"],
+                            "next_steps": [
+                                f"Open {output_path}",
+                                "Copy the bundle into your agent, or reuse it as a "
+                                "handoff artifact.",
+                            ],
+                        },
+                        args.json,
+                    )
+                if args.json:
+                    return _emit({"ok": True, "context": bundle["context"]}, args.json)
+                return _emit({"ok": True, "rendered_context": bundle["rendered"]}, args.json)
+            if args.context_command == "handoff":
+                bundle = build_context_bundle(
+                    root,
+                    project_ref=args.project,
+                    mode="handoff",
+                    refresh=False,
+                )
+                if args.output:
+                    output_path = Path(args.output).expanduser().resolve()
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    output_path.write_text(str(bundle["rendered"]), encoding="utf-8")
+                    return _emit(
+                        {
+                            "ok": True,
+                            "message": f"Wrote handoff context to {output_path}",
+                            "output_path": str(output_path),
+                            "project": bundle["project_payload"],
+                        },
+                        args.json,
+                    )
+                if args.json:
+                    return _emit({"ok": True, "context": bundle["context"]}, args.json)
+                return _emit({"ok": True, "rendered_context": bundle["rendered"]}, args.json)
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
 
     if args.command == "sync" and args.sync_command == "projections":
-        sync_global_md(root)
-        sync_agency_md(root)
-        sync_agents_md(root)
-        rebuild_cache(root)
-        return _emit({"ok": True, "message": "Synced projections"}, args.json)
+        try:
+            sync_workspace(root)
+            return _emit({"ok": True, "message": "Synced projections"}, args.json)
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
 
     if args.command == "migrate" and args.migrate_command == "v1-to-v2":
-        report = migrate_v1_to_v2(
-            root,
-            dry_run=args.dry_run,
-            project_filter=args.project,
-            owner=args.owner,
-            rewrite=args.rewrite,
-        )
-        payload = report.to_dict()
-        payload["ok"] = report.ok
-        return _emit(payload, args.json)
+        try:
+            report = migrate_v1_to_v2(
+                root,
+                dry_run=args.dry_run,
+                project_filter=args.project,
+                owner=args.owner,
+                rewrite=args.rewrite,
+            )
+            payload = report.to_dict()
+            payload["ok"] = report.ok
+            return _emit(payload, args.json)
+        except (
+            CacheBusyError,
+            WorkspaceBusyError,
+            FileNotFoundError,
+            ValueError,
+            sqlite3.Error,
+        ) as exc:
+            return _emit_error(exc, args.json)
 
     if args.command == "deps":
         return _emit({"ok": True, "summary": dependency_summary(root)}, args.json)

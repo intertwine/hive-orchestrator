@@ -41,16 +41,21 @@ Useful local commands:
 Use the public install paths when you want to test what end users will see:
 
 ```bash
-uv tool install --from . agent-hive
+uv tool install --force --from . agent-hive
 pipx install --force .
 ```
 
 If you need optional extras while testing:
 
 ```bash
-uv tool install --from . 'agent-hive[dashboard]'
-uv tool install --from . 'agent-hive[mcp]'
+uv tool install --force --from . 'agent-hive[dashboard]'
+uv tool install --force --from . 'agent-hive[mcp]'
 ```
+
+For local checkout smoke tests, prefer `uv tool install --force --from . ...` or a throwaway
+virtualenv install over `uv tool run --from . ...`. The install path reliably rebuilds the local
+checkout, while `uv tool run --from .` can reuse a stale cached build when the package version has
+not changed yet.
 
 ## CI And Release Surfaces
 

@@ -8,15 +8,12 @@ import re
 
 from src.hive.clock import utc_now_iso
 from src.hive.constants import PRIORITY_MAP
-from src.hive.projections.agency_md import sync_agency_md
-from src.hive.projections.agents_md import sync_agents_md
-from src.hive.projections.global_md import sync_global_md
 from src.hive.runs.engine import generate_program_stub
-from src.hive.store.cache import rebuild_cache
 from src.hive.store.events import emit_event, event_file
 from src.hive.store.layout import ensure_layout
 from src.hive.store.projects import discover_projects, ensure_project_id
 from src.hive.store.task_files import create_task, get_task, list_tasks, save_task
+from src.hive.workspace import sync_workspace
 from src.security import safe_dump_agency_md
 
 CHECKBOX_RE = re.compile(r"^(?P<indent>\s*)[-*]\s+\[(?P<checked>[ xX])\]\s+(?P<title>.+?)\s*$")
@@ -27,7 +24,14 @@ DEPENDENCY_RE = re.compile(
 )
 DUPLICATE_RE = re.compile(r"\bduplicate of\s+(?P<target>[^.;]+)", re.IGNORECASE)
 SUPERSEDES_RE = re.compile(r"\bsupersedes\s+(?P<target>[^.;]+)", re.IGNORECASE)
+SECTION_RELATION_RE = re.compile(
+    r"^(?P<src>.+?)\s+(?P<phrase>depends on|blocked by|requires|duplicate of|supersedes)\s+"
+    r"(?P<target>[^.;]+)",
+    re.IGNORECASE,
+)
 LEGACY_TASK_HEADINGS = {"tasks", "imported legacy tasks"}
+GENERATED_MARKER_BEGIN = "<!-- hive:begin"
+GENERATED_MARKER_END = "<!-- hive:end"
 
 
 @dataclass
@@ -213,11 +217,77 @@ def _line_contains_relation_keyword(text: str) -> bool:
     )
 
 
+def _is_generated_marker(text: str) -> bool:
+    stripped = text.strip().lower()
+    return stripped.startswith(GENERATED_MARKER_BEGIN) or stripped.startswith(GENERATED_MARKER_END)
+
+
+def _relation_kind(phrase: str) -> str:
+    lowered = phrase.casefold()
+    if lowered in {"depends on", "blocked by", "requires"}:
+        return "depends_on"
+    if lowered == "duplicate of":
+        return "duplicate_of"
+    return "supersedes"
+
+
+def _append_section_relation_hints(
+    parsed_tasks: list[ImportedTask],
+    dependency_lines: list[tuple[int, str]],
+    *,
+    relative_path: str,
+    report: MigrationReport,
+) -> None:
+    title_index: dict[str, list[ImportedTask]] = {}
+    for task in parsed_tasks:
+        title_index.setdefault(_normalize_title(task.title), []).append(task)
+
+    for line_number, raw_text in dependency_lines:
+        match = SECTION_RELATION_RE.match(raw_text.strip())
+        if not match:
+            report.warn(
+                path=relative_path,
+                line=line_number,
+                message=f"Could not parse dependency line '{raw_text}'",
+            )
+            continue
+
+        source_title = _clean_relation_target(match.group("src"))
+        source_matches = title_index.get(_normalize_title(source_title), [])
+        if not source_matches:
+            report.warn(
+                path=relative_path,
+                line=line_number,
+                message=f"Could not confidently match dependency source '{source_title}'",
+            )
+            continue
+        if len(source_matches) > 1:
+            report.warn(
+                path=relative_path,
+                line=line_number,
+                message=f"Ambiguous dependency source '{source_title}' matched multiple tasks",
+            )
+            continue
+
+        source_task = source_matches[0]
+        relation = RelationHint(
+            kind=_relation_kind(match.group("phrase")),
+            target_title=_clean_relation_target(match.group("target")),
+            line=line_number,
+        )
+        source_task.relation_hints.append(relation)
+        if relation.kind == "depends_on" and not source_task.checked:
+            source_task.status = "blocked"
+            source_task.relation_blocking = True
+
+
 def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[ImportedTask]:
     heading_stack: list[tuple[int, str]] = []
     parent_line_by_indent: dict[int, int] = {}
     parsed_tasks: list[ImportedTask] = []
     active_task: ImportedTask | None = None
+    dependency_lines: list[tuple[int, str]] = []
+    inside_generated_block = False
     relative_path = str(project.agency_path.relative_to(root))
     project_dependencies = project.metadata.get("dependencies") or {}
     if not isinstance(project_dependencies, dict):
@@ -283,6 +353,25 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
             continue
 
         if active_task is None:
+            stripped = raw_line.strip()
+            if stripped.startswith(GENERATED_MARKER_BEGIN):
+                inside_generated_block = True
+                continue
+            if stripped.startswith(GENERATED_MARKER_END):
+                inside_generated_block = False
+                continue
+            if (
+                stripped
+                and not inside_generated_block
+                and not _is_generated_marker(stripped)
+                and heading_stack
+                and "dependencies" in heading_stack[-1][1].casefold()
+            ):
+                dependency_text = stripped
+                if dependency_text.startswith(("- ", "* ")):
+                    dependency_text = dependency_text[2:].strip()
+                if dependency_text:
+                    dependency_lines.append((line_number, dependency_text))
             continue
         stripped = raw_line.strip()
         if not stripped:
@@ -311,6 +400,12 @@ def _parse_project_tasks(project, root: Path, report: MigrationReport) -> list[I
         if imported.relation_hints and not imported.checked:
             imported.status = "blocked"
             imported.relation_blocking = True
+    _append_section_relation_hints(
+        parsed_tasks,
+        dependency_lines,
+        relative_path=relative_path,
+        report=report,
+    )
     return parsed_tasks
 
 
@@ -425,6 +520,47 @@ def _infer_edges(
             save_task(root, task)
 
 
+def _preview_infer_edges(
+    imported_tasks: list[ImportedTask],
+    *,
+    report: MigrationReport,
+    source_path: str,
+) -> None:
+    title_index: dict[str, list[str]] = {}
+    for imported in imported_tasks:
+        imported.task_id = imported.task_id or f"preview-task-{imported.line}"
+        title_index.setdefault(_normalize_title(imported.title), []).append(imported.task_id)
+
+    for imported in imported_tasks:
+        if imported.task_id is None:
+            continue
+        any_blocking_resolved = False
+        needs_proposed_downgrade = False
+        for relation in imported.relation_hints:
+            target_id = _resolve_relation_target(
+                title_index,
+                current_task_id=imported.task_id,
+                relation=relation,
+                report=report,
+                source_path=source_path,
+            )
+            if target_id is None:
+                if (
+                    relation.kind == "depends_on"
+                    and imported.relation_blocking
+                    and imported.status == "blocked"
+                    and not any_blocking_resolved
+                ):
+                    needs_proposed_downgrade = True
+                continue
+            if relation.kind == "depends_on":
+                any_blocking_resolved = True
+                needs_proposed_downgrade = False
+            report.edges_inferred += 1
+        if needs_proposed_downgrade:
+            imported.status = "proposed"
+
+
 def migrate_v1_to_v2(
     path: str | Path | None = None,
     *,
@@ -507,7 +643,13 @@ def migrate_v1_to_v2(
                 )
             report.tasks_imported += 1
 
-        if not dry_run:
+        if dry_run:
+            _preview_infer_edges(
+                imported_tasks,
+                report=report,
+                source_path=source_path,
+            )
+        else:
             _infer_edges(
                 root,
                 imported_tasks=imported_tasks,
@@ -527,9 +669,6 @@ def migrate_v1_to_v2(
             report.add_created_file(str(event_file(root).relative_to(root)))
 
     if not dry_run:
-        sync_global_md(root)
-        sync_agency_md(root)
-        sync_agents_md(root)
-        rebuild_cache(root)
+        sync_workspace(root)
 
     return report

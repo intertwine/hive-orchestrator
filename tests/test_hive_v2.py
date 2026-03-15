@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import importlib
 import json
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 
 import pytest
 
@@ -384,6 +387,116 @@ depends on Build foundation
             for warning in result["warnings"]
         )
         assert tasks["Ship docs"].status == "ready"
+
+    def test_migration_infers_dependency_section_relations(self, temp_hive_dir):
+        """Dependency sections should map plain-English relation lines into canonical edges."""
+        agency_path = Path(temp_hive_dir) / "projects" / "dependency-section" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: dependency-section
+status: active
+priority: medium
+---
+# Dependency Section Project
+
+## Tasks
+- [ ] Define the slice
+- [ ] Build the first page
+- [ ] Review the work
+
+## Dependencies
+- Build the first page depends on Define the slice
+- Review the work depends on Build the first page
+""",
+            encoding="utf-8",
+        )
+
+        report = migrate_v1_to_v2(temp_hive_dir)
+        tasks = {
+            task.title: task
+            for task in list_tasks(temp_hive_dir)
+            if task.project_id == "dependency-section"
+        }
+
+        assert report.edges_inferred == 2
+        assert tasks["Define the slice"].edges["blocks"] == [tasks["Build the first page"].id]
+        assert tasks["Build the first page"].edges["blocks"] == [tasks["Review the work"].id]
+        assert tasks["Build the first page"].status == "blocked"
+        assert tasks["Review the work"].status == "blocked"
+
+    def test_migration_dry_run_matches_real_relation_preview(self, temp_hive_dir):
+        """Dry-run migration should preview relation warnings and inferred edges faithfully."""
+        agency_path = Path(temp_hive_dir) / "projects" / "preview-relations" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: preview-relations
+status: active
+priority: medium
+---
+# Preview Relations Project
+
+## Tasks
+- [ ] Build foundation
+- [ ] Draft landing page copy
+- [ ] Draft landing page copy
+- [ ] Publish page
+
+## Dependencies
+- Publish page depends on Build foundation
+- Publish page depends on Draft landing page copy
+""",
+            encoding="utf-8",
+        )
+
+        dry_run = migrate_v1_to_v2(temp_hive_dir, dry_run=True).to_dict()
+        real_run = migrate_v1_to_v2(temp_hive_dir).to_dict()
+
+        assert dry_run["edges_inferred"] == real_run["edges_inferred"]
+        assert [warning["message"] for warning in dry_run["warnings"]] == [
+            warning["message"] for warning in real_run["warnings"]
+        ]
+
+    def test_migration_ignores_generated_marker_blocks_in_dependency_sections(self, temp_hive_dir):
+        """Init-generated marker blocks should not become fake dependency warnings during migration."""
+        agency_path = Path(temp_hive_dir) / "projects" / "marker-dependencies" / "AGENCY.md"
+        agency_path.parent.mkdir(parents=True, exist_ok=True)
+        agency_path.write_text(
+            """---
+project_id: marker-dependencies
+status: active
+priority: medium
+---
+# Marker Dependencies Project
+
+## Tasks
+- [ ] Define the slice
+- [ ] Build the page
+
+## Dependencies
+Build the page depends on Define the slice
+""",
+            encoding="utf-8",
+        )
+
+        # Simulate a cautious adopter who runs `hive init` before migration, which inserts
+        # projection markers into the existing project doc.
+        hive_main(["--path", temp_hive_dir, "--json", "init"])
+
+        dry_run = migrate_v1_to_v2(temp_hive_dir, dry_run=True).to_dict()
+        real_run = migrate_v1_to_v2(temp_hive_dir).to_dict()
+
+        assert dry_run["edges_inferred"] == 1
+        assert real_run["edges_inferred"] == 1
+        assert all(
+            "Could not parse dependency line" not in warning["message"]
+            for warning in dry_run["warnings"]
+        )
+        assert all(
+            "Could not parse dependency line" not in warning["message"]
+            for warning in real_run["warnings"]
+        )
 
     def test_migration_handles_list_dependencies_frontmatter(self, temp_hive_dir):
         """Legacy list-form dependencies should not abort migration."""
@@ -837,6 +950,24 @@ class TestHiveV2Memory:
         assert context["project_id"] == project.id
         assert any(section["name"] == "project-profile" for section in context["sections"])
 
+    def test_memory_reflect_writes_distinct_documents(self, temp_hive_dir, temp_project):
+        """Reflection outputs should feel like separate memory layers, not verbatim copies."""
+        del temp_project
+        observe_project(temp_hive_dir, note="User prefers a sharp onboarding flow.")
+        observe_project(temp_hive_dir, note="User prefers a sharp onboarding flow.")
+        observe_project(temp_hive_dir, note="Right now we are fixing run lifecycle UX.")
+
+        outputs = reflect_project(temp_hive_dir)
+        profile_text = outputs["profile"].read_text(encoding="utf-8")
+        active_text = outputs["active"].read_text(encoding="utf-8")
+        reflections_text = outputs["reflections"].read_text(encoding="utf-8")
+
+        assert "## Stable Context" in profile_text
+        assert "## Right Now" in active_text
+        assert "## Patterns" in reflections_text
+        assert profile_text != active_text
+        assert reflections_text != active_text
+
     def test_memory_global_scope_merges_into_startup_context(
         self, temp_hive_dir, temp_project, monkeypatch
     ):
@@ -1135,6 +1266,18 @@ class TestHiveV2Memory:
 
         assert "run_orphaned" not in run_ids
 
+    def test_cache_rebuild_serializes_parallel_writers(self, temp_hive_dir, temp_project):
+        """Concurrent cache rebuilds should succeed without surfacing SQLite races."""
+        migrate_v1_to_v2(temp_hive_dir)
+        del temp_project
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            paths = list(executor.map(lambda _index: rebuild_cache(temp_hive_dir), range(4)))
+
+        assert paths
+        assert all(path == paths[0] for path in paths)
+        assert Path(paths[0]).exists()
+
 
 class TestHiveV2Cli:
     """Tests for the CLI JSON surface."""
@@ -1361,7 +1504,48 @@ class TestHiveV2Cli:
         assert output_path.exists()
         assert "HIVE STARTUP CONTEXT" in output_path.read_text(encoding="utf-8")
 
-    def test_context_bundle_includes_serializable_project_payload(self, temp_hive_dir, temp_project):
+    def test_cli_context_startup_syncs_project_rollups_after_claim(self, tmp_path, capsys):
+        """Startup context should not show stale AGENCY task state after a claim."""
+        workspace = tmp_path / "context-fresh-rollups"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "launch/demo"])
+        capsys.readouterr()
+        task_id = ready_tasks(workspace, project_id="launch-demo")[0]["id"]
+
+        claim_exit = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "task",
+                "claim",
+                task_id,
+                "--owner",
+                "codex",
+            ]
+        )
+        capsys.readouterr()
+        assert claim_exit == 0
+
+        exit_code = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "context",
+                "startup",
+                "--project",
+                "launch-demo",
+                "--task",
+                task_id,
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert f"| {task_id} | claimed | 1 | codex |" in captured.out
+
+    def test_context_bundle_includes_serializable_project_payload(
+        self, temp_hive_dir, temp_project
+    ):
         """Context bundles should expose a JSON-safe project payload for CLI callers."""
         migrate_v1_to_v2(temp_hive_dir)
         assert temp_project
@@ -1470,6 +1654,93 @@ class TestHiveV2Cli:
         assert "already exists" in payload["error"]
         assert not (workspace / "projects" / "foo" / "bar" / "AGENCY.md").exists()
 
+    def test_cli_parallel_project_create_keeps_projections_consistent(self, tmp_path):
+        """Parallel project creation should leave the visible workspace in a consistent state."""
+        workspace = tmp_path / "parallel-project-create"
+        repo_root = Path(__file__).resolve().parents[1]
+
+        init_result = subprocess.run(
+            [sys.executable, "-m", "src.hive.cli.main", "--path", str(workspace), "--json", "init"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert init_result.returncode == 0, init_result.stdout + init_result.stderr
+
+        commands = [
+            [
+                sys.executable,
+                "-m",
+                "src.hive.cli.main",
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "create",
+                "launch/site",
+                "--title",
+                "Launch Site",
+            ],
+            [
+                sys.executable,
+                "-m",
+                "src.hive.cli.main",
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "create",
+                "ops/runbook",
+                "--title",
+                "Ops Runbook",
+            ],
+        ]
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(
+                executor.map(
+                    lambda command: subprocess.run(
+                        command,
+                        cwd=repo_root,
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                    ),
+                    commands,
+                )
+            )
+
+        for result in results:
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert json.loads(result.stdout)["ok"] is True
+
+        list_result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "src.hive.cli.main",
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "list",
+            ],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert list_result.returncode == 0, list_result.stdout + list_result.stderr
+        payload = json.loads(list_result.stdout)
+        project_ids = sorted(project["id"] for project in payload["projects"])
+
+        assert project_ids == ["launch-site", "ops-runbook"]
+
+        global_content = (workspace / "GLOBAL.md").read_text(encoding="utf-8")
+        assert "Launch Site" in global_content
+        assert "Ops Runbook" in global_content
+
     def test_cli_task_ready_json_after_migration(self, temp_hive_dir, capsys):
         """The CLI should return stable JSON for ready tasks."""
         migrate_v1_to_v2(temp_hive_dir)
@@ -1570,6 +1841,55 @@ class TestHiveV2Cli:
         assert any(result["kind"] == "task" for result in payload["results"])
         assert any(result["kind"] == "memory" for result in payload["results"])
 
+    def test_cli_run_start_requires_initial_commit_without_traceback(self, tmp_path, capsys):
+        """Fresh repos should get a product-level error when runs need an initial commit."""
+        workspace = tmp_path / "run-needs-commit"
+        workspace.mkdir(parents=True, exist_ok=True)
+
+        subprocess.run(["git", "init", "-q"], cwd=workspace, check=True)
+        hive_main(["--path", str(workspace), "--json", "quickstart", "launch/demo"])
+        capsys.readouterr()
+        task_id = ready_tasks(workspace, project_id="launch-demo")[0]["id"]
+
+        exit_code = hive_main(["--path", str(workspace), "--json", "run", "start", task_id])
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+
+        assert exit_code == 1
+        assert payload["ok"] is False
+        assert "initial Git commit" in payload["error"]
+        assert "Traceback" not in captured.err
+
+    def test_cli_run_lifecycle_errors_return_structured_json(
+        self, temp_hive_dir, temp_project, commit_workspace, capsys
+    ):
+        """Invalid lifecycle transitions should fail cleanly without Python tracebacks."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        project.program_path.write_text(
+            _program_markdown("python -c \"print('ok')\""),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare lifecycle workspace")
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+
+        hive_main(["--path", temp_hive_dir, "--json", "run", "start", task_id])
+        start_payload = json.loads(capsys.readouterr().out)
+        run_id = start_payload["run"]["id"]
+        hive_main(["--path", temp_hive_dir, "--json", "run", "eval", run_id])
+        capsys.readouterr()
+        hive_main(["--path", temp_hive_dir, "--json", "run", "accept", run_id])
+        capsys.readouterr()
+
+        exit_code = hive_main(["--path", temp_hive_dir, "--json", "run", "eval", run_id])
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+
+        assert exit_code == 1
+        assert payload["ok"] is False
+        assert "Cannot evaluate run" in payload["error"]
+        assert "Traceback" not in captured.err
+
     def test_cli_memory_search_supports_scope_and_task_filters(
         self, temp_hive_dir, temp_project, monkeypatch, capsys
     ):
@@ -1642,6 +1962,25 @@ class TestHiveV2Search:
         kinds = {item["kind"] for item in results}
         assert "task" in kinds
         assert "memory" in kinds
+
+    def test_search_workspace_prioritizes_canonical_tasks_for_task_queries(self, tmp_path):
+        """Task-shaped queries should rank canonical task hits ahead of projected rollups."""
+        workspace = tmp_path / "search-priority"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "launch/demo"])
+
+        results = search_workspace(workspace, "thin slice", scopes=["workspace"], limit=5)
+
+        assert results
+        assert results[0]["kind"] == "task"
+
+    def test_search_workspace_excludes_zero_match_tasks(self, tmp_path):
+        """Irrelevant queries should not return every canonical task just because tasks are boosted."""
+        workspace = tmp_path / "search-zero-match"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "launch/demo"])
+
+        results = search_workspace(workspace, "ultraviolet narwhal", scopes=["workspace"], limit=20)
+
+        assert all(item["kind"] != "task" for item in results)
 
     def test_search_workspace_rebuilds_missing_cache_on_demand(self, temp_hive_dir, temp_project):
         """Search should rebuild the cache when no derived index exists yet."""

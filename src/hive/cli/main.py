@@ -331,40 +331,41 @@ def main(argv: list[str] | None = None) -> int:
             sync_agency_md(root)
             sync_agents_md(root)
             rebuild_cache(root)
+            if not starter_tasks:
+                raise ValueError("Quickstart could not create starter tasks")
+            first_task = starter_tasks[0]
+            return _emit(
+                {
+                    "ok": True,
+                    "message": (
+                        f"Quickstarted Hive workspace at {root} with project {project.id} "
+                        f"and {len(starter_tasks)} starter tasks"
+                    ),
+                    "layout": {key: str(value) for key, value in bootstrapped["layout"].items()},
+                    "created_files": bootstrapped["created_files"],
+                    "updated_files": bootstrapped["updated_files"],
+                    "project": _project_payload(project),
+                    "tasks": [
+                        {
+                            "id": task.id,
+                            "project_id": task.project_id,
+                            "title": task.title,
+                            "status": task.status,
+                            "priority": task.priority,
+                        }
+                        for task in starter_tasks
+                    ],
+                    "next_steps": [
+                        f"hive task ready --project-id {project.id} --json",
+                        f"hive task claim {first_task.id} --owner <your-name> --ttl-minutes 60 --json",
+                        f"hive context startup --project {project.id} --task {first_task.id} --json",
+                    ],
+                },
+                args.json,
+            )
         except (FileExistsError, ValueError) as exc:
             _emit({"ok": False, "error": str(exc), "message": str(exc)}, args.json)
             return 1
-
-        first_task = starter_tasks[0]
-        return _emit(
-            {
-                "ok": True,
-                "message": (
-                    f"Quickstarted Hive workspace at {root} with project {project.id} "
-                    f"and {len(starter_tasks)} starter tasks"
-                ),
-                "layout": {key: str(value) for key, value in bootstrapped["layout"].items()},
-                "created_files": bootstrapped["created_files"],
-                "updated_files": bootstrapped["updated_files"],
-                "project": _project_payload(project),
-                "tasks": [
-                    {
-                        "id": task.id,
-                        "project_id": task.project_id,
-                        "title": task.title,
-                        "status": task.status,
-                        "priority": task.priority,
-                    }
-                    for task in starter_tasks
-                ],
-                "next_steps": [
-                    f"hive task ready --project-id {project.id} --json",
-                    f"hive task claim {first_task.id} --owner <your-name> --ttl-minutes 60 --json",
-                    f"hive context startup --project {project.id} --task {first_task.id} --json",
-                ],
-            },
-            args.json,
-        )
 
     if args.command == "init":
         bootstrapped = bootstrap_workspace(root)

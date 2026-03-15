@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 import sqlite3
@@ -22,6 +23,8 @@ from src.hive.store.cache import _memory_scope_parts, rebuild_cache
 from src.hive.store.layout import ensure_layout, global_memory_dir, tasks_dir
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import get_task, link_tasks, list_tasks, save_task
+
+hive_cli_main = importlib.import_module("src.hive.cli.main")
 
 
 def _program_markdown(
@@ -1242,6 +1245,22 @@ class TestHiveV2Cli:
         assert second_exit == 1
         assert payload["ok"] is False
         assert "already exists" in payload["error"]
+
+    def test_cli_quickstart_fails_cleanly_without_starter_tasks(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Quickstart should surface scaffold failures as structured JSON errors."""
+        workspace = tmp_path / "quickstart-empty"
+
+        monkeypatch.setattr(hive_cli_main, "starter_task_specs", lambda _title: [])
+
+        exit_code = hive_main(["--path", str(workspace), "--json", "quickstart"])
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+
+        assert exit_code == 1
+        assert payload["ok"] is False
+        assert payload["error"] == "Quickstart could not create starter tasks"
 
     def test_cli_project_create_scaffolds_agency_and_program(self, tmp_path, capsys):
         """Project creation should normalize slugs and scaffold narrative and policy files."""

@@ -1,6 +1,6 @@
 # Releasing Agent Hive
 
-This guide is for maintainers. If you are trying to install or use Hive, start with the public install section in the root [README.md](/Users/bryanyoung/experiments/hive-orchestrator-v2-distribution/README.md).
+This guide is for maintainers. If you are trying to install or use Hive, start with the public install section in the root [README.md](/README.md).
 
 ## Everyday User Path vs. Maintainer Path
 
@@ -20,7 +20,7 @@ Before the first public release:
 3. Set the repository secret `HOMEBREW_TAP_GITHUB_TOKEN` with push access to that tap repo.
 4. Confirm the tap already has a `Formula/` directory or can accept one.
 
-The tagged release workflow at [release.yml](/Users/bryanyoung/experiments/hive-orchestrator-v2-distribution/.github/workflows/release.yml) publishes to PyPI first, then regenerates the Homebrew formula from the published artifacts and pushes the tap update.
+The tagged release workflow at [release.yml](/.github/workflows/release.yml) publishes to PyPI first, then regenerates the Homebrew formula from the published artifacts and pushes the tap update.
 
 ## Pre-Release Checklist
 
@@ -36,7 +36,7 @@ Then run the release smoke checks:
 make release-check
 ```
 
-That does four things:
+That does five things:
 
 1. builds the wheel and sdist
 2. runs `twine check` on the artifacts

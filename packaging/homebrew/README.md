@@ -15,4 +15,4 @@ make brew-formula
 make release-homebrew HOMEBREW_TAP_DIR=../homebrew-tap
 ```
 
-For the full release sequence and verification checklist, see [docs/RELEASING.md](/Users/bryanyoung/experiments/hive-orchestrator-v2-distribution/docs/RELEASING.md).
+For the full release sequence and verification checklist, see [docs/RELEASING.md](/docs/RELEASING.md).

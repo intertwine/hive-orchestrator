@@ -24,13 +24,14 @@ trap cleanup EXIT
 
 run_uv_tool_smoke() {
     local uv_home="$TEMP_ROOT/uv-home"
+    local uv_bin_dir="$uv_home/.local/bin"
     local workspace="$TEMP_ROOT/uv-workspace"
     local hive_bin
 
-    mkdir -p "$uv_home" "$workspace"
-    HOME="$uv_home" uv tool install --force --from "$WHEEL_PATH" agent-hive >/dev/null
+    mkdir -p "$uv_home" "$uv_bin_dir" "$workspace"
+    HOME="$uv_home" UV_TOOL_BIN_DIR="$uv_bin_dir" uv tool install --force --from "$WHEEL_PATH" agent-hive >/dev/null
 
-    hive_bin="$uv_home/.local/bin/hive"
+    hive_bin="$uv_bin_dir/hive"
     "$hive_bin" --version >/dev/null
     "$hive_bin" --path "$workspace" init --json >/dev/null
     "$hive_bin" --path "$workspace" doctor --json >/dev/null

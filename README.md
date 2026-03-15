@@ -191,7 +191,7 @@ The repository now includes:
 - `scripts/smoke_release_install.sh` for built-artifact install smoke tests
 - `scripts/generate_homebrew_formula.py` for Homebrew formula generation from published artifacts
 
-Everyday users should stop at the install section above. Maintainers should use [docs/RELEASING.md](/Users/bryanyoung/experiments/hive-orchestrator-v2-distribution/docs/RELEASING.md) for PyPI, Homebrew, tagging, and verification details.
+Everyday users should stop at the install section above. Maintainers should use [docs/RELEASING.md](/docs/RELEASING.md) for PyPI, Homebrew, tagging, and verification details.
 
 ## Optional Environment Variables
 

@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from src.hive import __version__
-from src.hive.codemode.execute import execute_code
+from src.hive.codemode.execute import MAX_EXECUTE_BYTES, execute_code
 from src.hive.memory.context import handoff_context, startup_context
 from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
@@ -41,6 +41,19 @@ def _emit(payload: dict, as_json: bool) -> int:
     else:
         print(payload.get("message") or json.dumps(payload, indent=2, sort_keys=True))
     return 0
+
+
+def _load_execute_code(args: argparse.Namespace) -> str:
+    if args.file:
+        file_path = Path(args.file)
+        if file_path.stat().st_size > MAX_EXECUTE_BYTES:
+            raise ValueError(f"Execute input exceeds {MAX_EXECUTE_BYTES} bytes: {file_path}")
+        return file_path.read_text(encoding="utf-8")
+
+    code = args.code or ""
+    if len(code.encode("utf-8")) > MAX_EXECUTE_BYTES:
+        raise ValueError(f"Execute input exceeds {MAX_EXECUTE_BYTES} bytes")
+    return code
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -193,7 +206,9 @@ def main(argv: list[str] | None = None) -> int:
         return _emit(
             {
                 "ok": True,
-                "message": f"Hive workspace at {root}: {len(projects)} projects, {len(tasks)} tasks",
+                "message": (
+                    f"Hive workspace at {root}: {len(projects)} projects, {len(tasks)} tasks"
+                ),
                 "workspace": str(root),
                 "projects": len(projects),
                 "tasks": len(tasks),
@@ -212,9 +227,10 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if args.command == "execute":
-        code = args.code
-        if args.file:
-            code = Path(args.file).read_text(encoding="utf-8")
+        try:
+            code = _load_execute_code(args)
+        except ValueError as exc:
+            return _emit({"ok": False, "error": str(exc)}, args.json)
         payload = execute_code(
             root,
             language=args.language,
@@ -226,7 +242,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "cache" and args.cache_command == "rebuild":
         db_path = rebuild_cache(root)
-        return _emit({"ok": True, "message": f"Rebuilt cache at {db_path}", "path": str(db_path)}, args.json)
+        return _emit(
+            {"ok": True, "message": f"Rebuilt cache at {db_path}", "path": str(db_path)}, args.json
+        )
 
     if args.command == "project":
         if args.project_command == "list":
@@ -273,7 +291,9 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.task_command == "show":
             task = get_task(root, args.task_id)
-            return _emit({"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json)
+            return _emit(
+                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
+            )
         if args.task_command == "create":
             task = create_task(
                 root,
@@ -283,7 +303,9 @@ def main(argv: list[str] | None = None) -> int:
                 status=args.status,
                 priority=args.priority,
             )
-            return _emit({"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json)
+            return _emit(
+                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
+            )
         if args.task_command == "update":
             patch = {}
             for field in ["title", "status", "priority"]:
@@ -291,21 +313,35 @@ def main(argv: list[str] | None = None) -> int:
                 if value is not None:
                     patch[field] = value
             task = update_task(root, args.task_id, patch)
-            return _emit({"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json)
+            return _emit(
+                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
+            )
         if args.task_command == "claim":
             task = claim_task(root, args.task_id, args.owner, args.ttl_minutes)
             rebuild_cache(root)
-            return _emit({"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json)
+            return _emit(
+                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
+            )
         if args.task_command == "release":
             task = release_task(root, args.task_id)
             rebuild_cache(root)
-            return _emit({"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json)
+            return _emit(
+                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
+            )
         if args.task_command == "link":
             task = link_tasks(root, args.src_id, args.edge_type, args.dst_id)
             rebuild_cache(root)
-            return _emit({"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json)
+            return _emit(
+                {"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json
+            )
         if args.task_command == "ready":
-            return _emit({"ok": True, "tasks": ready_tasks(root, project_id=args.project_id, limit=args.limit)}, args.json)
+            return _emit(
+                {
+                    "ok": True,
+                    "tasks": ready_tasks(root, project_id=args.project_id, limit=args.limit),
+                },
+                args.json,
+            )
 
     if args.command == "run":
         if args.run_command == "start":
@@ -343,10 +379,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "context":
         if args.context_command == "startup":
-            payload = startup_context(root, project_id=args.project, profile=args.profile, query=args.query)
+            payload = startup_context(
+                root, project_id=args.project, profile=args.profile, query=args.query
+            )
             return _emit({"ok": True, "context": payload}, args.json)
         if args.context_command == "handoff":
-            return _emit({"ok": True, "context": handoff_context(root, project_id=args.project)}, args.json)
+            return _emit(
+                {"ok": True, "context": handoff_context(root, project_id=args.project)}, args.json
+            )
 
     if args.command == "sync" and args.sync_command == "projections":
         sync_global_md(root)
@@ -357,7 +397,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "migrate" and args.migrate_command == "v1-to-v2":
         if args.rewrite:
-            print("--rewrite is not implemented in the initial shadow-mode migrator", file=sys.stderr)
+            print(
+                "--rewrite is not implemented in the initial shadow-mode migrator", file=sys.stderr
+            )
         report = migrate_v1_to_v2(
             root,
             dry_run=args.dry_run,

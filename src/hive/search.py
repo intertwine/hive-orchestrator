@@ -31,7 +31,7 @@ COMMAND_DOCS = (
     {
         "title": "hive search",
         "summary": "Search workspace state, API docs, schemas, examples, and project summaries.",
-        "example": "hive search \"claim a task\" --scope api --limit 8 --json",
+        "example": 'hive search "claim a task" --scope api --limit 8 --json',
     },
     {
         "title": "hive task claim",
@@ -56,7 +56,7 @@ COMMAND_DOCS = (
     {
         "title": "hive memory search",
         "summary": "Search project-local observational memory documents.",
-        "example": "hive memory search \"migration\" --json",
+        "example": 'hive memory search "migration" --json',
     },
     {
         "title": "hive context startup",
@@ -64,6 +64,7 @@ COMMAND_DOCS = (
         "example": "hive context startup --project demo --profile light --json",
     },
 )
+EXAMPLE_TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".py", ".sql", ".txt", ".yaml", ".yml"}
 
 
 def _repo_root() -> Path:
@@ -110,19 +111,26 @@ def _search_cache(root: Path, query: str, scopes: set[str], limit: int) -> list[
         "agency": "agency",
         "global": "global",
     }
-    doc_types = {doc_type for scope, doc_type in doc_type_map.items() if scope in scopes or "workspace" in scopes}
+    doc_types = {
+        doc_type
+        for scope, doc_type in doc_type_map.items()
+        if scope in scopes or "workspace" in scopes
+    }
     if not doc_types:
         return []
 
+    placeholders = ",".join("?" for _ in sorted(doc_types))
     connection = sqlite3.connect(db_path)
     try:
+        # NOTE: This still fetches all matching doc types before scoring in Python.
+        # Move to SQLite FTS5 or at least a LIKE pre-filter once workspace corpora get larger.
         rows = list(
             connection.execute(
-                """
+                f"""
                 SELECT doc_type, path, title, body, metadata_json
                 FROM search_docs
-                WHERE doc_type IN ({})
-                """.format(",".join("?" for _ in sorted(doc_types))),
+                WHERE doc_type IN ({placeholders})
+                """,
                 tuple(sorted(doc_types)),
             )
         )
@@ -135,14 +143,14 @@ def _search_cache(root: Path, query: str, scopes: set[str], limit: int) -> list[
         if not score:
             continue
         metadata = json.loads(metadata_json or "{}")
+        snippet = _snippet(body, query)
         results.append(
             {
                 "kind": doc_type,
                 "title": title,
                 "path": path,
                 "score": score,
-                "summary": _snippet(body, query),
-                "snippet": _snippet(body, query),
+                "snippet": snippet,
                 "metadata": metadata,
             }
         )
@@ -181,14 +189,14 @@ def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str,
         score = _score(body, query)
         if not score:
             continue
+        snippet = _snippet(body, query)
         results.append(
             {
                 "kind": kind,
                 "title": title,
                 "path": str(file_path),
                 "score": score,
-                "summary": _snippet(body, query),
-                "snippet": _snippet(body, query),
+                "snippet": snippet,
             }
         )
 
@@ -203,25 +211,34 @@ def _search_examples(query: str, scopes: set[str], limit: int) -> list[dict[str,
         return []
 
     results: list[dict[str, object]] = []
-    for file_path in sorted(path for path in examples_root.rglob("*") if path.is_file()):
-        body = file_path.read_text(encoding="utf-8")
+    for file_path in sorted(
+        path
+        for path in examples_root.rglob("*")
+        if path.is_file() and path.suffix.lower() in EXAMPLE_TEXT_SUFFIXES
+    ):
+        try:
+            body = file_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
         score = _score(body, query)
         if not score:
             continue
+        snippet = _snippet(body, query)
         results.append(
             {
                 "kind": "example",
                 "title": str(file_path.relative_to(examples_root)),
                 "path": str(file_path),
                 "score": score,
-                "summary": _snippet(body, query),
-                "snippet": _snippet(body, query),
+                "snippet": snippet,
             }
         )
     return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[:limit]
 
 
-def _search_project_summary(root: Path, query: str, scopes: set[str], limit: int) -> list[dict[str, object]]:
+def _search_project_summary(
+    root: Path, query: str, scopes: set[str], limit: int
+) -> list[dict[str, object]]:
     if "project" not in scopes:
         return []
     results: list[dict[str, object]] = []
@@ -233,13 +250,13 @@ def _search_project_summary(root: Path, query: str, scopes: set[str], limit: int
     graph_text = json.dumps(workspace_graph, indent=2, sort_keys=True)
     graph_score = _score(graph_text, query)
     if graph_score:
+        graph_snippet = _snippet(graph_text, query)
         results.append(
             {
                 "kind": "project",
                 "title": "Workspace Graph Summary",
                 "score": graph_score,
-                "summary": _snippet(graph_text, query),
-                "snippet": _snippet(graph_text, query),
+                "snippet": graph_snippet,
             }
         )
 
@@ -248,13 +265,13 @@ def _search_project_summary(root: Path, query: str, scopes: set[str], limit: int
         score = _score(body, query)
         if not score:
             continue
+        snippet = _snippet(body, query)
         results.append(
             {
                 "kind": "project",
                 "title": project["title"],
                 "score": score,
-                "summary": _snippet(body, query),
-                "snippet": _snippet(body, query),
+                "snippet": snippet,
                 "metadata": project,
             }
         )

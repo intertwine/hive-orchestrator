@@ -10,13 +10,33 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+MAX_EXECUTE_BYTES = 256 * 1024
+
 
 def _scrubbed_env(root: Path) -> dict[str, str]:
-    allowed = ("HOME", "LANG", "LC_ALL", "PATH", "PYTHONPATH", "TMPDIR", "TMP", "TEMP", "VIRTUAL_ENV")
+    allowed = (
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "PATH",
+        "PYTHONPATH",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "VIRTUAL_ENV",
+    )
     env = {key: value for key, value in os.environ.items() if key in allowed}
     env["HIVE_EXECUTE_ROOT"] = str(root)
     env["HIVE_EXECUTE_NETWORK"] = "disabled"
     return env
+
+
+def _coerce_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
 
 
 def execute_code(
@@ -27,13 +47,19 @@ def execute_code(
     profile: str = "default",
     timeout_seconds: int = 20,
 ) -> dict[str, Any]:
-    """Execute bounded Python code against the typed Hive client."""
+    """Execute bounded Python code against the typed Hive client.
+
+    This MVP isolates time and environment shape, but it does not isolate filesystem access,
+    Python imports, or shelling out through forwarded executables on PATH.
+    """
     root = Path(path or Path.cwd()).resolve()
     normalized = language.lower()
     if normalized not in {"python", "py"}:
         return {
             "ok": False,
-            "error": f"Unsupported execute language: {language}. MVP currently supports Python only.",
+            "error": (
+                f"Unsupported execute language: {language}. " "MVP currently supports Python only."
+            ),
             "stdout": "",
             "stderr": "",
             "language": language,
@@ -71,8 +97,8 @@ def execute_code(
             return {
                 "ok": False,
                 "error": f"Execute timed out after {timeout_seconds}s",
-                "stdout": exc.stdout or "",
-                "stderr": exc.stderr or "",
+                "stdout": _coerce_output(exc.stdout),
+                "stderr": _coerce_output(exc.stderr),
                 "language": language,
                 "profile": profile,
                 "timed_out": True,
@@ -98,4 +124,4 @@ def execute_code(
         return payload
 
 
-__all__ = ["execute_code"]
+__all__ = ["MAX_EXECUTE_BYTES", "execute_code"]

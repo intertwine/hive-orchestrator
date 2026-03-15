@@ -7,6 +7,7 @@ from pathlib import Path
 import sqlite3
 
 from src.hive.cli.main import main as hive_main
+from src.hive.codemode.execute import MAX_EXECUTE_BYTES
 from src.hive.memory import observe_project, reflect_project, startup_context
 from src.hive.migrate import migrate_v1_to_v2
 from src.hive.models.task import TaskRecord
@@ -30,9 +31,7 @@ def _program_markdown(
 ) -> str:
     allowed = allow_commands if allow_commands is not None else [command]
     allow_block = (
-        "\n" + "\n".join(f"    - {json.dumps(item)}" for item in allowed)
-        if allowed
-        else " []"
+        "\n" + "\n".join(f"    - {json.dumps(item)}" for item in allowed) if allowed else " []"
     )
     return f"""---
 program_version: 1
@@ -170,7 +169,7 @@ class TestHiveV2Migration:
         """Dry-run migration should report without mutating task storage."""
         report = migrate_v1_to_v2(temp_hive_dir, dry_run=True)
         assert report.to_dict()["ok"] is True
-        assert list(tasks_dir(temp_hive_dir).glob("task_*.md")) == []
+        assert not list(tasks_dir(temp_hive_dir).glob("task_*.md"))
 
 
 class TestHiveV2Runs:
@@ -181,7 +180,9 @@ class TestHiveV2Runs:
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
         command = "python -c \"print('ok')\""
-        project.program_path.write_text(_program_markdown(command, auto_close=False), encoding="utf-8")
+        project.program_path.write_text(
+            _program_markdown(command, auto_close=False), encoding="utf-8"
+        )
 
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
         run = start_run(temp_hive_dir, task_id)
@@ -357,11 +358,15 @@ class TestHiveV2Memory:
         assert outputs["profile"].exists()
         assert outputs["active"].exists()
 
-        context = startup_context(temp_hive_dir, project_id=project.id, profile="light", query="migration")
+        context = startup_context(
+            temp_hive_dir, project_id=project.id, profile="light", query="migration"
+        )
         assert context["project_id"] == project.id
         assert any(section["name"] == "profile" for section in context["sections"])
 
-    def test_cache_rebuild_keeps_memory_docs_unique_per_scope_key(self, temp_hive_dir, temp_project):
+    def test_cache_rebuild_keeps_memory_docs_unique_per_scope_key(
+        self, temp_hive_dir, temp_project
+    ):
         """Memory docs should not collide when multiple scoped docs share the same kind."""
         migrate_v1_to_v2(temp_hive_dir)
         memory_root = Path(temp_hive_dir) / ".hive" / "memory" / "project"
@@ -398,7 +403,9 @@ class TestHiveV2Memory:
         db_path = rebuild_cache(temp_hive_dir)
         connection = sqlite3.connect(db_path)
         try:
-            kinds = list(connection.execute("SELECT scope_key, kind FROM memory_docs ORDER BY kind"))
+            kinds = list(
+                connection.execute("SELECT scope_key, kind FROM memory_docs ORDER BY kind")
+            )
         finally:
             connection.close()
 
@@ -476,11 +483,15 @@ class TestHiveV2Cli:
         payload = json.loads(captured.out)
         assert Path(payload["path"]).exists()
 
-    def test_cache_ready_and_active_claim_views_handle_iso_expiry(self, temp_hive_dir, temp_project):
+    def test_cache_ready_and_active_claim_views_handle_iso_expiry(
+        self, temp_hive_dir, temp_project
+    ):
         """SQLite views should parse ISO timestamps when deciding claim expiry."""
         migrate_v1_to_v2(temp_hive_dir)
         project = discover_projects(temp_hive_dir)[0]
-        ready_ids_before = [item["id"] for item in ready_tasks(temp_hive_dir, project_id=project.id)]
+        ready_ids_before = [
+            item["id"] for item in ready_tasks(temp_hive_dir, project_id=project.id)
+        ]
 
         expired_task = get_task(temp_hive_dir, ready_ids_before[0])
         expired_task.status = "claimed"
@@ -498,7 +509,9 @@ class TestHiveV2Cli:
         connection = sqlite3.connect(db_path)
         try:
             ready_ids = [row[0] for row in connection.execute("SELECT id FROM ready_tasks")]
-            active_claim_ids = [row[0] for row in connection.execute("SELECT task_id FROM active_claims")]
+            active_claim_ids = [
+                row[0] for row in connection.execute("SELECT task_id FROM active_claims")
+            ]
         finally:
             connection.close()
 
@@ -582,11 +595,31 @@ class TestHiveV2Search:
         assert "task" in kinds
         assert "memory" in kinds
 
-    def test_search_workspace_returns_api_example_and_project_hits(self, temp_hive_dir, temp_project):
+    def test_search_workspace_rebuilds_missing_cache_on_demand(self, temp_hive_dir, temp_project):
+        """Search should rebuild the cache when no derived index exists yet."""
+        migrate_v1_to_v2(temp_hive_dir)
+        task_id = ready_tasks(temp_hive_dir)[0]["id"]
+        task = get_task(temp_hive_dir, task_id)
+        task.summary_md = "Unique cold-cache token: ivory-oriole"
+        save_task(temp_hive_dir, task)
+
+        cache_path = Path(temp_hive_dir) / ".hive" / "cache" / "index.sqlite"
+        if cache_path.exists():
+            cache_path.unlink()
+
+        results = search_workspace(temp_hive_dir, "ivory-oriole", scopes=["workspace"], limit=10)
+        assert cache_path.exists()
+        assert any(item["kind"] == "task" for item in results)
+
+    def test_search_workspace_returns_api_example_and_project_hits(
+        self, temp_hive_dir, temp_project
+    ):
         """Search should cover API docs, example files, and project summaries."""
         migrate_v1_to_v2(temp_hive_dir)
 
-        results = search_workspace(temp_hive_dir, "ready", scopes=["api", "examples", "project"], limit=20)
+        results = search_workspace(
+            temp_hive_dir, "ready", scopes=["api", "examples", "project"], limit=20
+        )
         kinds = {item["kind"] for item in results}
         assert "command" in kinds
         assert "example" in kinds
@@ -596,7 +629,9 @@ class TestHiveV2Search:
 class TestHiveV2Execute:
     """Tests for the bounded execute surface."""
 
-    def test_cli_execute_python_can_compose_multiple_hive_calls(self, temp_hive_dir, temp_project, capsys):
+    def test_cli_execute_python_can_compose_multiple_hive_calls(
+        self, temp_hive_dir, temp_project, capsys
+    ):
         """Execute should expose a typed Hive client inside bounded Python."""
         migrate_v1_to_v2(temp_hive_dir)
         exit_code = hive_main(
@@ -640,7 +675,12 @@ class TestHiveV2Execute:
                 "--timeout-seconds",
                 "1",
                 "--code",
-                "import time\ntime.sleep(2)\nresult = {'ok': True}",
+                (
+                    "import time\n"
+                    "print('hello before timeout', flush=True)\n"
+                    "time.sleep(2)\n"
+                    "result = {'ok': True}"
+                ),
             ]
         )
         captured = capsys.readouterr()
@@ -649,6 +689,56 @@ class TestHiveV2Execute:
         payload = json.loads(captured.out)
         assert payload["ok"] is False
         assert payload["timed_out"] is True
+        assert payload["stdout"] == "hello before timeout\n"
+
+    def test_cli_execute_python_runtime_exception_is_reported(
+        self, temp_hive_dir, temp_project, capsys
+    ):
+        """Execute should surface runtime exceptions from the sandbox runner."""
+        migrate_v1_to_v2(temp_hive_dir)
+        exit_code = hive_main(
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "execute",
+                "--language",
+                "python",
+                "--code",
+                "raise RuntimeError('boom')",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["ok"] is False
+        assert payload["error"] == "boom"
+
+    def test_cli_execute_rejects_oversized_input_files(self, temp_hive_dir, temp_project, capsys):
+        """Execute should reject input files that exceed the CLI size guard."""
+        migrate_v1_to_v2(temp_hive_dir)
+        code_path = Path(temp_hive_dir) / "oversized-execute.py"
+        code_path.write_text("x" * (MAX_EXECUTE_BYTES + 1), encoding="utf-8")
+
+        exit_code = hive_main(
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "execute",
+                "--language",
+                "python",
+                "--file",
+                str(code_path),
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["ok"] is False
+        assert "exceeds" in payload["error"]
 
     def test_cli_execute_rejects_unsupported_language(self, temp_hive_dir, temp_project, capsys):
         """Execute should fail clearly for languages outside the MVP surface."""

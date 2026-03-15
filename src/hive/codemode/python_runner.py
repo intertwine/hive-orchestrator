@@ -16,6 +16,8 @@ def _disable_network() -> None:
     """Best-effort network denial for the Python execute sandbox."""
 
     class DeniedSocket(socket.socket):
+        """Socket subclass that rejects outbound connections."""
+
         def connect(self, *args, **kwargs):  # type: ignore[override]
             raise RuntimeError("Network access is disabled in hive execute")
 
@@ -30,10 +32,12 @@ def _disable_network() -> None:
 
 
 def _json_safe(value):
+    """Convert arbitrary values into JSON-serializable data."""
     return json.loads(json.dumps(value, default=str))
 
 
 def _resolve_value(namespace: dict, hive: HiveClient):
+    """Resolve either `main(hive)` or a `result` variable from user code."""
     if "main" in namespace and callable(namespace["main"]):
         value = namespace["main"](hive)
         if inspect.iscoroutine(value):
@@ -43,13 +47,14 @@ def _resolve_value(namespace: dict, hive: HiveClient):
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the Python execute payload and persist a structured result."""
     argv = list(argv or sys.argv[1:])
     payload_path = Path(argv[0])
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
     result_path = Path(payload["result_path"])
     _disable_network()
     hive = HiveClient(payload["root"])
-    namespace = {"hive": hive}
+    namespace = {"hive": hive, "__builtins__": __builtins__}
     try:
         exec(payload["code"], namespace)  # pylint: disable=exec-used
         result = _resolve_value(namespace, hive)

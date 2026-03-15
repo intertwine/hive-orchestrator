@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Entry point for the public Hive MCP package."""
 
-import asyncio
+from __future__ import annotations
 
-from hive_mcp.server import main
+from src.hive_mcp.__main__ import run
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    raise SystemExit(run())

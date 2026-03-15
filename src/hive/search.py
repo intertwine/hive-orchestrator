@@ -21,22 +21,22 @@ COMMAND_DOCS = (
     {
         "title": "hive quickstart",
         "summary": "Bootstrap a workspace, create a starter project, and seed a first task chain.",
-        "example": 'hive quickstart demo --title "Demo project" --json',
+        "example": 'hive quickstart demo --title "Demo project"',
     },
     {
         "title": "hive init",
         "summary": "Initialize the .hive substrate layout for a workspace.",
-        "example": "hive init --json",
+        "example": "hive init",
     },
     {
         "title": "hive doctor",
         "summary": "Inspect workspace health, project count, task count, and cache presence.",
-        "example": "hive doctor --json",
+        "example": "hive doctor",
     },
     {
         "title": "hive project create",
         "summary": "Scaffold a new project with AGENCY.md and PROGRAM.md.",
-        "example": 'hive project create demo --title "Demo project" --json',
+        "example": 'hive project create demo --title "Demo project"',
     },
     {
         "title": "hive search",
@@ -46,12 +46,12 @@ COMMAND_DOCS = (
     {
         "title": "hive task claim",
         "summary": "Claim a task lease with an owner and optional TTL.",
-        "example": "hive task claim task_... --owner codex --ttl-minutes 30 --json",
+        "example": "hive task claim task_... --owner codex --ttl-minutes 30",
     },
     {
         "title": "hive task ready",
         "summary": "Return ranked ready tasks for the workspace or a single project.",
-        "example": "hive task ready --project-id demo --limit 5 --json",
+        "example": "hive task ready --project-id demo --limit 5",
     },
     {
         "title": "hive run start",
@@ -66,12 +66,12 @@ COMMAND_DOCS = (
     {
         "title": "hive memory search",
         "summary": "Search project-local observational memory documents.",
-        "example": 'hive memory search "migration" --json',
+        "example": 'hive memory search "migration"',
     },
     {
         "title": "hive context startup",
         "summary": "Assemble startup context from AGENTS, AGENCY, PROGRAM, and memory.",
-        "example": "hive context startup --project demo --profile light --json",
+        "example": "hive context startup --project demo --profile light",
     },
 )
 EXAMPLE_TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".py", ".sql", ".txt", ".yaml", ".yml"}

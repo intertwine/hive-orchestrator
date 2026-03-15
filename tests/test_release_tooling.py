@@ -83,11 +83,15 @@ def test_generate_homebrew_formula_uses_stable_help_assertion():
 def test_public_top_level_packages_are_available():
     """Installed users should see top-level hive packages, not just src.* imports."""
     hive = importlib.import_module("hive")
+    hive_main = importlib.import_module("hive.__main__")
     hive_cli_main = importlib.import_module("hive.cli.main")
     hive_mcp = importlib.import_module("hive_mcp")
+    hive_mcp_main = importlib.import_module("hive_mcp.__main__")
     hive_mcp_server = importlib.import_module("hive_mcp.server")
 
     assert hive.__version__
+    assert callable(hive_main.main)
     assert callable(hive_cli_main.main)
     assert hive_mcp.__version__
+    assert callable(hive_mcp_main.run)
     assert callable(hive_mcp_server.main)

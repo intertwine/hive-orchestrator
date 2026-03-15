@@ -38,8 +38,8 @@ If the app is installed correctly, Claude should reply within a few minutes.
 
 The normal Hive flow stays the same:
 
-1. `hive task ready --json` finds ready work.
-2. `hive context startup --project <project-id> --json` builds context.
+1. `hive task ready` finds ready work.
+2. `hive context startup --project <project-id>` builds context.
 3. Optional dispatch tools can turn that work into a GitHub issue.
 4. Claude can pick up the issue when it sees `@claude`.
 
@@ -64,8 +64,8 @@ If you use the optional dispatcher, the workflow or token that opens issues also
 
 ### The dispatcher does not open issues
 
-- Dry-run it first: `uv run python -m src.agent_dispatcher --dry-run`
-- Verify ready work exists: `uv run hive task ready --json`
+- From a checkout, dry-run it first: `uv run python -m src.agent_dispatcher --dry-run`
+- Verify ready work exists: `hive task ready`
 - Verify the GitHub token has permission to create issues
 
 ## Security notes

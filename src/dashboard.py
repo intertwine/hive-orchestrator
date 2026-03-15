@@ -11,9 +11,9 @@ attacks from malicious AGENCY.md content.
 import os
 import glob
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime
 import streamlit as st
-from src.hive.memory.context import handoff_context, startup_context
+from src.hive.context_bundle import build_context_bundle, generate_file_tree as render_file_tree
 from src.hive.projections.agency_md import sync_agency_md
 from src.hive.projections.agents_md import sync_agents_md
 from src.hive.projections.global_md import sync_global_md
@@ -59,28 +59,7 @@ def generate_file_tree(
     directory: Path, prefix: str = "", max_depth: int = 3, current_depth: int = 0
 ):
     """Generate a text-based file tree."""
-    if current_depth >= max_depth:
-        return ""
-
-    tree = ""
-    try:
-        items = sorted(directory.iterdir(), key=lambda x: (not x.is_dir(), x.name))
-        items = [i for i in items if not i.name.startswith(".") and i.name != "__pycache__"]
-
-        for i, item in enumerate(items):
-            is_last = i == len(items) - 1
-            current_prefix = "└── " if is_last else "├── "
-            tree += f"{prefix}{current_prefix}{item.name}\n"
-
-            if item.is_dir() and current_depth < max_depth - 1:
-                extension = "    " if is_last else "│   "
-                tree += generate_file_tree(item, prefix + extension, max_depth, current_depth + 1)
-
-    except PermissionError:
-        # Ignore directories/files that cannot be accessed due to permissions
-        pass
-
-    return tree
+    return render_file_tree(directory, prefix, max_depth, current_depth)
 
 
 def generate_deep_work_context(project_path: str, base_path: Path):
@@ -101,39 +80,6 @@ def sync_hive_views(base_path: Path):
     rebuild_cache(base_path)
 
 
-def _render_ready_task_lines(tasks):
-    if not tasks:
-        return "*No canonical ready tasks found for this project.*"
-    return "\n".join(f"- `{task['id']}` | p{task['priority']} | {task['title']}" for task in tasks)
-
-
-def _render_context_sections(context):
-    sections = []
-    for section in context.get("sections", []):
-        content = str(section.get("content", "")).strip()
-        if not content:
-            continue
-        sections.append(
-            f"""## {str(section.get("name", "context")).upper()}
-
-```markdown
-{content}
-```"""
-        )
-
-    search_hits = context.get("search_hits", [])
-    if search_hits:
-        sections.append(
-            "## SEARCH HITS\n\n"
-            + "\n".join(
-                f"- `{hit.get('kind', 'result')}` {hit.get('title', 'untitled')}"
-                for hit in search_hits
-            )
-        )
-
-    return "\n\n---\n\n".join(sections) if sections else "*No v2 context sections available.*"
-
-
 def generate_hive_context(
     project_path: str,
     base_path: Path,
@@ -147,73 +93,20 @@ def generate_hive_context(
     if not project_data:
         return None
 
-    project_dir = Path(project_path).parent
     project_id = project_data["metadata"].get("project_id", "unknown")
-    ready = list_project_ready_tasks(base_path, project_id, limit=5)
-    query = ready[0]["title"] if ready else None
 
     try:
-        context = (
-            handoff_context(base_path, project_id=project_id)
-            if mode == "handoff"
-            else startup_context(base_path, project_id=project_id, profile=profile, query=query)
+        bundle = build_context_bundle(
+            base_path,
+            project_ref=project_id,
+            mode=mode,
+            profile=profile,
         )
     except FileNotFoundError as exc:
         st.error(f"Project is not available in Hive v2 context: {exc}")
         return None
 
-    mode_label = "HANDOFF" if context.get("handoff") else "STARTUP"
-    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    rendered_sections = _render_context_sections(context)
-    return f"""# HIVE {mode_label} CONTEXT
-# Project: {project_id}
-# Profile: {context.get('profile', profile)}
-# Target Tokens: {context.get('target_tokens', 'n/a')}
-# Generated: {generated_at}
-
----
-
-## YOUR ROLE
-
-You are entering a Hive v2 {mode_label.lower()} session for **{project_id}**.
-Use canonical tasks, `PROGRAM.md`, and the assembled context below as the source of truth.
-
----
-
-## READY TASKS
-
-{_render_ready_task_lines(ready)}
-
----
-
-## AGENCY.md
-
-```yaml
-{project_data['raw']}
-```
-
----
-
-## HIVE CONTEXT
-
-{rendered_sections}
-
----
-
-## PROJECT FILE STRUCTURE
-
-{generate_file_tree(project_dir)}
-
----
-
-## HANDOFF PROTOCOL
-
-Before ending your session:
-1. Update the relevant canonical task in `.hive/tasks/`
-2. Sync projections if task state or notes changed: `uv run hive sync projections --json`
-3. Release or transition the task appropriately in Hive
-4. Create a PR or leave a clear handoff note
-"""
+    return str(bundle["rendered"])
 
 
 def main():
@@ -252,7 +145,7 @@ def main():
             selected_project_path = project_options[selected_project_key]
         else:
             st.warning(
-                "No projects found yet. Run `hive quickstart demo --title \"Demo project\" --json` "
+                "No projects found yet. Run `hive quickstart demo --title \"Demo project\"` "
                 "from this workspace, then refresh."
             )
             selected_project_path = None
@@ -409,8 +302,8 @@ def main():
             else:
                 st.info(
                     "No canonical task substrate found yet. Run `hive quickstart demo --title "
-                    "\"Demo project\" --json` for a full first project, or `uv run hive init "
-                    "--json` if you want an empty workspace."
+                    "\"Demo project\"` for a full first project, or `hive init` if you want an "
+                    "empty workspace."
                 )
 
             st.divider()
@@ -453,8 +346,7 @@ def main():
 
                 st.info(
                     "💡 Copy the above context or regenerate it locally with "
-                    f"`uv run hive context {mode} --project "
-                    f"{metadata.get('project_id', 'unknown')} --json`."
+                    f"`hive context {mode} --project {metadata.get('project_id', 'unknown')}`."
                 )
 
     else:
@@ -466,9 +358,9 @@ def main():
 If this workspace is still empty, the fastest path is:
 
 ```bash
-hive quickstart demo --title "Demo project" --json
-hive task ready --json
-hive context startup --project demo --json
+hive quickstart demo --title "Demo project"
+hive task ready
+hive context startup --project demo
 ```
 
 Use the dashboard after that when you want a visual view of projects, ready tasks, and context.
@@ -486,25 +378,20 @@ Use the dashboard after that when you want a visual view of projects, ready task
 
         1. **Bootstrap the workspace**
            ```bash
-           uv run hive init --json
+           hive quickstart demo --title "Demo project"
            ```
 
-        2. **Create a project**
+        2. **Inspect ready work**
            ```bash
-           uv run hive project create demo --title "Demo project" --json
+           hive task ready
            ```
 
-        3. **Create a first task**
+        3. **Generate startup context**
            ```bash
-           uv run hive task create --project-id demo --title "Define the first slice" --json
+           hive context startup --project demo
            ```
 
-        4. **Generate startup context**
-           ```bash
-           uv run hive context startup --project demo --json
-           ```
-
-        5. **Use the dashboard when you want a visual view**
+        4. **Use the dashboard when you want a visual view**
            - Select a project from the sidebar
            - Generate a `startup` or `handoff` context
            - Copy the context and paste it to your AI agent

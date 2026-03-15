@@ -101,9 +101,18 @@ def discover_projects(path: str | Path | None = None) -> list[ProjectRecord]:
 
 
 def get_project(path: str | Path | None, project_id: str) -> ProjectRecord:
-    """Get a single project by ID."""
-    for project in discover_projects(path):
-        if project.id == project_id:
+    """Get a single project by ID, slug, or path."""
+    root = Path(path or Path.cwd()).resolve()
+    reference = project_id.strip()
+    candidate_path = Path(reference)
+    if not candidate_path.is_absolute():
+        candidate_path = (root / candidate_path).resolve()
+
+    for project in discover_projects(root):
+        agency_path = project.agency_path.resolve()
+        if reference in {project.id, project.slug}:
+            return project
+        if candidate_path in {agency_path, agency_path.parent}:
             return project
     raise FileNotFoundError(f"Project not found: {project_id}")
 

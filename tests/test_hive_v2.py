@@ -1178,7 +1178,7 @@ class TestHiveV2Cli:
 
         assert exit_code == 0
         assert any("hive quickstart demo" in step for step in payload["next_steps"])
-        assert any("hive init --json" in step for step in payload["next_steps"])
+        assert any("hive init" in step for step in payload["next_steps"])
 
         hive_main(["--path", str(workspace), "--json", "init"])
         capsys.readouterr()
@@ -1240,6 +1240,7 @@ class TestHiveV2Cli:
         agency_content = Path(payload["project"]["path"]).read_text(encoding="utf-8")
         assert "Ship the launch-ready Hive demo workspace." in agency_content
         assert any("hive task claim" in step for step in payload["next_steps"])
+        assert all("--json" not in step for step in payload["next_steps"])
 
     def test_cli_quickstart_rejects_existing_project(self, tmp_path, capsys):
         """Quickstart should fail cleanly if the starter slug already exists."""
@@ -1312,6 +1313,78 @@ class TestHiveV2Cli:
             "hive task create --project-id launch-ready-website" in step
             for step in payload["next_steps"]
         )
+        assert all("--json" not in step for step in payload["next_steps"])
+
+    def test_cli_context_startup_text_renders_markdown_bundle(self, tmp_path, capsys):
+        """Text-mode startup context should print a readable session bundle."""
+        workspace = tmp_path / "context-text"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "launch/demo"])
+        capsys.readouterr()
+
+        exit_code = hive_main(
+            ["--path", str(workspace), "context", "startup", "--project", "launch-demo"]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "HIVE STARTUP CONTEXT" in captured.out
+        assert "READY TASKS" in captured.out
+        assert '"project_id"' not in captured.out
+
+    def test_cli_context_startup_can_write_context_file(self, tmp_path, capsys):
+        """Startup context should support writing a reusable bundle to disk."""
+        workspace = tmp_path / "context-output"
+        output_path = workspace / "SESSION_CONTEXT.md"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "launch/demo"])
+        capsys.readouterr()
+
+        exit_code = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "context",
+                "startup",
+                "--project",
+                "projects/launch/demo",
+                "--output",
+                str(output_path),
+            ]
+        )
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+
+        assert exit_code == 0
+        assert payload["output_path"] == str(output_path.resolve())
+        assert output_path.exists()
+        assert "HIVE STARTUP CONTEXT" in output_path.read_text(encoding="utf-8")
+
+    def test_cli_project_show_accepts_slug_and_path_references(self, tmp_path, capsys):
+        """Project lookups should accept slugs and project paths, not only canonical ids."""
+        workspace = tmp_path / "project-ref"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "launch/demo"])
+        capsys.readouterr()
+
+        slug_exit = hive_main(
+            ["--path", str(workspace), "--json", "project", "show", "launch/demo"]
+        )
+        slug_payload = json.loads(capsys.readouterr().out)
+        path_exit = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "show",
+                str(workspace / "projects" / "launch" / "demo"),
+            ]
+        )
+        path_payload = json.loads(capsys.readouterr().out)
+
+        assert slug_exit == 0
+        assert path_exit == 0
+        assert slug_payload["project"]["id"] == "launch-demo"
+        assert path_payload["project"]["id"] == "launch-demo"
 
     def test_cli_project_create_whitespace_project_id_falls_back_to_slug(self, tmp_path, capsys):
         """Whitespace-only project IDs should fall back to the normalized slug-derived ID."""

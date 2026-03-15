@@ -30,7 +30,7 @@ help:
 	@echo "  make doctor         Show Hive 2.0 doctor output"
 	@echo "  make sync-projections  Rebuild cache and refresh generated sections"
 	@echo "  make migrate-v2     Import v1 projects into the v2 substrate"
-	@echo "  make session        Start a Hive v2 session (requires PROJECT=...)"
+	@echo "  make session        Save a Hive v2 startup bundle (PROJECT=<project-id> or path)"
 	@echo "  make verify-claude  Verify Claude Code GitHub App setup"
 	@echo ""
 	@echo "Development Commands:"
@@ -51,7 +51,7 @@ help:
 	@echo "Examples:"
 	@echo "  make install"
 	@echo "  make hive-init"
-	@echo "  make session PROJECT=projects/demo"
+	@echo "  make session PROJECT=demo"
 	@echo ""
 
 # Install dependencies
@@ -141,7 +141,8 @@ migrate-v2:
 session:
 	@if [ -z "$(PROJECT)" ]; then \
 		echo "❌ Error: PROJECT variable not set"; \
-		echo "Usage: make session PROJECT=projects/demo"; \
+		echo "Usage: make session PROJECT=demo"; \
+		echo "   or: make session PROJECT=projects/demo"; \
 		exit 1; \
 	fi
 	@./scripts/start_session.sh $(PROJECT)

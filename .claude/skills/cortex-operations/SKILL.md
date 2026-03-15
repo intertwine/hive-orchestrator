@@ -1,233 +1,100 @@
 ---
 name: cortex-operations
-description: Operate the Agent Hive Cortex orchestration engine. Use this skill when running Cortex commands, analyzing project dependencies, finding ready work, understanding the orchestration system, or troubleshooting Cortex issues.
+description: Operate Hive's ready, dependency, and projection-sync surfaces. Use this skill when someone asks about Cortex commands, ready work, dependency summaries, or the remaining src.cortex compatibility wrapper.
 ---
 
 # Cortex Operations
 
-The Cortex is Agent Hive's orchestration engine - the central nervous system that reads project state, analyzes dependencies, and coordinates AI agents.
+Hive 2.0 is CLI-first. `src.cortex` still exists, but only as a compatibility alias for a small set of read and sync actions.
 
-## Cortex Modes
-
-### 1. Full LLM Analysis (Default)
-
-Runs complete analysis using an LLM to identify blocked tasks, suggest state updates, and detect new project requests.
+## Use These Commands First
 
 ```bash
-# Run full analysis
-uv run python -m src.cortex
-
-# Or using make
-make cortex
+hive doctor --json
+hive task ready --json
+hive deps --json
+hive sync projections --json
 ```
 
-**What it does:**
-- Reads GLOBAL.md and all AGENCY.md files
-- Calls LLM to analyze system state
-- Identifies blocked tasks and recommendations
-- Applies state updates to project files
-- Updates `last_cortex_run` timestamp
-
-**Requirements:**
-- `OPENROUTER_API_KEY` environment variable
-- `OPENROUTER_MODEL` (optional, defaults to `anthropic/claude-haiku-4.5`)
-
-### 2. Ready Work Detection (Fast, No LLM)
-
-Quickly finds projects ready for an agent to claim without requiring API calls.
+If projections or cache look stale, rebuild first:
 
 ```bash
-# Human-readable output
-uv run python -m src.cortex --ready
-
-# JSON output for programmatic use
-uv run python -m src.cortex --ready --json
+hive cache rebuild --json
+hive sync projections --json
 ```
 
-**Ready criteria:**
-- `status == 'active'`
-- `blocked == false`
-- `owner == null` (unclaimed)
-- No unresolved `dependencies.blocked_by`
+## Old to New Command Map
 
-### 3. Dependency Graph Analysis (Fast, No LLM)
+| Old habit | Preferred command |
+|----------|-------------------|
+| `python -m src.cortex` | `hive sync projections --json` |
+| `python -m src.cortex --ready` | `hive task ready --json` |
+| `python -m src.cortex --deps` | `hive deps --json` |
 
-Visualizes project dependencies and detects cycles.
+## When `src.cortex` Is Still Fine
+
+Use `python -m src.cortex` only when you are keeping an older script or workflow alive.
+
+Safe compatibility aliases:
 
 ```bash
-# Human-readable tree view
-uv run python -m src.cortex --deps
-
-# JSON output
-uv run python -m src.cortex --deps --json
+python -m src.cortex
+python -m src.cortex --ready --json
+python -m src.cortex --deps --json
 ```
 
-**Output includes:**
-- All projects with their status
-- Dependency relationships (blocks/blocked_by)
-- Cycle detection warnings
-- ASCII dependency tree
+Do not build new automation on top of `src.cortex.py`.
 
-## Command Reference
+## Common Workflows
 
-| Command | Description |
-|---------|-------------|
-| `uv run python -m src.cortex` | Full LLM analysis |
-| `uv run python -m src.cortex --ready` | Find ready work |
-| `uv run python -m src.cortex --deps` | Show dependency graph |
-| `uv run python -m src.cortex --json` | JSON output (with --ready or --deps) |
-| `uv run python -m src.cortex --path /custom/path` | Use custom base path |
+### Check workspace health
 
-## Understanding Output
-
-### Ready Work Output
-
-```
-============================================================
-READY WORK
-============================================================
-Timestamp: 2025-01-15T14:30:00
-Found 2 project(s) ready for work
-
-!!  feature-auth
-    Priority: high
-    Tags: feature, security
-    Path: projects/feature-auth/AGENCY.md
-
-!   docs-update
-    Priority: medium
-    Tags: documentation
-    Path: projects/docs-update/AGENCY.md
-============================================================
+```bash
+hive doctor --json
 ```
 
-Priority indicators:
-- `!!!` - critical
-- `!! ` - high
-- `!  ` - medium
-- `   ` - low
+Use this first when the workspace looks incomplete, tasks are missing, or projections do not match the substrate.
 
-### Dependency Graph Output
+### Find schedulable work
 
-```
-============================================================
-DEPENDENCY GRAPH
-============================================================
-BLOCKED PROJECTS:
-----------------------------------------
-*** phase-2
-    Status: active
-    Blocked by: phase-1
-    Reason: Blocked by uncompleted: phase-1
-
-UNBLOCKED PROJECTS:
-----------------------------------------
-    phase-1 [active]
-      Blocks: phase-2
-    standalone [active]
-
-DEPENDENCY TREE:
-----------------------------------------
-[*] phase-1
-  [*] phase-2
-[*] standalone
-
-Legend: [+] completed  [*] active  [!] blocked  [-] pending
-============================================================
+```bash
+hive task ready --json
 ```
 
-## Cycle Detection
+This is the canonical ready queue. It already accounts for task status, dependencies, and expired claims.
 
-The Cortex detects circular dependencies that can never be resolved:
+### Inspect blockers
 
-```
-!!! CYCLES DETECTED !!!
-    project-a -> project-b -> project-c -> project-a
-```
-
-**To fix cycles:**
-1. Review the dependency chain
-2. Remove or modify one of the `blocked_by` relationships
-3. Re-run `--deps` to verify resolution
-
-## GitHub Actions Integration
-
-The Cortex runs automatically every 4 hours via `.github/workflows/cortex.yml`:
-
-```yaml
-on:
-  schedule:
-    - cron: '0 */4 * * *'  # Every 4 hours
+```bash
+hive deps --json
 ```
 
-**Workflow steps:**
-1. Checkout repository
-2. Install dependencies with uv
-3. Run Cortex
-4. Commit changes if state was updated
+Use this when ready work is missing, a task seems stranded, or you want the project dependency summary.
 
-**Required secrets:**
-- `OPENROUTER_API_KEY`
+### Refresh human-facing views
+
+```bash
+hive sync projections --json
+```
+
+This regenerates the bounded sections in `GLOBAL.md`, `projects/*/AGENCY.md`, and `AGENTS.md`.
 
 ## Troubleshooting
 
-### "OPENROUTER_API_KEY not set"
+### Projections look stale
 
 ```bash
-# Set in .env file
-echo "OPENROUTER_API_KEY=sk-or-v1-xxxxx" >> .env
-
-# Or export directly
-export OPENROUTER_API_KEY="sk-or-v1-xxxxx"
+hive cache rebuild --json
+hive sync projections --json
 ```
 
-### "GLOBAL.md not found"
+### A task should be ready but is not
 
-Ensure you're running from the hive root directory:
+1. Run `hive task show <task-id> --json`
+2. Run `hive deps --json`
+3. Check for an active or expired claim
+4. Check whether another task still blocks it
 
-```bash
-cd /path/to/agent-hive
-uv run python -m src.cortex
-```
+### A script still calls Cortex
 
-Or specify the path:
-
-```bash
-uv run python -m src.cortex --path /path/to/agent-hive
-```
-
-### "No projects found"
-
-Verify projects directory exists with AGENCY.md files:
-
-```bash
-ls projects/*/AGENCY.md
-```
-
-### LLM Response Parse Error
-
-The Cortex expects JSON from the LLM. If parsing fails:
-- Check API key validity
-- Try a different model in `OPENROUTER_MODEL`
-- Check console output for raw response
-
-## Programmatic Usage
-
-```python
-from src.cortex import Cortex
-
-# Initialize
-cortex = Cortex(base_path="/path/to/hive")
-
-# Discover projects
-projects = cortex.discover_projects()
-
-# Get ready work
-ready = cortex.ready_work(projects)
-
-# Check if specific project is blocked
-blocking_info = cortex.is_blocked("project-id", projects)
-
-# Get full dependency summary
-summary = cortex.get_dependency_summary(projects)
-```
+Keep it working for now, but translate the behavior back to `hive` commands before adding more logic.

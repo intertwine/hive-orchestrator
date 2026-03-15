@@ -1,42 +1,20 @@
 ---
 name: hive-mcp
-description: Use the Agent Hive MCP (Model Context Protocol) server for programmatic project management. Use this skill when working with MCP tools to list projects, claim/release projects, update status, add notes, or query dependencies through the MCP interface.
+description: Use the Hive MCP server for the thin v2 search and execute tool surface. Use this skill when configuring MCP access to Hive or when an agent needs workspace search and bounded local execution.
 ---
 
 # Hive MCP Server
 
-The Hive MCP server exposes Agent Hive functionality as MCP tools, enabling AI agents to programmatically manage projects through standardized tool interfaces.
+The shipped MCP surface is intentionally small:
 
-## Overview
+- `search`
+- `execute`
 
-MCP (Model Context Protocol) provides a standardized way for AI agents to interact with external tools. The Hive MCP server exposes project management operations as callable tools.
+Everything durable still goes through the `hive` CLI and the `.hive/` substrate.
 
 ## Setup
 
-### OpenCode Configuration
-
-Add the Hive MCP server to your `opencode.json` (project root or `~/.config/opencode/opencode.json`):
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "hive": {
-      "type": "local",
-      "command": ["uv", "run", "python", "-m", "src.hive_mcp"],
-      "enabled": true,
-      "environment": {
-        "HIVE_BASE_PATH": ".",
-        "COORDINATOR_URL": "http://localhost:8080"
-      }
-    }
-  }
-}
-```
-
-### Claude Desktop Configuration
-
-For Claude Desktop (`~/.config/claude/claude_desktop_config.json`):
+Example MCP config:
 
 ```json
 {
@@ -44,337 +22,81 @@ For Claude Desktop (`~/.config/claude/claude_desktop_config.json`):
     "hive": {
       "command": "uv",
       "args": ["run", "python", "-m", "src.hive_mcp"],
-      "cwd": "/path/to/agent-hive",
+      "cwd": "/path/to/hive-orchestrator",
       "env": {
-        "HIVE_BASE_PATH": "/path/to/agent-hive",
-        "COORDINATOR_URL": "http://localhost:8080"
+        "HIVE_BASE_PATH": "/path/to/workspace"
       }
     }
   }
 }
 ```
 
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `HIVE_BASE_PATH` | Root path of the hive | Current directory |
-| `COORDINATOR_URL` | URL of coordination server | Not set (optional) |
+`HIVE_BASE_PATH` should point at the workspace you want the server to search and execute against.
 
 ## Available Tools
 
-### Project Discovery
+### `search`
 
-#### `list_projects`
-List all projects in the hive with their metadata.
+Search workspace state, API docs, examples, schemas, and project summaries.
 
-```json
-{
-  "name": "list_projects",
-  "arguments": {}
-}
-```
+Arguments:
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "count": 3,
-    "projects": [
-      {
-        "project_id": "demo",
-        "status": "active",
-        "owner": null,
-        "priority": "medium",
-        "tags": ["example"]
-      }
-    ]
-  }
-}
-```
+- `query` required
+- `scopes` optional
+- `limit` optional, defaults to `8`
 
-#### `get_ready_work`
-Get projects ready for an agent to claim.
+Example:
 
 ```json
 {
-  "name": "get_ready_work",
-  "arguments": {}
-}
-```
-
-Returns projects that are:
-- Status: `active`
-- Not blocked
-- No current owner
-- Dependencies satisfied
-
-#### `get_project`
-Get full details of a specific project.
-
-```json
-{
-  "name": "get_project",
+  "name": "search",
   "arguments": {
-    "project_id": "demo"
+    "query": "run acceptance",
+    "scopes": ["api", "workspace"],
+    "limit": 5
   }
 }
 ```
 
-**Response includes:**
-- All metadata fields
-- Full markdown content
-- Dependency information
+### `execute`
 
-### Project Ownership
+Run bounded local code with a typed Hive client.
 
-#### `claim_project`
-Claim a project by setting ownership.
+Arguments:
+
+- `code` required
+- `language` optional, Python only for now
+- `profile` optional
+- `timeout_seconds` optional
+
+Example:
 
 ```json
 {
-  "name": "claim_project",
+  "name": "execute",
   "arguments": {
-    "project_id": "demo",
-    "agent_name": "claude-sonnet-4"
+    "language": "python",
+    "profile": "default",
+    "code": "result = hive.task.ready(limit=3)"
   }
 }
 ```
 
-**Success response:**
-```json
-{
-  "success": true,
-  "data": {
-    "project_id": "demo",
-    "owner": "claude-sonnet-4"
-  }
-}
-```
+## Important Limits
 
-**Failure (already claimed):**
-```json
-{
-  "success": false,
-  "error": "Project already claimed by grok-beta"
-}
-```
+- `execute` is intentionally bounded and time-limited
+- oversized execute payloads are rejected
+- the Python runner is the only supported language today
+- this MCP surface is not a substitute for `hive task`, `hive run`, or `hive sync projections`
 
-#### `release_project`
-Release ownership of a project.
+## When To Prefer The CLI
 
-```json
-{
-  "name": "release_project",
-  "arguments": {
-    "project_id": "demo"
-  }
-}
-```
+Use the CLI for:
 
-### Status Management
+- task creation and task updates
+- claims and releases
+- run lifecycle actions
+- projection sync
+- migration
 
-#### `update_status`
-Update the status of a project.
-
-```json
-{
-  "name": "update_status",
-  "arguments": {
-    "project_id": "demo",
-    "status": "completed"
-  }
-}
-```
-
-**Valid statuses:**
-- `active` - Ready for work
-- `pending` - Not yet started
-- `blocked` - Waiting for external input
-- `completed` - All tasks done
-
-#### `add_note`
-Add a timestamped note to Agent Notes section.
-
-```json
-{
-  "name": "add_note",
-  "arguments": {
-    "project_id": "demo",
-    "agent": "claude-sonnet-4",
-    "note": "Completed research phase. Found 5 relevant sources."
-  }
-}
-```
-
-### Dependency Analysis
-
-#### `get_dependencies`
-Get dependency information for a project.
-
-```json
-{
-  "name": "get_dependencies",
-  "arguments": {
-    "project_id": "demo"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "is_blocked": false,
-    "reasons": [],
-    "blocking_projects": [],
-    "in_cycle": false,
-    "cycle": []
-  }
-}
-```
-
-#### `get_dependency_graph`
-Get full dependency graph for all projects.
-
-```json
-{
-  "name": "get_dependency_graph",
-  "arguments": {}
-}
-```
-
-### Coordinator Integration
-
-These tools require `COORDINATOR_URL` to be configured.
-
-#### `coordinator_status`
-Check if coordination server is available.
-
-```json
-{
-  "name": "coordinator_status",
-  "arguments": {}
-}
-```
-
-#### `coordinator_claim`
-Claim via coordination server (prevents conflicts).
-
-```json
-{
-  "name": "coordinator_claim",
-  "arguments": {
-    "project_id": "demo",
-    "agent_name": "claude-sonnet-4",
-    "ttl_seconds": 3600
-  }
-}
-```
-
-#### `coordinator_release`
-Release claim via coordination server.
-
-```json
-{
-  "name": "coordinator_release",
-  "arguments": {
-    "project_id": "demo"
-  }
-}
-```
-
-#### `coordinator_reservations`
-Get all active reservations.
-
-```json
-{
-  "name": "coordinator_reservations",
-  "arguments": {}
-}
-```
-
-## Tool Reference
-
-| Tool | Description | Required Args |
-|------|-------------|---------------|
-| `list_projects` | List all projects | None |
-| `get_ready_work` | Find claimable projects | None |
-| `get_project` | Get project details | `project_id` |
-| `claim_project` | Claim ownership | `project_id`, `agent_name` |
-| `release_project` | Release ownership | `project_id` |
-| `update_status` | Change project status | `project_id`, `status` |
-| `add_note` | Add agent note | `project_id`, `agent`, `note` |
-| `get_dependencies` | Check blocking status | `project_id` |
-| `get_dependency_graph` | Full dependency view | None |
-| `coordinator_status` | Coordinator health | None |
-| `coordinator_claim` | Real-time claim | `project_id`, `agent_name` |
-| `coordinator_release` | Real-time release | `project_id` |
-| `coordinator_reservations` | Active reservations | None |
-
-## Response Format
-
-All tools return a standardized response:
-
-```json
-{
-  "success": true|false,
-  "data": { ... },      // Present on success
-  "error": "message"    // Present on failure
-}
-```
-
-## Workflow Example
-
-### Starting Work on a Project
-
-```
-1. list_projects()           # See what's available
-2. get_ready_work()          # Find claimable projects
-3. get_project("my-proj")    # Review project details
-4. claim_project("my-proj", "claude-sonnet-4")
-5. [Do the work]
-6. add_note("my-proj", "claude-sonnet-4", "Completed task X")
-7. update_status("my-proj", "completed")
-8. release_project("my-proj")
-```
-
-### With Coordinator (Parallel-Safe)
-
-```
-1. coordinator_status()      # Verify coordinator is up
-2. coordinator_claim("my-proj", "claude-sonnet-4", 3600)
-3. claim_project("my-proj", "claude-sonnet-4")  # Also update AGENCY.md
-4. [Do the work]
-5. release_project("my-proj")
-6. coordinator_release("my-proj")
-```
-
-## Best Practices
-
-1. **Check ready work first** - Use `get_ready_work` to find available projects
-2. **Read before claiming** - Use `get_project` to understand the work
-3. **Use coordinator for parallel agents** - Prevents race conditions
-4. **Add notes for transparency** - Document your progress
-5. **Release when done** - Don't hold claims unnecessarily
-6. **Handle errors gracefully** - Check `success` field in responses
-
-## Troubleshooting
-
-### "Project not found"
-Verify project_id matches exactly (case-sensitive).
-
-### "Project already claimed"
-Another agent owns the project. Use `get_project` to see current owner.
-
-### "Coordinator unavailable"
-- Check `COORDINATOR_URL` is set
-- Verify coordinator server is running
-- Test with `coordinator_status` tool
-
-### "Failed to update project"
-- Verify AGENCY.md file exists
-- Check file permissions
-- Ensure path is within HIVE_BASE_PATH
+Use MCP when an agent needs fast search or a local execution sandbox inside a host application.

@@ -5,7 +5,7 @@
     "url": "https://your-deployment.example.com/webhooks"
   },
   "redirect_url": "https://your-deployment.example.com/auth/callback",
-  "description": "Vendor-agnostic AI agent orchestration system that coordinates autonomous agents across different LLM providers using shared memory in AGENCY.md files.",
+  "description": "CLI-first orchestration platform for autonomous agents with canonical state in .hive/ and human-readable project projections.",
   "public": true,
   "default_permissions": {
     "contents": "write",

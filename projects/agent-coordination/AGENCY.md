@@ -195,3 +195,47 @@ Core implementation complete! Remaining optional enhancements:
 2. Docker deployment option
 3. Consider persistence strategy (Redis/SQLite) for production
 4. Document scaling considerations for high-availability deployments
+
+<!-- hive:begin task-rollup -->
+## Task Rollup
+
+| ID | Status | Priority | Owner | Title |
+|---|---|---:|---|---|
+| task_01KKQGXZRSY4N1SDDE2NEND1PY | done | 2 |  | Add `COORDINATOR_URL` environment variable support |
+| task_01KKQGXZRVWGVD1TS5HEN76XBQ | ready | 2 |  | Add coordination status to dashboard |
+| task_01KKQGXZRQ5YRSYM9PEGCZYNPB | done | 2 |  | Add coordinator client to Cortex class (`src/coordinator_client.py`) |
+| task_01KKQGXZS37VRD157JKKDR6EX9 | done | 2 |  | Add deployment instructions to README |
+| task_01KKQGXZS73YKGPD2BW1346A8D | ready | 2 |  | Add Docker deployment option |
+| task_01KKQGXZRNNSTMKAWQJ4R81VE6 | done | 2 |  | Add optional force-claim with `?force=true` (admin use) |
+| task_01KKQGXZRJZK5QYQS4XJVRZE34 | done | 2 |  | Add request validation and error handling |
+| task_01KKQGXZSG3JSCG10WHCN00XS8 | done | 2 |  | All tests pass (41 coordinator tests) |
+| task_01KKQGXZSBR8N6PJ4Z1YVKFKF2 | done | 2 |  | Claims resolve in <50ms |
+| task_01KKQGXZRC4QPP1P18DB198WAZ | done | 2 |  | Create `src/coordinator.py` with FastAPI server |
+| task_01KKQGXZS5PYDAVM17XJ8RBM1X | done | 2 |  | Document API endpoints |
+| task_01KKQGXZS8ER4B2SJ0Z72W50MJ | ready | 2 |  | Document scaling considerations |
+| task_01KKQGXZSCSPQ665ST5H6PKG7F | done | 2 |  | Graceful degradation tested |
+| task_01KKQGXZRESF4YK70HSTW2Y7YA | done | 2 |  | Implement `/claim` endpoint (POST) |
+| task_01KKQGXZRFMQB2TFCQ4BPYKS0Q | done | 2 |  | Implement `/release` endpoint (DELETE) |
+| task_01KKQGXZRH5ZECMFZ2PC6GA44G | done | 2 |  | Implement `/reservations` endpoint (GET all) |
+| task_01KKQGXZRGRE34YENV023Z1Y92 | done | 2 |  | Implement `/status` endpoint (GET) |
+| task_01KKQGXZRP3KR1NH6MBRY1AGF8 | done | 2 |  | Implement claim expiration (configurable TTL) |
+| task_01KKQGXZRTBTFPB3TAN9P7N7NA | done | 2 |  | Implement graceful fallback when coordinator unavailable |
+| task_01KKQGXZRMDPGFZ8FFRVK7TP1C | done | 2 |  | Include current owner in conflict response |
+| task_01KKQGXZS2GVX5XY4TKEHS1CYX | done | 2 |  | Integration tests with MCP server |
+| task_01KKQGXZSFQV8TNWAJTM069TNM | done | 2 |  | Memory usage <50MB |
+| task_01KKQGXZSDW7TXBBP27WWW35PN | done | 2 |  | No single point of failure (optional component) |
+| task_01KKQGXZRKEAAE1THGQ4TP4ZJH | done | 2 |  | Return 409 Conflict when project already claimed |
+| task_01KKQGXZSAC0AADG1AD5SEQME1 | done | 2 |  | Server starts in <1 second |
+| task_01KKQGXZRXQTN2KJV3ZQ9WWSE3 | done | 2 |  | Test concurrent claim scenarios |
+| task_01KKQGXZS1W4E6N3PG9182KXVY | done | 2 |  | Test fallback behavior |
+| task_01KKQGXZRR35C52FSBQNWNSQV1 | done | 2 |  | Update MCP server with coordination support |
+| task_01KKQGXZRWXZSRQS9NYNGEGZRX | done | 2 |  | Write unit tests for all endpoints |
+<!-- hive:end task-rollup -->
+
+<!-- hive:begin recent-runs -->
+## Recent Runs
+
+| Run | Status | Task |
+|---|---|---|
+| No runs | - | - |
+<!-- hive:end recent-runs -->

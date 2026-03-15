@@ -40,22 +40,20 @@ jobs:
         run: |
           uv sync
 
-      - name: Run Cortex
-        env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      - name: Run Hive Projection Sync
         run: |
-          # Mask the API key in logs
-          echo "::add-mask::$OPENROUTER_API_KEY"
-          uv run python src/cortex.py
+          uv run hive cache rebuild --json
+          uv run hive sync projections --json
 
       - name: Validate changes before commit
         run: |
-          # Only add AGENCY.md and GLOBAL.md files for safety
-          git add GLOBAL.md projects/**/AGENCY.md 2>/dev/null || true
+          # Only add generated projection files for safety
+          mapfile -t agency_files < <(find projects -name AGENCY.md -print 2>/dev/null)
+          git add AGENTS.md GLOBAL.md "${agency_files[@]}" 2>/dev/null || true
 
           # Check which files are staged
-          if git diff --staged --name-only | grep -qvE '^(GLOBAL\.md|projects/.*/AGENCY\.md)$'; then
-            echo "⚠️ WARNING: Unexpected files modified. Only AGENCY.md and GLOBAL.md should be changed."
+          if git diff --staged --name-only | grep -qvE '^(AGENTS\.md|GLOBAL\.md|projects/.*/AGENCY\.md)$'; then
+            echo "⚠️ WARNING: Unexpected files modified. Only generated projection files should be changed."
             echo "Modified files:"
             git diff --staged --name-only
             echo "Aborting commit for safety."
@@ -72,8 +70,8 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            echo "Committing validated state updates..."
-            git commit -m "🧠 Cortex auto-update [$(date -u +%Y-%m-%d\ %H:%M\ UTC)]"
+            echo "Committing validated Hive projection updates..."
+            git commit -m "🧠 Hive projection sync [$(date -u +%Y-%m-%d\ %H:%M\ UTC)]"
             git push
           fi
 

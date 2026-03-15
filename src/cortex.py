@@ -32,6 +32,9 @@ from src.tracing import (
     get_tracing_status,
     is_tracing_enabled,
 )
+from src.hive.common import isoformat_z
+from src.hive.layout import get_paths
+from src.hive.store.tasks import dependency_summary, ready_tasks
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -1084,13 +1087,49 @@ def main():
             print(f"📈 Weave tracing active (project: {tracing_status['project']})")
 
     cortex = Cortex(base_path=args.path)
+    hive_paths = get_paths(args.path or os.getcwd())
+    v2_tasks_present = hive_paths.tasks_dir.exists() and any(hive_paths.tasks_dir.glob("*.md"))
 
     if args.ready:
-        # Fast path: no LLM required
-        success = cortex.run_ready(output_json=args.json)
+        if v2_tasks_present:
+            payload = {
+                "version": "2.0",
+                "generated_at": isoformat_z(),
+                "tasks": ready_tasks(hive_paths),
+            }
+            if args.json:
+                print(json.dumps(payload, cls=DateTimeEncoder, indent=2))
+            else:
+                print("=" * 60)
+                print("READY TASKS (Hive v2)")
+                print("=" * 60)
+                for task in payload["tasks"]:
+                    print(f"- {task['id']} [{task['status']}] {task['title']}")
+                print("=" * 60)
+            success = True
+        else:
+            # Fast path: no LLM required
+            success = cortex.run_ready(output_json=args.json)
     elif args.deps:
-        # Dependency graph: no LLM required
-        success = cortex.run_deps(output_json=args.json)
+        if v2_tasks_present:
+            payload = {"version": "2.0", "generated_at": isoformat_z(), **dependency_summary(hive_paths)}
+            if args.json:
+                print(json.dumps(payload, cls=DateTimeEncoder, indent=2))
+            else:
+                print("=" * 60)
+                print("TASK DEPENDENCY SUMMARY (Hive v2)")
+                print("=" * 60)
+                print("BLOCKED:")
+                for entry in payload["blocked"]:
+                    print(f"- {entry['id']} blocked by {', '.join(entry['blocked_by'])}")
+                print("UNBLOCKED:")
+                for entry in payload["unblocked"]:
+                    print(f"- {entry['id']} [{entry['status']}] {entry['title']}")
+                print("=" * 60)
+            success = True
+        else:
+            # Dependency graph: no LLM required
+            success = cortex.run_deps(output_json=args.json)
     else:
         # Full LLM-based analysis
         if args.json:

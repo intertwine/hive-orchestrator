@@ -6,11 +6,25 @@
 
 **Agent Hive** is a production-ready orchestration operating system for autonomous AI agents. It enables seamless coordination across different LLM providers (Claude, Grok, Gemini, etc.) using shared memory stored in Markdown files.
 
+## Hive 2.0 Status
+
+Hive 2.0 is now the active implementation direction in this repository.
+
+- `hive` CLI is the primary interface.
+- `.hive/tasks/*.md` is the canonical machine task store.
+- `projects/*/AGENCY.md` remains the narrative project doc.
+- `projects/*/PROGRAM.md` is the autonomous work contract.
+- `GLOBAL.md` and `AGENCY.md` now contain generated `hive:` marker sections instead of being the only machine state.
+
 > **Inspiration**: Some patterns in Agent Hive were inspired by [beads](https://github.com/steveyegge/beads), particularly the ready work detection, dependency tracking, and MCP integration concepts. We've adapted these ideas for our Markdown-first, vendor-agnostic approach.
 
 ## 🎯 Core Concept
 
-Instead of building vendor-specific workflows, Agent Hive uses a simple but powerful primitive: **AGENCY.md** - a Markdown file with YAML frontmatter that serves as shared memory between AI agents, humans, and automation.
+Hive 2.0 keeps the human-friendly Markdown surface, but moves canonical machine state into `.hive/`. The guiding split is:
+
+- Human interface: `GLOBAL.md`, `AGENCY.md`, `PROGRAM.md`, `AGENTS.md`
+- Machine interface: `.hive/tasks/`, `.hive/runs/`, `.hive/memory/`, `.hive/events/`
+- Stable automation surface: `hive ... --json`
 
 ### The Architecture
 
@@ -36,11 +50,11 @@ Instead of building vendor-specific workflows, Agent Hive uses a simple but powe
 
 ## 🔴 Live Orchestration on This Repository
 
-**This repository practices what it preaches.** The `projects/` directory contains real projects being actively coordinated by Cortex:
+**This repository practices what it preaches.** The `projects/` directory contains real projects, and the repository now carries a live Hive 2.0 substrate under `.hive/`:
 
-- **Cortex runs every 4 hours** via GitHub Actions (see `.github/workflows/cortex.yml`)
-- **Project updates are committed automatically** - you can watch orchestration happen in real-time
-- **The `projects/` directory shows live work** - not just demos, but actual coordination
+- **Projection sync runs every 4 hours** via GitHub Actions (see `.github/workflows/cortex.yml`)
+- **Ready work snapshots are generated automatically** (see `.github/workflows/agent-assignment.yml`)
+- **The `projects/` directory stays readable** while `.hive/tasks/` holds canonical task state
 
 ### What You'll See
 
@@ -55,10 +69,9 @@ Browse the `projects/` directory to see:
 
 When you fork this repository:
 
-- The Cortex workflow won't run (it requires the `OPENROUTER_API_KEY` secret)
-- The Claude Code workflow won't run (it requires the `ANTHROPIC_API_KEY` secret)
-- Add your API keys in repository settings to enable them (Settings → Secrets and variables → Actions)
-- Your fork becomes your own independent Hive
+- The v2 CLI and migration flow work locally with no API key.
+- The Claude Code workflow still requires the `ANTHROPIC_API_KEY` secret.
+- Your fork becomes your own independent Hive workspace.
 
 This transparency demonstrates that Agent Hive is a real, working system - not just a concept.
 
@@ -68,7 +81,6 @@ This transparency demonstrates that Agent Hive is a real, working system - not j
 
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv) - Fast Python package installer
-- OpenRouter API key ([Get one here](https://openrouter.ai/))
 
 ### Installation
 
@@ -83,14 +95,17 @@ cd hive-orchestrator
 # Install dependencies with uv
 make install
 
-# Create .env file
-make setup-env
+# Initialize the Hive 2.0 layout
+uv run hive init --json
 
-# Edit .env and add your API key
-nano .env
+# Inspect the workspace
+uv run hive doctor --json
+
+# Import legacy AGENCY.md task lists into .hive/tasks/
+uv run hive migrate v1-to-v2 --json
 ```
 
-### Your `.env` file should look like
+### Optional `.env` values
 
 ```bash
 OPENROUTER_API_KEY=your-api-key-here
@@ -109,13 +124,15 @@ make dashboard
 
 Open <http://localhost:8501> in your browser.
 
-### Run Cortex (CLI)
+### Run Hive (CLI)
 
 ```bash
-make cortex
+uv run hive doctor --json
+uv run hive task ready --json
+uv run hive sync projections --json
 ```
 
-This runs the orchestration engine that analyzes all projects and updates state.
+This validates the workspace, shows canonical ready work, and refreshes generated Markdown projections.
 
 ## 📁 Repository Structure
 
@@ -140,20 +157,27 @@ agent-hive/
 │   └── devcontainer.json       # DevContainer config (Codespaces/Cursor ready)
 ├── .github/
 │   └── workflows/
-│       ├── cortex.yml          # Automated 4-hour heartbeat
-│       └── agent-assignment.yml # Automated agent work dispatch
+│       ├── cortex.yml          # Automated v2 projection sync
+│       └── agent-assignment.yml # Automated ready-work snapshot
 ├── config/
 │   └── app-manifest.json       # GitHub App definition (for SaaS)
 ├── examples/
 │   └── */                      # Example workflows (7 patterns)
 ├── projects/
 │   └── */                      # Your project workspaces
-│       └── AGENCY.md           # Project shared memory
+│       ├── AGENCY.md           # Narrative shared memory
+│       └── PROGRAM.md          # Autonomous work contract
+├── .hive/
+│   ├── tasks/                  # Canonical machine task files
+│   ├── runs/                   # Immutable run artifacts
+│   ├── memory/                 # Project-local memory docs
+│   ├── events/                 # Append-only audit logs
+│   └── cache/                  # Derived SQLite cache (gitignored)
 ├── scripts/
 │   ├── start_session.sh        # Deep Work session bootstrap
 │   └── generate-images-from-prompts.mjs # Prompt-to-image generator
 ├── src/
-│   ├── cortex.py               # Orchestration logic
+│   ├── cortex.py               # v1 compatibility wrapper / legacy entrypoint
 │   ├── agent_dispatcher.py     # Automated agent work assignment
 │   ├── context_assembler.py    # Issue context builder
 │   ├── coordinator.py          # Real-time coordination server (optional)
@@ -161,7 +185,8 @@ agent-hive/
 │   ├── dashboard.py            # Streamlit UI
 │   ├── security.py             # Security utilities (YAML, sanitization, auth)
 │   ├── tracing.py              # Weave observability integration
-│   └── hive_mcp/               # MCP server for AI agents
+│   ├── hive/                   # Hive 2.0 core package and CLI
+│   └── hive_mcp/               # Legacy MCP server
 │       ├── __init__.py
 │       ├── __main__.py
 │       └── server.py           # MCP tool implementations

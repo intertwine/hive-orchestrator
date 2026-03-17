@@ -113,8 +113,13 @@ def test_pyproject_all_extra_covers_optional_runtime_surfaces():
     payload = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     extras = payload["project"]["optional-dependencies"]
 
-    assert extras["dashboard"] == extras["console"]
+    assert extras["dashboard"] == ["streamlit>=1.51.0,<2.0.0"]
+    assert extras["console"] == [
+        "fastapi>=0.115.0,<1.0.0",
+        "uvicorn>=0.32.0,<1.0.0",
+    ]
     assert extras["all"] == [
+        "streamlit>=1.51.0,<2.0.0",
         "mcp~=1.22.0",
         "fastapi>=0.115.0,<1.0.0",
         "uvicorn>=0.32.0,<1.0.0",

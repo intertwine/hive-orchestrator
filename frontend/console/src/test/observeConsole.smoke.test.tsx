@@ -74,7 +74,7 @@ function installFetchMock(routes: MockRoute[]) {
     if (!route) {
       throw new Error(`Unhandled console request: ${method} ${url.pathname}`);
     }
-    return typeof route.response === "function" ? route.response(url, init) : route.response;
+    return typeof route.response === "function" ? route.response(url, init) : route.response.clone();
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -381,5 +381,98 @@ describe("Observe Console smoke", () => {
         target: { driver: "codex" },
       },
     ]);
+  });
+
+  it("recovers the run event view after a browser refresh", async () => {
+    const runId = "run_alpha_codex_1";
+    const fetchMock = installFetchMock([
+      {
+        pathname: `/runs/${runId}`,
+        response: jsonResponse({
+          ok: true,
+          detail: {
+            run: {
+              id: runId,
+              project_id: "alpha",
+              driver: "codex",
+              status: "awaiting_input",
+              health: "healthy",
+              started_at: "2026-03-17T05:10:00Z",
+              finished_at: null,
+              metadata_json: { task_title: "Alpha codex slice" },
+            },
+            promotion_decision: {
+              decision: "review",
+              reasons: ["Waiting for operator approval."],
+            },
+            artifact_preview: {
+              run_brief: "Follow the prepared Codex run brief.",
+              review_summary: "Waiting for a final signoff.",
+              review_notes: "This run is paused for review.",
+              diff: "diff --git a/src/app.tsx b/src/app.tsx",
+              stdout: "codex ready",
+              stderr: "",
+            },
+            inspector: {
+              memory_entries: [{ source_path: ".hive/memory/project/profile.md" }],
+              skill_entries: [{ source_path: ".agents/skills/writing-humanizer/SKILL.md" }],
+              search_hits: [{ title: "Alpha launch copy", why: ["matched title terms: alpha"] }],
+              outputs: ["SESSION_CONTEXT.md"],
+            },
+            context_manifest: {
+              run_id: runId,
+              generated_at: "2026-03-17T05:12:00Z",
+            },
+            steering_history: [
+              {
+                event_id: "event_1",
+                type: "steering.rerouted",
+                ts: "2026-03-17T05:11:00Z",
+                payload: { target: { driver: "codex" } },
+              },
+            ],
+            timeline: [
+              {
+                event_id: "event_1",
+                type: "steering.rerouted",
+                ts: "2026-03-17T05:11:00Z",
+                payload: { target: { driver: "codex" } },
+              },
+              {
+                event_id: "event_2",
+                type: "run.awaiting_review",
+                ts: "2026-03-17T05:12:00Z",
+                payload: { decision: "review" },
+              },
+            ],
+            evaluations: [{ evaluator_id: "pytest", status: "passed", command: "pytest -q" }],
+            changed_files: { touched_paths: ["src/app.tsx"] },
+            context_entries: [{ source_path: "AGENTS.md" }],
+          },
+        }),
+      },
+    ]);
+
+    const first = renderConsole([`/runs/${runId}`]);
+
+    await screen.findByRole("heading", { name: runId });
+    // The reroute event is rendered once in Steering History and once again in the Timeline panel.
+    expect(await screen.findAllByText("steering.rerouted")).toHaveLength(2);
+    expect(screen.getByText("Follow the prepared Codex run brief.")).toBeInTheDocument();
+
+    first.unmount();
+
+    renderConsole([`/runs/${runId}`]);
+
+    await screen.findByRole("heading", { name: runId });
+    // The reroute event is rendered once in Steering History and once again in the Timeline panel.
+    expect(await screen.findAllByText("steering.rerouted")).toHaveLength(2);
+    expect(screen.getByText(/Alpha launch copy/)).toBeInTheDocument();
+
+    const detailCalls = fetchMock.mock.calls.filter(([input]) => {
+      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url);
+      return url.pathname === `/runs/${runId}`;
+    });
+    expect(detailCalls.length).toBeGreaterThanOrEqual(2);
   });
 });

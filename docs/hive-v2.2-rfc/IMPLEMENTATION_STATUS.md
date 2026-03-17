@@ -21,23 +21,30 @@ The center of gravity has shifted to release proof:
 
 Current working branch:
 
-- `codex/hive-v2-2-acceptance-proof`
+- `codex/hive-v2-2-launch-collateral`
 
 Latest local validation on this branch:
 
-- `UV_PYTHON=3.11 uv run --extra dev pytest -q`
-- `PYLINTHOME=$(mktemp -d) UV_PYTHON=3.11 make lint`
+- `UV_PYTHON=3.11 uv run python scripts/build_v22_demo_workspace.py /tmp/hive-v22-demo --force`
+- `cd frontend/console && pnpm build`
+- `UV_PYTHON=3.11 uv run --extra dev pytest tests/test_launch_collateral.py tests/test_launch_story.py tests/test_v22_docs.py -q`
 
 Latest result:
 
-- `419 passed, 1 warning`
-- pylint `9.43/10`
+- demo workspace builds end to end
+- launch screenshots and walkthrough clip generated under `images/launch/`
+- doc coverage for launch collateral is green
 
 ## Recent progress
 
-- PR #99 and PR #100 are merged, so the v2.2 foundations and React console cutover are now on `main`.
-- The first release-proof pass is in progress on `codex/hive-v2-2-acceptance-proof`.
-- The new acceptance tests now cover:
+- PR #99, PR #100, and PR #101 are merged, so the v2.2 foundations, React console cutover, and first acceptance-proof pass are now on `main`.
+- PR #102 is in review for browser-level console smoke coverage.
+- The current branch is focused on launch collateral:
+  - a reusable north-star demo workspace builder
+  - a checked-in walkthrough doc
+  - real screenshots for home, inbox, runs, and run detail
+  - a short walkthrough clip captured from the live console
+- The acceptance tests on `main` now cover:
   - the north-star three-project / ten-run operator scenario
   - inbox updates without manual sync
   - duplicate-hit collapse for task search
@@ -137,8 +144,8 @@ Strong signals:
 
 Remaining work:
 
-- record an end-to-end demo script on fixtures
-- finish launch collateral
+- merge the console-smoke proof and launch-collateral PRs
+- decide whether we want one more round of polish on the comparison/landing copy before calling 2.2 ready
 
 ## Acceptance checklist summary
 
@@ -165,9 +172,7 @@ Remaining work:
 
 ### Still open
 
-- launch screenshots and demo assets
-- a recorded demo script / fixture walkthrough
-- any browser-level console smoke coverage we still decide we want before release
+- any extra browser-level coverage we decide is worth the complexity after the current smoke PR lands
 
 ## Recommended PR stack
 

@@ -7,6 +7,10 @@ const DEFAULT_API_BASE = window.location.pathname.startsWith("/console")
 const API_BASE_KEY = "hive-console-api-base";
 const WORKSPACE_KEY = "hive-console-workspace";
 
+function queryParamValue(name: string): string | null {
+  return new URLSearchParams(window.location.search).get(name);
+}
+
 interface ConsoleConfig {
   apiBase: string;
   workspacePath: string;
@@ -34,10 +38,10 @@ function TopNavLink({ to, label }: { to: string; label: string }) {
 
 export function ConsoleLayout({ children }: PropsWithChildren) {
   const [apiBase, setApiBase] = useState(
-    window.localStorage.getItem(API_BASE_KEY) ?? DEFAULT_API_BASE,
+    queryParamValue("apiBase") ?? window.localStorage.getItem(API_BASE_KEY) ?? DEFAULT_API_BASE,
   );
   const [workspacePath, setWorkspacePath] = useState(
-    window.localStorage.getItem(WORKSPACE_KEY) ?? "",
+    queryParamValue("workspace") ?? window.localStorage.getItem(WORKSPACE_KEY) ?? "",
   );
 
   useEffect(() => {

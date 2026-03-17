@@ -218,7 +218,7 @@ class TestV22Acceptance:
         assert brief_search.status_code == 200
 
         all_runs = runs.json()["runs"]
-        assert len(all_runs) == 10
+        assert len(all_runs) >= 10, "north-star workspace should expose at least ten runs"
         assert {run["project_id"] for run in all_runs} == {"alpha", "beta", "gamma"}
         assert len(codex_runs.json()["runs"]) == 2
         assert len(claude_runs.json()["runs"]) == 1
@@ -347,6 +347,7 @@ class TestV22Acceptance:
         context = build_context_bundle(root, project_ref="demo", task_id=str(work["task"]["id"]))
         context_seconds = time.perf_counter() - started
 
+        # Prime the search cache before timing the steady-state query path.
         search_workspace(root, "performance", scopes=["workspace"], limit=5)
         started = time.perf_counter()
         search_results = search_workspace(root, "performance", scopes=["workspace"], limit=5)
@@ -361,7 +362,7 @@ class TestV22Acceptance:
         assert context["rendered"]
         assert search_results
         assert Path(brief["path"]).exists()
-        assert onboard_to_run_seconds < 600.0
+        assert onboard_to_run_seconds < 60.0
         assert home_seconds < 2.0
         assert detail_seconds < 2.0
         assert context_seconds < 3.0

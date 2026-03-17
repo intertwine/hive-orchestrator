@@ -1,0 +1,51 @@
+name: Branch Hygiene
+
+on:
+  schedule:
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview candidates without deleting branches"
+        required: false
+        default: true
+        type: boolean
+      stale_days:
+        description: "Delete claude/copilot branches older than this many days when they have no open PR"
+        required: false
+        default: "7"
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  prune-branches:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Prune stale automation branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DRY_RUN_FLAG=""
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}" = "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+          python scripts/prune_remote_branches.py \
+            --repo "${{ github.repository }}" \
+            --default-branch "${{ github.event.repository.default_branch }}" \
+            --stale-days "${{ github.event_name == 'workflow_dispatch' && inputs.stale_days || '7' }}" \
+            $DRY_RUN_FLAG

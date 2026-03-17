@@ -94,3 +94,11 @@ This repository ships:
 - `scripts/generate_homebrew_formula.py` for formula generation
 
 Use [docs/RELEASING.md](./RELEASING.md) for the release checklist and publishing flow.
+
+GitHub is also configured to auto-delete merged branches. That keeps normal feature and PR branches from piling up after merges.
+
+For bot-generated review branches, this repo also ships [/.github/workflows/branch-hygiene.yml](/Users/bryanyoung/experiments/hive-orchestrator/.github/workflows/branch-hygiene.yml). It runs weekly and can be triggered manually in dry-run mode when you want to preview what it would prune. The cleanup is intentionally conservative:
+
+- merged `codex/*`, `claude/*`, and `copilot/*` branches are safe to delete
+- stale `claude/*` and `copilot/*` branches with no open PR are deleted after 7 days
+- unmerged `codex/*` branches are left alone unless they have already landed in `main`

@@ -537,7 +537,7 @@ def _build_reroute_launch_request(
             repo_root=str(root),
             worktree_path=str(metadata["worktree_path"]),
             base_branch=str(
-                metadata.get("metadata_json", {}).get("base_branch") or current_branch(root)
+                (metadata.get("metadata_json") or {}).get("base_branch") or current_branch(root)
             ),
         ),
         compiled_context_path=str(metadata.get("context_compiled_dir")),
@@ -545,15 +545,13 @@ def _build_reroute_launch_request(
         program_policy=_run_program_policy(program),
         steering_notes=[
             str(item.get("note", ""))
-            for item in metadata.get("metadata_json", {}).get("steering_history", [])
+            for item in (metadata.get("metadata_json") or {}).get("steering_history", [])
             if isinstance(item, dict) and str(item.get("note", "")).strip()
         ],
         metadata={
             "initiator": "human",
             "source": "hive steer reroute",
-            "task_title": (
-                metadata.get("metadata_json", {}).get("task_title") or metadata["task_id"]
-            ),
+            "task_title": ((metadata.get("metadata_json") or {}).get("task_title") or metadata["task_id"]),
         },
     )
 

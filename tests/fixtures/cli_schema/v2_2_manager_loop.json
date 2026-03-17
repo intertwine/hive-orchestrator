@@ -1,0 +1,278 @@
+{
+  "version": 1,
+  "commands": {
+    "drivers_list": {
+      "non_empty": [
+        "drivers"
+      ],
+      "types": {
+        "ok": "boolean",
+        "version": "string",
+        "drivers[].driver": "string",
+        "drivers[].version": "string",
+        "drivers[].available": "boolean",
+        "drivers[].capabilities.worktrees": "boolean",
+        "drivers[].capabilities.resume": "boolean",
+        "drivers[].capabilities.streaming": "boolean",
+        "drivers[].capabilities.subagents": "boolean",
+        "drivers[].capabilities.scheduled": "boolean",
+        "drivers[].capabilities.remote_execution": "boolean",
+        "drivers[].capabilities.diff_preview": "boolean",
+        "drivers[].capabilities.sandbox": "string",
+        "drivers[].capabilities.reroute_export": "string",
+        "drivers[].notes": "list"
+      },
+      "equals": {
+        "ok": true,
+        "drivers[].driver": [
+          "local",
+          "manual",
+          "codex",
+          "claude-code"
+        ]
+      }
+    },
+    "next": {
+      "non_empty": [
+        "next_steps",
+        "task.reasons",
+        "recommendation.reasons"
+      ],
+      "types": {
+        "ok": "boolean",
+        "version": "string",
+        "message": "string",
+        "task.id": "string",
+        "task.title": "string",
+        "task.project_id": "string",
+        "task.status": "string",
+        "task.priority": "integer",
+        "task.score": "number",
+        "task.blocked_by": "list",
+        "task.graph_rank.task_unblock_count": "integer",
+        "task.reasons": "list",
+        "project.id": "string",
+        "project.path": "string",
+        "project.program_path": "string",
+        "project.steering.paused": "boolean",
+        "recommendation.score": "number",
+        "recommendation.reasons": "list",
+        "recommendation.task.id": "string",
+        "next_steps": "list"
+      },
+      "equals": {
+        "ok": true,
+        "task.project_id": "demo",
+        "task.status": "ready",
+        "project.id": "demo",
+        "recommendation.project.id": "demo"
+      }
+    },
+    "work_local": {
+      "non_empty": [
+        "run.metadata_json.context_manifest.entries"
+      ],
+      "types": {
+        "ok": "boolean",
+        "version": "string",
+        "message": "string",
+        "checkpoint.commit": "string",
+        "checkpoint.committed": "boolean",
+        "checkpoint.message": "string",
+        "output_path": "string",
+        "task.id": "string",
+        "task.owner": "string",
+        "task.status": "string",
+        "task.claimed_until": "string",
+        "run.id": "string",
+        "run.driver": "string",
+        "run.status": "string",
+        "run.health": "string",
+        "run.worktree_path": "string",
+        "run.launch_path": "string",
+        "run.events_path": "string",
+        "run.metadata_json.base_branch": "string",
+        "run.metadata_json.command_count": "integer",
+        "run.metadata_json.context_manifest.entries": "list",
+        "run.metadata_json.driver_status.state": "string",
+        "run.metadata_json.driver_status.progress.phase": "string",
+        "run.metadata_json.driver_status.progress.percent": "integer",
+        "recommendation.task.id": "string",
+        "project.id": "string"
+      },
+      "equals": {
+        "ok": true,
+        "task.owner": "schema-operator",
+        "task.status": "claimed",
+        "run.driver": "local",
+        "run.status": "running",
+        "project.id": "demo"
+      }
+    },
+    "finish_local": {
+      "non_empty": [
+        "evaluation.evaluations"
+      ],
+      "types": {
+        "ok": "boolean",
+        "version": "string",
+        "action": "string",
+        "run.id": "string",
+        "run.status": "string",
+        "evaluation.evaluations": "list",
+        "evaluation.evaluations[].evaluator_id": "string",
+        "evaluation.evaluations[].status": "string",
+        "evaluation.promotion_decision.decision": "string",
+        "promotion_decision.decision": "string",
+        "promotion.branch_name": "string",
+        "promotion.branch_cleanup.deleted": "boolean"
+      },
+      "equals": {
+        "ok": true,
+        "action": "promote",
+        "evaluation.promotion_decision.decision": "accept",
+        "promotion_decision.decision": "accept"
+      }
+    },
+    "portfolio_status": {
+      "non_empty": [
+        "projects",
+        "tasks",
+        "recent_events"
+      ],
+      "types": {
+        "ok": "boolean",
+        "version": "string",
+        "message": "string",
+        "projects": "list",
+        "projects[].id": "string",
+        "projects[].status": "string",
+        "tasks": "list",
+        "tasks[].id": "string",
+        "tasks[].project_id": "string",
+        "active_runs": "list",
+        "evaluating_runs": "list",
+        "recommendation.task.id": "string",
+        "recent_events": "list",
+        "recent_events[].type": "string"
+      },
+      "equals": {
+        "ok": true,
+        "projects[].id": [
+          "demo"
+        ],
+        "tasks[].project_id": [
+          "demo"
+        ]
+      },
+      "contains": {
+        "recent_events[].type": [
+          "portfolio.finish.completed"
+        ]
+      }
+    },
+    "campaign_create": {
+      "types": {
+        "ok": "boolean",
+        "version": "string",
+        "campaign.id": "string",
+        "campaign.title": "string",
+        "campaign.status": "string",
+        "campaign.driver": "string",
+        "campaign.project_ids": "list",
+        "recommended_next.task.id": "string",
+        "recommended_next.task.project_id": "string",
+        "active_runs": "list",
+        "accepted_runs": "list"
+      },
+      "equals": {
+        "ok": true,
+        "campaign.title": "Launch week",
+        "campaign.status": "active",
+        "campaign.driver": "local",
+        "campaign.project_ids": [
+          "demo"
+        ],
+        "recommended_next.task.project_id": "demo"
+      }
+    },
+    "brief_daily": {
+      "non_empty": [
+        "campaigns",
+        "portfolio.projects",
+        "portfolio.ready_tasks",
+        "portfolio.recent_events"
+      ],
+      "types": {
+        "ok": "boolean",
+        "version": "string",
+        "cadence": "string",
+        "path": "string",
+        "campaigns": "list",
+        "campaigns[].campaign.id": "string",
+        "campaigns[].campaign.title": "string",
+        "portfolio.projects": "list",
+        "portfolio.projects[].id": "string",
+        "portfolio.ready_tasks": "list",
+        "portfolio.ready_tasks[].id": "string",
+        "portfolio.recent_events": "list",
+        "portfolio.recent_events[].type": "string"
+      },
+      "equals": {
+        "ok": true,
+        "cadence": "daily",
+        "campaigns[].campaign.title": [
+          "Launch week"
+        ],
+        "portfolio.projects[].id": [
+          "demo"
+        ]
+      },
+      "contains": {
+        "portfolio.recent_events[].type": [
+          "portfolio.recommended"
+        ]
+      }
+    },
+    "program_doctor": {
+      "non_empty": [
+        "issues",
+        "suggested_templates"
+      ],
+      "types": {
+        "ok": "boolean",
+        "version": "string",
+        "scope": "string",
+        "project_id": "string",
+        "project_slug": "string",
+        "program_path": "string",
+        "status": "string",
+        "blocked_autonomous_promotion": "boolean",
+        "issues": "list",
+        "issues[].code": "string",
+        "issues[].severity": "string",
+        "issues[].message": "string",
+        "suggested_templates": "list",
+        "suggested_templates[].id": "string",
+        "suggested_templates[].command": "string"
+      },
+      "equals": {
+        "ok": true,
+        "scope": "program",
+        "project_id": "app",
+        "project_slug": "app",
+        "status": "fail",
+        "blocked_autonomous_promotion": true
+      },
+      "contains": {
+        "issues[].code": [
+          "missing_required_evaluator",
+          "missing_promotion_gate"
+        ],
+        "suggested_templates[].id": [
+          "pytest"
+        ]
+      }
+    }
+  }
+}

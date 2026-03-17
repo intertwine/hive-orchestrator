@@ -170,6 +170,76 @@ class TestHiveDrivers:
         assert "steering.reroute_requested" in timeline
         assert "steering.rerouted" in timeline
 
+    def test_same_run_can_move_from_local_to_codex_to_claude_code(self, temp_hive_dir, capsys):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="local")
+
+        _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "steer",
+                "reroute",
+                run.id,
+                "--driver",
+                "codex",
+                "--reason",
+                "Use Codex for stronger repo-wide reasoning",
+            ],
+        )
+        _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "steer",
+                "reroute",
+                run.id,
+                "--driver",
+                "claude-code",
+                "--reason",
+                "Use Claude Code for broader synthesis",
+            ],
+        )
+
+        metadata = load_run(temp_hive_dir, run.id)
+        run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
+        handles = json.loads((run_root / "driver" / "handles.json").read_text(encoding="utf-8"))
+        driver_history = [entry["driver"] for entry in handles["history"]]
+        event_types = [
+            json.loads(line)["type"]
+            for line in (run_root / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+        assert metadata["driver"] == "claude-code"
+        assert metadata["status"] == "awaiting_input"
+        assert handles["active"]["driver"] == "claude-code"
+        assert driver_history[0] == "local"
+        assert "codex" in driver_history
+        assert driver_history[-1] == "claude-code"
+        assert (run_root / "transcript" / "normalized.jsonl").exists()
+        assert event_types.count("steering.reroute_requested") == 2
+        assert event_types.count("steering.rerouted") == 2
+
     def test_cli_steer_pause_resume_and_cancel_update_run_timeline(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)
         _invoke_cli_json(

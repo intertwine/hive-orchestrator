@@ -71,7 +71,7 @@ initial commit.
 Use the manager loop, not raw Markdown edits:
 
 ```bash
-hive console serve
+hive console serve   # in a separate terminal
 hive next --project-id demo
 hive work <task-id> --owner <your-name> --output SESSION_CONTEXT.md
 ```

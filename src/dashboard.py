@@ -9,6 +9,7 @@ tests can keep using the data-loading helpers without depending on Streamlit.
 from __future__ import annotations
 
 import glob
+import logging
 import os
 from pathlib import Path
 
@@ -24,12 +25,15 @@ from src.hive.scheduler.query import ready_tasks
 from src.hive.workspace import sync_workspace
 from src.security import safe_dump_agency_md, safe_load_agency_md
 
+LOGGER = logging.getLogger(__name__)
+
 
 def load_project(project_path: str):
     """Load and parse an AGENCY.md file using safe YAML loading."""
     try:
         parsed = safe_load_agency_md(Path(project_path))
-    except Exception:
+    except (OSError, UnicodeError, ValueError) as exc:
+        LOGGER.debug("Unable to load project %s: %s", project_path, exc)
         return None
     return {
         "path": project_path,
@@ -133,7 +137,7 @@ def main():
     root = Path(os.getenv("HIVE_BASE_PATH", os.getcwd())).resolve()
     raise SystemExit(
         "Streamlit is no longer the primary Hive dashboard. "
-        f"Run `hive console serve --path {root}` and open /console/ instead."
+        f"Run `hive console serve` from {root} and open /console/ instead."
     )
 
 

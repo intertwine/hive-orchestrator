@@ -6,21 +6,69 @@ import sys
 import os
 import re
 import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+import dashboard as dashboard_module
+
 from dashboard import (
-    load_project,
+    build_home_view,
+    build_inbox,
     discover_projects,
-    generate_file_tree,
     generate_deep_work_context,
+    generate_file_tree,
     generate_hive_context,
     list_project_ready_tasks,
+    list_runs,
+    load_project,
+    load_run_detail,
+    load_run_timeline,
+    main as dashboard_main,
 )
+from hive.cli.main import main as hive_main
 from src.hive.migrate import migrate_v1_to_v2
+from src.hive.runs.engine import eval_run, start_run
+from src.hive.scheduler.query import ready_tasks
+from src.hive.store.task_files import create_task
+from tests.conftest import init_git_repo, write_safe_program
+
+
+def _invoke_cli(capsys, argv: list[str]) -> None:
+    exit_code = hive_main(argv)
+    captured = capsys.readouterr()
+    assert exit_code == 0, captured.err
+
+
+def _bootstrap_observe_workspace(temp_hive_dir: str, capsys) -> tuple[object, object]:
+    """Create one awaiting-input run and one reviewable run for dashboard shim tests."""
+    init_git_repo(temp_hive_dir)
+    _invoke_cli(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+    )
+    write_safe_program(temp_hive_dir, "demo")
+    create_task(temp_hive_dir, "demo", "Review-ready slice", status="ready", priority=1)
+    subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Bootstrap workspace"],
+        cwd=temp_hive_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    waiting_run = start_run(temp_hive_dir, task_id, driver_name="codex")
+    review_task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    review_run = start_run(temp_hive_dir, review_task_id, driver_name="local")
+    eval_run(temp_hive_dir, review_run.id)
+    return waiting_run, review_run
 
 
 class TestLoadProject:
@@ -62,6 +110,12 @@ class TestLoadProject:
         assert project_data is not None
         assert "---" in project_data["raw"]
         assert "project_id: test-project" in project_data["raw"]
+
+    def test_load_project_propagates_unexpected_errors(self):
+        """Unexpected loader failures should surface instead of being silently swallowed."""
+        with patch.object(dashboard_module, "safe_load_agency_md", side_effect=RuntimeError("boom")):
+            with pytest.raises(RuntimeError, match="boom"):
+                load_project("/tmp/example/AGENCY.md")
 
 
 class TestDiscoverProjects:
@@ -393,3 +447,40 @@ class TestDashboardIntegration:
             context = generate_deep_work_context(project["path"], base_path)
             assert context is not None
             assert project["metadata"]["project_id"] in context
+
+
+class TestConsoleShimHelpers:
+    """Compatibility wrappers should delegate cleanly to the React console state layer."""
+
+    def test_console_shim_helpers_cover_run_and_inbox_views(self, temp_hive_dir, capsys):
+        waiting_run, review_run = _bootstrap_observe_workspace(temp_hive_dir, capsys)
+        base_path = Path(temp_hive_dir)
+
+        runs = list_runs(base_path, driver="codex")
+        timeline = load_run_timeline(base_path, waiting_run.id)
+        inbox = build_inbox(base_path)
+        home = build_home_view(base_path)
+        detail = load_run_detail(base_path, waiting_run.id)
+        review_detail = load_run_detail(base_path, review_run.id)
+
+        assert len(runs) == 1
+        assert runs[0]["id"] == waiting_run.id
+        assert timeline
+        assert any(item["kind"] == "run-input" for item in inbox)
+        assert any(item["kind"] == "run-review" for item in inbox)
+        assert home["active_runs"]
+        assert home["inbox"]
+        assert detail["run"]["id"] == waiting_run.id
+        assert detail["timeline"]
+        assert detail["artifacts"]["context_manifest"]
+        assert review_detail["promotion_decision"]["decision"] == "accept"
+
+    def test_main_exits_with_console_advice(self, temp_hive_dir):
+        with patch.dict(os.environ, {"HIVE_BASE_PATH": temp_hive_dir}):
+            with pytest.raises(SystemExit) as excinfo:
+                dashboard_main()
+
+        message = str(excinfo.value)
+        assert "hive console serve" in message
+        assert "--path" not in message
+        assert str(Path(temp_hive_dir).resolve()) in message

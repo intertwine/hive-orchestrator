@@ -116,6 +116,7 @@ console:
 	@echo ""
 	uv run hive console serve
 
+# Backward-compatible alias for maintainers who still reach for the old target name.
 dashboard: console
 
 # Find ready work

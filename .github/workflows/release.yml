@@ -31,7 +31,7 @@ jobs:
       - name: Require a version tag ref
         run: |
           if [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
-            echo "This workflow only publishes from version tags like v0.1.0."
+            echo "This workflow only publishes from version tags like v2.2.0."
             echo "Create and push a release tag, then run the workflow from that tag if you need a manual retry."
             exit 1
           fi

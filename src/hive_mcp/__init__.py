@@ -1,3 +1,5 @@
 """Hive MCP Server - Model Context Protocol integration for Agent Hive."""
 
-__version__ = "0.1.0"
+from src.hive.common import HIVE_VERSION
+
+__version__ = HIVE_VERSION

@@ -61,19 +61,12 @@ def test_generate_homebrew_formula_uses_stable_help_assertion():
         url="https://example.com/mellona-hive-1.2.3.tar.gz",
         sha256="a" * 64,
     )
-    wheel_artifact = module.Artifact(
-        name="mellona-hive",
-        version="1.2.3",
-        url="https://example.com/mellona_hive-1.2.3-py3-none-any.whl",
-        sha256="b" * 64,
-    )
 
     formula = module.render_formula(
         class_name="MellonaHive",
         desc="Hive test formula",
         homepage="https://example.com/mellona-hive",
         root=source_artifact,
-        root_wheel=wheel_artifact,
         license_name="MIT",
         python_dep="python@3.13",
         common_resources=[],
@@ -82,6 +75,52 @@ def test_generate_homebrew_formula_uses_stable_help_assertion():
     )
 
     assert 'assert_match "\\"ok\\": true", shell_output("#{bin}/hive doctor --json")' in formula
+    assert 'pip", "install", "--no-deps", "--no-build-isolation", buildpath' in formula
+
+
+def test_generate_homebrew_formula_uses_platform_resource_blocks_and_short_desc():
+    """Platform-specific wheels should nest inside one resource block and keep a short description."""
+    module = _load_module("generate_homebrew_formula_platform", "scripts/generate_homebrew_formula.py")
+    source_artifact = module.Artifact(
+        name="mellona-hive",
+        version="1.2.3",
+        url="https://example.com/mellona-hive-1.2.3.tar.gz",
+        sha256="a" * 64,
+    )
+    arm_pyyaml = module.Artifact(
+        name="pyyaml",
+        version="6.0.3",
+        url="https://example.com/pyyaml-arm.whl",
+        sha256="c" * 64,
+    )
+    intel_pyyaml = module.Artifact(
+        name="pyyaml",
+        version="6.0.3",
+        url="https://example.com/pyyaml-intel.whl",
+        sha256="d" * 64,
+    )
+
+    formula = module.render_formula(
+        class_name="MellonaHive",
+        desc="CLI-first orchestration platform for autonomous agents with Git-backed task, run, and memory state",
+        homepage="https://example.com/mellona-hive",
+        root=source_artifact,
+        license_name="MIT",
+        python_dep="python@3.13",
+        common_resources=[],
+        arm_resources=[arm_pyyaml],
+        intel_resources=[intel_pyyaml],
+    )
+
+    assert '  desc "Git-backed control plane for autonomous agent work"' in formula
+    assert '  depends_on "libyaml"' in formula
+    assert '  resource "pyyaml" do' in formula
+    assert "  on_arm do" in formula
+    assert "  on_intel do" in formula
+    assert '    url "https://example.com/pyyaml-arm.whl"' in formula
+    assert '    url "https://example.com/pyyaml-intel.whl"' in formula
+    assert '  on_arm do\n    resource "pyyaml"' not in formula
+    assert 'resource "mellona-hive"' not in formula
 
 
 def test_public_top_level_packages_are_available():

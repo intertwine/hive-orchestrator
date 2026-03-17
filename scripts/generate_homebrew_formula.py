@@ -64,6 +64,14 @@ def load_project_metadata(pyproject_path: Path) -> dict[str, str]:
     }
 
 
+def load_build_requirements(pyproject_path: Path) -> list[str]:
+    """Load build-system requirements from pyproject.toml."""
+    with pyproject_path.open("rb") as file_handle:
+        data = tomllib.load(file_handle)
+    build_system = data.get("build-system", {})
+    return [str(requirement) for requirement in build_system.get("requires", [])]
+
+
 def python_abi_tag(python_version: str) -> str:
     """Convert dotted Python version (3.13) to CP ABI tag (cp313)."""
     parts = python_version.split(".")
@@ -73,8 +81,7 @@ def python_abi_tag(python_version: str) -> str:
 
 
 def resolve_pip_report(
-    package_name: str,
-    package_version: str,
+    requirement: str,
     *,
     platform_tag: str,
     python_version: str,
@@ -82,7 +89,6 @@ def resolve_pip_report(
     """Resolve package and transitive dependencies using pip's JSON report."""
     from tempfile import TemporaryDirectory
 
-    requirement = f"{package_name}=={package_version}"
     abi = python_abi_tag(python_version)
 
     with TemporaryDirectory(prefix="homebrew-formula-") as temp_dir:
@@ -175,6 +181,54 @@ def extract_artifacts(
     return root, resources
 
 
+def extract_all_artifacts(install_items: list[dict]) -> dict[str, Artifact]:
+    """Extract all artifacts from a pip report keyed by normalized name."""
+    artifacts: dict[str, Artifact] = {}
+    for item in install_items:
+        metadata = item.get("metadata", {})
+        download_info = item.get("download_info", {})
+        archive_info = download_info.get("archive_info", {})
+
+        name = metadata.get("name")
+        version = metadata.get("version")
+        url = download_info.get("url")
+        hash_value = archive_info.get("hash", "")
+
+        if not name or not version or not url:
+            continue
+        if not hash_value.startswith("sha256="):
+            raise RuntimeError(f"Missing sha256 hash for {name} ({url}) in pip report")
+
+        artifact = Artifact(
+            name=str(name),
+            version=str(version),
+            url=str(url),
+            sha256=str(hash_value).split("=", 1)[1],
+        )
+        key = normalize_name(str(name))
+        existing = artifacts.get(key)
+        if existing and existing != artifact:
+            raise RuntimeError(
+                f"Multiple artifacts resolved for dependency {name}: {existing.url} vs {artifact.url}"
+            )
+        artifacts[key] = artifact
+    return artifacts
+
+
+def merge_artifact_maps(*artifact_maps: dict[str, Artifact]) -> dict[str, Artifact]:
+    """Merge artifact maps and reject conflicting duplicates."""
+    merged: dict[str, Artifact] = {}
+    for artifact_map in artifact_maps:
+        for key, artifact in artifact_map.items():
+            existing = merged.get(key)
+            if existing and existing != artifact:
+                raise RuntimeError(
+                    f"Conflicting artifacts for {artifact.name}: {existing.url} vs {artifact.url}"
+                )
+            merged[key] = artifact
+    return merged
+
+
 def fetch_sdist_artifact(package_name: str, package_version: str) -> Artifact:
     """Fetch source distribution artifact metadata from PyPI."""
     endpoint = f"https://pypi.org/pypi/{quote(package_name)}/{quote(package_version)}/json"
@@ -227,6 +281,13 @@ def partition_resources(
     return common, arm_specific, intel_specific
 
 
+def homebrew_desc(desc: str) -> str:
+    """Return a Homebrew-friendly description string."""
+    if len(desc) < 80:
+        return desc
+    return "Git-backed control plane for autonomous agent work"
+
+
 def render_resource(resource: Artifact, indent: str = "  ") -> str:
     """Render a single Homebrew resource block."""
     return "\n".join(
@@ -234,6 +295,28 @@ def render_resource(resource: Artifact, indent: str = "  ") -> str:
             f'{indent}resource "{normalize_name(resource.name)}" do',
             f'{indent}  url "{resource.url}"',
             f'{indent}  sha256 "{resource.sha256}"',
+            f"{indent}end",
+        ]
+    )
+
+
+def render_platform_resource(
+    arm_resource: Artifact,
+    intel_resource: Artifact,
+    indent: str = "  ",
+) -> str:
+    """Render one resource block with nested architecture-specific wheels."""
+    return "\n".join(
+        [
+            f'{indent}resource "{normalize_name(arm_resource.name)}" do',
+            f"{indent}  on_arm do",
+            f'{indent}    url "{arm_resource.url}"',
+            f'{indent}    sha256 "{arm_resource.sha256}"',
+            f"{indent}  end",
+            f"{indent}  on_intel do",
+            f'{indent}    url "{intel_resource.url}"',
+            f'{indent}    sha256 "{intel_resource.sha256}"',
+            f"{indent}  end",
             f"{indent}end",
         ]
     )
@@ -250,7 +333,6 @@ def render_formula(
     desc: str,
     homepage: str,
     root: Artifact,
-    root_wheel: Artifact,
     license_name: str,
     python_dep: str,
     common_resources: list[Artifact],
@@ -261,8 +343,11 @@ def render_formula(
     python_bin = python_dep
     if python_dep.startswith("python@"):
         python_bin = f"python{python_dep.split('@', 1)[1]}"
-
-    root_wheel_resource_name = f"{normalize_name(root.name)}-wheel"
+    desc = homebrew_desc(desc)
+    dependency_lines: list[str] = []
+    if any(normalize_name(resource.name) == "pyyaml" for resource in common_resources + arm_resources):
+        dependency_lines.append('  depends_on "libyaml"')
+    dependency_lines.append(f'  depends_on "{python_dep}"')
     sections: list[str] = [
         "# typed: strict",
         "# frozen_string_literal: true",
@@ -277,37 +362,18 @@ def render_formula(
         f'  sha256 "{root.sha256}"',
         f'  license "{license_name}"',
         "",
-        f'  depends_on "{python_dep}"',
+        *dependency_lines,
         "",
     ]
 
-    if arm_resources:
-        sections.append("  on_arm do")
-        sections.append(render_resource_section(arm_resources, indent="    "))
-        sections.append("  end")
-        sections.append("")
-
-    if intel_resources:
-        sections.append("  on_intel do")
-        sections.append(render_resource_section(intel_resources, indent="    "))
-        sections.append("  end")
-        sections.append("")
+    if arm_resources or intel_resources:
+        for arm_resource, intel_resource in zip(arm_resources, intel_resources, strict=True):
+            sections.append(render_platform_resource(arm_resource, intel_resource))
+            sections.append("")
 
     if common_resources:
         sections.append(render_resource_section(common_resources))
         sections.append("")
-
-    sections.append(
-        render_resource(
-            Artifact(
-                name=root_wheel_resource_name,
-                version=root_wheel.version,
-                url=root_wheel.url,
-                sha256=root_wheel.sha256,
-            )
-        )
-    )
-    sections.append("")
     sections.extend(
         [
             "  def install",
@@ -315,16 +381,12 @@ def render_formula(
             f'    python = Formula["{python_dep}"].opt_bin/"{python_bin}"',
             "",
             "    resources.each do |resource|",
-            f'      next if resource.name == "{root_wheel_resource_name}"',
-            "",
             "      wheel = buildpath/File.basename(resource.url)",
             "      cp resource.cached_download, wheel",
             '      system python, "-m", "pip", "--python=#{libexec/"bin/python"}", "install", "--no-deps", wheel',
             "    end",
             "",
-            f'    root_wheel = buildpath/"{root_wheel_resource_name}.whl"',
-            f'    cp resource("{root_wheel_resource_name}").cached_download, root_wheel',
-            '    system python, "-m", "pip", "--python=#{libexec/"bin/python"}", "install", "--no-deps", root_wheel',
+            '    system libexec/"bin/python", "-m", "pip", "install", "--no-deps", "--no-build-isolation", buildpath',
             '    bin.install_symlink libexec/"bin/hive"',
             "  end",
             "",
@@ -375,18 +437,17 @@ def main() -> int:
     """CLI entrypoint."""
     args = parse_args()
     metadata = load_project_metadata(args.pyproject)
+    build_requirements = load_build_requirements(args.pyproject)
     package_name = args.package_name or metadata["name"]
     package_version = args.package_version or metadata["version"]
 
     arm_install = resolve_pip_report(
-        package_name,
-        package_version,
+        f"{package_name}=={package_version}",
         platform_tag=args.platform_arm,
         python_version=args.python_version,
     )
     intel_install = resolve_pip_report(
-        package_name,
-        package_version,
+        f"{package_name}=={package_version}",
         platform_tag=args.platform_intel,
         python_version=args.python_version,
     )
@@ -402,18 +463,56 @@ def main() -> int:
         arm_resources,
         intel_resources,
     )
+    build_arm_resources: dict[str, Artifact] = {}
+    build_intel_resources: dict[str, Artifact] = {}
+    for requirement in build_requirements:
+        build_arm_resources = merge_artifact_maps(
+            build_arm_resources,
+            extract_all_artifacts(
+                resolve_pip_report(
+                    requirement,
+                    platform_tag=args.platform_arm,
+                    python_version=args.python_version,
+                )
+            ),
+        )
+        build_intel_resources = merge_artifact_maps(
+            build_intel_resources,
+            extract_all_artifacts(
+                resolve_pip_report(
+                    requirement,
+                    platform_tag=args.platform_intel,
+                    python_version=args.python_version,
+                )
+            ),
+        )
+    build_common, build_arm_specific, build_intel_specific = partition_resources(
+        build_arm_resources,
+        build_intel_resources,
+    )
+    common_resources = merge_artifact_maps(
+        {normalize_name(resource.name): resource for resource in common_resources},
+        {normalize_name(resource.name): resource for resource in build_common},
+    )
+    arm_specific = merge_artifact_maps(
+        {normalize_name(resource.name): resource for resource in arm_specific},
+        {normalize_name(resource.name): resource for resource in build_arm_specific},
+    )
+    intel_specific = merge_artifact_maps(
+        {normalize_name(resource.name): resource for resource in intel_specific},
+        {normalize_name(resource.name): resource for resource in build_intel_specific},
+    )
     root_sdist = fetch_sdist_artifact(package_name, package_version)
     formula_text = render_formula(
         class_name=ruby_class_name(args.formula_name),
         desc=metadata["description"],
         homepage=metadata["homepage"],
         root=root_sdist,
-        root_wheel=arm_root,
         license_name=metadata["license"],
         python_dep=args.python_dep,
-        common_resources=common_resources,
-        arm_resources=arm_specific,
-        intel_resources=intel_specific,
+        common_resources=sorted(common_resources.values(), key=lambda resource: normalize_name(resource.name)),
+        arm_resources=sorted(arm_specific.values(), key=lambda resource: normalize_name(resource.name)),
+        intel_resources=sorted(intel_specific.values(), key=lambda resource: normalize_name(resource.name)),
     )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

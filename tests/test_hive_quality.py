@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.hive.clock import utc_now_iso
 from src.hive.memory import observe_project, reflect_project, search_memory, startup_context
 from src.hive.migrate import migrate_v1_to_v2
 from src.hive.search import search_workspace
@@ -124,8 +125,8 @@ class TestHiveSchedulerQuality:
         older.created_at = "2024-01-01T00:00:00Z"
         older.updated_at = "2024-01-01T00:00:00Z"
         save_task(temp_hive_dir, older)
-        fresher.created_at = "2026-03-15T00:00:00Z"
-        fresher.updated_at = "2026-03-15T00:00:00Z"
+        fresher.created_at = utc_now_iso()
+        fresher.updated_at = fresher.created_at
         save_task(temp_hive_dir, fresher)
 
         queue = ready_tasks(temp_hive_dir, project_id="test-project", limit=None)

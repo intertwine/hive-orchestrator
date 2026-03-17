@@ -233,6 +233,7 @@ class TestHiveDrivers:
         assert metadata["driver"] == "claude-code"
         assert metadata["status"] == "awaiting_input"
         assert handles["active"]["driver"] == "claude-code"
+        assert driver_history, "expected non-empty driver history"
         assert driver_history[0] == "local"
         assert "codex" in driver_history
         assert driver_history[-1] == "claude-code"

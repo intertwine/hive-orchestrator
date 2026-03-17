@@ -7,6 +7,8 @@ from pathlib import Path
 import subprocess
 from typing import Any
 
+import pytest
+
 from hive.cli.main import main as hive_main
 
 from src.hive.store.task_files import create_task
@@ -14,11 +16,16 @@ from tests.conftest import init_git_repo, write_safe_program
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_FIXTURE = json.loads(
-    (REPO_ROOT / "tests" / "fixtures" / "cli_schema" / "v2_2_manager_loop.json").read_text(
-        encoding="utf-8"
+
+
+@pytest.fixture(name="schema_fixture")
+def fixture_schema_fixture() -> dict[str, Any]:
+    """Load the CLI contract fixture with a test-scoped failure if it is missing or malformed."""
+    return json.loads(
+        (REPO_ROOT / "tests" / "fixtures" / "cli_schema" / "v2_2_manager_loop.json").read_text(
+            encoding="utf-8"
+        )
     )
-)
 
 
 def _invoke_cli_json(capsys, argv: list[str]) -> dict[str, Any]:
@@ -40,6 +47,8 @@ def _commit_all(root: Path, message: str) -> None:
 
 
 def _collect_path_values(payload: dict[str, Any], path: str) -> list[Any]:
+    # The fixture DSL is intentionally strict today. Every referenced path must exist, so future
+    # optional fields should either get a new schema marker or stay out of this contract fixture.
     values: list[Any] = [payload]
     for segment in path.split("."):
         expand_list = segment.endswith("[]")
@@ -117,6 +126,8 @@ def _assert_schema(command_name: str, payload: dict[str, Any], schema: dict[str,
 
 
 def _build_cli_payloads(temp_hive_dir: str, capsys) -> dict[str, dict[str, Any]]:
+    # This helper is intentionally sequential because later manager-loop payloads depend on earlier
+    # setup state: onboarded project -> committed workspace -> active run -> campaign + brief.
     root = Path(temp_hive_dir)
     init_git_repo(root)
 
@@ -204,9 +215,11 @@ def _build_cli_payloads(temp_hive_dir: str, capsys) -> dict[str, dict[str, Any]]
 class TestCliSchemaFixtures:
     """Freeze the operator-loop JSON contracts in fixture-backed checks."""
 
-    def test_manager_loop_cli_payloads_match_fixture_contracts(self, temp_hive_dir, capsys):
+    def test_manager_loop_cli_payloads_match_fixture_contracts(
+        self, temp_hive_dir, capsys, schema_fixture
+    ):
         payloads = _build_cli_payloads(temp_hive_dir, capsys)
 
-        assert set(payloads) == set(SCHEMA_FIXTURE["commands"])
-        for command_name, schema in SCHEMA_FIXTURE["commands"].items():
+        assert set(payloads) == set(schema_fixture["commands"])
+        for command_name, schema in schema_fixture["commands"].items():
             _assert_schema(command_name, payloads[command_name], schema)

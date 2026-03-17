@@ -71,6 +71,8 @@ Pass if:
 
 ## 3. UX heuristics
 
+These are failure conditions, not work items. A checked line here means the failure mode is not true.
+
 The release fails if any of the following are true:
 
 - [x] The primary dashboard still relies on a manual sync button

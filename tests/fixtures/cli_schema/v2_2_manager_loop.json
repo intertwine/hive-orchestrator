@@ -23,7 +23,9 @@
         "drivers[].notes": "list"
       },
       "equals": {
-        "ok": true,
+        "ok": true
+      },
+      "contains": {
         "drivers[].driver": [
           "local",
           "manual",

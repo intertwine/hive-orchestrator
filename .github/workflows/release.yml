@@ -5,6 +5,16 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      release_ref:
+        description: "Release tag to publish or re-verify (for example: v2.2.1)"
+        required: true
+        type: string
+      skip_existing:
+        description: "Allow rerunning trusted publishing when the version is already on PyPI"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -29,14 +39,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_ref || github.ref }}
 
       - name: Require a version tag ref
         run: |
-          if [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
+          RELEASE_REF="${{ github.event_name == 'workflow_dispatch' && inputs.release_ref || github.ref }}"
+          if [[ "$RELEASE_REF" == v* ]]; then
+            RELEASE_REF="refs/tags/$RELEASE_REF"
+          fi
+          if [[ "$RELEASE_REF" != refs/tags/v* ]]; then
             echo "This workflow only publishes from version tags like v2.2.1."
-            echo "Create and push a release tag, then run the workflow from that tag if you need a manual retry."
+            echo "Push a version tag first, or pass an existing tag through workflow_dispatch."
             exit 1
           fi
+          echo "RELEASE_REF=$RELEASE_REF" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -65,9 +82,12 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Ensure tag matches pyproject version
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG_REF="${RELEASE_REF:-${GITHUB_REF}}"
+          if [[ "$TAG_REF" == v* ]]; then
+            TAG_REF="refs/tags/$TAG_REF"
+          fi
+          TAG_VERSION="${TAG_REF#refs/tags/v}"
           PKG_VERSION="${{ steps.pkg_version.outputs.version }}"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
             echo "Tag version ($TAG_VERSION) does not match pyproject version ($PKG_VERSION)"
@@ -79,6 +99,8 @@ jobs:
 
       - name: Publish to PyPI via trusted publishing
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_existing || false }}
 
   verify-homebrew:
     runs-on: macos-latest

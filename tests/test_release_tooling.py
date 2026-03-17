@@ -263,7 +263,13 @@ def test_release_workflow_requires_tag_and_homebrew_verification():
         guard_step is not None
     ), "Missing 'Require a version tag ref' step in publish-pypi"
     assert "refs/tags/v*" in guard_step["run"]
+    assert 'ref: ${{ github.event_name == \'workflow_dispatch\' && inputs.release_ref || github.ref }}' in workflow_text
+    assert 'skip-existing: ${{ github.event_name == \'workflow_dispatch\' && inputs.skip_existing || false }}' in workflow_text
     assert publish_steps[1]["name"] == "Require a version tag ref"
+    workflow_on = workflow.get("on", workflow.get(True))
+    dispatch_inputs = workflow_on["workflow_dispatch"]["inputs"]
+    assert dispatch_inputs["release_ref"]["required"] is True
+    assert dispatch_inputs["skip_existing"]["default"] is False
 
     verify_homebrew = workflow["jobs"]["verify-homebrew"]
     assert verify_homebrew["runs-on"] == "macos-latest"

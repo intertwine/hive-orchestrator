@@ -76,7 +76,15 @@ git push origin main --tags
 
 That tag triggers the release workflow.
 
-The release workflow only publishes from `v*` tags. `workflow_dispatch` is still available for retries, but it must run against a tag ref instead of an arbitrary branch.
+The release workflow only publishes from `v*` tags. `workflow_dispatch` is available for maintainers who need to re-drive an existing tagged release from the current workflow definition.
+
+For example, after fixing PyPI trusted publishing or another release-automation issue, you can rerun the `v2.2.1` release from `main` without uploading duplicate files:
+
+```bash
+gh workflow run release.yml --ref main -f release_ref=v2.2.1 -f skip_existing=true
+```
+
+That path still builds from the tagged release, but it uses the latest workflow logic and tells PyPI to treat already-uploaded files as a clean no-op.
 
 ## Watch The Automation
 

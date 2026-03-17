@@ -5,9 +5,9 @@
 
 ![Agent Hive](images/agent-hive-explainer-image-web.png)
 
-Agent Hive is a CLI-first orchestration platform for autonomous agents. It keeps machine state in a Git-friendly substrate under `.hive/`, keeps human context in Markdown, and gives agents a stable command surface instead of brittle prompt rituals.
+Agent Hive is a repo-native control plane for autonomous work. Keep your favorite worker harness, whether that is Codex, Claude Code, or a local/manual loop, and use Hive to supervise tasks, runs, memory, approvals, and campaigns from one place.
 
-The center of gravity in this repository is Hive 2.0:
+The center of gravity in this repository is Hive 2.2:
 
 - `hive` is the primary interface.
 - `.hive/tasks/*.md` is the canonical task store.
@@ -17,9 +17,10 @@ The center of gravity in this repository is Hive 2.0:
 
 ## Why Hive
 
-- It keeps the machine state explicit. Tasks, runs, memory, events, and cache live in predictable files.
-- It keeps humans in the loop. Project docs stay readable, diffable, and easy to review.
-- It gives agents a real operating surface. Ready work, claims, runs, evaluators, search, context assembly, and migration are all available through the CLI.
+- It gives humans one command center above many runs and many projects.
+- It keeps machine state explicit. Tasks, runs, memory, events, briefs, and campaigns live in predictable files.
+- It keeps harness choices flexible. Hive sits above Codex, Claude Code, local execution, and manual handoffs instead of replacing them.
+- It makes autonomous work inspectable. You can see what context a run received, what policy applied, what changed, and why it was accepted or escalated.
 
 ## Start Here
 
@@ -59,11 +60,11 @@ hive doctor
 
 Optional extras:
 
-| Installer | Dashboard | MCP adapter | Notes |
+| Installer | Observe console | MCP adapter | Notes |
 |---|---|---|---|
-| `uv tool` | `uv tool install --upgrade 'agent-hive[dashboard]'` | `uv tool install --upgrade 'agent-hive[mcp]'` | Cleanest path for most users |
-| `pipx` | `pipx install 'agent-hive[dashboard]'` | `pipx install 'agent-hive[mcp]'` | Best if you already use `pipx` |
-| `pip` | `python -m pip install 'agent-hive[dashboard]'` | `python -m pip install 'agent-hive[mcp]'` | Best inside your own virtualenv |
+| `uv tool` | `uv tool install --upgrade 'agent-hive[console]'` | `uv tool install --upgrade 'agent-hive[mcp]'` | Cleanest path for most users |
+| `pipx` | `pipx install 'agent-hive[console]'` | `pipx install 'agent-hive[mcp]'` | Best if you already use `pipx` |
+| `pip` | `python -m pip install 'agent-hive[console]'` | `python -m pip install 'agent-hive[mcp]'` | Best inside your own virtualenv |
 | Homebrew | use one of the Python package installs above | use one of the Python package installs above | Homebrew currently ships the base CLI |
 
 If you are reading this before the first tagged public release lands on PyPI and Homebrew, use the git install:
@@ -74,27 +75,23 @@ uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git a
 
 ## Five-Minute First Run
 
-Start in an empty directory and let Hive scaffold the first useful project:
+Start in an empty directory and let Hive onboard the workspace for you:
 
 ```bash
 mkdir my-hive
 cd my-hive
 git init
-hive quickstart demo --title "Demo project"
-hive workspace checkpoint --message "Bootstrap Hive workspace"
-hive next --project-id demo
-hive work --project-id demo --owner <your-name> --output SESSION_CONTEXT.md
+hive onboard demo --title "Demo project" --objective "Ship one small, governed slice."
+hive console serve
 ```
 
-That gives you a real workspace with `.hive/`, a starter project, a conservative `PROGRAM.md`, and a small task
-chain that teaches the normal manager loop. `hive work` checkpoints the repo when needed, claims the task, starts a
-governed run, and writes a reusable context bundle when you pass `--output`. The longer walkthrough lives in
-[docs/QUICKSTART.md](docs/QUICKSTART.md).
+That gives you a real workspace with `.hive/`, a starter project, a safe default `PROGRAM.md`, and the first task
+chain. `hive console serve` starts the React observe-and-steer console once the console extra is installed. The longer
+walkthrough lives in [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
 
-If you want the full governed run loop, edit `projects/demo/PROGRAM.md` first so it includes at least one required
-evaluator and lists that evaluator under `promotion.requires_all`. After that, the quickest operator path is:
+Once the workspace exists, the normal loop is:
 
 ```bash
 hive next --project-id demo
@@ -103,7 +100,8 @@ hive finish <run-id>
 ```
 
 `hive finish` evaluates the run, accepts or escalates it, and promotes accepted work back into the workspace by
-default. Use the lower-level `hive run *` commands when you want to step through the lifecycle yourself.
+default. Open the console when you want the live run board, inbox, campaigns, project summaries, and run detail in one
+place.
 
 ## Adopt Hive In An Existing Repo
 
@@ -134,6 +132,15 @@ If you want to stay closer to the underlying primitives, `hive task ready`, `hiv
 and `hive run start` are still there. `--json` is available across the CLI when you want to script Hive instead of
 reading it by eye.
 
+When you want the live operator view instead of the raw CLI:
+
+```bash
+hive console serve
+```
+
+That starts the observe-and-steer console. From there you can watch active runs, review inbox items, inspect context,
+see acceptance rationale, and steer runs without editing Markdown by hand.
+
 When you are defining new work instead of just taking ready work, stay in the CLI:
 
 ```bash
@@ -149,12 +156,22 @@ hive task create \
 
 These are useful, but the base CLI works fine without them:
 
-- `hive dashboard` after installing `agent-hive[dashboard]`
+- `hive console serve` after installing `agent-hive[console]`
 - `hive-mcp` after installing `agent-hive[mcp]`
 - the optional Claude Code GitHub App flow in [docs/INSTALL_CLAUDE_APP.md](docs/INSTALL_CLAUDE_APP.md)
 
 The MCP surface stays intentionally small: `search` and `execute`. `execute` is a bounded local Python helper, not a
 full sandbox.
+
+## Compare Harnesses
+
+Hive does not ask you to switch worker tools. It gives them a shared control layer.
+
+- Codex is strong when you want a powerful coding worker with worktree-aware runs and good local iteration.
+- Claude Code is strong when you want broader repo search, longer synthesis, and a handoff-friendly transcript pack.
+- Local and manual drivers are useful when you want bounded execution, custom tooling, or a human review step.
+
+The longer comparison lives in [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSES.md).
 
 ## Core Model
 
@@ -175,11 +192,14 @@ full sandbox.
 - [docs/START_HERE.md](docs/START_HERE.md) for the lane chooser and install matrix
 - [docs/QUICKSTART.md](docs/QUICKSTART.md) for the fresh-workspace walkthrough
 - [docs/ADOPT_EXISTING_REPO.md](docs/ADOPT_EXISTING_REPO.md) for existing repositories and legacy imports
+- [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSES.md) for Codex, Claude Code, and local/manual guidance
+- [docs/UI_INFORMATION_ARCHITECTURE.md](docs/UI_INFORMATION_ARCHITECTURE.md) for the console information architecture
+- [docs/OPERATOR_FLOWS.md](docs/OPERATOR_FLOWS.md) for the manager loop and steering flows
 - [docs/MAINTAINING.md](docs/MAINTAINING.md) for source-checkout work
 - [docs/RELEASING.md](docs/RELEASING.md) for tagged releases, PyPI, and Homebrew
 
 ## Maintainers
 
-This repository runs on the same Hive 2.0 substrate it ships, but the source checkout is still a maintainer
+This repository runs on the same Hive 2.2 substrate it ships, but the source checkout is still a maintainer
 surface, not the normal installed-user path. If you are here to work on Hive itself, start with
 [docs/MAINTAINING.md](docs/MAINTAINING.md).

@@ -39,8 +39,7 @@ Make a clean directory and run:
 mkdir my-hive
 cd my-hive
 git init
-hive quickstart demo --title "Demo project"
-hive workspace checkpoint --message "Bootstrap Hive workspace"
+hive onboard demo --title "Demo project" --objective "Ship one governed slice."
 ```
 
 Use a fresh directory for this walkthrough. If you run these commands inside the Hive repository checkout, `hive task ready` will also see the maintainer tasks that ship with this repo.
@@ -52,27 +51,34 @@ That command:
 - scaffolds `projects/demo/AGENCY.md`
 - scaffolds `projects/demo/PROGRAM.md`
 - creates a small starter task chain
+- runs Program Doctor and suggests a safe evaluator when it can do so cleanly
 - syncs projections and cache
 
 You do not need to hand-write any of that to begin.
 
-The `git init` and first `hive workspace checkpoint` are worth doing up front. Hive can manage tasks without Git,
-but governed runs and promotion work much more smoothly once the workspace has an initial commit.
+The `git init` is worth doing up front. `hive onboard` leaves the repo in a state where the normal manager loop and
+console are ready to go. If you want an explicit checkpoint commit after onboarding, run:
+
+```bash
+hive workspace checkpoint --message "Bootstrap Hive workspace"
+```
+
+Hive can manage tasks without Git, but governed runs and promotion work much more smoothly once the workspace has an
+initial commit.
 
 ## Find Work
 
+Use the manager loop, not raw Markdown edits:
+
 ```bash
+hive console serve   # in a separate terminal
 hive next --project-id demo
-```
-
-If you want the manager-style happy path, take the recommended task straight into work:
-
-```bash
 hive work <task-id> --owner <your-name> --output SESSION_CONTEXT.md
 ```
 
-That one command checkpoints the repo when needed, claims the task, starts the governed run, and assembles fresh
-startup context. If you pass `--output`, Hive writes a reusable bundle for Claude, Codex, or another agent session.
+That one command claims the task, checkpoints the repo when needed, starts the governed run, and assembles fresh
+startup context. If you pass `--output`, Hive writes a reusable bundle for Codex, Claude Code, or another agent
+session.
 
 If you want to see or save the bundle yourself, use the lower-level commands:
 
@@ -89,6 +95,7 @@ hive context startup --project demo --task <task-id> --output SESSION_CONTEXT.md
 ```
 
 That is the normal daily-use loop in Hive. Add `--json` when you are scripting the CLI instead of reading it yourself.
+The console gives you the same loop visually, plus the inbox, run board, campaigns, and run detail inspector.
 
 Once you have more than one project and want the cross-project queue, drop `--project-id demo`.
 
@@ -130,7 +137,13 @@ those fields cleanly.
 
 When a task should run through the governed worktree flow, make sure `projects/*/PROGRAM.md` has at least one
 required evaluator and lists it under `promotion.requires_all`. The default stub is intentionally safe and will block
-autonomous acceptance until you make that decision. After that, the shortest path is:
+autonomous acceptance until you make that decision. If you want help, run:
+
+```bash
+hive program doctor demo
+```
+
+After that, the shortest path is:
 
 ```bash
 hive work <task-id> --owner <your-name>
@@ -176,9 +189,9 @@ The short version is:
 - Use `hive next`, `hive work`, and `hive finish` if you want the manager-style happy path
 - Use `hive memory observe --note "..."` to preserve useful decisions
 - Use `hive sync projections` after task, run, or memory changes
-- Install `agent-hive[dashboard]` and run `hive dashboard` if you want a visual observe-and-steer view
+- Install `agent-hive[console]` and run `hive console serve` if you want the visual observe-and-steer command center
 - Install `agent-hive[mcp]` and run `hive-mcp` if you want the thin `search` + bounded local `execute` adapter
-- If you installed through Homebrew and want dashboard or MCP support, add those extras through `uv tool`, `pipx`,
+- If you installed through Homebrew and want the console or MCP support, add those extras through `uv tool`, `pipx`,
   or `pip` as described in [docs/START_HERE.md](./START_HERE.md)
 
 ## Troubleshooting

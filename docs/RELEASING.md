@@ -109,7 +109,7 @@ brew install intertwine/tap/agent-hive
 hive --version
 ```
 
-Homebrew verifies the base CLI path. If you also want to smoke-test dashboard or MCP extras, use the `uv tool`,
+Homebrew verifies the base CLI path. If you also want to smoke-test the observe console or MCP extras, use the `uv tool`,
 `pipx`, or `pip` installs above.
 
 Also check a real first-run flow in a clean workspace:

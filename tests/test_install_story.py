@@ -31,6 +31,7 @@ def test_public_readmes_surface_three_clear_entry_points():
     assert "Install Hive" in readme
     assert "Adopt Hive In An Existing Repo" in readme
     assert "Maintain or publish Hive" in readme
+    assert "control plane" in readme.lower()
 
     assert "Fresh Workspace" in start_here
     assert "Existing Repo" in start_here
@@ -55,8 +56,9 @@ def test_existing_repo_guide_surfaces_init_and_migration_paths():
     """Existing-repo adoption should be easy to find and should cover legacy migration."""
     adopt = (REPO_ROOT / "docs" / "ADOPT_EXISTING_REPO.md").read_text(encoding="utf-8")
 
+    assert "hive adopt app" in adopt
     assert "hive init" in adopt
-    assert "hive project create app" in adopt
+    assert "hive console serve" in adopt
     assert "hive migrate v1-to-v2 --dry-run" in adopt
     assert "hive migrate v1-to-v2 --rewrite" in adopt
 

@@ -1,6 +1,6 @@
 # Start Here
 
-Use this page to pick the right path into Hive.
+Hive is a control plane for multi-agent software work. Use this page to pick the right path into it.
 
 ## Choose Your Lane
 
@@ -46,11 +46,11 @@ uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git a
 
 ## Optional Extras
 
-| Installer | Base CLI | Dashboard | MCP adapter | Notes |
+| Installer | Base CLI | Observe console | MCP adapter | Notes |
 |---|---|---|---|---|
-| `uv tool` | `uv tool install agent-hive` | `uv tool install --upgrade 'agent-hive[dashboard]'` | `uv tool install --upgrade 'agent-hive[mcp]'` | Cleanest path for most users |
-| `pipx` | `pipx install agent-hive` | `pipx install 'agent-hive[dashboard]'` | `pipx install 'agent-hive[mcp]'` | Good if you already live in `pipx` |
-| `pip` | `python -m pip install agent-hive` | `python -m pip install 'agent-hive[dashboard]'` | `python -m pip install 'agent-hive[mcp]'` | Best when you manage your own virtualenv |
+| `uv tool` | `uv tool install agent-hive` | `uv tool install --upgrade 'agent-hive[console]'` | `uv tool install --upgrade 'agent-hive[mcp]'` | Cleanest path for most users |
+| `pipx` | `pipx install agent-hive` | `pipx install 'agent-hive[console]'` | `pipx install 'agent-hive[mcp]'` | Good if you already live in `pipx` |
+| `pip` | `python -m pip install agent-hive` | `python -m pip install 'agent-hive[console]'` | `python -m pip install 'agent-hive[mcp]'` | Best when you manage your own virtualenv |
 | Homebrew | `brew install intertwine/tap/agent-hive` | use one of the Python package installs above | use one of the Python package installs above | Homebrew currently ships the base CLI |
 
 `agent-hive[mcp]` keeps the adapter deliberately small: `search` and `execute` only. `execute` is a bounded local
@@ -64,12 +64,12 @@ If you want the shortest path to a real Hive workspace:
 mkdir my-hive
 cd my-hive
 git init
-hive quickstart demo --title "Demo project"
-hive workspace checkpoint --message "Bootstrap Hive workspace"
-hive task ready --project-id demo
+hive onboard demo --title "Demo project" --objective "Ship one governed slice."
+hive console serve
 ```
 
-That path is covered in the full [Quickstart](./QUICKSTART.md).
+That path is covered in the full [Quickstart](./QUICKSTART.md). `hive onboard` bootstraps the workspace, detects the
+local driver situation, creates a starter project, runs Program Doctor, and leaves you with a safe first task chain.
 
 Once the workspace exists, the shortest manager-style loop is:
 
@@ -79,7 +79,7 @@ hive work --owner <your-name>
 hive finish <run-id>
 ```
 
-Install `agent-hive[dashboard]` when you want a human-facing observe-and-steer surface on top of that loop.
+Install `agent-hive[console]` when you want the observe-and-steer console on top of that loop.
 
 ## Existing Repo
 
@@ -87,11 +87,18 @@ If you already have a repository and want Hive inside it:
 
 ```bash
 cd your-repo
-hive init
+hive adopt app --title "App"
 ```
 
-After that, either create a first project with `hive project create` or import an older checklist-based Hive setup
-with `hive migrate v1-to-v2`. The full guide lives in [Adopt Hive In An Existing Repo](./ADOPT_EXISTING_REPO.md).
+After that, start the observe console and run the manager loop:
+
+```bash
+hive console serve
+hive next
+hive work --owner <your-name>
+```
+
+The full guide lives in [Adopt Hive In An Existing Repo](./ADOPT_EXISTING_REPO.md).
 
 ## Maintainers
 

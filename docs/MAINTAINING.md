@@ -19,7 +19,7 @@ That gives you:
 
 - the editable development environment
 - the `hive` CLI installed from this checkout
-- the optional dashboard, MCP, coordinator, and tracing dependencies used by the test suite
+- the optional observe console, MCP, and tracing dependencies used by the test suite
 
 ## Daily Commands
 
@@ -33,7 +33,7 @@ make release-check
 
 Useful local commands:
 
-- `make dashboard` opens the dashboard from this checkout for observation and steering
+- `make console` opens the packaged observe-and-steer console from this checkout
 - `make session PROJECT=demo` writes a startup bundle into the project directory
 - `make verify-claude` checks the optional GitHub App setup against the current workspace
 - `make brew-formula` regenerates the Homebrew formula from the current package metadata
@@ -52,9 +52,19 @@ pipx install --force .
 If you need optional extras while testing:
 
 ```bash
-uv tool install --force --from . 'agent-hive[dashboard]'
+uv tool install --force --from . 'agent-hive[console]'
 uv tool install --force --from . 'agent-hive[mcp]'
 ```
+
+If you are iterating on the React console itself:
+
+```bash
+cd frontend/console
+pnpm install
+pnpm dev
+```
+
+The backend for that frontend lives behind `hive console serve`.
 
 The MCP extra intentionally stays thin. It exposes `search` plus bounded local `execute`, not a large tool catalog
 or a full sandbox.

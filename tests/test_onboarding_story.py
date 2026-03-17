@@ -40,12 +40,14 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     assert "## Maintainers" in readme
     assert "Do this in a fresh workspace, not inside this repository checkout." in readme
     assert "hive next --project-id demo" in readme
-    assert "hive work --project-id demo --owner <your-name> --output SESSION_CONTEXT.md" in readme
+    assert "hive onboard demo" in readme
+    assert "hive console serve" in readme
     assert "[docs/MAINTAINING.md](docs/MAINTAINING.md)" in readme
 
     assert "Use a fresh directory for this walkthrough." in quickstart
     assert "If you are maintaining Hive itself" in quickstart
     assert "Once you have more than one project and want the cross-project queue" in quickstart
+    assert "hive program doctor demo" in quickstart
 
     assert "hive task ready --project-id demo" in demo_agency
     assert "make session PROJECT=demo" in demo_agency

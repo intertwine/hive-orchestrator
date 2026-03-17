@@ -6,22 +6,69 @@ import sys
 import os
 import re
 import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+import dashboard as dashboard_module
+
 from dashboard import (
-    load_project,
+    build_home_view,
+    build_inbox,
     discover_projects,
-    generate_file_tree,
     generate_deep_work_context,
+    generate_file_tree,
     generate_hive_context,
     list_project_ready_tasks,
+    list_runs,
+    load_project,
+    load_run_detail,
+    load_run_timeline,
+    main as dashboard_main,
 )
+from hive.cli.main import main as hive_main
 from src.hive.migrate import migrate_v1_to_v2
+from src.hive.runs.engine import eval_run, start_run
+from src.hive.scheduler.query import ready_tasks
+from src.hive.store.task_files import create_task
+from tests.conftest import init_git_repo, write_safe_program
+
+
+def _invoke_cli(capsys, argv: list[str]) -> None:
+    exit_code = hive_main(argv)
+    captured = capsys.readouterr()
+    assert exit_code == 0, captured.err
+
+
+def _bootstrap_observe_workspace(temp_hive_dir: str, capsys) -> tuple[object, object]:
+    """Create one awaiting-input run and one reviewable run for dashboard shim tests."""
+    init_git_repo(temp_hive_dir)
+    _invoke_cli(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+    )
+    write_safe_program(temp_hive_dir, "demo")
+    create_task(temp_hive_dir, "demo", "Review-ready slice", status="ready", priority=1)
+    subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Bootstrap workspace"],
+        cwd=temp_hive_dir,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    waiting_run = start_run(temp_hive_dir, task_id, driver_name="codex")
+    review_task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    review_run = start_run(temp_hive_dir, review_task_id, driver_name="local")
+    eval_run(temp_hive_dir, review_run.id)
+    return waiting_run, review_run
 
 
 class TestLoadProject:
@@ -41,9 +88,8 @@ class TestLoadProject:
 
     def test_load_project_nonexistent(self):
         """Test loading a non-existent project."""
-        with patch("streamlit.error"):
-            project_data = load_project("/nonexistent/path/AGENCY.md")
-            assert project_data is None
+        project_data = load_project("/nonexistent/path/AGENCY.md")
+        assert project_data is None
 
     def test_load_project_malformed(self, temp_hive_dir):
         """Test loading a malformed AGENCY.md."""
@@ -53,10 +99,9 @@ class TestLoadProject:
         agency_file = project_dir / "AGENCY.md"
         agency_file.write_text("This is not valid frontmatter")
 
-        with patch("streamlit.error"):
-            project_data = load_project(str(agency_file))
-            # frontmatter library is lenient - files without --- delimiters parse successfully
-            assert project_data is not None
+        project_data = load_project(str(agency_file))
+        # frontmatter library is lenient - files without --- delimiters parse successfully
+        assert project_data is not None
 
     def test_load_project_contains_raw_content(self, temp_project):
         """Test that loaded project contains raw frontmatter."""
@@ -66,6 +111,12 @@ class TestLoadProject:
         assert "---" in project_data["raw"]
         assert "project_id: test-project" in project_data["raw"]
 
+    def test_load_project_propagates_unexpected_errors(self):
+        """Unexpected loader failures should surface instead of being silently swallowed."""
+        with patch.object(dashboard_module, "safe_load_agency_md", side_effect=RuntimeError("boom")):
+            with pytest.raises(RuntimeError, match="boom"):
+                load_project("/tmp/example/AGENCY.md")
+
 
 class TestDiscoverProjects:
     """Test discovering projects in the projects directory."""
@@ -74,35 +125,32 @@ class TestDiscoverProjects:
         """Test discovering a single project."""
         base_path = Path(temp_hive_dir)
 
-        with patch("streamlit.error"):
-            projects = discover_projects(base_path)
+        projects = discover_projects(base_path)
 
-            assert len(projects) == 1
-            assert projects[0]["metadata"]["project_id"] == "test-project"
+        assert len(projects) == 1
+        assert projects[0]["metadata"]["project_id"] == "test-project"
 
     def test_discover_multiple_projects(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test discovering multiple projects."""
         base_path = Path(temp_hive_dir)
 
-        with patch("streamlit.error"):
-            projects = discover_projects(base_path)
+        projects = discover_projects(base_path)
 
-            assert len(projects) == 2
-            project_ids = [p["metadata"]["project_id"] for p in projects]
-            assert "test-project" in project_ids
-            assert "blocked-project" in project_ids
+        assert len(projects) == 2
+        project_ids = [p["metadata"]["project_id"] for p in projects]
+        assert "test-project" in project_ids
+        assert "blocked-project" in project_ids
 
     def test_discover_projects_sorted(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test that projects are sorted by project_id."""
         base_path = Path(temp_hive_dir)
 
-        with patch("streamlit.error"):
-            projects = discover_projects(base_path)
+        projects = discover_projects(base_path)
 
-            assert len(projects) == 2
-            # Should be sorted: blocked-project comes before test-project
-            assert projects[0]["metadata"]["project_id"] == "blocked-project"
-            assert projects[1]["metadata"]["project_id"] == "test-project"
+        assert len(projects) == 2
+        # Should be sorted: blocked-project comes before test-project
+        assert projects[0]["metadata"]["project_id"] == "blocked-project"
+        assert projects[1]["metadata"]["project_id"] == "test-project"
 
     def test_discover_no_projects_dir(self, temp_hive_dir):
         """Test discovering projects when directory doesn't exist."""
@@ -111,20 +159,18 @@ class TestDiscoverProjects:
         projects_dir = base_path / "projects"
         shutil.rmtree(projects_dir)
 
-        with patch("streamlit.error"):
-            projects = discover_projects(base_path)
+        projects = discover_projects(base_path)
 
-            assert len(projects) == 0
+        assert len(projects) == 0
 
     def test_discover_empty_projects_dir(self, temp_hive_dir):
         """Test discovering projects in an empty directory."""
         base_path = Path(temp_hive_dir)
 
-        with patch("streamlit.error"):
-            projects = discover_projects(base_path)
+        projects = discover_projects(base_path)
 
-            # No projects created yet
-            assert len(projects) == 0
+        # No projects created yet
+        assert len(projects) == 0
 
     def test_discover_nested_projects(self, temp_hive_dir):
         """Test discovering projects in nested directories (e.g., projects/external/foo)."""
@@ -167,14 +213,13 @@ priority: medium
 """
         )
 
-        with patch("streamlit.error"):
-            projects = discover_projects(base_path)
+        projects = discover_projects(base_path)
 
-            # Should find both projects
-            assert len(projects) == 2
-            project_ids = [p["metadata"]["project_id"] for p in projects]
-            assert "nested-project" in project_ids
-            assert "regular-project" in project_ids
+        # Should find both projects
+        assert len(projects) == 2
+        project_ids = [p["metadata"]["project_id"] for p in projects]
+        assert "nested-project" in project_ids
+        assert "regular-project" in project_ids
 
 
 class TestGenerateFileTree:
@@ -331,12 +376,9 @@ class TestGenerateDeepWorkContext:
         """Test generating context for non-existent project."""
         base_path = Path(temp_hive_dir)
 
-        with patch("streamlit.error"):
-            context = generate_deep_work_context(
-                str(base_path / "nonexistent" / "AGENCY.md"), base_path
-            )
+        context = generate_deep_work_context(str(base_path / "nonexistent" / "AGENCY.md"), base_path)
 
-            assert context is None
+        assert context is None
 
     def test_generate_context_includes_responsibilities(self, temp_hive_dir, temp_project):
         """Test that context includes agent responsibilities."""
@@ -377,33 +419,66 @@ class TestDashboardIntegration:
         base_path = Path(temp_hive_dir)
         migrate_v1_to_v2(temp_hive_dir)
 
-        with patch("streamlit.error"):
-            # 1. Discover projects
-            projects = discover_projects(base_path)
-            assert len(projects) == 1
+        # 1. Discover projects
+        projects = discover_projects(base_path)
+        assert len(projects) == 1
 
-            # 2. Load the project
-            project_path = projects[0]["path"]
-            project_data = load_project(project_path)
-            assert project_data is not None
+        # 2. Load the project
+        project_path = projects[0]["path"]
+        project_data = load_project(project_path)
+        assert project_data is not None
 
-            # 3. Generate Deep Work context
-            context = generate_deep_work_context(project_path, base_path)
-            assert context is not None
-            assert "test-project" in context
+        # 3. Generate Deep Work context
+        context = generate_deep_work_context(project_path, base_path)
+        assert context is not None
+        assert "test-project" in context
 
     def test_multiple_projects_workflow(self, temp_hive_dir, temp_project, temp_blocked_project):
         """Test workflow with multiple projects."""
         base_path = Path(temp_hive_dir)
         migrate_v1_to_v2(temp_hive_dir)
 
-        with patch("streamlit.error"):
-            # Discover all projects
-            projects = discover_projects(base_path)
-            assert len(projects) == 2
+        # Discover all projects
+        projects = discover_projects(base_path)
+        assert len(projects) == 2
 
-            # Generate context for each
-            for project in projects:
-                context = generate_deep_work_context(project["path"], base_path)
-                assert context is not None
-                assert project["metadata"]["project_id"] in context
+        # Generate context for each
+        for project in projects:
+            context = generate_deep_work_context(project["path"], base_path)
+            assert context is not None
+            assert project["metadata"]["project_id"] in context
+class TestConsoleShimHelpers:
+    """Compatibility wrappers should delegate cleanly to the React console state layer."""
+
+    def test_console_shim_helpers_cover_run_and_inbox_views(self, temp_hive_dir, capsys):
+        waiting_run, review_run = _bootstrap_observe_workspace(temp_hive_dir, capsys)
+        base_path = Path(temp_hive_dir)
+
+        runs = list_runs(base_path, driver="codex")
+        timeline = load_run_timeline(base_path, waiting_run.id)
+        inbox = build_inbox(base_path)
+        home = build_home_view(base_path)
+        detail = load_run_detail(base_path, waiting_run.id)
+        review_detail = load_run_detail(base_path, review_run.id)
+
+        assert len(runs) == 1
+        assert runs[0]["id"] == waiting_run.id
+        assert timeline
+        assert any(item["kind"] == "run-input" for item in inbox)
+        assert any(item["kind"] == "run-review" for item in inbox)
+        assert home["active_runs"]
+        assert home["inbox"]
+        assert detail["run"]["id"] == waiting_run.id
+        assert detail["timeline"]
+        assert detail["artifacts"]["context_manifest"]
+        assert review_detail["promotion_decision"]["decision"] == "accept"
+
+    def test_main_exits_with_console_advice(self, temp_hive_dir):
+        with patch.dict(os.environ, {"HIVE_BASE_PATH": temp_hive_dir}):
+            with pytest.raises(SystemExit) as excinfo:
+                dashboard_main()
+
+        message = str(excinfo.value)
+        assert "hive console serve" in message
+        assert "--path" not in message
+        assert str(Path(temp_hive_dir).resolve()) in message

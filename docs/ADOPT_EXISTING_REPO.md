@@ -11,16 +11,17 @@ Install Hive, then work from the root of the repo you want to manage:
 
 ```bash
 cd your-repo
-hive init
+hive adopt app --title "App" --objective "Delegate the first governed slice safely."
 ```
 
-Create the first project document:
+If you want to stay closer to the primitives, you can still do the same thing in smaller steps:
 
 ```bash
+hive init
 hive project create app --title "App"
 ```
 
-Create the first task:
+Then create the first task:
 
 ```bash
 hive task create \
@@ -35,12 +36,18 @@ hive task create \
 Then run the normal loop:
 
 ```bash
+hive console serve
 hive next --project-id app
 hive work --project-id app --owner <your-name> --output SESSION_CONTEXT.md
 ```
 
 That manager loop only works once `projects/app/PROGRAM.md` has at least one required evaluator and lists it under
-`promotion.requires_all`. The default stub keeps governed acceptance turned off until you choose the policy.
+`promotion.requires_all`. `hive adopt` runs Program Doctor during setup and will apply a safe default when it has one
+obvious choice. If you need to tighten the policy yourself, run:
+
+```bash
+hive program doctor app
+```
 
 If this repository is brand new or you want governed runs immediately after adding Hive, create a first commit for
 the workspace state:
@@ -76,6 +83,7 @@ That keeps the old history available in git while moving the machine state into 
 Once Hive is in the repo, the daily path is the same everywhere:
 
 ```bash
+hive console serve
 hive next
 hive work --project-id <project-id> --owner <your-name>
 hive finish <run-id>
@@ -94,6 +102,6 @@ The short mental model is simple:
 
 Start with the base CLI. Add extras only when you need them:
 
-- install `agent-hive[dashboard]` if you want the optional Streamlit dashboard
+- install `agent-hive[console]` if you want the observe-and-steer console
 - install `agent-hive[mcp]` if you want the thin `search` + bounded local `execute` adapter
 - install the Claude Code GitHub App only if issue-driven dispatch is part of your workflow

@@ -60,9 +60,17 @@ make bump-version BUMP=patch
 Commit the version change, then tag it:
 
 ```bash
+VERSION="$(uv run python - <<'PY'
+import tomllib
+from pathlib import Path
+
+print(tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])
+PY
+)"
+
 git add pyproject.toml uv.lock
-git commit -m "Release v2.2.1"
-git tag v2.2.1
+git commit -m "Release v${VERSION}"
+git tag "v${VERSION}"
 git push origin main --tags
 ```
 

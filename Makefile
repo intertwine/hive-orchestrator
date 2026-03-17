@@ -106,7 +106,7 @@ setup-env:
 		echo "# COORDINATOR_URL=http://localhost:8080" >> .env; \
 		echo "# Optional: Weave tracing" >> .env; \
 		echo "# WANDB_API_KEY=your-wandb-api-key" >> .env; \
-		echo "# WEAVE_PROJECT=agent-hive" >> .env; \
+		echo "# WEAVE_PROJECT=agent-hive  # keep the product name in tracing" >> .env; \
 		echo "✅ .env file created. Edit it only if you want custom paths or optional services."; \
 	else \
 		echo "⚠️  .env file already exists. Not overwriting."; \

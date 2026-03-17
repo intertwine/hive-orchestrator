@@ -169,6 +169,8 @@ class TestBuildIssueBodyV2:
 
         labels = build_issue_labels(task)
 
+        # GitHub labels keep the product identity rather than the PyPI package
+        # name so existing routing and search stay stable.
         assert "agent-hive" in labels
         assert f"project:{task['project_id']}" in labels
         assert f"task:{task['id']}" in labels

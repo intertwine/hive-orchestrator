@@ -255,3 +255,14 @@ def test_makefile_clean_removes_stale_release_artifacts():
     makefile = (Path(__file__).resolve().parents[1] / "Makefile").read_text(encoding="utf-8")
 
     assert "rm -rf dist build ./*.egg-info" in makefile
+
+
+def test_releasing_guide_derives_the_tagged_version_from_pyproject():
+    """Release docs should avoid hardcoded version examples that go stale."""
+    guide = (Path(__file__).resolve().parents[1] / "docs" / "RELEASING.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'VERSION="$(uv run python - <<\'PY\'' in guide
+    assert 'git commit -m "Release v${VERSION}"' in guide
+    assert 'git tag "v${VERSION}"' in guide

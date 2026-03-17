@@ -272,6 +272,37 @@ class TestHiveDrivers:
 
         assert request.workspace.base_branch == "release/demo"
 
+    def test_reroute_launch_request_handles_null_metadata_json(self, temp_hive_dir, capsys):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(["git", "branch", "-m", "release/demo"], cwd=temp_hive_dir, check=True)
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="local")
+        metadata = load_run(temp_hive_dir, run.id)
+        metadata["metadata_json"] = None
+
+        request = _build_reroute_launch_request(
+            Path(temp_hive_dir),
+            metadata,
+            driver_name="codex",
+        )
+
+        assert request.workspace.base_branch == "release/demo"
+        assert request.metadata["task_title"] == run.task_id
+
     def test_workspace_refresh_keeps_legacy_patch_inside_run_directory(
         self, temp_hive_dir, capsys
     ):

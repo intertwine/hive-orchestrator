@@ -11,6 +11,14 @@ hive console serve --host 127.0.0.1 --port 8787
 The packaged product path is `hive console serve`, which serves the same console from the Python install artifact.
 `hive dashboard` is only a compatibility alias.
 
+For local frontend checks from this directory:
+
+```bash
+pnpm install
+pnpm test
+pnpm build
+```
+
 The frontend reads two pieces of operator state:
 
 - API base URL, defaulting to `http://127.0.0.1:8787`

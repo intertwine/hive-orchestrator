@@ -21,23 +21,25 @@ The center of gravity has shifted to release proof:
 
 Current working branch:
 
-- `codex/hive-v2-2-acceptance-proof`
+- `codex/hive-v2-2-console-smoke`
 
 Latest local validation on this branch:
 
-- `UV_PYTHON=3.11 uv run --extra dev pytest -q`
-- `PYLINTHOME=$(mktemp -d) UV_PYTHON=3.11 make lint`
+- `cd frontend/console && pnpm test`
+- `cd frontend/console && pnpm build`
+- `UV_PYTHON=3.11 uv run --extra dev pytest tests/test_console_frontend_story.py tests/test_console_api.py tests/test_v22_acceptance.py -q`
 
 Latest result:
 
-- `419 passed, 1 warning`
-- pylint `9.43/10`
+- frontend smoke: `3 passed`
+- frontend build: passes
+- Python console-adjacent validation: `9 passed`
 
 ## Recent progress
 
-- PR #99 and PR #100 are merged, so the v2.2 foundations and React console cutover are now on `main`.
-- The first release-proof pass is in progress on `codex/hive-v2-2-acceptance-proof`.
-- The new acceptance tests now cover:
+- PR #99, PR #100, and PR #101 are merged, so the v2.2 foundations, React console cutover, and first acceptance-proof pass are now on `main`.
+- The current release-proof pass is on `codex/hive-v2-2-console-smoke`.
+- The acceptance tests on `main` now cover:
   - the north-star three-project / ten-run operator scenario
   - inbox updates without manual sync
   - duplicate-hit collapse for task search
@@ -47,6 +49,12 @@ Latest result:
   - `workspace` scope was not expanding to workspace docs
   - greenfield repos without a `docs/` directory were skipping `.hive/briefs` and `.hive/campaigns`
     in cache indexing
+- This branch adds browser-level React-console smoke:
+  - one-session monitoring of ten runs across three projects
+  - runs-board filtering by project, driver, and health
+  - project-doctor and search-route interaction coverage
+  - typed steering actions from run detail
+  - a dedicated CI job for frontend console smoke
 
 ## Milestone status
 
@@ -92,7 +100,7 @@ Strong signals:
 
 Remaining work:
 
-- add a little more browser-level proof around the observe console, not just API/state coverage
+- finish the launch collateral around screenshots and a recorded demo flow
 
 ### M4 — Steer Console + Program Doctor
 
@@ -107,7 +115,7 @@ Strong signals:
 
 Remaining work:
 
-- deepen UI-level proof for steering actions in the console, not just CLI and API tests
+- broaden steering proof further only if the current smoke pass exposes a real gap
 
 ### M5 — Context, memory, search, skills
 
@@ -167,7 +175,7 @@ Remaining work:
 
 - launch screenshots and demo assets
 - a recorded demo script / fixture walkthrough
-- any browser-level console smoke coverage we still decide we want before release
+- any extra browser-level coverage we decide is worth the complexity after the current smoke PR lands
 
 ## Recommended PR stack
 
@@ -202,9 +210,8 @@ Then land the public story:
 
 ## What remains after the first PR batch
 
-Now that the first batch is merged, the highest-value follow-up is the release-proof pass:
+Now that the first acceptance-proof PR is merged, the highest-value follow-up is:
 
-1. finish the acceptance-proof PR and get it reviewed
-2. add any last browser-level console smoke coverage we decide is worth the complexity
-3. produce launch screenshots and a demo flow
-4. polish the public launch package
+1. land the console-smoke PR
+2. produce launch screenshots and a demo flow
+3. polish the public launch package

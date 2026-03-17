@@ -31,6 +31,8 @@ class TestHiveDrivers:
     def test_cli_drivers_list_shows_all_supported_drivers(self, temp_hive_dir, capsys):
         payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "drivers", "list"])
 
+        # This one is intentionally order-sensitive: the CLI surface should present drivers in a
+        # stable, predictable order for operators and downstream tooling.
         assert [driver["driver"] for driver in payload["drivers"]] == [
             "local",
             "manual",

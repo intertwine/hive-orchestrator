@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
 
 from src.hive.clock import utc_now_iso
 from src.hive.ids import new_id
@@ -133,7 +132,8 @@ def create_campaign(
     return save_campaign(path, campaign)
 
 
-def _next_tick(campaign: CampaignRecord) -> str | None:
+def next_tick_at(campaign: CampaignRecord) -> str | None:
+    """Return the next scheduled campaign tick timestamp."""
     if campaign.cadence == "daily":
         return (datetime.now(timezone.utc) + timedelta(days=1)).isoformat().replace("+00:00", "Z")
     if campaign.cadence == "weekly":

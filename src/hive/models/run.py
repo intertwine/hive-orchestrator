@@ -10,7 +10,11 @@ from src.hive.clock import utc_now_iso
 
 @dataclass
 class RunRecord:
-    """Immutable run metadata."""
+    """Immutable run metadata.
+
+    The in-memory attribute is named ``metadata`` for ergonomic access, while the serialized key
+    remains ``metadata_json`` so it cannot be confused with the run's top-level metadata fields.
+    """
 
     id: str
     project_id: str
@@ -51,7 +55,7 @@ class RunRecord:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize run metadata."""
+        """Serialize run metadata using ``metadata_json`` for the nested payload."""
         return {
             "id": self.id,
             "project_id": self.project_id,

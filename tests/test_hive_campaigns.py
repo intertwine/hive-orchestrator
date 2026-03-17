@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 
+from tests.conftest import init_git_repo
 from hive.cli.main import main as hive_main
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import list_tasks
@@ -16,12 +17,6 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
     captured = capsys.readouterr()
     assert exit_code == 0
     return json.loads(captured.out)
-
-
-def _init_git_repo(path: str | Path) -> None:
-    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.email", "tests@example.com"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.name", "Hive Tests"], cwd=path, check=True)
 
 
 class TestCampaignsAndOnboarding:
@@ -61,7 +56,7 @@ class TestCampaignsAndOnboarding:
         assert list_tasks(adopted_dir)
 
     def test_campaign_tick_launches_run_and_daily_brief_is_created(self, temp_hive_dir, capsys):
-        _init_git_repo(temp_hive_dir)
+        init_git_repo(temp_hive_dir)
         (Path(temp_hive_dir) / "pyproject.toml").write_text(
             "[project]\nname = 'demo'\nversion = '0.1.0'\n",
             encoding="utf-8",

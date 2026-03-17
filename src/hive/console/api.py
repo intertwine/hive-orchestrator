@@ -23,6 +23,18 @@ from src.hive.store.projects import discover_projects, get_project
 from src.hive.workspace import sync_workspace
 
 
+def _console_allow_origins() -> list[str]:
+    configured = os.getenv("HIVE_CONSOLE_ALLOW_ORIGINS", "")
+    return [item.strip() for item in configured.split(",") if item.strip()]
+
+
+def _console_allow_origin_regex() -> str:
+    return os.getenv(
+        "HIVE_CONSOLE_ALLOW_ORIGIN_REGEX",
+        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    )
+
+
 app = FastAPI(
     title="Hive Observe Console API",
     version="2.2.0",
@@ -30,8 +42,9 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=_console_allow_origins(),
+    allow_origin_regex=_console_allow_origin_regex(),
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -53,10 +66,11 @@ def _workspace_root(path: str | None = None) -> Path:
 
 
 def _console_asset_root() -> Path | None:
-    source_root = Path(__file__).resolve().parents[2] / "hive" / "resources" / "console"
+    source_root = Path(__file__).resolve().parent.parent / "resources" / "console"
     if source_root.exists():
         return source_root
-    packaged = files("src.hive.resources").joinpath("console")
+    resource_package = f"{(__package__ or 'src.hive.console').rsplit('.', 1)[0]}.resources"
+    packaged = files(resource_package).joinpath("console")
     candidate = Path(str(packaged))
     if candidate.exists():
         return candidate
@@ -64,7 +78,7 @@ def _console_asset_root() -> Path | None:
 
 
 @app.get("/")
-def root() -> RedirectResponse:
+def root_redirect() -> RedirectResponse:
     """Redirect the bare API root to the packaged console when available."""
     asset_root = _console_asset_root()
     if asset_root and (asset_root / "index.html").exists():
@@ -109,6 +123,17 @@ def console_assets(asset_path: str):
 @app.get("/health")
 def health(path: str | None = Query(default=None)) -> dict:
     """Return a lightweight health payload for the console."""
+    root = _workspace_root(path)
+    return {
+        "ok": True,
+        "workspace": str(root),
+        "version": app.version,
+    }
+
+
+@app.get("/status")
+def status(path: str | None = Query(default=None)) -> dict:
+    """Return lightweight workspace counts for the observe console shell."""
     root = _workspace_root(path)
     return {
         "ok": True,

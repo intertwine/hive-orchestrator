@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +14,7 @@ from src.hive.store.campaigns import (
     create_campaign,
     get_campaign,
     list_campaigns,
+    next_tick_at,
     save_campaign,
     write_brief,
 )
@@ -31,6 +32,20 @@ def _campaign_runs(root: Path, campaign_id: str) -> list[dict[str, Any]]:
     return runs
 
 
+def _best_campaign_recommendation(root: Path, project_ids: list[str]) -> dict[str, Any] | None:
+    """Return the best next-task recommendation across campaign projects."""
+    recommendation: dict[str, Any] | None = None
+    for project_id in project_ids:
+        candidate = recommend_next_task(root, project_id=project_id, emit_decision_event=False)
+        if candidate is not None:
+            if (
+                recommendation is None
+                or float(candidate["score"]) > float(recommendation["score"])
+            ):
+                recommendation = candidate
+    return recommendation
+
+
 def campaign_status(path: str | Path | None, campaign_id: str) -> dict[str, Any]:
     """Return a normalized status payload for a campaign."""
     root = Path(path or Path.cwd()).resolve()
@@ -38,12 +53,7 @@ def campaign_status(path: str | Path | None, campaign_id: str) -> dict[str, Any]
     runs = _campaign_runs(root, campaign.id)
     active_runs = [run for run in runs if run.get("status") in RUN_ACTIVE_STATUSES]
     accepted_runs = [run for run in runs if run.get("status") == "accepted"][:5]
-    recommendation = None
-    for project_id in campaign.project_ids:
-        candidate = recommend_next_task(root, project_id=project_id, emit_decision_event=False)
-        if candidate is not None:
-            if recommendation is None or float(candidate["score"]) > float(recommendation["score"]):
-                recommendation = candidate
+    recommendation = _best_campaign_recommendation(root, campaign.project_ids)
     return {
         "campaign": {
             "id": campaign.id,
@@ -111,7 +121,12 @@ def create_campaign_flow(
     return campaign_status(root, campaign.id)
 
 
-def tick_campaign(path: str | Path | None, campaign_id: str, *, owner: str | None = None) -> dict[str, Any]:
+def tick_campaign(
+    path: str | Path | None,
+    campaign_id: str,
+    *,
+    owner: str | None = None,
+) -> dict[str, Any]:
     """Launch the next set of runs for a bounded campaign."""
     root = Path(path or Path.cwd()).resolve()
     campaign = get_campaign(root, campaign_id)
@@ -119,12 +134,7 @@ def tick_campaign(path: str | Path | None, campaign_id: str, *, owner: str | Non
     active_runs = list(status["active_runs"])
     launches: list[dict[str, Any]] = []
     while len(active_runs) + len(launches) < max(campaign.max_active_runs, 1):
-        recommendation = None
-        for project_id in campaign.project_ids:
-            candidate = recommend_next_task(root, project_id=project_id, emit_decision_event=False)
-            if candidate is not None:
-                if recommendation is None or float(candidate["score"]) > float(recommendation["score"]):
-                    recommendation = candidate
+        recommendation = _best_campaign_recommendation(root, campaign.project_ids)
         if recommendation is None:
             break
         payload = work_on_task(
@@ -139,16 +149,7 @@ def tick_campaign(path: str | Path | None, campaign_id: str, *, owner: str | Non
         )
         launches.append(payload["run"])
     campaign.last_tick_at = utc_now_iso()
-    if campaign.cadence == "daily":
-        campaign.next_tick_at = (
-            datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=1)
-        ).isoformat().replace("+00:00", "Z")
-    elif campaign.cadence == "weekly":
-        campaign.next_tick_at = (
-            datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=7)
-        ).isoformat().replace("+00:00", "Z")
-    else:
-        campaign.next_tick_at = None
+    campaign.next_tick_at = next_tick_at(campaign)
     campaign.updated_at = utc_now_iso()
     save_campaign(root, campaign)
     emit_event(
@@ -195,7 +196,12 @@ def generate_brief(path: str | Path | None, *, cadence: str = "daily") -> dict[s
                 f"- {campaign['campaign']['title']}: {len(campaign['active_runs'])} active run(s), "
                 f"{len(campaign['accepted_runs'])} recent accepted run(s)"
             )
-    brief_path = write_brief(root, slug=slug, title=f"Hive {cadence.title()} Brief", body="\n".join(lines))
+    brief_path = write_brief(
+        root,
+        slug=slug,
+        title=f"Hive {cadence.title()} Brief",
+        body="\n".join(lines),
+    )
     return {
         "path": str(brief_path),
         "cadence": cadence,

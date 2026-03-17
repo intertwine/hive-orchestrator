@@ -154,6 +154,20 @@ def current_head(path: str | Path | None) -> str:
     return result.stdout.strip()
 
 
+def current_branch(path: str | Path | None) -> str:
+    """Return the current branch name, or HEAD when detached."""
+    root = ensure_git_repo(path)
+    result = _run_git(root, "branch", "--show-current")
+    if result.returncode == 0:
+        branch = result.stdout.strip()
+        if branch:
+            return branch
+    fallback = _run_git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    if fallback.returncode != 0:
+        raise ValueError(fallback.stderr.strip() or "Unable to resolve current branch")
+    return fallback.stdout.strip() or "HEAD"
+
+
 def create_run_worktree(
     path: str | Path | None,
     *,
@@ -379,6 +393,7 @@ def capture_worktree_state(
 __all__ = [
     "commit_paths",
     "capture_worktree_state",
+    "current_branch",
     "create_checkpoint_commit",
     "create_run_worktree",
     "current_head",

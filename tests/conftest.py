@@ -1,5 +1,6 @@
 """Shared pytest fixtures for Agent Hive tests."""
 
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -7,6 +8,69 @@ import tempfile
 
 import pytest
 import frontmatter
+
+from src.hive.store.projects import discover_projects
+
+
+def init_git_repo(path: str | Path) -> None:
+    """Initialize a test Git repository with a stable identity."""
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.email", "tests@example.com"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "Hive Tests"], cwd=path, check=True)
+
+
+def safe_program(command: str = "python -c \"print('ok')\"") -> str:
+    """Return a safe PROGRAM.md contract for driver and console tests."""
+    return f"""---
+program_version: 1
+mode: workflow
+default_executor: local
+budgets:
+  max_wall_clock_minutes: 30
+  max_steps: 25
+  max_tokens: 20000
+  max_cost_usd: 2.0
+paths:
+  allow:
+    - src/**
+    - tests/**
+    - docs/**
+  deny: []
+commands:
+  allow:
+    - {json.dumps(command)}
+  deny: []
+evaluators:
+  - id: unit
+    command: {json.dumps(command)}
+    required: true
+promotion:
+  allow_unsafe_without_evaluators: false
+  allow_accept_without_changes: true
+  requires_all:
+    - unit
+  review_required_when_paths_match: []
+  auto_close_task: false
+escalation:
+  when_paths_match: []
+  when_commands_match: []
+---
+
+# Goal
+
+Run a governed task safely.
+"""
+
+
+def write_safe_program(
+    root: str | Path,
+    project_id: str,
+    command: str = "python -c \"print('ok')\"",
+):
+    """Write the shared safe PROGRAM.md test contract into a project."""
+    project = next(project for project in discover_projects(root) if project.id == project_id)
+    project.program_path.write_text(safe_program(command), encoding="utf-8")
+    return project
 
 
 @pytest.fixture

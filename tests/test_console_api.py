@@ -6,13 +6,13 @@ import json
 from pathlib import Path
 import subprocess
 
+from tests.conftest import init_git_repo, write_safe_program
 from fastapi.testclient import TestClient
 
 from hive.cli.main import main as hive_main
 from src.hive.console.api import app
 from src.hive.runs.engine import eval_run, start_run
 from src.hive.scheduler.query import ready_tasks
-from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import create_task
 
 
@@ -23,69 +23,16 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
     return json.loads(captured.out)
 
 
-def _init_git_repo(path: str | Path) -> None:
-    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.email", "tests@example.com"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.name", "Hive Tests"], cwd=path, check=True)
-
-
-def _safe_program(command: str = "python -c \"print('ok')\"") -> str:
-    return f"""---
-program_version: 1
-mode: workflow
-default_executor: local
-budgets:
-  max_wall_clock_minutes: 30
-  max_steps: 25
-  max_tokens: 20000
-  max_cost_usd: 2.0
-paths:
-  allow:
-    - src/**
-    - tests/**
-    - docs/**
-  deny: []
-commands:
-  allow:
-    - {json.dumps(command)}
-  deny: []
-evaluators:
-  - id: unit
-    command: {json.dumps(command)}
-    required: true
-promotion:
-  allow_unsafe_without_evaluators: false
-  allow_accept_without_changes: true
-  requires_all:
-    - unit
-  review_required_when_paths_match: []
-  auto_close_task: false
-escalation:
-  when_paths_match: []
-  when_commands_match: []
----
-
-# Goal
-
-Run a governed task safely.
-"""
-
-
-def _write_safe_program(root: str | Path, project_id: str) -> None:
-    project = next(project for project in discover_projects(root) if project.id == project_id)
-    project.program_path.write_text(_safe_program(), encoding="utf-8")
-
-
 class TestObserveConsoleApi:
     """Smoke tests for the observe-console backend."""
 
     def test_health_home_runs_and_run_detail_endpoints(self, temp_hive_dir, capsys):
-        _init_git_repo(temp_hive_dir)
+        init_git_repo(temp_hive_dir)
         _invoke_cli_json(
             capsys,
             ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
         )
-        _write_safe_program(temp_hive_dir, "demo")
+        write_safe_program(temp_hive_dir, "demo")
         create_task(temp_hive_dir, "demo", "Review-ready slice", status="ready", priority=1)
         subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
         subprocess.run(
@@ -107,9 +54,13 @@ class TestObserveConsoleApi:
         inbox = client.get("/inbox", params={"path": temp_hive_dir})
         runs = client.get("/runs", params={"path": temp_hive_dir, "driver": "codex"})
         detail = client.get(f"/runs/{run.id}", params={"path": temp_hive_dir})
+        status = client.get("/status", params={"path": temp_hive_dir})
 
         assert health.status_code == 200
-        assert health.json()["projects"] == 1
+        assert health.json()["workspace"] == str(Path(temp_hive_dir).resolve())
+        assert health.json()["version"] == "2.2.0"
+        assert status.status_code == 200
+        assert status.json()["projects"] == 1
         assert home.status_code == 200
         assert home.json()["home"]["active_runs"]
         assert home.json()["home"]["inbox"]
@@ -131,12 +82,12 @@ class TestObserveConsoleApi:
         assert "context_entries" in detail.json()["detail"]
 
     def test_run_steer_endpoint_records_typed_steering_history(self, temp_hive_dir, capsys):
-        _init_git_repo(temp_hive_dir)
+        init_git_repo(temp_hive_dir)
         _invoke_cli_json(
             capsys,
             ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
         )
-        _write_safe_program(temp_hive_dir, "demo")
+        write_safe_program(temp_hive_dir, "demo")
         subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
         subprocess.run(
             ["git", "commit", "-m", "Bootstrap workspace"],
@@ -162,8 +113,10 @@ class TestObserveConsoleApi:
         assert detail.json()["detail"]["steering_history"]
         assert detail.json()["detail"]["steering_history"][-1]["type"] == "steering.note_added"
 
-    def test_projects_campaigns_search_and_console_routes_are_available(self, temp_hive_dir, capsys):
-        _init_git_repo(temp_hive_dir)
+    def test_projects_campaigns_search_and_console_routes_are_available(
+        self, temp_hive_dir, capsys
+    ):
+        init_git_repo(temp_hive_dir)
         _invoke_cli_json(
             capsys,
             ["--path", temp_hive_dir, "--json", "onboard", "demo", "--title", "Demo"],

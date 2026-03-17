@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+SandboxLevel = Literal["low", "medium", "high"]
 
 
 @dataclass
@@ -17,7 +19,7 @@ class DriverCapabilities:
     scheduled: bool = False
     remote_execution: bool = False
     diff_preview: bool = True
-    sandbox: str = "medium"
+    sandbox: SandboxLevel = "medium"
     context_files: list[str] = field(default_factory=list)
     skills: bool = True
     interrupt: list[str] = field(default_factory=list)

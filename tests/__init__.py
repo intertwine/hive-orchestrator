@@ -1,1 +1,1 @@
-"""Test suite for Agent Hive."""
+"""Test package helpers and fixtures."""

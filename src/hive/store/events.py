@@ -52,6 +52,8 @@ def emit_event(
     actor_ref, actor_text = _normalize_actor(actor)
     event_id = new_id("evt")
     ts = utc_now_iso()
+    # Keep both normalized v2.2 fields and backward-compatible aliases while packaged tooling
+    # finishes converging on a single event vocabulary.
     record = {
         "event_id": event_id,
         "ts": ts,

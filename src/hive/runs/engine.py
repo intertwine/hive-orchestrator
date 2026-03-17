@@ -11,7 +11,14 @@ from typing import cast
 
 from src.hive.clock import utc_now_iso
 from src.hive.constants import RUN_ACTIVE_STATUSES, RUN_TERMINAL_STATUSES
-from src.hive.drivers import RunBudget, RunHandle, RunLaunchRequest, RunWorkspace, SteeringRequest, get_driver
+from src.hive.drivers import (
+    RunBudget,
+    RunHandle,
+    RunLaunchRequest,
+    RunWorkspace,
+    SteeringRequest,
+    get_driver,
+)
 from src.hive.ids import new_id
 from src.hive.models.program import ProgramRecord
 from src.hive.models.run import RunRecord
@@ -22,6 +29,7 @@ from src.hive.runs.worktree import (
     capture_worktree_state,
     commit_paths,
     create_run_worktree,
+    current_branch,
     current_head,
     delete_branch,
     ensure_clean_repo,
@@ -145,6 +153,7 @@ def _refresh_workspace_state(root: Path, metadata: dict) -> dict[str, object]:
     metadata_json["commands"] = [entry["command"] for entry in command_log if entry.get("command")]
     metadata_json["command_count"] = len(command_log)
     metadata_json["base_commit"] = metadata_json.get("base_commit") or current_head(root)
+    metadata_json["base_branch"] = metadata_json.get("base_branch") or current_branch(root)
     changed_files_path = metadata.get("workspace_changed_files_path")
     if changed_files_path:
         Path(changed_files_path).write_text(
@@ -154,7 +163,7 @@ def _refresh_workspace_state(root: Path, metadata: dict) -> dict[str, object]:
     patch_path = metadata.get("patch_path")
     if patch_path:
         patch_file = Path(patch_path)
-        legacy_patch = patch_file.resolve().parents[1] / "patch.diff"
+        legacy_patch = _run_dir(root, str(metadata["id"])) / "patch.diff"
         if legacy_patch != patch_file:
             legacy_patch.write_text(patch_file.read_text(encoding="utf-8"), encoding="utf-8")
     return metadata_json
@@ -399,6 +408,46 @@ def _run_program_policy(program: ProgramRecord) -> dict[str, object]:
     }
 
 
+def _emit_context_compiled_events(
+    root: Path,
+    *,
+    run_id: str,
+    task_id: str,
+    project_id: str,
+    manifest_path: str,
+) -> None:
+    """Emit both run-scoped and context-scoped context-compilation events.
+
+    ``run.context_compiled`` is the run-timeline event operators inspect directly.
+    ``context.compiled`` remains the cross-cutting alias used by context and memory consumers.
+    """
+    payload = {"manifest_path": manifest_path}
+    emit_event(
+        root,
+        actor={"kind": "system", "id": "hive"},
+        entity_type="run",
+        entity_id=run_id,
+        event_type="run.context_compiled",
+        source="run.start",
+        payload=payload,
+        run_id=run_id,
+        task_id=task_id,
+        project_id=project_id,
+    )
+    emit_event(
+        root,
+        actor={"kind": "system", "id": "hive"},
+        entity_type="run",
+        entity_id=run_id,
+        event_type="context.compiled",
+        source="run.start",
+        payload=payload,
+        run_id=run_id,
+        task_id=task_id,
+        project_id=project_id,
+    )
+
+
 def _append_transcript_entry(path: Path, record: dict[str, object]) -> None:
     with open(path, "a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
@@ -487,7 +536,9 @@ def _build_reroute_launch_request(
         workspace=RunWorkspace(
             repo_root=str(root),
             worktree_path=str(metadata["worktree_path"]),
-            base_branch="main",
+            base_branch=str(
+                metadata.get("metadata_json", {}).get("base_branch") or current_branch(root)
+            ),
         ),
         compiled_context_path=str(metadata.get("context_compiled_dir")),
         artifacts_path=str(_run_dir(root, str(metadata["id"]))),
@@ -500,7 +551,9 @@ def _build_reroute_launch_request(
         metadata={
             "initiator": "human",
             "source": "hive steer reroute",
-            "task_title": metadata.get("metadata_json", {}).get("task_title") or metadata["task_id"],
+            "task_title": (
+                metadata.get("metadata_json", {}).get("task_title") or metadata["task_id"]
+            ),
         },
     )
 
@@ -549,6 +602,7 @@ def start_run(
     run_id = new_id("run")
     run_directory = _run_dir(root, run_id)
     branch_name = _branch_name(project.slug, task.id, run_id)
+    base_branch = current_branch(root)
     worktree_path = create_run_worktree(
         root,
         branch_name=branch_name,
@@ -591,6 +645,7 @@ def start_run(
                 "worktree_path": str(worktree_path),
                 "executor": executor_name,
                 "driver": driver.name,
+                "base_branch": base_branch,
                 "base_commit": base_commit,
             },
             indent=2,
@@ -605,10 +660,22 @@ def start_run(
     paths["patch_path"].write_text("", encoding="utf-8")
     paths["legacy_patch_path"].write_text("", encoding="utf-8")
     paths["changed_files_path"].write_text('{\n  "files": []\n}\n', encoding="utf-8")
-    paths["summary_path"].write_text("# Summary\n\nPending evaluator results.\n", encoding="utf-8")
-    paths["legacy_summary_path"].write_text("# Summary\n\nPending evaluator results.\n", encoding="utf-8")
-    paths["review_path"].write_text("# Review\n\nPending promotion decision.\n", encoding="utf-8")
-    paths["legacy_review_path"].write_text("# Review\n\nPending promotion decision.\n", encoding="utf-8")
+    paths["summary_path"].write_text(
+        "# Summary\n\nPending evaluator results.\n",
+        encoding="utf-8",
+    )
+    paths["legacy_summary_path"].write_text(
+        "# Summary\n\nPending evaluator results.\n",
+        encoding="utf-8",
+    )
+    paths["review_path"].write_text(
+        "# Review\n\nPending promotion decision.\n",
+        encoding="utf-8",
+    )
+    paths["legacy_review_path"].write_text(
+        "# Review\n\nPending promotion decision.\n",
+        encoding="utf-8",
+    )
     paths["command_log_path"].write_text("", encoding="utf-8")
     paths["stdout_path"].write_text("", encoding="utf-8")
     paths["stderr_path"].write_text("", encoding="utf-8")
@@ -631,7 +698,7 @@ def start_run(
         workspace=RunWorkspace(
             repo_root=str(root),
             worktree_path=str(worktree_path),
-            base_branch="main",
+            base_branch=base_branch,
         ),
         compiled_context_path=str(context_bundle["compiled_dir"]),
         artifacts_path=str(run_directory),
@@ -653,7 +720,11 @@ def start_run(
         encoding="utf-8",
     )
     paths["driver_handles_path"].write_text(
-        json.dumps({"active": handle.to_dict(), "history": [handle.to_dict()]}, indent=2, sort_keys=True),
+        json.dumps(
+            {"active": handle.to_dict(), "history": [handle.to_dict()]},
+            indent=2,
+            sort_keys=True,
+        ),
         encoding="utf-8",
     )
     _append_transcript_entry(
@@ -699,6 +770,7 @@ def start_run(
         logs_dir=str(paths["logs_dir"]),
         metadata={
             "task_title": task.title,
+            "base_branch": base_branch,
             "base_commit": base_commit,
             "touched_paths": [],
             "commands": [],
@@ -730,29 +802,12 @@ def start_run(
         task_id=task.id,
         project_id=project.id,
     )
-    emit_event(
+    _emit_context_compiled_events(
         root,
-        actor={"kind": "system", "id": "hive"},
-        entity_type="run",
-        entity_id=run.id,
-        event_type="run.context_compiled",
-        source="run.start",
-        payload={"manifest_path": str(context_bundle["manifest_path"])},
         run_id=run.id,
         task_id=task.id,
         project_id=project.id,
-    )
-    emit_event(
-        root,
-        actor={"kind": "system", "id": "hive"},
-        entity_type="run",
-        entity_id=run.id,
-        event_type="context.compiled",
-        source="run.start",
-        payload={"manifest_path": str(context_bundle["manifest_path"])},
-        run_id=run.id,
-        task_id=task.id,
-        project_id=project.id,
+        manifest_path=str(context_bundle["manifest_path"]),
     )
     emit_event(
         root,

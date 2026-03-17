@@ -32,7 +32,7 @@ def test_bump_version_only_updates_project_section(tmp_path):
         "\n".join(
             [
                 "[project]",
-                'name = "agent-hive"',
+                'name = "mellona-hive"',
                 'version = "1.2.3"',
                 "",
                 "[tool.demo]",
@@ -56,22 +56,22 @@ def test_generate_homebrew_formula_uses_stable_help_assertion():
     """Generated formulas should exercise the real doctor JSON entrypoint."""
     module = _load_module("generate_homebrew_formula", "scripts/generate_homebrew_formula.py")
     source_artifact = module.Artifact(
-        name="agent-hive",
+        name="mellona-hive",
         version="1.2.3",
-        url="https://example.com/agent-hive-1.2.3.tar.gz",
+        url="https://example.com/mellona-hive-1.2.3.tar.gz",
         sha256="a" * 64,
     )
     wheel_artifact = module.Artifact(
-        name="agent-hive",
+        name="mellona-hive",
         version="1.2.3",
-        url="https://example.com/agent_hive-1.2.3-py3-none-any.whl",
+        url="https://example.com/mellona_hive-1.2.3-py3-none-any.whl",
         sha256="b" * 64,
     )
 
     formula = module.render_formula(
-        class_name="AgentHive",
+        class_name="MellonaHive",
         desc="Hive test formula",
-        homepage="https://example.com/agent-hive",
+        homepage="https://example.com/mellona-hive",
         root=source_artifact,
         root_wheel=wheel_artifact,
         license_name="MIT",
@@ -108,6 +108,7 @@ def test_public_package_versions_match_pyproject():
     hive = importlib.import_module("hive")
     hive_mcp = importlib.import_module("hive_mcp")
 
+    assert payload["project"]["name"] == "mellona-hive"
     assert hive.__version__ == expected
     assert hive_mcp.__version__ == expected
 
@@ -194,11 +195,14 @@ def test_release_smoke_script_prefers_supported_python():
     script_path = Path(__file__).resolve().parents[1] / "scripts" / "smoke_release_install.sh"
     script = script_path.read_text(encoding="utf-8")
 
+    assert 'DIST_PACKAGE_NAME="${DIST_PACKAGE_NAME:-mellona-hive}"' in script
     assert 'RELEASE_PYTHON_VERSION="${RELEASE_PYTHON_VERSION:-3.11}"' in script
     assert "resolve_release_python_bin()" in script
     assert 'uv python find --no-project "$RELEASE_PYTHON_VERSION"' in script
     assert 'uv python install "$RELEASE_PYTHON_VERSION"' in script
+    assert 'WHEEL_GLOB="${DIST_PACKAGE_NAME//-/_}-*.whl"' in script
     assert 'python_bin="$(resolve_release_python_bin)"' in script
+    assert 'uv tool install --force --from "$WHEEL_PATH" "$DIST_PACKAGE_NAME"' in script
     assert "python3 -m venv" not in script
     assert "command -v python3 || command -v python" not in script
 
@@ -208,6 +212,8 @@ def test_release_workflow_requires_tag_and_homebrew_verification():
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
 
+    assert workflow["env"]["DIST_PACKAGE_NAME"] == "mellona-hive"
+    assert workflow["env"]["HOMEBREW_FORMULA_NAME"] == "mellona-hive"
     publish_steps = workflow["jobs"]["publish-pypi"]["steps"]
     guard_step = next(
         (step for step in publish_steps if step["name"] == "Require a version tag ref"),
@@ -239,4 +245,13 @@ def test_makefile_supports_overriding_release_python_version():
     makefile = (Path(__file__).resolve().parents[1] / "Makefile").read_text(encoding="utf-8")
 
     assert "RELEASE_PYTHON_VERSION ?= 3.11" in makefile
-    assert 'RELEASE_PYTHON_VERSION="$(RELEASE_PYTHON_VERSION)" ./scripts/smoke_release_install.sh' in makefile
+    assert "DIST_PACKAGE_NAME ?= mellona-hive" in makefile
+    assert "HOMEBREW_FORMULA_NAME ?= mellona-hive" in makefile
+    assert 'DIST_PACKAGE_NAME="$(DIST_PACKAGE_NAME)" RELEASE_PYTHON_VERSION="$(RELEASE_PYTHON_VERSION)" ./scripts/smoke_release_install.sh' in makefile
+
+
+def test_makefile_clean_removes_stale_release_artifacts():
+    """Release builds should start from a clean dist/build state."""
+    makefile = (Path(__file__).resolve().parents[1] / "Makefile").read_text(encoding="utf-8")
+
+    assert "rm -rf dist build ./*.egg-info" in makefile

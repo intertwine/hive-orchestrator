@@ -4,8 +4,10 @@ SHELL := /bin/bash
 
 BUMP ?= patch
 RELEASE_PYTHON_VERSION ?= 3.11
+DIST_PACKAGE_NAME ?= mellona-hive
+HOMEBREW_FORMULA_NAME ?= mellona-hive
 HOMEBREW_TAP_DIR ?= ../homebrew-tap
-HOMEBREW_INSTALL_TARGET ?= intertwine/tap/agent-hive
+HOMEBREW_INSTALL_TARGET ?= intertwine/tap/$(HOMEBREW_FORMULA_NAME)
 HOMEBREW_PACKAGE_VERSION ?=
 
 # Default target
@@ -80,7 +82,7 @@ install-dev:
 install-tool:
 	@echo "🛠️ Installing hive as a uv tool from this checkout..."
 	@command -v uv >/dev/null 2>&1 || { echo "❌ Error: uv not found. Install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
-	uv tool install --force --from . agent-hive
+	uv tool install --force --from . $(DIST_PACKAGE_NAME)
 	@echo "✅ hive CLI installed. Verify with: hive doctor"
 
 install-pipx:
@@ -196,7 +198,7 @@ build: clean
 release-check: build
 	@echo "🔎 Validating release artifacts..."
 	uv run --extra dev twine check dist/*
-	@RELEASE_PYTHON_VERSION="$(RELEASE_PYTHON_VERSION)" ./scripts/smoke_release_install.sh
+	@DIST_PACKAGE_NAME="$(DIST_PACKAGE_NAME)" RELEASE_PYTHON_VERSION="$(RELEASE_PYTHON_VERSION)" ./scripts/smoke_release_install.sh
 	@echo "✅ Release artifacts passed build, metadata, and install smoke checks."
 
 bump-version:
@@ -211,7 +213,7 @@ publish-test: build
 	@echo "Requires TWINE_USERNAME=__token__ and TWINE_PASSWORD=<testpypi-token>"
 	uv run --extra dev twine upload --repository testpypi dist/*
 	@echo "Smoke-test with:"
-	@echo "  uv tool install --default-index https://test.pypi.org/simple --index https://pypi.org/simple agent-hive"
+	@echo "  uv tool install --default-index https://test.pypi.org/simple --index https://pypi.org/simple $(DIST_PACKAGE_NAME)"
 
 publish: build
 	@echo "🚀 Publishing to PyPI..."
@@ -226,11 +228,13 @@ publish: build
 brew-formula:
 	@echo "🍺 Generating Homebrew formula..."
 	uv run --with pip python scripts/generate_homebrew_formula.py \
+		--formula-name "$(HOMEBREW_FORMULA_NAME)" \
+		--package-name "$(DIST_PACKAGE_NAME)" \
 		$(if $(HOMEBREW_PACKAGE_VERSION),--package-version "$(HOMEBREW_PACKAGE_VERSION)",) \
-		--output packaging/homebrew/agent-hive.rb
+		--output packaging/homebrew/$(HOMEBREW_FORMULA_NAME).rb
 
 brew-check: brew-formula
-	@./scripts/smoke_brew_formula.sh packaging/homebrew/agent-hive.rb
+	@HOMEBREW_FORMULA_NAME="$(HOMEBREW_FORMULA_NAME)" ./scripts/smoke_brew_formula.sh packaging/homebrew/$(HOMEBREW_FORMULA_NAME).rb
 
 brew-release-check: brew-check
 	@echo "✅ Homebrew formula passed style, audit, install, and test."
@@ -243,8 +247,8 @@ release-homebrew: brew-formula
 		exit 1; \
 	fi
 	@mkdir -p "$(HOMEBREW_TAP_DIR)/Formula"
-	cp packaging/homebrew/agent-hive.rb "$(HOMEBREW_TAP_DIR)/Formula/agent-hive.rb"
-	@echo "✅ Synced formula into $(HOMEBREW_TAP_DIR)/Formula/agent-hive.rb"
+	cp packaging/homebrew/$(HOMEBREW_FORMULA_NAME).rb "$(HOMEBREW_TAP_DIR)/Formula/$(HOMEBREW_FORMULA_NAME).rb"
+	@echo "✅ Synced formula into $(HOMEBREW_TAP_DIR)/Formula/$(HOMEBREW_FORMULA_NAME).rb"
 
 brew-install:
 	@if ! command -v brew >/dev/null 2>&1; then \
@@ -257,6 +261,7 @@ brew-install:
 # Clean up
 clean:
 	@echo "🧹 Cleaning up..."
+	rm -rf dist build ./*.egg-info
 	find . -type d -name "__pycache__" -prune -exec rm -r {} \; 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	find . -type f -name "*.pyo" -delete 2>/dev/null || true

@@ -12,16 +12,16 @@ maintainer docs instead. This page is about getting from install to first useful
 Pick the install path you already trust:
 
 ```bash
-uv tool install agent-hive
+uv tool install mellona-hive
 ```
 
 ```bash
-pipx install agent-hive
+pipx install mellona-hive
 ```
 
 ```bash
 brew tap intertwine/tap
-brew install intertwine/tap/agent-hive
+brew install intertwine/tap/mellona-hive
 ```
 
 Then verify:
@@ -189,8 +189,8 @@ The short version is:
 - Use `hive next`, `hive work`, and `hive finish` if you want the manager-style happy path
 - Use `hive memory observe --note "..."` to preserve useful decisions
 - Use `hive sync projections` after task, run, or memory changes
-- Install `agent-hive[console]` and run `hive console serve` if you want the visual observe-and-steer command center
-- Install `agent-hive[mcp]` and run `hive-mcp` if you want the thin `search` + bounded local `execute` adapter
+- Install `mellona-hive[console]` and run `hive console serve` if you want the visual observe-and-steer command center
+- Install `mellona-hive[mcp]` and run `hive-mcp` if you want the thin `search` + bounded local `execute` adapter
 - If you installed through Homebrew and want the console or MCP support, add those extras through `uv tool`, `pipx`,
   or `pip` as described in [docs/START_HERE.md](./START_HERE.md)
 

@@ -19,7 +19,7 @@ def test_console_frontend_scaffold_exposes_the_primary_routes():
     )
     readme = (REPO_ROOT / "frontend" / "console" / "README.md").read_text(encoding="utf-8")
 
-    assert package_json["name"] == "@agent-hive/console"
+    assert package_json["name"] == "@mellona-hive/console"
     assert package_json["scripts"]["dev"] == "vite"
     assert 'path="/"' in app_tsx
     assert 'path="/inbox"' in app_tsx

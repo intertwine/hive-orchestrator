@@ -3,25 +3,28 @@
 Agent Hive is a repo-native control plane for autonomous work. Use Codex, Claude Code, or local/manual execution to
 do the work. Use Hive to supervise tasks, runs, memory, policy, and approvals from one place.
 
+`mellona-hive` is the distribution you install from PyPI or Homebrew. Mellona is the package family. Agent Hive is
+the current product. The install gives you the `hive` and `hive-mcp` commands.
+
 ## Install
 
 Pick the installer you already trust:
 
 ```bash
-uv tool install agent-hive
+uv tool install mellona-hive
 ```
 
 ```bash
-pipx install agent-hive
+pipx install mellona-hive
 ```
 
 ```bash
-python -m pip install agent-hive
+python -m pip install mellona-hive
 ```
 
 ```bash
 brew tap intertwine/tap
-brew install intertwine/tap/agent-hive
+brew install intertwine/tap/mellona-hive
 ```
 
 Then verify:
@@ -33,14 +36,14 @@ hive doctor
 
 If you want optional extras:
 
-- Observe console: `uv tool install --upgrade 'agent-hive[console]'`
-- MCP adapter: `uv tool install --upgrade 'agent-hive[mcp]'`
+- Observe console: `uv tool install --upgrade 'mellona-hive[console]'`
+- MCP adapter: `uv tool install --upgrade 'mellona-hive[mcp]'`
 - Homebrew currently ships the base CLI only, so add extras through `uv tool`, `pipx`, or `pip`
 
 If you are testing before the first tagged public release lands on PyPI and Homebrew, use the git install:
 
 ```bash
-uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git agent-hive
+uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git mellona-hive
 ```
 
 ## First Run
@@ -68,8 +71,8 @@ hive finish <run-id>
 
 Optional extras stay intentionally small:
 
-- `agent-hive[console]` adds the observe-and-steer console
-- `agent-hive[mcp]` adds the thin `search` + bounded local `execute` adapter
+- `mellona-hive[console]` adds the observe-and-steer console
+- `mellona-hive[mcp]` adds the thin `search` + bounded local `execute` adapter
 
 ## Choose The Right Guide
 

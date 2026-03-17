@@ -12,23 +12,26 @@ Hive is a control plane for multi-agent software work. Use this page to pick the
 
 ## Install Hive
 
+Install `mellona-hive`, then use the `hive` command. Mellona is the package family. Agent Hive is the current
+product.
+
 Pick the installer you already trust:
 
 ```bash
-uv tool install agent-hive
+uv tool install mellona-hive
 ```
 
 ```bash
-pipx install agent-hive
+pipx install mellona-hive
 ```
 
 ```bash
-python -m pip install agent-hive
+python -m pip install mellona-hive
 ```
 
 ```bash
 brew tap intertwine/tap
-brew install intertwine/tap/agent-hive
+brew install intertwine/tap/mellona-hive
 ```
 
 Then verify:
@@ -41,19 +44,19 @@ hive doctor
 If you are testing before the first tagged public release lands, use the git install instead:
 
 ```bash
-uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git agent-hive
+uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git mellona-hive
 ```
 
 ## Optional Extras
 
 | Installer | Base CLI | Observe console | MCP adapter | Notes |
 |---|---|---|---|---|
-| `uv tool` | `uv tool install agent-hive` | `uv tool install --upgrade 'agent-hive[console]'` | `uv tool install --upgrade 'agent-hive[mcp]'` | Cleanest path for most users |
-| `pipx` | `pipx install agent-hive` | `pipx install 'agent-hive[console]'` | `pipx install 'agent-hive[mcp]'` | Good if you already live in `pipx` |
-| `pip` | `python -m pip install agent-hive` | `python -m pip install 'agent-hive[console]'` | `python -m pip install 'agent-hive[mcp]'` | Best when you manage your own virtualenv |
-| Homebrew | `brew install intertwine/tap/agent-hive` | use one of the Python package installs above | use one of the Python package installs above | Homebrew currently ships the base CLI |
+| `uv tool` | `uv tool install mellona-hive` | `uv tool install --upgrade 'mellona-hive[console]'` | `uv tool install --upgrade 'mellona-hive[mcp]'` | Cleanest path for most users |
+| `pipx` | `pipx install mellona-hive` | `pipx install 'mellona-hive[console]'` | `pipx install 'mellona-hive[mcp]'` | Good if you already live in `pipx` |
+| `pip` | `python -m pip install mellona-hive` | `python -m pip install 'mellona-hive[console]'` | `python -m pip install 'mellona-hive[mcp]'` | Best when you manage your own virtualenv |
+| Homebrew | `brew install intertwine/tap/mellona-hive` | use one of the Python package installs above | use one of the Python package installs above | Homebrew currently ships the base CLI |
 
-`agent-hive[mcp]` keeps the adapter deliberately small: `search` and `execute` only. `execute` is a bounded local
+`mellona-hive[mcp]` keeps the adapter deliberately small: `search` and `execute` only. `execute` is a bounded local
 Python helper, not a full sandbox.
 
 ## Fresh Workspace
@@ -79,7 +82,7 @@ hive work --owner <your-name>
 hive finish <run-id>
 ```
 
-Install `agent-hive[console]` when you want the observe-and-steer console on top of that loop.
+Install `mellona-hive[console]` when you want the observe-and-steer console on top of that loop.
 
 ## Existing Repo
 

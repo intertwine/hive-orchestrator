@@ -102,6 +102,6 @@ The short mental model is simple:
 
 Start with the base CLI. Add extras only when you need them:
 
-- install `agent-hive[console]` if you want the observe-and-steer console
-- install `agent-hive[mcp]` if you want the thin `search` + bounded local `execute` adapter
+- install `mellona-hive[console]` if you want the observe-and-steer console
+- install `mellona-hive[mcp]` if you want the thin `search` + bounded local `execute` adapter
 - install the Claude Code GitHub App only if issue-driven dispatch is part of your workflow

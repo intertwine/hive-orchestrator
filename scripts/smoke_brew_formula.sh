@@ -7,9 +7,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-FORMULA_PATH="${1:-$REPO_ROOT/packaging/homebrew/agent-hive.rb}"
-TAP_NAME="${HOMEBREW_TAP_NAME:-local/agent-hive-smoke}"
-FORMULA_NAME="${HOMEBREW_FORMULA_NAME:-agent-hive}"
+FORMULA_PATH="${1:-$REPO_ROOT/packaging/homebrew/mellona-hive.rb}"
+TAP_NAME="${HOMEBREW_TAP_NAME:-local/mellona-hive-smoke}"
+FORMULA_NAME="${HOMEBREW_FORMULA_NAME:-mellona-hive}"
 INSTALL_TARGET="$TAP_NAME/$FORMULA_NAME"
 
 if ! command -v brew >/dev/null 2>&1; then

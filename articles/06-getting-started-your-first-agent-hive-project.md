@@ -26,19 +26,22 @@ If you are reading from the Hive repository checkout itself, remember that the r
 
 ## Step 1: Install Hive
 
+The package you install is `mellona-hive`. Mellona is the package family. Agent Hive is the current product. The
+install gives you the `hive` command.
+
 Use the public install path that matches how you normally work.
 
 If you like standalone tools managed by `uv`:
 
 ```bash
-uv tool install agent-hive
+uv tool install mellona-hive
 hive --version
 ```
 
 If you prefer `pipx`:
 
 ```bash
-pipx install agent-hive
+pipx install mellona-hive
 hive --version
 ```
 
@@ -46,14 +49,14 @@ If you use Homebrew:
 
 ```bash
 brew tap intertwine/tap
-brew install intertwine/tap/agent-hive
+brew install intertwine/tap/mellona-hive
 hive --version
 ```
 
 If you're reading this before the public package is live, the GitHub fallback works too:
 
 ```bash
-uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git agent-hive
+uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git mellona-hive
 hive --version
 ```
 
@@ -293,7 +296,7 @@ Everything else in Hive builds on top of that loop.
 
 ```bash
 # Install
-uv tool install agent-hive
+uv tool install mellona-hive
 
 # Bootstrap workspace
 hive init --json

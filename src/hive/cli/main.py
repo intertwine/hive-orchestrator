@@ -596,9 +596,9 @@ def _launch_console_api(root: Path, host: str, port: int, as_json: bool) -> int:
                 "ok": False,
                 "error": (
                     "Console support is not installed. Install it with "
-                    "`uv tool install 'agent-hive[console]'`, "
-                    "`pipx install 'agent-hive[console]'`, or "
-                    "`python -m pip install 'agent-hive[console]'`."
+                    "`uv tool install 'mellona-hive[console]'`, "
+                    "`pipx install 'mellona-hive[console]'`, or "
+                    "`python -m pip install 'mellona-hive[console]'`."
                 ),
             },
             as_json,

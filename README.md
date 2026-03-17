@@ -32,23 +32,26 @@ There are three clean ways into Hive:
 
 ## Install Hive
 
+`mellona-hive` is the package you install. Mellona is the distribution family, Agent Hive is the current product,
+and the install gives you the `hive` command.
+
 Pick the installer you already trust:
 
 ```bash
-uv tool install agent-hive
+uv tool install mellona-hive
 ```
 
 ```bash
-pipx install agent-hive
+pipx install mellona-hive
 ```
 
 ```bash
-python -m pip install agent-hive
+python -m pip install mellona-hive
 ```
 
 ```bash
 brew tap intertwine/tap
-brew install intertwine/tap/agent-hive
+brew install intertwine/tap/mellona-hive
 ```
 
 Then verify:
@@ -62,15 +65,15 @@ Optional extras:
 
 | Installer | Observe console | MCP adapter | Notes |
 |---|---|---|---|
-| `uv tool` | `uv tool install --upgrade 'agent-hive[console]'` | `uv tool install --upgrade 'agent-hive[mcp]'` | Cleanest path for most users |
-| `pipx` | `pipx install 'agent-hive[console]'` | `pipx install 'agent-hive[mcp]'` | Best if you already use `pipx` |
-| `pip` | `python -m pip install 'agent-hive[console]'` | `python -m pip install 'agent-hive[mcp]'` | Best inside your own virtualenv |
+| `uv tool` | `uv tool install --upgrade 'mellona-hive[console]'` | `uv tool install --upgrade 'mellona-hive[mcp]'` | Cleanest path for most users |
+| `pipx` | `pipx install 'mellona-hive[console]'` | `pipx install 'mellona-hive[mcp]'` | Best if you already use `pipx` |
+| `pip` | `python -m pip install 'mellona-hive[console]'` | `python -m pip install 'mellona-hive[mcp]'` | Best inside your own virtualenv |
 | Homebrew | use one of the Python package installs above | use one of the Python package installs above | Homebrew currently ships the base CLI |
 
 If you are reading this before the first tagged public release lands on PyPI and Homebrew, use the git install:
 
 ```bash
-uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git agent-hive
+uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git mellona-hive
 ```
 
 ## Five-Minute First Run
@@ -156,8 +159,8 @@ hive task create \
 
 These are useful, but the base CLI works fine without them:
 
-- `hive console serve` after installing `agent-hive[console]`
-- `hive-mcp` after installing `agent-hive[mcp]`
+- `hive console serve` after installing `mellona-hive[console]`
+- `hive-mcp` after installing `mellona-hive[mcp]`
 - the optional Claude Code GitHub App flow in [docs/INSTALL_CLAUDE_APP.md](docs/INSTALL_CLAUDE_APP.md)
 
 The MCP surface stays intentionally small: `search` and `execute`. `execute` is a bounded local Python helper, not a

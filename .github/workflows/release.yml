@@ -40,7 +40,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_ref || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_ref) || github.ref }}
 
       - name: Require a version tag ref
         run: |

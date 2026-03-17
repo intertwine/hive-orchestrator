@@ -3,6 +3,7 @@ SHELL := /bin/bash
 .PHONY: help install install-dev install-tool install-pipx run console dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install release-check dev-quickstart quickstart
 
 BUMP ?= patch
+RELEASE_PYTHON_VERSION ?= 3.11
 HOMEBREW_TAP_DIR ?= ../homebrew-tap
 HOMEBREW_INSTALL_TARGET ?= intertwine/tap/agent-hive
 HOMEBREW_PACKAGE_VERSION ?=
@@ -30,9 +31,9 @@ help:
 	@echo "  make ready-json     Find ready work as JSON"
 	@echo "  make deps           Show dependency graph"
 	@echo "  make deps-json      Show dependency graph as JSON"
-	@echo "  make hive           Show Hive 2.0 doctor output"
-	@echo "  make hive-init      Initialize the Hive 2.0 layout"
-	@echo "  make doctor         Show Hive 2.0 doctor output"
+	@echo "  make hive           Show Hive 2.2 doctor output"
+	@echo "  make hive-init      Initialize the Hive 2.2 layout"
+	@echo "  make doctor         Show Hive 2.2 doctor output"
 	@echo "  make sync-projections  Rebuild cache and refresh generated sections"
 	@echo "  make migrate-v2     Import v1 projects into the v2 substrate"
 	@echo "  make session        Save a Hive v2 startup bundle (PROJECT=<project-id> or path)"
@@ -195,7 +196,7 @@ build: clean
 release-check: build
 	@echo "🔎 Validating release artifacts..."
 	uv run --extra dev twine check dist/*
-	@./scripts/smoke_release_install.sh
+	@RELEASE_PYTHON_VERSION="$(RELEASE_PYTHON_VERSION)" ./scripts/smoke_release_install.sh
 	@echo "✅ Release artifacts passed build, metadata, and install smoke checks."
 
 bump-version:

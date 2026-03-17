@@ -1,4 +1,4 @@
-"""Hive 2.0 core package."""
+"""Hive 2.2 core package."""
 
 from src.hive.common import HIVE_VERSION
 

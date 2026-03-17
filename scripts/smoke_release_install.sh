@@ -8,6 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="${1:-$REPO_ROOT/dist}"
+RELEASE_PYTHON_VERSION="${RELEASE_PYTHON_VERSION:-3.11}"
 
 WHEEL_PATH="$(find "$DIST_DIR" -maxdepth 1 -name 'agent_hive-*.whl' | sort -V | tail -n 1)"
 if [ -z "$WHEEL_PATH" ]; then
@@ -21,6 +22,26 @@ cleanup() {
     rm -rf "$TEMP_ROOT"
 }
 trap cleanup EXIT
+
+resolve_release_python_bin() {
+    local python_bin
+
+    python_bin="$(uv python find --no-project "$RELEASE_PYTHON_VERSION" 2>/dev/null || true)"
+    if [ -n "$python_bin" ]; then
+        echo "$python_bin"
+        return
+    fi
+
+    uv python install "$RELEASE_PYTHON_VERSION" >/dev/null
+    python_bin="$(uv python find --no-project "$RELEASE_PYTHON_VERSION" 2>/dev/null || true)"
+    if [ -n "$python_bin" ]; then
+        echo "$python_bin"
+        return
+    fi
+
+    echo "❌ Error: could not resolve Python $RELEASE_PYTHON_VERSION for release smoke checks." >&2
+    exit 1
+}
 
 run_uv_tool_smoke() {
     local uv_home="$TEMP_ROOT/uv-home"
@@ -45,7 +66,7 @@ run_pipx_smoke() {
     local python_bin
 
     mkdir -p "$pipx_home" "$pipx_bin" "$pipx_man" "$workspace"
-    python_bin="$(command -v python3 || command -v python)"
+    python_bin="$(resolve_release_python_bin)"
 
     PIPX_HOME="$pipx_home" \
     PIPX_BIN_DIR="$pipx_bin" \
@@ -61,9 +82,11 @@ run_pipx_smoke() {
 run_pip_smoke() {
     local venv_dir="$TEMP_ROOT/pip-venv"
     local workspace="$TEMP_ROOT/pip-workspace"
+    local python_bin
 
     mkdir -p "$workspace"
-    python3 -m venv "$venv_dir"
+    python_bin="$(resolve_release_python_bin)"
+    "$python_bin" -m venv "$venv_dir"
     "$venv_dir/bin/pip" install "$WHEEL_PATH" >/dev/null
 
     "$venv_dir/bin/hive" --version >/dev/null

@@ -58,8 +58,8 @@ Commit the version change, then tag it:
 
 ```bash
 git add pyproject.toml uv.lock
-git commit -m "Release v0.1.1"
-git tag v0.1.1
+git commit -m "Release v2.2.0"
+git tag v2.2.0
 git push origin main --tags
 ```
 
@@ -96,7 +96,8 @@ uv tool install --upgrade agent-hive
 hive --version
 hive doctor
 
-python -m venv pip-verify
+release_python="$(uv python find --no-project 3.11)"
+"$release_python" -m venv pip-verify
 ./pip-verify/bin/python -m pip install --upgrade agent-hive
 ./pip-verify/bin/hive --version
 ./pip-verify/bin/hive doctor --json
@@ -134,7 +135,7 @@ make brew-formula
 Run the full local Homebrew release check:
 
 ```bash
-make brew-release-check HOMEBREW_PACKAGE_VERSION=0.1.0
+make brew-release-check HOMEBREW_PACKAGE_VERSION=2.2.0
 ```
 
 That command only works after the target version is already live on PyPI, because the formula generator resolves published artifacts instead of local files. For a brand-new release, the tagged GitHub workflow is the thing that proves the Homebrew path before it updates the tap.

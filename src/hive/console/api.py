@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
+from src.hive import __version__
 from src.hive.console.state import build_home_view, build_inbox, list_runs, load_run_detail
 from src.hive.control import campaign_status
 from src.hive.context_bundle import build_context_bundle
@@ -37,7 +38,7 @@ def _console_allow_origin_regex() -> str:
 
 app = FastAPI(
     title="Hive Observe Console API",
-    version="2.2.0",
+    version=__version__,
     description="Observe-and-steer backend for the Hive 2.2 console.",
 )
 app.add_middleware(

@@ -101,30 +101,55 @@ def test_public_top_level_packages_are_available():
     assert callable(hive_mcp_server.main)
 
 
+def test_public_package_versions_match_pyproject():
+    """Published package metadata and public module versions should stay aligned."""
+    payload = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
+    expected = payload["project"]["version"]
+    hive = importlib.import_module("hive")
+    hive_mcp = importlib.import_module("hive_mcp")
+
+    assert hive.__version__ == expected
+    assert hive_mcp.__version__ == expected
+
+
 def test_public_hive_module_entrypoint_exists():
     """`python -m hive` should resolve through a real public package module."""
     entrypoint = Path(__file__).resolve().parents[1] / "hive" / "__main__.py"
     assert entrypoint.exists()
 
 
-def test_pyproject_all_extra_covers_optional_runtime_surfaces():
-    """The convenience `all` extra should include every optional runtime surface."""
+def test_pyproject_runtime_extras_cover_console_and_optional_surfaces():
+    """Runtime extras should keep the console alias and convenience bundle aligned."""
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     payload = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     extras = payload["project"]["optional-dependencies"]
 
-    assert extras["dashboard"] == ["streamlit>=1.51.0,<2.0.0"]
+    assert extras["dashboard"] == [
+        "fastapi>=0.115.0,<1.0.0",
+        "uvicorn>=0.32.0,<1.0.0",
+    ]
     assert extras["console"] == [
         "fastapi>=0.115.0,<1.0.0",
         "uvicorn>=0.32.0,<1.0.0",
     ]
     assert extras["all"] == [
-        "streamlit>=1.51.0,<2.0.0",
         "mcp~=1.22.0",
         "fastapi>=0.115.0,<1.0.0",
         "uvicorn>=0.32.0,<1.0.0",
         "weave>=0.51.0,<1.0.0",
     ]
+
+
+def test_wheel_force_include_does_not_duplicate_recipe_files():
+    """Wheel force-include rules should not map a directory and its files twice."""
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    payload = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    force_include = payload["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+
+    assert "docs/recipes" in force_include
+    assert "docs/recipes/observe-and-steer.md" not in force_include
+    assert "docs/recipes/program-doctor.md" not in force_include
+    assert "docs/recipes/driver-handoffs.md" not in force_include
 
 
 def test_opencode_mcp_command_requests_optional_extra():
@@ -164,6 +189,20 @@ def test_release_smoke_script_exercises_python_module_entrypoint():
     assert '"$venv_dir/bin/python" -m hive --version >/dev/null' in script
 
 
+def test_release_smoke_script_prefers_supported_python():
+    """Release install smoke checks should use the pinned release interpreter contract."""
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "smoke_release_install.sh"
+    script = script_path.read_text(encoding="utf-8")
+
+    assert 'RELEASE_PYTHON_VERSION="${RELEASE_PYTHON_VERSION:-3.11}"' in script
+    assert "resolve_release_python_bin()" in script
+    assert 'uv python find --no-project "$RELEASE_PYTHON_VERSION"' in script
+    assert 'uv python install "$RELEASE_PYTHON_VERSION"' in script
+    assert 'python_bin="$(resolve_release_python_bin)"' in script
+    assert "python3 -m venv" not in script
+    assert "command -v python3 || command -v python" not in script
+
+
 def test_release_workflow_requires_tag_and_homebrew_verification():
     """Tagged releases should be gated by both tag validation and Homebrew verification."""
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml"
@@ -193,3 +232,11 @@ def test_makefile_supports_overriding_homebrew_package_version():
 
     assert "HOMEBREW_PACKAGE_VERSION ?=" in makefile
     assert '--package-version "$(HOMEBREW_PACKAGE_VERSION)"' in makefile
+
+
+def test_makefile_supports_overriding_release_python_version():
+    """Release smoke checks should use the same pinned interpreter contract as CI."""
+    makefile = (Path(__file__).resolve().parents[1] / "Makefile").read_text(encoding="utf-8")
+
+    assert "RELEASE_PYTHON_VERSION ?= 3.11" in makefile
+    assert 'RELEASE_PYTHON_VERSION="$(RELEASE_PYTHON_VERSION)" ./scripts/smoke_release_install.sh' in makefile

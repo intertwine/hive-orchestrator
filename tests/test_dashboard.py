@@ -447,8 +447,6 @@ class TestDashboardIntegration:
             context = generate_deep_work_context(project["path"], base_path)
             assert context is not None
             assert project["metadata"]["project_id"] in context
-
-
 class TestConsoleShimHelpers:
     """Compatibility wrappers should delegate cleanly to the React console state layer."""
 

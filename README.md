@@ -192,6 +192,7 @@ The longer comparison lives in [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSE
 - [docs/START_HERE.md](docs/START_HERE.md) for the lane chooser and install matrix
 - [docs/QUICKSTART.md](docs/QUICKSTART.md) for the fresh-workspace walkthrough
 - [docs/ADOPT_EXISTING_REPO.md](docs/ADOPT_EXISTING_REPO.md) for existing repositories and legacy imports
+- [docs/DEMO_WALKTHROUGH.md](docs/DEMO_WALKTHROUGH.md) for the recorded v2.2 launch fixture, screenshots, and walkthrough flow
 - [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSES.md) for Codex, Claude Code, and local/manual guidance
 - [docs/UI_INFORMATION_ARCHITECTURE.md](docs/UI_INFORMATION_ARCHITECTURE.md) for the console information architecture
 - [docs/OPERATOR_FLOWS.md](docs/OPERATOR_FLOWS.md) for the manager loop and steering flows

@@ -21,24 +21,29 @@ The center of gravity has shifted to release proof:
 
 Current working branch:
 
-- `codex/hive-v2-2-console-smoke`
+- `codex/hive-v2-2-launch-collateral`
 
 Latest local validation on this branch:
 
-- `cd frontend/console && pnpm test`
+- `UV_PYTHON=3.11 uv run python scripts/build_v22_demo_workspace.py /tmp/hive-v22-demo --force`
 - `cd frontend/console && pnpm build`
-- `UV_PYTHON=3.11 uv run --extra dev pytest tests/test_console_frontend_story.py tests/test_console_api.py tests/test_v22_acceptance.py -q`
+- `cd frontend/console && pnpm capture-demo -- --manifest /private/tmp/hive-v22-demo/.hive/demo/north_star_manifest.json --base-url http://127.0.0.1:8787 --output-dir ../../images/launch`
+- `UV_PYTHON=3.11 uv run --extra dev pytest tests/test_launch_collateral.py tests/test_launch_story.py tests/test_v22_docs.py -q`
 
 Latest result:
 
-- frontend smoke: `3 passed`
-- frontend build: passes
-- Python console-adjacent validation: `9 passed`
+- demo workspace builds end to end
+- launch screenshots and walkthrough clip are generated from the live console
+- launch doc coverage is green
 
 ## Recent progress
 
-- PR #99, PR #100, and PR #101 are merged, so the v2.2 foundations, React console cutover, and first acceptance-proof pass are now on `main`.
-- The current release-proof pass is on `codex/hive-v2-2-console-smoke`.
+- PR #99, PR #100, PR #101, and PR #102 are merged, so the v2.2 foundations, React console cutover, acceptance proofs, and browser-level console smoke coverage are now on `main`.
+- The current branch is focused on launch collateral:
+  - a reusable north-star demo workspace builder
+  - a checked-in walkthrough doc
+  - real screenshots for home, inbox, runs, and run detail
+  - a short walkthrough clip captured from the live console
 - The acceptance tests on `main` now cover:
   - the north-star three-project / ten-run operator scenario
   - inbox updates without manual sync
@@ -49,7 +54,7 @@ Latest result:
   - `workspace` scope was not expanding to workspace docs
   - greenfield repos without a `docs/` directory were skipping `.hive/briefs` and `.hive/campaigns`
     in cache indexing
-- This branch adds browser-level React-console smoke:
+- The merged console-smoke pass now proves:
   - one-session monitoring of ten runs across three projects
   - runs-board filtering by project, driver, and health
   - project-doctor and search-route interaction coverage
@@ -145,8 +150,8 @@ Strong signals:
 
 Remaining work:
 
-- record an end-to-end demo script on fixtures
-- finish launch collateral
+- merge the console-smoke proof and launch-collateral PRs
+- decide whether we want one more round of polish on the comparison/landing copy before calling 2.2 ready
 
 ## Acceptance checklist summary
 

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "capture-demo": "node scripts/captureDemoAssets.mjs"
   },
   "dependencies": {
     "react": "^19.0.0",
@@ -21,6 +22,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.4.1",
+    "playwright": "^1.54.2",
     "jsdom": "^29.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",

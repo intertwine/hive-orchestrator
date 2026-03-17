@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -278,6 +278,16 @@ describe("Observe Console smoke", () => {
     const steeringHistory: Array<Record<string, unknown>> = [];
     const timeline: Array<Record<string, unknown>> = [];
     const runId = "run_gamma_local_1";
+    // Match the real event vocabulary exactly: reroute records the completed event
+    // (`steering.rerouted`) while the other typed actions use imperative verbs.
+    const eventTypeByAction: Record<string, string> = {
+      pause: "steering.pause",
+      resume: "steering.resume",
+      approve: "steering.approve",
+      reject: "steering.reject",
+      cancel: "steering.cancel",
+      reroute: "steering.rerouted",
+    };
 
     const fetchMock = installFetchMock([
       {
@@ -331,7 +341,7 @@ describe("Observe Console smoke", () => {
         pathname: `/runs/${runId}/steer`,
         response: (_url, init) => {
           const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-          const eventType = payload.action === "reroute" ? "steering.rerouted" : "steering.paused";
+          const eventType = eventTypeByAction[String(payload.action)];
           const event = {
             event_id: `event_${steeringHistory.length + 1}`,
             type: eventType,
@@ -349,19 +359,38 @@ describe("Observe Console smoke", () => {
     renderConsole([`/runs/${runId}`]);
 
     await screen.findByRole("heading", { name: runId });
-    await user.type(screen.getByRole("textbox", { name: "Reason" }), "Need a pause before rerouting.");
-    await user.click(screen.getByRole("button", { name: "Pause" }));
-    expect(await screen.findByText(`Sent pause for ${runId}.`)).toBeInTheDocument();
-    // The event shows once in Steering History and once again in the broader Timeline panel.
-    expect(await screen.findAllByText("steering.paused")).toHaveLength(2);
+    const steeringPanel = screen.getByRole("heading", { name: "Steering History" }).closest("section");
+    const timelinePanel = screen.getByRole("heading", { name: "Timeline" }).closest("section");
+    expect(steeringPanel).not.toBeNull();
+    expect(timelinePanel).not.toBeNull();
 
-    await user.type(screen.getByRole("textbox", { name: "Reason" }), "Switch this run to Codex.");
-    await user.type(screen.getByRole("textbox", { name: "Note" }), "Need stronger repo-wide reasoning.");
+    const reasonBox = screen.getByRole("textbox", { name: "Reason" });
+
+    async function triggerAction(action: string, reason: string) {
+      await user.clear(reasonBox);
+      await user.type(reasonBox, reason);
+      await user.click(screen.getByRole("button", { name: action }));
+      expect(await screen.findByText(`Sent ${action.toLowerCase()} for ${runId}.`)).toBeInTheDocument();
+      expect(await within(steeringPanel as HTMLElement).findByText(eventTypeByAction[action.toLowerCase()])).toBeInTheDocument();
+      expect(await within(timelinePanel as HTMLElement).findByText(eventTypeByAction[action.toLowerCase()])).toBeInTheDocument();
+    }
+
+    await triggerAction("Pause", "Need a pause before rerouting.");
+    await triggerAction("Resume", "Resume after a quick checkpoint.");
+    await triggerAction("Approve", "The operator is satisfied with this slice.");
+    await triggerAction("Reject", "The operator wants a narrower follow-up.");
+    await triggerAction("Cancel", "Stop this run before reassigning it.");
+
+    const noteBox = screen.getByRole("textbox", { name: "Note" });
+    await user.clear(reasonBox);
+    await user.type(reasonBox, "Switch this run to Codex.");
+    await user.type(noteBox, "Need stronger repo-wide reasoning.");
     await user.selectOptions(screen.getByRole("combobox", { name: "Reroute to" }), "codex");
     await user.click(screen.getByRole("button", { name: "Reroute" }));
 
     expect(await screen.findByText(`Sent reroute for ${runId}.`)).toBeInTheDocument();
-    expect(await screen.findAllByText("steering.rerouted")).toHaveLength(2);
+    expect(await within(steeringPanel as HTMLElement).findByText("steering.rerouted")).toBeInTheDocument();
+    expect(await within(timelinePanel as HTMLElement).findByText("steering.rerouted")).toBeInTheDocument();
 
     const postBodies = fetchMock.mock.calls
       .filter(([, init]) => (init?.method ?? "GET").toUpperCase() === "POST")
@@ -372,6 +401,26 @@ describe("Observe Console smoke", () => {
         action: "pause",
         actor: "console-operator",
         reason: "Need a pause before rerouting.",
+      },
+      {
+        action: "resume",
+        actor: "console-operator",
+        reason: "Resume after a quick checkpoint.",
+      },
+      {
+        action: "approve",
+        actor: "console-operator",
+        reason: "The operator is satisfied with this slice.",
+      },
+      {
+        action: "reject",
+        actor: "console-operator",
+        reason: "The operator wants a narrower follow-up.",
+      },
+      {
+        action: "cancel",
+        actor: "console-operator",
+        reason: "Stop this run before reassigning it.",
       },
       {
         action: "reroute",

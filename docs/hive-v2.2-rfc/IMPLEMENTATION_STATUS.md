@@ -21,19 +21,18 @@ The center of gravity has shifted again. The main job is release proof:
 
 Current working branch:
 
-- `codex/hive-v2-2-release-proof`
+- `codex/hive-v2-2-steering-ui-proof`
 
 Latest local validation on this branch:
 
-- `UV_PYTHON=3.11 uv run --extra dev pytest tests/test_cli_schema_fixtures.py tests/test_hive_drivers.py -q`
 - `cd frontend/console && pnpm test`
 - `cd frontend/console && pnpm build`
 
 Latest result:
 
-- manager-loop CLI JSON contracts are now fixture-backed
-- the same run can move from `local` to `codex` to `claude-code` without losing lineage
-- the React console run-detail view survives a browser refresh and refetches cleanly
+- the React console now has browser-level proof for pause, resume, approve, reject, cancel, and reroute
+- each typed steering action shows up in both Steering History and Timeline
+- the remaining release work is now down to one last PR/review/merge step plus the actual 2.2 cut
 
 ## What is already on main
 
@@ -50,18 +49,15 @@ around contracts, cross-driver lineage, and refresh resilience.
 
 ## What this branch adds
 
-- fixture-backed schema coverage for the manager loop:
-  - `hive drivers list`
-  - `hive next`
-  - `hive work`
-  - `hive finish`
-  - `hive portfolio status`
-  - `hive campaign create`
-  - `hive brief daily`
-  - `hive program doctor`
-- a stronger cross-driver reroute proof that the same governed run can move across `local`,
-  `codex`, and `claude-code`
-- explicit browser-refresh proof for the run-detail timeline and inspector view
+- explicit browser-level proof for the full steering surface:
+  - pause
+  - resume
+  - approve
+  - reject
+  - cancel
+  - reroute
+- proof that each typed steering action lands in both Steering History and Timeline with the real
+  event vocabulary
 
 ## Milestone status
 
@@ -104,7 +100,7 @@ Strong signals:
 
 ### M4 — Steer Console + Program Doctor
 
-Status: mostly done
+Status: done
 
 Strong signals:
 
@@ -112,11 +108,6 @@ Strong signals:
 - reroute lineage and steering timelines are covered in backend and console tests
 - Program Doctor is implemented, documented, and tested
 - autonomous promotion is blocked until required evaluator gates exist
-
-Remaining work:
-
-- add one explicit browser-level proof for the full pause/resume/cancel loop if we decide that final
-  UI evidence is worth a separate tiny follow-up
 
 ### M5 — Context, memory, search, skills
 
@@ -155,14 +146,9 @@ Strong signals:
 
 ### Honest remaining gap
 
-The one acceptance item I would still call “nice to close” rather than “already airtight” is
-browser-level proof for every steering button, not just the run-detail observe-and-reroute path. The
-underlying steering model is there and well-covered in backend tests. This is about polishing the last
-bit of UI proof, not fixing a product hole.
+At this point the remaining work is release mechanics, not product uncertainty. The main question is
+whether we want any extra launch polish beyond the evidence already required by the RFC.
 
 ## Recommended next step
 
-Land this release-proof branch, then make one deliberate decision:
-
-1. either ship 2.2 from there if we are comfortable with the current UI steering evidence
-2. or do one last tiny console-proof PR for pause/resume/cancel and then cut the release
+Land this steering-proof branch and cut Hive 2.2 unless a new issue appears in review.

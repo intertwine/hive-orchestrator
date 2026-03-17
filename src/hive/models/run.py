@@ -10,18 +10,36 @@ from src.hive.clock import utc_now_iso
 
 @dataclass
 class RunRecord:
-    """Immutable run metadata."""
+    """Immutable run metadata.
+
+    The in-memory attribute is named ``metadata`` for ergonomic access, while the serialized key
+    remains ``metadata_json`` so it cannot be confused with the run's top-level metadata fields.
+    """
 
     id: str
     project_id: str
     task_id: str
+    driver: str = "local"
+    driver_handle: str | None = None
+    campaign_id: str | None = None
     mode: str = "workflow"
-    status: str = "planned"
+    status: str = "queued"
+    health: str = "healthy"
     executor: str = "local"
     branch_name: str | None = None
     worktree_path: str | None = None
     program_path: str | None = None
     program_sha256: str | None = None
+    launch_path: str | None = None
+    context_manifest_path: str | None = None
+    context_compiled_dir: str | None = None
+    transcript_path: str | None = None
+    transcript_raw_dir: str | None = None
+    workspace_patch_path: str | None = None
+    workspace_changed_files_path: str | None = None
+    driver_metadata_path: str | None = None
+    driver_handles_path: str | None = None
+    events_path: str | None = None
     plan_path: str | None = None
     summary_path: str | None = None
     review_path: str | None = None
@@ -37,18 +55,32 @@ class RunRecord:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize run metadata."""
+        """Serialize run metadata using ``metadata_json`` for the nested payload."""
         return {
             "id": self.id,
             "project_id": self.project_id,
             "task_id": self.task_id,
+            "driver": self.driver,
+            "driver_handle": self.driver_handle,
+            "campaign_id": self.campaign_id,
             "mode": self.mode,
             "status": self.status,
+            "health": self.health,
             "executor": self.executor,
             "branch_name": self.branch_name,
             "worktree_path": self.worktree_path,
             "program_path": self.program_path,
             "program_sha256": self.program_sha256,
+            "launch_path": self.launch_path,
+            "context_manifest_path": self.context_manifest_path,
+            "context_compiled_dir": self.context_compiled_dir,
+            "transcript_path": self.transcript_path,
+            "transcript_raw_dir": self.transcript_raw_dir,
+            "workspace_patch_path": self.workspace_patch_path,
+            "workspace_changed_files_path": self.workspace_changed_files_path,
+            "driver_metadata_path": self.driver_metadata_path,
+            "driver_handles_path": self.driver_handles_path,
+            "events_path": self.events_path,
             "plan_path": self.plan_path,
             "summary_path": self.summary_path,
             "review_path": self.review_path,

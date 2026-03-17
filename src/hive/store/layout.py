@@ -75,6 +75,16 @@ def runs_dir(path: str | Path | None = None) -> Path:
     return hive_dir(path) / "runs"
 
 
+def campaigns_dir(path: str | Path | None = None) -> Path:
+    """Return the campaigns directory."""
+    return hive_dir(path) / "campaigns"
+
+
+def briefs_dir(path: str | Path | None = None) -> Path:
+    """Return the briefs directory."""
+    return hive_dir(path) / "briefs"
+
+
 def memory_project_dir(path: str | Path | None = None, *, project_id: str | None = None) -> Path:
     """Return the project-memory directory or a specific project memory root."""
     root = memory_dir(path) / "project"
@@ -157,6 +167,8 @@ def ensure_layout(path: str | Path | None = None) -> dict[str, Path]:
         "memory": memory_dir(path),
         "tasks": tasks_dir(path),
         "runs": runs_dir(path),
+        "campaigns": campaigns_dir(path),
+        "briefs": briefs_dir(path),
         "events": events_dir(path),
         "cache": cache_dir(path),
         "worktrees": worktrees_dir(path),

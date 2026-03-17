@@ -96,6 +96,31 @@ def split_dirty_paths(path: str | Path | None) -> dict[str, list[str]]:
     }
 
 
+def restore_derived_state(path: str | Path | None) -> list[str]:
+    """Reset tracked derived-state paths so they do not leave the repo dirty."""
+    root = ensure_git_repo(path)
+    status = _run_git(root, "status", "--porcelain", "--", ".hive/cache", ".hive/worktrees")
+    if status.returncode != 0:
+        raise ValueError(status.stderr.strip() or "Unable to inspect derived Hive state")
+
+    restore_paths = sorted(
+        {
+            candidate
+            for line in status.stdout.splitlines()
+            if line.strip()
+            for candidate in [_status_path(line)]
+            if _matches_any(candidate, IGNORED_PATTERNS)
+        }
+    )
+    if not restore_paths:
+        return []
+
+    restore = _run_git(root, "restore", "--staged", "--worktree", "--", *restore_paths)
+    if restore.returncode != 0:
+        raise ValueError(restore.stderr.strip() or "Unable to restore derived Hive state")
+    return restore_paths
+
+
 def ensure_clean_repo(path: str | Path | None) -> None:
     """Require a clean repo outside of known Hive state files."""
     root = ensure_git_repo(path)
@@ -127,6 +152,20 @@ def current_head(path: str | Path | None) -> str:
     if result.returncode != 0:
         raise ValueError(result.stderr.strip() or "Unable to resolve HEAD")
     return result.stdout.strip()
+
+
+def current_branch(path: str | Path | None) -> str:
+    """Return the current branch name, or HEAD when detached."""
+    root = ensure_git_repo(path)
+    result = _run_git(root, "branch", "--show-current")
+    if result.returncode == 0:
+        branch = result.stdout.strip()
+        if branch:
+            return branch
+    fallback = _run_git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    if fallback.returncode != 0:
+        raise ValueError(fallback.stderr.strip() or "Unable to resolve current branch")
+    return fallback.stdout.strip() or "HEAD"
 
 
 def create_run_worktree(
@@ -354,6 +393,7 @@ def capture_worktree_state(
 __all__ = [
     "commit_paths",
     "capture_worktree_state",
+    "current_branch",
     "create_checkpoint_commit",
     "create_run_worktree",
     "current_head",

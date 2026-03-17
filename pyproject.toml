@@ -33,6 +33,10 @@ dependencies = [
 dashboard = [
     "streamlit>=1.51.0,<2.0.0",
 ]
+console = [
+    "fastapi>=0.115.0,<1.0.0",
+    "uvicorn>=0.32.0,<1.0.0",
+]
 mcp = [
     "mcp~=1.22.0",
 ]
@@ -86,6 +90,30 @@ only-packages = true
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/hive/store/SCHEMA.sql" = "src/hive/store/SCHEMA.sql"
+"docs/START_HERE.md" = "src/hive/resources/docs/START_HERE.md"
+"docs/QUICKSTART.md" = "src/hive/resources/docs/QUICKSTART.md"
+"docs/ADOPT_EXISTING_REPO.md" = "src/hive/resources/docs/ADOPT_EXISTING_REPO.md"
+"docs/COMPARE_HARNESSES.md" = "src/hive/resources/docs/COMPARE_HARNESSES.md"
+"docs/UI_INFORMATION_ARCHITECTURE.md" = "src/hive/resources/docs/UI_INFORMATION_ARCHITECTURE.md"
+"docs/OPERATOR_FLOWS.md" = "src/hive/resources/docs/OPERATOR_FLOWS.md"
+"docs/MIGRATING_TO_V2_2.md" = "src/hive/resources/docs/MIGRATING_TO_V2_2.md"
+"docs/hive-v2-spec/AGENT_INTERFACE.md" = "src/hive/resources/docs/hive-v2-spec/AGENT_INTERFACE.md"
+"docs/hive-v2-spec/HANDOFF_TO_CODEX.md" = "src/hive/resources/docs/hive-v2-spec/HANDOFF_TO_CODEX.md"
+"docs/hive-v2-spec/HIVE_V2_SPEC.md" = "src/hive/resources/docs/hive-v2-spec/HIVE_V2_SPEC.md"
+"docs/hive-v2-spec/MIGRATION_PLAN.md" = "src/hive/resources/docs/hive-v2-spec/MIGRATION_PLAN.md"
+"docs/hive-v2-spec/MILESTONE_ISSUE_TREE.md" = "src/hive/resources/docs/hive-v2-spec/MILESTONE_ISSUE_TREE.md"
+"docs/hive-v2-spec/README.md" = "src/hive/resources/docs/hive-v2-spec/README.md"
+"docs/hive-v2-spec/SCHEMA.sql" = "src/hive/resources/docs/hive-v2-spec/SCHEMA.sql"
+"docs/hive-v2-spec/examples" = "src/hive/resources/docs/hive-v2-spec/examples"
+"docs/hive-v2.2-rfc/README.md" = "src/hive/resources/docs/hive-v2.2-rfc/README.md"
+"docs/hive-v2.2-rfc/HIVE_V2_2_RFC.md" = "src/hive/resources/docs/hive-v2.2-rfc/HIVE_V2_2_RFC.md"
+"docs/hive-v2.2-rfc/HIVE_V2_2_DRIVER_SPEC.md" = "src/hive/resources/docs/hive-v2.2-rfc/HIVE_V2_2_DRIVER_SPEC.md"
+"docs/hive-v2.2-rfc/HIVE_V2_2_ACCEPTANCE_TESTS.md" = "src/hive/resources/docs/hive-v2.2-rfc/HIVE_V2_2_ACCEPTANCE_TESTS.md"
+"docs/recipes" = "src/hive/resources/docs/recipes"
+"docs/recipes/observe-and-steer.md" = "src/hive/resources/docs/recipes/observe-and-steer.md"
+"docs/recipes/program-doctor.md" = "src/hive/resources/docs/recipes/program-doctor.md"
+"docs/recipes/driver-handoffs.md" = "src/hive/resources/docs/recipes/driver-handoffs.md"
+"src/hive/resources/console" = "src/hive/resources/console"
 
 [tool.hatch.build.targets.sdist]
 only-include = [
@@ -93,6 +121,17 @@ only-include = [
     "LICENSE",
     "pyproject.toml",
     "docs/PYPI_README.md",
+    "docs/START_HERE.md",
+    "docs/QUICKSTART.md",
+    "docs/ADOPT_EXISTING_REPO.md",
+    "docs/COMPARE_HARNESSES.md",
+    "docs/UI_INFORMATION_ARCHITECTURE.md",
+    "docs/OPERATOR_FLOWS.md",
+    "docs/MIGRATING_TO_V2_2.md",
+    "docs/hive-v2-spec",
+    "docs/hive-v2.2-rfc",
+    "docs/recipes",
+    "frontend/console",
     "src",
     "hive",
     "hive_mcp",

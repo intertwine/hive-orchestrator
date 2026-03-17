@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib.resources import files
 import json
 import re
 import sqlite3
@@ -13,9 +14,14 @@ from src.hive.store.cache import rebuild_cache
 
 WORKSPACE_SCOPES = {"workspace", "task", "run", "memory", "program", "agency", "global"}
 API_DOC_FILES = (
+    ("api", "START_HERE", "docs/START_HERE.md"),
+    ("api", "QUICKSTART", "docs/QUICKSTART.md"),
+    ("api", "ADOPT_EXISTING_REPO", "docs/ADOPT_EXISTING_REPO.md"),
     ("api", "README", "README.md"),
     ("api", "AGENT_INTERFACE", "docs/hive-v2-spec/AGENT_INTERFACE.md"),
     ("api", "HIVE_V2_SPEC", "docs/hive-v2-spec/HIVE_V2_SPEC.md"),
+    ("api", "HIVE_V2_2_RFC", "docs/hive-v2.2-rfc/HIVE_V2_2_RFC.md"),
+    ("api", "HIVE_V2_2_DRIVER_SPEC", "docs/hive-v2.2-rfc/HIVE_V2_2_DRIVER_SPEC.md"),
     ("schema", "SCHEMA", "docs/hive-v2-spec/SCHEMA.sql"),
 )
 COMMAND_DOCS = (
@@ -94,6 +100,51 @@ DOC_TYPE_BOOST = {
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _packaged_docs_root():
+    return files("src.hive.resources").joinpath("docs")
+
+
+def _read_doc_resource(relative_path: str) -> tuple[str, str] | None:
+    source_path = _repo_root() / relative_path
+    if source_path.exists():
+        return str(source_path), source_path.read_text(encoding="utf-8")
+
+    packaged = _packaged_docs_root().joinpath(relative_path.removeprefix("docs/"))
+    if packaged.is_file():
+        return f"package:{relative_path}", packaged.read_text(encoding="utf-8")
+    return None
+
+
+def _iter_text_resources(relative_dir: str):
+    source_root = _repo_root() / relative_dir
+    if source_root.exists():
+        for file_path in sorted(source_root.rglob("*")):
+            if file_path.is_file() and file_path.suffix.lower() in EXAMPLE_TEXT_SUFFIXES:
+                yield str(file_path), str(file_path.relative_to(source_root)), file_path.read_text(
+                    encoding="utf-8"
+                )
+
+    packaged_root = _packaged_docs_root().joinpath(relative_dir.removeprefix("docs/"))
+    if not packaged_root.is_dir():
+        return
+
+    stack = [(packaged_root, "")]
+    while stack:
+        current, prefix = stack.pop()
+        children = sorted(current.iterdir(), key=lambda item: item.name, reverse=True)
+        for child in children:
+            relative_name = f"{prefix}{child.name}"
+            if child.is_dir():
+                stack.append((child, relative_name + "/"))
+                continue
+            suffix = Path(child.name).suffix.lower()
+            if suffix not in EXAMPLE_TEXT_SUFFIXES:
+                continue
+            yield f"package:{relative_dir}/{relative_name}", relative_name, child.read_text(
+                encoding="utf-8"
+            )
 
 
 def _normalized_scopes(scopes: Iterable[str] | None) -> set[str]:
@@ -340,7 +391,6 @@ def _score(text: str, query: str) -> int:
 def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str, object]]:
     if "api" not in scopes and "schema" not in scopes:
         return []
-    repo_root = _repo_root()
     results: list[dict[str, object]] = []
 
     for command in COMMAND_DOCS:
@@ -363,10 +413,10 @@ def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str,
     for kind, title, relative_path in API_DOC_FILES:
         if kind == "schema" and "schema" not in scopes:
             continue
-        file_path = repo_root / relative_path
-        if not file_path.exists():
+        resource = _read_doc_resource(relative_path)
+        if resource is None:
             continue
-        body = file_path.read_text(encoding="utf-8")
+        resolved_path, body = resource
         score = _score(body, query)
         if not score:
             continue
@@ -374,7 +424,7 @@ def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str,
             {
                 "kind": kind,
                 "title": title,
-                "path": str(file_path),
+                "path": resolved_path,
                 "score": score,
                 "snippet": _snippet(body, query),
                 "why": [f"matched {kind} docs"],
@@ -388,34 +438,26 @@ def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str,
 def _search_examples(query: str, scopes: set[str], limit: int) -> list[dict[str, object]]:
     if "examples" not in scopes:
         return []
-    examples_root = _repo_root() / "docs" / "hive-v2-spec" / "examples"
-    if not examples_root.exists():
-        return []
-
     results: list[dict[str, object]] = []
-    for file_path in sorted(
-        path
-        for path in examples_root.rglob("*")
-        if path.is_file() and path.suffix.lower() in EXAMPLE_TEXT_SUFFIXES
+    for relative_dir, reason in (
+        ("docs/hive-v2-spec/examples", "matched spec example"),
+        ("docs/recipes", "matched packaged recipe"),
     ):
-        try:
-            body = file_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        score = _score(body, query)
-        if not score:
-            continue
-        results.append(
-            {
-                "kind": "example",
-                "title": str(file_path.relative_to(examples_root)),
-                "path": str(file_path),
-                "score": score,
-                "snippet": _snippet(body, query),
-                "why": ["matched spec example"],
-                "matches": ["matched spec example"],
-            }
-        )
+        for resolved_path, title, body in _iter_text_resources(relative_dir):
+            score = _score(body, query)
+            if not score:
+                continue
+            results.append(
+                {
+                    "kind": "example",
+                    "title": title,
+                    "path": resolved_path,
+                    "score": score,
+                    "snippet": _snippet(body, query),
+                    "why": [reason],
+                    "matches": [reason],
+                }
+            )
     return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[:limit]
 
 

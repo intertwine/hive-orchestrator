@@ -17,11 +17,22 @@ def _resolve_run_artifact_path(root: Path, metadata_path: Path, value: str | Non
         return candidate
     metadata_dir = metadata_path.parent
     run_root = metadata_dir.parent.parent
+    if candidate.name in {"summary.md", "review.md"}:
+        canonical_review = (metadata_dir / "review" / candidate.name).resolve()
+        if canonical_review.exists():
+            return canonical_review
+    if candidate.name == "patch.diff":
+        canonical_patch = (metadata_dir / "workspace" / candidate.name).resolve()
+        if canonical_patch.exists():
+            return canonical_patch
     for base in (metadata_dir, run_root, root):
         resolved = (base / candidate).resolve()
         if resolved.exists():
             return resolved
-    return (metadata_dir / candidate).resolve()
+    legacy_resolved = (metadata_dir / candidate).resolve()
+    if legacy_resolved.exists():
+        return legacy_resolved
+    return legacy_resolved
 
 
 def iter_accepted_runs(

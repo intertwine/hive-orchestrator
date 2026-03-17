@@ -99,11 +99,22 @@ def _resolve_run_artifact_path(metadata_path: Path, value: str | None, root: Pat
         return candidate
     metadata_dir = metadata_path.parent
     run_root = metadata_dir.parent.parent
+    if candidate.name in {"summary.md", "review.md"}:
+        canonical_review = (metadata_dir / "review" / candidate.name).resolve()
+        if canonical_review.exists():
+            return canonical_review
+    if candidate.name == "patch.diff":
+        canonical_patch = (metadata_dir / "workspace" / candidate.name).resolve()
+        if canonical_patch.exists():
+            return canonical_patch
     for base in (metadata_dir, run_root, root):
         resolved = (base / candidate).resolve()
         if resolved.exists():
             return resolved
-    return (metadata_dir / candidate).resolve()
+    legacy_resolved = (metadata_dir / candidate).resolve()
+    if legacy_resolved.exists():
+        return legacy_resolved
+    return legacy_resolved
 
 
 def _task_search_body(task) -> str:
@@ -213,6 +224,16 @@ def _workspace_doc_paths(root: Path) -> list[Path]:
             continue
         seen.add(resolved)
         paths.append(file_path)
+
+    for hive_subdir in (root / ".hive" / "campaigns", root / ".hive" / "briefs"):
+        if not hive_subdir.exists():
+            continue
+        for file_path in sorted(hive_subdir.rglob("*.md")):
+            resolved = file_path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            paths.append(file_path)
     return paths
 
 
@@ -729,18 +750,41 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                 connection.execute(
                     """
                     INSERT INTO events
-                    (id, occurred_at, actor, entity_type, entity_id, event_type, source, payload_json)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (
+                      id,
+                      occurred_at,
+                      actor,
+                      actor_json,
+                      entity_type,
+                      entity_id,
+                      event_type,
+                      source,
+                      payload_json,
+                      ts,
+                      type,
+                      run_id,
+                      task_id,
+                      project_id,
+                      campaign_id
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         event["id"],
                         event["occurred_at"],
-                        event["actor"],
+                        event.get("actor_text", event.get("actor", "hive")),
+                        _json(event.get("actor", {})),
                         event["entity_type"],
                         event["entity_id"],
                         event["event_type"],
                         event["source"],
                         _json(event.get("payload_json", {})),
+                        event.get("ts", event["occurred_at"]),
+                        event.get("type", event["event_type"]),
+                        event.get("run_id"),
+                        event.get("task_id"),
+                        event.get("project_id"),
+                        event.get("campaign_id"),
                     ),
                 )
 

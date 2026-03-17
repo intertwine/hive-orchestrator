@@ -195,6 +195,7 @@ def reflect(
     *,
     scope: str = "project",
     project_id: str | None = None,
+    propose: bool = False,
 ) -> dict[str, Path]:
     """Regenerate reflections, profile, and active memory docs."""
     directory, observations = _load_observations_from_candidates(
@@ -214,9 +215,11 @@ def reflect(
     active_groups = recent_groups[:4]
     recurring_terms = _top_terms(entries)
 
-    reflections_path = directory / "reflections.md"
-    profile_path = directory / "profile.md"
-    active_path = directory / "active.md"
+    suffix = ".proposed.md" if propose else ".md"
+    reflections_path = directory / f"reflections{suffix}"
+    profile_path = directory / f"profile{suffix}"
+    active_path = directory / f"active{suffix}"
+    review_path = directory / "memory-review.md"
 
     reflections_lines = [
         "# Reflections",
@@ -253,9 +256,29 @@ def reflect(
         items=active_groups,
         empty_message="No active context yet.",
     )
+    if propose:
+        review_path.write_text(
+            "\n".join(
+                [
+                    "# Memory Review",
+                    "",
+                    f"- Proposed profile: `{profile_path.name}`",
+                    f"- Proposed active context: `{active_path.name}`",
+                    f"- Proposed reflections: `{reflections_path.name}`",
+                    "",
+                    "Use `hive memory accept` to promote these changes or "
+                    "`hive memory reject` to discard them.",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
-    return {
+    payload = {
         "reflections": reflections_path,
         "profile": profile_path,
         "active": active_path,
     }
+    if propose:
+        payload["review"] = review_path
+    return payload

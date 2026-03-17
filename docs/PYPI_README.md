@@ -1,8 +1,7 @@
 # Agent Hive
 
-Agent Hive is a CLI-first orchestration platform for autonomous agents. It keeps machine state under `.hive/`,
-keeps project context in Markdown, and gives agents a stable command surface for task discovery, claiming,
-context assembly, governed runs, and search.
+Agent Hive is a repo-native control plane for autonomous work. Use Codex, Claude Code, or local/manual execution to
+do the work. Use Hive to supervise tasks, runs, memory, policy, and approvals from one place.
 
 ## Install
 
@@ -34,7 +33,7 @@ hive doctor
 
 If you want optional extras:
 
-- Dashboard: `uv tool install --upgrade 'agent-hive[dashboard]'`
+- Observe console: `uv tool install --upgrade 'agent-hive[console]'`
 - MCP adapter: `uv tool install --upgrade 'agent-hive[mcp]'`
 - Homebrew currently ships the base CLI only, so add extras through `uv tool`, `pipx`, or `pip`
 
@@ -52,26 +51,24 @@ Start in an empty directory:
 mkdir my-hive
 cd my-hive
 git init
-hive quickstart demo --title "Demo project"
-hive workspace checkpoint --message "Bootstrap Hive workspace"
-hive next --project-id demo
-hive work --project-id demo --owner <your-name> --output SESSION_CONTEXT.md
+hive onboard demo --title "Demo project" --objective "Ship one governed slice."
+hive console serve
 ```
 
 That gives you a real workspace, a starter project, a conservative `PROGRAM.md`, and a first task chain with one
 ready task.
 
-If you want the governed run loop right away, edit `projects/demo/PROGRAM.md` first so it has at least one required
-evaluator and lists that evaluator under `promotion.requires_all`. Then continue with:
+Then use the normal loop:
 
 ```bash
-hive work --project-id demo --owner <your-name>
+hive next --project-id demo
+hive work <task-id> --owner <your-name>
 hive finish <run-id>
 ```
 
 Optional extras stay intentionally small:
 
-- `agent-hive[dashboard]` adds the observe-and-steer dashboard
+- `agent-hive[console]` adds the observe-and-steer console
 - `agent-hive[mcp]` adds the thin `search` + bounded local `execute` adapter
 
 ## Choose The Right Guide

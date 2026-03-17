@@ -8,16 +8,20 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_agent_harness_docs_use_task_specific_startup_context():
-    """High-traffic harness docs should teach the claimed-task flow."""
+def test_agent_harness_docs_use_manager_loop_by_default():
+    """High-traffic harness docs should teach the manager loop first."""
     agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     claude = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 
-    assert "hive task claim <task-id>" in agents
-    assert "hive context startup --project <project-id> --task <task-id> --json" in agents
+    assert "hive console home --json" in agents
+    assert "hive next --json" in agents
+    assert "hive work <task-id> --owner <your-name> --json" in agents
+    assert "hive finish <run-id> --json" in agents
     assert "Checkout-only helpers in this repo are for maintainers." in agents
-    assert "hive task claim <task-id>" in claude
-    assert "hive context startup --project <project-id> --task <task-id> --json" in claude
+    assert "hive console home --json" in claude
+    assert "hive next --json" in claude
+    assert "hive work <task-id> --owner <your-name> --json" in claude
+    assert "hive finish <run-id> --json" in claude
     assert "Repo checkout helpers are for maintainers" in claude
 
 

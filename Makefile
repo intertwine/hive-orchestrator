@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help install install-dev install-tool install-pipx run dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install release-check dev-quickstart quickstart
+.PHONY: help install install-dev install-tool install-pipx run console dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install release-check dev-quickstart quickstart
 
 BUMP ?= patch
 HOMEBREW_TAP_DIR ?= ../homebrew-tap
@@ -25,7 +25,7 @@ help:
 	@echo "  make setup-env      Create .env file template"
 	@echo ""
 	@echo "Checkout Workflow:"
-	@echo "  make dashboard      Launch the optional dashboard UI"
+	@echo "  make console        Launch the observe-and-steer console"
 	@echo "  make ready          Find ready canonical tasks"
 	@echo "  make ready-json     Find ready work as JSON"
 	@echo "  make deps           Show dependency graph"
@@ -109,12 +109,14 @@ setup-env:
 		echo "⚠️  .env file already exists. Not overwriting."; \
 	fi
 
-# Launch Streamlit dashboard
-dashboard:
-	@echo "🚀 Launching Agent Hive Dashboard..."
-	@echo "   Open http://localhost:8501 in your browser"
+# Launch observe console
+console:
+	@echo "🚀 Launching Agent Hive Observe Console..."
+	@echo "   Open http://localhost:8787/console/ in your browser"
 	@echo ""
-	uv run hive dashboard
+	uv run hive console serve
+
+dashboard: console
 
 # Find ready work
 ready:

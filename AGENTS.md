@@ -19,11 +19,14 @@ Start with the `hive` CLI, not ad hoc markdown edits or compatibility shims.
 
 ```bash
 hive doctor --json
-hive task ready --json
-hive task claim <task-id> --owner <your-name> --ttl-minutes 60 --json
-hive context startup --project <project-id> --task <task-id> --json
+hive console home --json
+hive next --json
+hive work <task-id> --owner <your-name> --json
+hive finish <run-id> --json
 make check
 ```
+
+Use the lower-level `task claim` and `context startup` commands only when you need tighter manual control.
 
 ## What Not To Do
 

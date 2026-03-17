@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from src.hive import demo_fixture
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,3 +48,15 @@ def test_launch_assets_are_checked_in():
         asset = REPO_ROOT / relative_path
         assert asset.exists()
         assert asset.stat().st_size > 0
+
+
+def test_demo_builder_fails_cleanly_when_campaign_tick_launches_no_run(tmp_path, monkeypatch):
+    """Demo generation should explain fixture drift instead of crashing on empty campaign output."""
+
+    def empty_tick(*_args, **_kwargs):
+        return {"launched_runs": []}
+
+    monkeypatch.setattr(demo_fixture, "tick_campaign", empty_tick)
+
+    with pytest.raises(RuntimeError, match="Campaign tick produced no runs"):
+        demo_fixture.build_north_star_demo(tmp_path / "demo")

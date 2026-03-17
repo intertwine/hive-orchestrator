@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, readFile, readdir, rename, rmdir } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { chromium } from "playwright";
@@ -83,13 +83,15 @@ async function main() {
 
   const videoFiles = await readdir(videoDir);
   const firstVideo = videoFiles.find((entry) => entry.endsWith(".webm"));
-  if (firstVideo) {
-    await rename(
-      path.join(videoDir, firstVideo),
-      path.join(outputDir, "observe-and-steer-demo.webm"),
-    );
+  if (!firstVideo) {
+    await rm(videoDir, { recursive: true, force: true });
+    throw new Error(`Playwright did not produce a .webm capture in ${videoDir}`);
   }
-  await rmdir(videoDir).catch(() => {});
+  await rename(
+    path.join(videoDir, firstVideo),
+    path.join(outputDir, "observe-and-steer-demo.webm"),
+  );
+  await rm(videoDir, { recursive: true, force: true });
 }
 
 main().catch((error) => {

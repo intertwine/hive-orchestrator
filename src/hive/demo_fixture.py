@@ -27,14 +27,8 @@ def _init_git_repo(root: Path) -> None:
 
 
 def _commit_all(root: Path, message: str) -> None:
-    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
-    subprocess.run(
-        ["git", "commit", "-m", message],
-        cwd=root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    _run(["git", "add", "-A"], cwd=root)
+    _run(["git", "commit", "-m", message], cwd=root)
 
 
 def _seed_project(root: Path, project_id: str, title: str, *, extra_tasks: int = 4) -> None:
@@ -172,7 +166,10 @@ def build_north_star_demo(path: str | Path) -> dict[str, Any]:
     waiting_runs.append(rerouted)
 
     tick = tick_campaign(root, str(campaign["campaign"]["id"]), owner="campaign-manager")
-    campaign_run_id = str(tick["launched_runs"][0]["id"])
+    launched_runs = tick.get("launched_runs", [])
+    if not launched_runs:
+        raise RuntimeError("Campaign tick produced no runs. Check the demo fixture ready-task pool.")
+    campaign_run_id = str(launched_runs[0]["id"])
     brief = generate_brief(root, cadence="daily")
 
     manifest = {

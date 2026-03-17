@@ -31,7 +31,6 @@ def main() -> int:
         if not args.force:
             raise SystemExit(f"{root} already exists. Re-run with --force to replace it.")
         shutil.rmtree(root)
-    root.mkdir(parents=True, exist_ok=True)
     manifest = build_north_star_demo(root)
     manifest_path = write_demo_manifest(root, manifest)
     payload = manifest | {"manifest_path": str(manifest_path)}

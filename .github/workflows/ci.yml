@@ -53,6 +53,35 @@ jobs:
       - name: Run driver and console conformance fixtures
         run: uv run pytest tests/test_hive_drivers.py tests/test_console_api.py tests/test_event_schema.py -q
 
+  console-frontend-smoke:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend/console
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: frontend/console/pnpm-lock.yaml
+
+      - name: Install console dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run console browser-smoke tests
+        run: pnpm test
+
   packaging-smoke:
     runs-on: ubuntu-latest
 

@@ -37,20 +37,28 @@ function TopNavLink({ to, label }: { to: string; label: string }) {
 }
 
 export function ConsoleLayout({ children }: PropsWithChildren) {
+  const queryApiBase = queryParamValue("apiBase");
+  const queryWorkspacePath = queryParamValue("workspace");
   const [apiBase, setApiBase] = useState(
-    queryParamValue("apiBase") ?? window.localStorage.getItem(API_BASE_KEY) ?? DEFAULT_API_BASE,
+    queryApiBase ?? window.localStorage.getItem(API_BASE_KEY) ?? DEFAULT_API_BASE,
   );
   const [workspacePath, setWorkspacePath] = useState(
-    queryParamValue("workspace") ?? window.localStorage.getItem(WORKSPACE_KEY) ?? "",
+    queryWorkspacePath ?? window.localStorage.getItem(WORKSPACE_KEY) ?? "",
   );
 
   useEffect(() => {
+    if (queryApiBase !== null && apiBase === queryApiBase) {
+      return;
+    }
     window.localStorage.setItem(API_BASE_KEY, apiBase);
-  }, [apiBase]);
+  }, [apiBase, queryApiBase]);
 
   useEffect(() => {
+    if (queryWorkspacePath !== null && workspacePath === queryWorkspacePath) {
+      return;
+    }
     window.localStorage.setItem(WORKSPACE_KEY, workspacePath);
-  }, [workspacePath]);
+  }, [queryWorkspacePath, workspacePath]);
 
   function handleApiBaseChange(event: ChangeEvent<HTMLInputElement>) {
     setApiBase(event.target.value);

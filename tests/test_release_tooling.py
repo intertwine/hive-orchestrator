@@ -118,8 +118,8 @@ def test_public_hive_module_entrypoint_exists():
     assert entrypoint.exists()
 
 
-def test_pyproject_all_extra_covers_optional_runtime_surfaces():
-    """The convenience `all` extra should include every optional runtime surface."""
+def test_pyproject_runtime_extras_cover_console_and_optional_surfaces():
+    """Runtime extras should keep the console alias and convenience bundle aligned."""
     pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
     payload = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     extras = payload["project"]["optional-dependencies"]

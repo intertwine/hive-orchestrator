@@ -278,6 +278,8 @@ describe("Observe Console smoke", () => {
     const steeringHistory: Array<Record<string, unknown>> = [];
     const timeline: Array<Record<string, unknown>> = [];
     const runId = "run_gamma_local_1";
+    // Match the real event vocabulary exactly: reroute records the completed event
+    // (`steering.rerouted`) while the other typed actions use imperative verbs.
     const eventTypeByAction: Record<string, string> = {
       pause: "steering.pause",
       resume: "steering.resume",
@@ -363,9 +365,9 @@ describe("Observe Console smoke", () => {
     expect(timelinePanel).not.toBeNull();
 
     const reasonBox = screen.getByRole("textbox", { name: "Reason" });
-    const noteBox = screen.getByRole("textbox", { name: "Note" });
 
     async function triggerAction(action: string, reason: string) {
+      await user.clear(reasonBox);
       await user.type(reasonBox, reason);
       await user.click(screen.getByRole("button", { name: action }));
       expect(await screen.findByText(`Sent ${action.toLowerCase()} for ${runId}.`)).toBeInTheDocument();
@@ -379,6 +381,8 @@ describe("Observe Console smoke", () => {
     await triggerAction("Reject", "The operator wants a narrower follow-up.");
     await triggerAction("Cancel", "Stop this run before reassigning it.");
 
+    const noteBox = screen.getByRole("textbox", { name: "Note" });
+    await user.clear(reasonBox);
     await user.type(reasonBox, "Switch this run to Codex.");
     await user.type(noteBox, "Need stronger repo-wide reasoning.");
     await user.selectOptions(screen.getByRole("combobox", { name: "Reroute to" }), "codex");

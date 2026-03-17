@@ -47,11 +47,11 @@ Pass if:
 
 ## M4 — Steer Console + Program Doctor
 
-- [ ] Pause/resume/cancel actions work from UI and CLI
+- [x] Pause/resume/cancel actions work from UI and CLI
 - [x] Reroute works at least between `local`, `codex`, and `claude-code` at metadata/transcript level
 - [x] Program Doctor suggests evaluator templates based on project stack
 - [x] Autonomous promotion is blocked until required evaluator gates exist
-- [ ] Every steering action emits an event and appears in timeline
+- [x] Every steering action emits an event and appears in timeline
 
 ## M5 — Context, memory, search, skills
 
@@ -120,6 +120,5 @@ The release fails if any of the following are true:
 
 What is still open is small and concrete:
 
-- browser-level proof for the full pause/resume/cancel steering loop
-- browser-level proof that every steering action shows up in the visible timeline, not just reroute
-- the final PR / review / merge path for the release-proof branch itself
+- land the final browser-level steering-proof PR
+- cut the actual Hive 2.2 release once that PR is merged

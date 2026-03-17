@@ -50,6 +50,7 @@ async function main() {
   const outputDir = path.resolve(options.outputDir);
   const videoDir = path.join(outputDir, "video-temp");
   await mkdir(outputDir, { recursive: true });
+  await rm(videoDir, { recursive: true, force: true });
   await mkdir(videoDir, { recursive: true });
 
   const browser = await chromium.launch({ headless: true });

@@ -208,22 +208,20 @@ def _workspace_doc_paths(root: Path) -> list[Path]:
         paths.append(file_path)
 
     docs_root = root / "docs"
-    if not docs_root.exists():
-        return paths
-
-    for file_path in sorted(docs_root.rglob("*")):
-        if not file_path.is_file():
-            continue
-        if file_path.suffix.lower() not in WORKSPACE_DOC_SUFFIXES:
-            continue
-        relative_to_docs = file_path.relative_to(docs_root)
-        if relative_to_docs.parts and relative_to_docs.parts[0] == "hive-v2-spec":
-            continue
-        resolved = file_path.resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        paths.append(file_path)
+    if docs_root.exists():
+        for file_path in sorted(docs_root.rglob("*")):
+            if not file_path.is_file():
+                continue
+            if file_path.suffix.lower() not in WORKSPACE_DOC_SUFFIXES:
+                continue
+            relative_to_docs = file_path.relative_to(docs_root)
+            if relative_to_docs.parts and relative_to_docs.parts[0] == "hive-v2-spec":
+                continue
+            resolved = file_path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            paths.append(file_path)
 
     for hive_subdir in (root / ".hive" / "campaigns", root / ".hive" / "briefs"):
         if not hive_subdir.exists():

@@ -69,7 +69,7 @@ function installFetchMock(routes: MockRoute[]) {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url);
     const method = (init?.method ?? "GET").toUpperCase();
     const route = routes.find((candidate) => {
-      return (candidate.method ?? "GET").toUpperCase() == method && candidate.pathname === url.pathname;
+      return (candidate.method ?? "GET").toUpperCase() === method && candidate.pathname === url.pathname;
     });
     if (!route) {
       throw new Error(`Unhandled console request: ${method} ${url.pathname}`);
@@ -93,10 +93,6 @@ function renderConsole(initialEntries: string[]) {
 describe("Observe Console smoke", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-  });
-
-  beforeEach(() => {
-    window.localStorage.clear();
   });
 
   it("lets one operator monitor ten runs across three projects with live filters", async () => {
@@ -356,6 +352,7 @@ describe("Observe Console smoke", () => {
     await user.type(screen.getByRole("textbox", { name: "Reason" }), "Need a pause before rerouting.");
     await user.click(screen.getByRole("button", { name: "Pause" }));
     expect(await screen.findByText(`Sent pause for ${runId}.`)).toBeInTheDocument();
+    // The event shows once in Steering History and once again in the broader Timeline panel.
     expect(await screen.findAllByText("steering.paused")).toHaveLength(2);
 
     await user.type(screen.getByRole("textbox", { name: "Reason" }), "Switch this run to Codex.");

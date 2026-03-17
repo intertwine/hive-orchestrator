@@ -211,6 +211,7 @@ def test_release_workflow_requires_tag_and_homebrew_verification():
     """Tagged releases should be gated by both tag validation and Homebrew verification."""
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    workflow_text = workflow_path.read_text(encoding="utf-8")
 
     assert workflow["env"]["DIST_PACKAGE_NAME"] == "mellona-hive"
     assert workflow["env"]["HOMEBREW_FORMULA_NAME"] == "mellona-hive"
@@ -230,6 +231,10 @@ def test_release_workflow_requires_tag_and_homebrew_verification():
 
     update_homebrew_needs = workflow["jobs"]["update-homebrew"]["needs"]
     assert update_homebrew_needs == ["publish-pypi", "verify-homebrew"]
+    assert (
+        'git status --porcelain -- Formula/${{ env.HOMEBREW_FORMULA_NAME }}.rb'
+        in workflow_text
+    )
 
 
 def test_makefile_supports_overriding_homebrew_package_version():

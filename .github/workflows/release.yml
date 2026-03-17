@@ -210,7 +210,7 @@ jobs:
       - name: Commit and push formula update
         run: |
           cd homebrew-tap
-          if git diff --quiet -- Formula/${{ env.HOMEBREW_FORMULA_NAME }}.rb; then
+          if [ -z "$(git status --porcelain -- Formula/${{ env.HOMEBREW_FORMULA_NAME }}.rb)" ]; then
             echo "No formula changes detected."
             exit 0
           fi

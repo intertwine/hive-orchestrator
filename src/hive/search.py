@@ -12,7 +12,7 @@ from typing import Iterable
 from src.hive.scheduler.query import dependency_summary, project_summary
 from src.hive.store.cache import rebuild_cache
 
-WORKSPACE_SCOPES = {"workspace", "task", "run", "memory", "program", "agency", "global"}
+WORKSPACE_SCOPES = {"workspace", "task", "run", "memory", "program", "agency", "global", "doc"}
 API_DOC_FILES = (
     ("api", "START_HERE", "docs/START_HERE.md"),
     ("api", "QUICKSTART", "docs/QUICKSTART.md"),

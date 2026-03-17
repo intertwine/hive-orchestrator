@@ -70,7 +70,26 @@ CREATE TABLE IF NOT EXISTS runs (
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   mode TEXT NOT NULL CHECK(mode IN ('workflow','experiment','review')),
-  status TEXT NOT NULL CHECK(status IN ('planned','running','evaluating','accepted','rejected','escalated','aborted')),
+  status TEXT NOT NULL CHECK(
+    status IN (
+      'queued',
+      'compiling_context',
+      'launching',
+      'running',
+      'awaiting_input',
+      'awaiting_review',
+      'blocked',
+      'completed_candidate',
+      'accepted',
+      'rejected',
+      'escalated',
+      'cancelled',
+      'failed',
+      'planned',
+      'evaluating',
+      'aborted'
+    )
+  ),
   executor TEXT NOT NULL DEFAULT 'local',
   branch_name TEXT,
   worktree_path TEXT,
@@ -171,11 +190,18 @@ CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
   occurred_at TEXT NOT NULL,
   actor TEXT NOT NULL,
+  actor_json TEXT NOT NULL DEFAULT '{}',
   entity_type TEXT NOT NULL,
   entity_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
   source TEXT NOT NULL,
-  payload_json TEXT NOT NULL DEFAULT '{}'
+  payload_json TEXT NOT NULL DEFAULT '{}',
+  ts TEXT NOT NULL,
+  type TEXT NOT NULL,
+  run_id TEXT,
+  task_id TEXT,
+  project_id TEXT,
+  campaign_id TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug);
@@ -186,6 +212,8 @@ CREATE INDEX IF NOT EXISTS idx_task_edges_dst ON task_edges(dst_task_id, edge_ty
 CREATE INDEX IF NOT EXISTS idx_claims_task_status_expiry ON claims(task_id, status, expires_at);
 CREATE INDEX IF NOT EXISTS idx_runs_task_status ON runs(task_id, status, started_at);
 CREATE INDEX IF NOT EXISTS idx_events_entity ON events(entity_type, entity_id, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id, ts);
+CREATE INDEX IF NOT EXISTS idx_events_project ON events(project_id, ts);
 CREATE INDEX IF NOT EXISTS idx_memory_docs_scope ON memory_docs(scope, scope_key, kind);
 
 -- A materialized convenience view for ready work.

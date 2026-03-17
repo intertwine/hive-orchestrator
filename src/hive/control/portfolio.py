@@ -9,6 +9,7 @@ import getpass
 import json
 import os
 
+from src.hive.constants import RUN_ACTIVE_STATUSES
 from src.hive.context_bundle import build_context_bundle
 from src.hive.runs.engine import (
     accept_run,
@@ -37,7 +38,8 @@ STEERING_DEFAULTS = {
     "updated_at": None,
     "updated_by": None,
 }
-ACTIVE_RUN_STATUSES = {"running", "evaluating"}
+ACTIVE_RUN_STATUSES = set(RUN_ACTIVE_STATUSES)
+REVIEW_RUN_STATUSES = {"awaiting_review", "evaluating"}
 
 
 def _default_owner() -> str:
@@ -130,7 +132,7 @@ def _active_runs(root: Path) -> list[dict[str, Any]]:
 
 
 def _evaluating_runs(root: Path) -> list[dict[str, Any]]:
-    return [run for run in _active_runs(root) if run.get("status") == "evaluating"]
+    return [run for run in _active_runs(root) if run.get("status") in REVIEW_RUN_STATUSES]
 
 
 def _recent_manager_events(root: Path, *, limit: int = 12) -> list[dict[str, Any]]:
@@ -291,6 +293,9 @@ def work_on_task(
     project_id: str | None = None,
     owner: str | None = None,
     ttl_minutes: int = 60,
+    driver: str = "local",
+    model: str | None = None,
+    campaign_id: str | None = None,
     profile: str = "default",
     output_path: str | Path | None = None,
     checkpoint: bool = True,
@@ -326,7 +331,14 @@ def work_on_task(
     ):
         task = claim_task(root, task.id, resolved_owner, ttl_minutes)
         sync_workspace(root)
-    run = start_run(root, task.id)
+    run = start_run(
+        root,
+        task.id,
+        driver_name=driver,
+        model=model,
+        campaign_id=campaign_id,
+        profile=profile,
+    )
     sync_workspace(root)
     bundle = build_context_bundle(
         root,
@@ -384,6 +396,9 @@ def finish_run_flow(
     metadata = load_run(root, run_id)
     evaluation = None
     if metadata.get("status") == "running":
+        evaluation = eval_run(root, run_id)
+        metadata = evaluation["run"]
+    elif metadata.get("status") in {"awaiting_input", "completed_candidate"}:
         evaluation = eval_run(root, run_id)
         metadata = evaluation["run"]
     decision = (
@@ -467,6 +482,7 @@ def tick_portfolio(
                 task_id=None,
                 project_id=project_id,
                 owner=owner,
+                driver="local",
                 profile=profile,
                 output_path=output_path,
             ),
@@ -476,7 +492,9 @@ def tick_portfolio(
         if candidate_run_id is None:
             evaluating = _evaluating_runs(root)
             if not evaluating:
-                raise ValueError("No evaluating run is available for `hive portfolio tick --mode review`.")
+                raise ValueError(
+                    "No review-ready run is available for `hive portfolio tick --mode review`."
+                )
             candidate_run_id = evaluating[0]["id"]
         return {
             "mode": mode,

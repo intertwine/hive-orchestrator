@@ -1,0 +1,50 @@
+{
+  "version": "2.2.0",
+  "run": [
+    "run.queued",
+    "run.context_compiled",
+    "run.launch_started",
+    "run.launched",
+    "run.status.changed",
+    "run.awaiting_input",
+    "run.awaiting_review",
+    "run.completed_candidate",
+    "run.accepted",
+    "run.rejected",
+    "run.escalated",
+    "run.cancelled",
+    "run.failed"
+  ],
+  "artifact": [
+    "artifact.added",
+    "eval.started",
+    "eval.completed",
+    "eval.failed",
+    "review.summary_generated"
+  ],
+  "steering": [
+    "steering.pause",
+    "steering.resume",
+    "steering.cancel",
+    "steering.reroute_requested",
+    "steering.rerouted",
+    "steering.note_added",
+    "steering.budget_changed",
+    "steering.approve",
+    "steering.reject",
+    "steering.rollback",
+    "steering.sidequest_created"
+  ],
+  "memory": [
+    "context.compiled",
+    "memory.proposed",
+    "memory.accepted",
+    "memory.rejected"
+  ],
+  "campaign": [
+    "campaign.created",
+    "campaign.tick",
+    "campaign.goal_updated",
+    "campaign.completed"
+  ]
+}

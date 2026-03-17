@@ -799,7 +799,7 @@ class TestHiveV2Runs:
         task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
         run = start_run(temp_hive_dir, task_id)
         result = eval_run(temp_hive_dir, run.id)
-        assert result["run"]["status"] == "evaluating"
+        assert result["run"]["status"] == "awaiting_review"
 
         accepted = accept_run(temp_hive_dir, run.id)
         task = get_task(temp_hive_dir, task_id)
@@ -936,7 +936,7 @@ class TestHiveV2Runs:
         else:  # pragma: no cover - defensive
             raise AssertionError("Expected non-running run evaluation to fail")
 
-    def test_accept_run_requires_evaluating_status(
+    def test_accept_run_requires_review_ready_status(
         self, temp_hive_dir, temp_project, commit_workspace
     ):
         """Runs should not be accepted before evaluator execution."""
@@ -2753,6 +2753,21 @@ class TestHiveV2Search:
 
         assert all(item["kind"] != "schema" for item in api_results)
         assert any(item["kind"] == "schema" for item in schema_results)
+
+    def test_search_workspace_falls_back_to_packaged_docs_when_repo_docs_are_unavailable(
+        self, temp_hive_dir, temp_project, monkeypatch
+    ):
+        """Installed Hive should still search packaged docs without a source checkout."""
+        migrate_v1_to_v2(temp_hive_dir)
+        monkeypatch.setattr("src.hive.search._repo_root", lambda: Path(temp_hive_dir) / "missing")
+
+        api_results = search_workspace(temp_hive_dir, "Driver interface", scopes=["api"], limit=20)
+        example_results = search_workspace(
+            temp_hive_dir, "observe and steer", scopes=["examples"], limit=20
+        )
+
+        assert any("package:" in str(item.get("path", "")) for item in api_results)
+        assert any(item["kind"] == "example" for item in example_results)
 
 
 class TestHiveV2Execute:

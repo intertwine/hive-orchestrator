@@ -14,11 +14,21 @@ from src.hive.control import (
     tick_portfolio,
     work_on_task,
 )
+from src.hive.drivers import SteeringRequest
 from src.hive.memory.context import handoff_context, startup_context
 from src.hive.memory.observe import observe
 from src.hive.memory.reflect import reflect
 from src.hive.memory.search import search as search_memory
-from src.hive.runs.engine import accept_run, escalate_run, eval_run, load_run, reject_run, start_run
+from src.hive.runs.engine import (
+    accept_run,
+    escalate_run,
+    eval_run,
+    load_run,
+    reject_run,
+    run_artifacts,
+    start_run,
+    steer_run,
+)
 from src.hive.scheduler.query import ready_tasks
 from src.hive.store.cache import rebuild_cache
 from src.hive.store.projects import discover_projects, get_project
@@ -134,12 +144,22 @@ class RunModule:
     root: Path
 
     def start(self, input: dict[str, Any]) -> dict[str, Any]:
-        run = start_run(self.root, input["taskId"])
+        run = start_run(
+            self.root,
+            input["taskId"],
+            driver_name=input.get("driver"),
+            model=input.get("model"),
+            campaign_id=input.get("campaignId"),
+            profile=input.get("profile", "default"),
+        )
         sync_workspace(self.root)
         return run.to_dict()
 
     def show(self, input: dict[str, Any]) -> dict[str, Any]:
         return load_run(self.root, input["id"])
+
+    def artifacts(self, input: dict[str, Any]) -> dict[str, Any]:
+        return run_artifacts(self.root, input["id"])
 
     def eval(self, input: dict[str, Any]) -> dict[str, Any]:
         payload = eval_run(self.root, input["id"])
@@ -158,6 +178,22 @@ class RunModule:
 
     def escalate(self, input: dict[str, Any]) -> dict[str, Any]:
         payload = escalate_run(self.root, input["id"], input.get("reason"))
+        sync_workspace(self.root)
+        return payload
+
+    def steer(self, input: dict[str, Any]) -> dict[str, Any]:
+        payload = steer_run(
+            self.root,
+            input["id"],
+            SteeringRequest(
+                action=input["action"],
+                reason=input.get("reason"),
+                target=input.get("target"),
+                budget_delta=input.get("budgetDelta"),
+                note=input.get("note"),
+            ),
+            actor=input.get("owner"),
+        )
         sync_workspace(self.root)
         return payload
 

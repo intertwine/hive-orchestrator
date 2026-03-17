@@ -96,6 +96,31 @@ def split_dirty_paths(path: str | Path | None) -> dict[str, list[str]]:
     }
 
 
+def restore_derived_state(path: str | Path | None) -> list[str]:
+    """Reset tracked derived-state paths so they do not leave the repo dirty."""
+    root = ensure_git_repo(path)
+    status = _run_git(root, "status", "--porcelain", "--", ".hive/cache", ".hive/worktrees")
+    if status.returncode != 0:
+        raise ValueError(status.stderr.strip() or "Unable to inspect derived Hive state")
+
+    restore_paths = sorted(
+        {
+            candidate
+            for line in status.stdout.splitlines()
+            if line.strip()
+            for candidate in [_status_path(line)]
+            if _matches_any(candidate, IGNORED_PATTERNS)
+        }
+    )
+    if not restore_paths:
+        return []
+
+    restore = _run_git(root, "restore", "--staged", "--worktree", "--", *restore_paths)
+    if restore.returncode != 0:
+        raise ValueError(restore.stderr.strip() or "Unable to restore derived Hive state")
+    return restore_paths
+
+
 def ensure_clean_repo(path: str | Path | None) -> None:
     """Require a clean repo outside of known Hive state files."""
     root = ensure_git_repo(path)

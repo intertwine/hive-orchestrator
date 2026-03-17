@@ -15,9 +15,9 @@ def run() -> int:
         if exc.name and exc.name.startswith("mcp"):
             print(
                 "Hive MCP support is not installed. Install it with "
-                "`uv tool install 'agent-hive[mcp]'`, "
-                "`pipx install 'agent-hive[mcp]'`, or "
-                "`python -m pip install 'agent-hive[mcp]'`.",
+                "`uv tool install 'mellona-hive[mcp]'`, "
+                "`pipx install 'mellona-hive[mcp]'`, or "
+                "`python -m pip install 'mellona-hive[mcp]'`.",
                 file=sys.stderr,
             )
             return 1

@@ -45,15 +45,15 @@ Useful local commands:
 Use the public install paths when you want to test what end users will see:
 
 ```bash
-uv tool install --force --from . agent-hive
+uv tool install --force --from . mellona-hive
 pipx install --force .
 ```
 
 If you need optional extras while testing:
 
 ```bash
-uv tool install --force --from . 'agent-hive[console]'
-uv tool install --force --from . 'agent-hive[mcp]'
+uv tool install --force --from . 'mellona-hive[console]'
+uv tool install --force --from . 'mellona-hive[mcp]'
 ```
 
 If you are iterating on the React console itself:

@@ -92,6 +92,8 @@ Test global context.
         status="active",
         last_sync=None,
         version="1.0.0",
+        # Internal metadata keeps the product identifier even though the
+        # published distribution is now mellona-hive.
         orchestrator="agent-hive",
     )
 

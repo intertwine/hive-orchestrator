@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a Homebrew formula for agent-hive from published PyPI artifacts."""
+"""Generate a Homebrew formula for mellona-hive from published PyPI artifacts."""
 
 from __future__ import annotations
 
@@ -360,8 +360,8 @@ def parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pyproject", type=Path, default=Path("pyproject.toml"))
-    parser.add_argument("--formula-name", default="agent-hive")
-    parser.add_argument("--output", type=Path, default=Path("packaging/homebrew/agent-hive.rb"))
+    parser.add_argument("--formula-name", default="mellona-hive")
+    parser.add_argument("--output", type=Path, default=Path("packaging/homebrew/mellona-hive.rb"))
     parser.add_argument("--python-dep", default="python@3.13")
     parser.add_argument("--python-version", default="3.13")
     parser.add_argument("--platform-arm", default="macosx_11_0_arm64")

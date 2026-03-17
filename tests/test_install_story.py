@@ -32,23 +32,26 @@ def test_public_readmes_surface_three_clear_entry_points():
     assert "Adopt Hive In An Existing Repo" in readme
     assert "Maintain or publish Hive" in readme
     assert "control plane" in readme.lower()
+    assert "Mellona" in readme
 
     assert "Fresh Workspace" in start_here
     assert "Existing Repo" in start_here
     assert "Maintainers" in start_here
+    assert "Mellona" in start_here
 
     assert "make install-dev" not in pypi_readme
     assert "src.agent_dispatcher" not in pypi_readme
+    assert "Mellona" in pypi_readme
 
 
 def test_start_here_install_matrix_covers_common_installers_and_homebrew_limit():
     """Everyday users should see the real install choices and the Homebrew boundary."""
     start_here = (REPO_ROOT / "docs" / "START_HERE.md").read_text(encoding="utf-8")
 
-    assert "uv tool install agent-hive" in start_here
-    assert "pipx install agent-hive" in start_here
-    assert "python -m pip install agent-hive" in start_here
-    assert "brew install intertwine/tap/agent-hive" in start_here
+    assert "uv tool install mellona-hive" in start_here
+    assert "pipx install mellona-hive" in start_here
+    assert "python -m pip install mellona-hive" in start_here
+    assert "brew install intertwine/tap/mellona-hive" in start_here
     assert "Homebrew currently ships the base CLI" in start_here
 
 

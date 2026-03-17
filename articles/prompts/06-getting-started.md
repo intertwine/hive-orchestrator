@@ -61,7 +61,7 @@ Create an image showing the establishment of project dependencies as a construct
 ## Image 7: Quick Reference Poster
 
 **Prompt:**
-Create an image styled as a beautiful command-line reference poster or cheat sheet suitable for a developer's wall. The poster shows essential Agent Hive commands in clean typography: "uv tool install agent-hive" (install), "hive doctor" (check workspace), "hive task ready" (find work), "hive context startup" (build context), and "hive sync projections" (refresh views). Each command has a small icon and brief description. The design is modern developer aesthetic with a dark background, syntax-highlighted commands, clean sans-serif fonts, and a subtle grid layout. A small Agent Hive logo and bee icon sit in the corner. Developer cheat sheet poster art style, functional and beautiful.
+Create an image styled as a beautiful command-line reference poster or cheat sheet suitable for a developer's wall. The poster shows essential Agent Hive commands in clean typography: "uv tool install mellona-hive" (install), "hive doctor" (check workspace), "hive task ready" (find work), "hive context startup" (build context), and "hive sync projections" (refresh views). Each command has a small icon and brief description. The design is modern developer aesthetic with a dark background, syntax-highlighted commands, clean sans-serif fonts, and a subtle grid layout. A small Agent Hive logo and bee icon sit in the corner. Developer cheat sheet poster art style, functional and beautiful.
 
 **Caption:** *Quick reference: install Hive, check the workspace, find ready work, build startup context, and refresh projections.*
 

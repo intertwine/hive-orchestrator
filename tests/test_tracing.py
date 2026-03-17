@@ -73,9 +73,11 @@ class TestGetTracingStatus:
         assert "disabled_by_env" in status
 
     def test_status_default_project(self, monkeypatch):
-        """Test default project name."""
+        """Test default tracing project keeps the product name."""
         monkeypatch.delenv("WEAVE_PROJECT", raising=False)
         status = get_tracing_status()
+        # We keep Agent Hive as the observability project identity even though
+        # the package distribution is mellona-hive.
         assert status["project"] == "agent-hive"
 
     def test_status_custom_project(self, monkeypatch):

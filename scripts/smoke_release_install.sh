@@ -9,8 +9,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="${1:-$REPO_ROOT/dist}"
 RELEASE_PYTHON_VERSION="${RELEASE_PYTHON_VERSION:-3.11}"
+DIST_PACKAGE_NAME="${DIST_PACKAGE_NAME:-mellona-hive}"
+WHEEL_GLOB="${DIST_PACKAGE_NAME//-/_}-*.whl"
 
-WHEEL_PATH="$(find "$DIST_DIR" -maxdepth 1 -name 'agent_hive-*.whl' | sort -V | tail -n 1)"
+WHEEL_PATH="$(find "$DIST_DIR" -maxdepth 1 -name "$WHEEL_GLOB" | sort -V | tail -n 1)"
 if [ -z "$WHEEL_PATH" ]; then
     echo "❌ Error: no built wheel found in $DIST_DIR" >&2
     echo "Run 'make build' first." >&2
@@ -50,7 +52,7 @@ run_uv_tool_smoke() {
     local hive_bin
 
     mkdir -p "$uv_home" "$uv_bin_dir" "$workspace"
-    HOME="$uv_home" UV_TOOL_BIN_DIR="$uv_bin_dir" uv tool install --force --from "$WHEEL_PATH" agent-hive >/dev/null
+    HOME="$uv_home" UV_TOOL_BIN_DIR="$uv_bin_dir" uv tool install --force --from "$WHEEL_PATH" "$DIST_PACKAGE_NAME" >/dev/null
 
     hive_bin="$uv_bin_dir/hive"
     "$hive_bin" --version >/dev/null

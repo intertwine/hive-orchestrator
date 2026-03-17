@@ -28,7 +28,7 @@ What actually happened.
 
 - OS: [e.g., Ubuntu 22.04, macOS 14]
 - Python version: [e.g., 3.11.5]
-- Agent Hive version: [e.g., 2.2.0 or commit hash]
+- Agent Hive version: [e.g., 2.2.1 or commit hash]
 
 ## Logs/Screenshots
 

@@ -12,6 +12,8 @@ permissions:
 
 env:
   RELEASE_PYTHON_VERSION: "3.11"
+  DIST_PACKAGE_NAME: "mellona-hive"
+  HOMEBREW_FORMULA_NAME: "mellona-hive"
   HOMEBREW_PYTHON_VERSION: "3.13"
   HOMEBREW_PYTHON_DEP: "python@3.13"
 
@@ -31,7 +33,7 @@ jobs:
       - name: Require a version tag ref
         run: |
           if [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
-            echo "This workflow only publishes from version tags like v2.2.0."
+            echo "This workflow only publishes from version tags like v2.2.1."
             echo "Create and push a release tag, then run the workflow from that tag if you need a manual retry."
             exit 1
           fi
@@ -102,23 +104,25 @@ jobs:
           PACKAGE_VERSION: ${{ needs.publish-pypi.outputs.version }}
         run: |
           for attempt in {1..20}; do
-            if curl -fsSL "https://pypi.org/pypi/agent-hive/${PACKAGE_VERSION}/json" >/dev/null 2>&1; then
+            if curl -fsSL "https://pypi.org/pypi/${{ env.DIST_PACKAGE_NAME }}/${PACKAGE_VERSION}/json" >/dev/null 2>&1; then
               echo "PyPI release is live."
               exit 0
             fi
             echo "Waiting for PyPI propagation (${attempt}/20)..."
             sleep 15
           done
-          echo "Timed out waiting for agent-hive ${PACKAGE_VERSION} on PyPI."
+          echo "Timed out waiting for ${{ env.DIST_PACKAGE_NAME }} ${PACKAGE_VERSION} on PyPI."
           exit 1
 
       - name: Generate Homebrew formula
         run: |
           uv run --with pip python scripts/generate_homebrew_formula.py \
+            --formula-name "${{ env.HOMEBREW_FORMULA_NAME }}" \
+            --package-name "${{ env.DIST_PACKAGE_NAME }}" \
             --package-version "${{ needs.publish-pypi.outputs.version }}" \
             --python-dep "${{ env.HOMEBREW_PYTHON_DEP }}" \
             --python-version "${{ env.HOMEBREW_PYTHON_VERSION }}" \
-            --output packaging/homebrew/agent-hive.rb
+            --output packaging/homebrew/${{ env.HOMEBREW_FORMULA_NAME }}.rb
 
       - name: Verify Homebrew formula
         env:
@@ -147,7 +151,7 @@ jobs:
 
       - name: Warn if formula name already exists in Homebrew/core
         run: |
-          FORMULA_NAME="agent-hive"
+          FORMULA_NAME="${{ env.HOMEBREW_FORMULA_NAME }}"
           if curl -fsSL "https://formulae.brew.sh/api/formula/${FORMULA_NAME}.json" >/dev/null 2>&1; then
             echo "::warning::Formula name '${FORMULA_NAME}' already exists in Homebrew/core. Use a fully qualified tap install target and consider renaming before a public tap release."
           fi
@@ -171,23 +175,25 @@ jobs:
           PACKAGE_VERSION: ${{ needs.publish-pypi.outputs.version }}
         run: |
           for attempt in {1..20}; do
-            if curl -fsSL "https://pypi.org/pypi/agent-hive/${PACKAGE_VERSION}/json" >/dev/null 2>&1; then
+            if curl -fsSL "https://pypi.org/pypi/${{ env.DIST_PACKAGE_NAME }}/${PACKAGE_VERSION}/json" >/dev/null 2>&1; then
               echo "PyPI release is live."
               exit 0
             fi
             echo "Waiting for PyPI propagation (${attempt}/20)..."
             sleep 15
           done
-          echo "Timed out waiting for agent-hive ${PACKAGE_VERSION} on PyPI."
+          echo "Timed out waiting for ${{ env.DIST_PACKAGE_NAME }} ${PACKAGE_VERSION} on PyPI."
           exit 1
 
       - name: Generate Homebrew formula
         run: |
           uv run --with pip python scripts/generate_homebrew_formula.py \
+            --formula-name "${{ env.HOMEBREW_FORMULA_NAME }}" \
+            --package-name "${{ env.DIST_PACKAGE_NAME }}" \
             --package-version "${{ needs.publish-pypi.outputs.version }}" \
             --python-dep "${{ env.HOMEBREW_PYTHON_DEP }}" \
             --python-version "${{ env.HOMEBREW_PYTHON_VERSION }}" \
-            --output packaging/homebrew/agent-hive.rb
+            --output packaging/homebrew/${{ env.HOMEBREW_FORMULA_NAME }}.rb
 
       - name: Checkout tap repository
         uses: actions/checkout@v4
@@ -199,18 +205,18 @@ jobs:
       - name: Update formula in tap repository
         run: |
           mkdir -p homebrew-tap/Formula
-          cp packaging/homebrew/agent-hive.rb homebrew-tap/Formula/agent-hive.rb
+          cp packaging/homebrew/${{ env.HOMEBREW_FORMULA_NAME }}.rb homebrew-tap/Formula/${{ env.HOMEBREW_FORMULA_NAME }}.rb
 
       - name: Commit and push formula update
         run: |
           cd homebrew-tap
-          if git diff --quiet -- Formula/agent-hive.rb; then
+          if [ -z "$(git status --porcelain -- Formula/${{ env.HOMEBREW_FORMULA_NAME }}.rb)" ]; then
             echo "No formula changes detected."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/agent-hive.rb
-          git commit -m "agent-hive ${{ needs.publish-pypi.outputs.version }}"
+          git add Formula/${{ env.HOMEBREW_FORMULA_NAME }}.rb
+          git commit -m "${{ env.HOMEBREW_FORMULA_NAME }} ${{ needs.publish-pypi.outputs.version }}"
           git push

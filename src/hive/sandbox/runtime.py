@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import tempfile
 from typing import TYPE_CHECKING
 
 from src.hive.flags import feature_flags
-from src.hive.sandbox.registry import iter_backend_probes
+from src.hive.sandbox.registry import get_backend, iter_backend_probes
 
 if TYPE_CHECKING:
     from src.hive.runtime.runpack import SandboxPolicy
@@ -59,9 +60,36 @@ def _read_write_mounts(policy: SandboxPolicy, cwd: Path) -> tuple[Path, Path]:
     return host_worktree, host_artifacts
 
 
-def _asrt_settings_path(policy: SandboxPolicy, cwd: Path) -> Path:
+def _resolved_backend_binary(backend_name: str) -> str:
+    backend = get_backend(backend_name)
+    probe = backend.probe()
+    binary = str((probe.evidence or {}).get("binary") or "").strip()
+    if binary:
+        return binary
+    finder = getattr(backend, "_find_binary", None)
+    if callable(finder):
+        resolved = finder()
+        if resolved:
+            return str(resolved)
+    raise ValueError(
+        f"Sandbox backend {backend_name!r} was selected, but Hive could not resolve its binary path."
+    )
+
+
+def _write_asrt_settings_file(policy: SandboxPolicy, cwd: Path) -> Path:
     _, host_artifacts = _read_write_mounts(policy, cwd)
-    return host_artifacts / "asrt-settings.json"
+    host_artifacts.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=host_artifacts,
+        prefix="asrt-settings-",
+        suffix=".json",
+        delete=False,
+    ) as handle:
+        json.dump(_asrt_settings_payload(policy, cwd), handle, indent=2, sort_keys=True)
+        handle.write("\n")
+        return Path(handle.name)
 
 
 def _asrt_settings_payload(policy: SandboxPolicy, cwd: Path) -> dict[str, object]:
@@ -173,14 +201,9 @@ def sandboxed_command(
         return command, True
 
     if policy.backend == "asrt":
-        settings_path = _asrt_settings_path(policy, cwd)
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-        settings_path.write_text(
-            json.dumps(_asrt_settings_payload(policy, cwd), indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
+        settings_path = _write_asrt_settings_file(policy, cwd)
         return [
-            "srt",
+            _resolved_backend_binary("asrt"),
             "--settings",
             str(settings_path),
             "sh",

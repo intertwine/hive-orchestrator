@@ -665,6 +665,18 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
     artifacts = tmp_path / "artifacts"
     worktree.mkdir()
     artifacts.mkdir()
+    asrt = get_backend("asrt")
+
+    def fake_asrt_probe(self):
+        return SandboxProbe(
+            backend="asrt",
+            available=True,
+            configured=True,
+            isolation_class="process-wrapper",
+            supported_profiles=["local-fast"],
+            notes=["Detected Anthropic Sandbox Runtime fallback binary."],
+            evidence={"binary": "/tmp/asandbox", "version": "asandbox 0.1.0"},
+        )
 
     def fake_run(*args, **kwargs):
         calls.append({"args": args, "kwargs": kwargs})
@@ -676,6 +688,7 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
 
         return Result()
 
+    monkeypatch.setattr(type(asrt), "probe", fake_asrt_probe)
     monkeypatch.setattr("src.hive.runs.executors.subprocess.run", fake_run)
     executor = LocalExecutor(
         SandboxPolicy(
@@ -698,19 +711,28 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
     )
 
     result = executor.run_command("python -c \"print('ok')\"", cwd=worktree, timeout_seconds=30)
+    second = executor.run_command("python -c \"print('ok again')\"", cwd=worktree, timeout_seconds=30)
 
     argv = list(calls[0]["args"][0])
     settings_path = Path(argv[2])
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    second_argv = list(calls[1]["args"][0])
+    second_settings_path = Path(second_argv[2])
 
     assert result.returncode == 0
+    assert second.returncode == 0
     assert result.sandbox is not None
     assert result.sandbox["backend"] == "asrt"
     assert result.sandbox["network_mode"] == "deny"
     assert calls[0]["kwargs"]["shell"] is False
-    assert argv[:4] == ["srt", "--settings", str(settings_path), "sh"]
+    assert argv[:4] == ["/tmp/asandbox", "--settings", str(settings_path), "sh"]
     assert settings["filesystem"]["allowWrite"][:2] == [str(worktree), str(artifacts)]
     assert settings["network"]["allowedDomains"] == []
+    assert settings_path.parent == artifacts
+    assert settings_path.name.startswith("asrt-settings-")
+    assert settings_path.name != "asrt-settings.json"
+    assert second_settings_path.parent == artifacts
+    assert second_settings_path != settings_path
 
 
 def test_local_executor_runs_commands_via_daytona_sdk(monkeypatch, tmp_path):
@@ -1161,10 +1183,11 @@ def test_execute_local_fast_wraps_python_runner_with_asrt(monkeypatch, tmp_path)
         return SandboxProbe(
             backend="asrt",
             available=True,
+            configured=True,
             isolation_class="process-wrapper",
             supported_profiles=["local-fast"],
             notes=["Detected Anthropic Sandbox Runtime."],
-            evidence={"binary": "/tmp/srt"},
+            evidence={"binary": "/tmp/anthropic-sandbox"},
         )
 
     def fake_run(*args, **kwargs):
@@ -1199,9 +1222,11 @@ def test_execute_local_fast_wraps_python_runner_with_asrt(monkeypatch, tmp_path)
     assert payload["sandbox_network_mode"] == "deny"
     assert calls[0]["kwargs"]["shell"] is False
     assert calls[0]["kwargs"]["env"] is None
-    assert argv[:4] == ["srt", "--settings", argv[2], "sh"]
+    assert argv[:4] == ["/tmp/anthropic-sandbox", "--settings", argv[2], "sh"]
     assert "python -m src.hive.codemode.python_runner" in argv[-1]
     assert settings_payload["filesystem"]["allowRead"][0] == str(workspace)
+    assert Path(argv[2]).name.startswith("asrt-settings-")
+    assert Path(argv[2]).name != "asrt-settings.json"
 
 
 def test_execute_local_safe_returns_error_when_backend_is_unavailable(monkeypatch, tmp_path):

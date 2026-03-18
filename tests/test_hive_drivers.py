@@ -1700,6 +1700,56 @@ class TestHiveDrivers:
         assert "never initialized its startup state" in status.progress.message
         assert status.artifacts["worker_stderr_path"] == str(worker_stderr_path)
 
+    def test_codex_startup_timeout_seconds_respects_env_override(self, monkeypatch):
+        driver = get_driver("codex")
+
+        monkeypatch.delenv("HIVE_CODEX_STARTUP_TIMEOUT_SECONDS", raising=False)
+        assert type(driver)._startup_timeout_seconds() == 3.0
+
+        monkeypatch.setenv("HIVE_CODEX_STARTUP_TIMEOUT_SECONDS", "7.5")
+        assert type(driver)._startup_timeout_seconds() == 7.5
+
+        monkeypatch.setenv("HIVE_CODEX_STARTUP_TIMEOUT_SECONDS", "invalid")
+        assert type(driver)._startup_timeout_seconds() == 3.0
+
+    def test_codex_terminate_process_swallows_repeated_wait_timeouts(self):
+        driver = get_driver("codex")
+
+        class FakeProcess:
+            def poll(self):
+                return None
+
+            def terminate(self):
+                return None
+
+            def wait(self, timeout=None):
+                raise subprocess.TimeoutExpired(cmd="fake", timeout=timeout or 0)
+
+            def kill(self):
+                return None
+
+        type(driver)._terminate_process(FakeProcess())
+
+    def test_codex_wait_for_startup_artifact_allows_fast_exit_after_state_write(self, tmp_path):
+        driver = get_driver("codex")
+        state_path = tmp_path / "state.json"
+
+        class FastExitProcess:
+            def __init__(self):
+                self.poll_calls = 0
+
+            def poll(self):
+                self.poll_calls += 1
+                state_path.write_text('{"status":"ready"}', encoding="utf-8")
+                return 0
+
+        assert type(driver)._wait_for_startup_artifact(
+            state_path,
+            process=FastExitProcess(),
+            timeout_seconds=0.2,
+            poll_seconds=0.01,
+        )
+
     def test_claude_live_exec_recovers_result_without_exit_marker(self, tmp_path, monkeypatch):
         driver = get_driver("claude-code")
         raw_output_path = tmp_path / "claude-print-result.json"

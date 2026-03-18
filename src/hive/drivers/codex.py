@@ -56,6 +56,17 @@ class CodexDriver(HarnessDriver):
         return raw.strip().lower() in {"1", "true", "yes", "on"}
 
     @staticmethod
+    def _startup_timeout_seconds() -> float:
+        raw = os.environ.get("HIVE_CODEX_STARTUP_TIMEOUT_SECONDS")
+        if raw is None:
+            return 3.0
+        try:
+            timeout = float(raw)
+        except ValueError:
+            return 3.0
+        return max(timeout, 0.1)
+
+    @staticmethod
     def _pid_is_running(pid: int) -> bool:
         try:
             os.kill(pid, 0)
@@ -112,7 +123,7 @@ class CodexDriver(HarnessDriver):
         path: Path,
         *,
         process: subprocess.Popen[str],
-        timeout_seconds: float = 1.0,
+        timeout_seconds: float = 3.0,
         poll_seconds: float = 0.05,
     ) -> bool:
         deadline = time.monotonic() + timeout_seconds
@@ -120,7 +131,7 @@ class CodexDriver(HarnessDriver):
             if path.exists():
                 return True
             if process.poll() is not None:
-                return False
+                return path.exists()
             time.sleep(poll_seconds)
         return path.exists()
 
@@ -133,7 +144,10 @@ class CodexDriver(HarnessDriver):
             process.wait(timeout=2)
         except subprocess.TimeoutExpired:
             process.kill()
-            process.wait(timeout=2)
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                return
 
     @staticmethod
     def _budget_usage_from_state(state: dict[str, Any]) -> RunBudgetUsage:
@@ -247,7 +261,11 @@ class CodexDriver(HarnessDriver):
                 transport="stdio-jsonrpc",
                 metadata={"launch_error": str(exc)},
             )
-        if not self._wait_for_startup_artifact(state_path, process=process):
+        if not self._wait_for_startup_artifact(
+            state_path,
+            process=process,
+            timeout_seconds=self._startup_timeout_seconds(),
+        ):
             launch_error = "Codex app-server broker did not initialize its state file."
             if process.poll() is not None:
                 launch_error = (

@@ -247,6 +247,13 @@ class HarnessDriver(Driver):
             driver_handle=f"{self.name}:{request.run_id}",
             status="awaiting_input",
             launched_at=utc_now_iso(),
+            launch_mode="staged",
+            transport="manual",
+            metadata={
+                "declared_launch_mode": self.declared_launch_mode,
+                "compiled_context_path": request.compiled_context_path,
+                "artifacts_path": request.artifacts_path,
+            },
         )
 
     def status(self, handle: RunHandle) -> RunStatus:
@@ -265,4 +272,8 @@ class HarnessDriver(Driver):
             ),
             waiting_on=self.name,
             last_event_at=utc_now_iso(),
+            session={
+                "launch_mode": "staged",
+                "transport": "manual",
+            },
         )

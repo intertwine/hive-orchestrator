@@ -82,6 +82,12 @@ class LocalDriver(Driver):
             driver_handle=f"local:{request.run_id}",
             status="running",
             launched_at=utc_now_iso(),
+            launch_mode="local",
+            transport="process",
+            metadata={
+                "worktree_path": request.workspace.worktree_path,
+                "artifacts_path": request.artifacts_path,
+            },
         )
 
     def status(self, handle: RunHandle) -> RunStatus:
@@ -97,4 +103,5 @@ class LocalDriver(Driver):
             ),
             waiting_on=None,
             last_event_at=utc_now_iso(),
+            session={"launch_mode": "local", "transport": "process"},
         )

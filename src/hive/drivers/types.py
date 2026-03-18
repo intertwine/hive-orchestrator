@@ -135,10 +135,32 @@ class RunHandle:
     driver_handle: str
     status: str
     launched_at: str
+    launch_mode: str | None = None
+    transport: str | None = None
+    session_id: str | None = None
+    thread_id: str | None = None
+    resume_token: str | None = None
+    event_cursor: str | None = None
+    approval_channel: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize handle metadata."""
-        return asdict(self)
+        return {
+            "run_id": self.run_id,
+            "driver": self.driver,
+            "driver_handle": self.driver_handle,
+            "status": self.status,
+            "launched_at": self.launched_at,
+            "launch_mode": self.launch_mode,
+            "transport": self.transport,
+            "session_id": self.session_id,
+            "thread_id": self.thread_id,
+            "resume_token": self.resume_token,
+            "event_cursor": self.event_cursor,
+            "approval_channel": self.approval_channel,
+            "metadata": dict(self.metadata),
+        }
 
 
 @dataclass
@@ -191,6 +213,10 @@ class RunStatus:
     last_event_at: str | None
     budget: RunBudgetUsage = field(default_factory=RunBudgetUsage)
     links: RunLinks = field(default_factory=RunLinks)
+    pending_approvals: list[dict[str, Any]] = field(default_factory=list)
+    event_cursor: str | None = None
+    session: dict[str, Any] = field(default_factory=dict)
+    artifacts: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize a driver status."""
@@ -204,6 +230,10 @@ class RunStatus:
             "last_event_at": self.last_event_at,
             "budget": self.budget.to_dict(),
             "links": self.links.to_dict(),
+            "pending_approvals": list(self.pending_approvals),
+            "event_cursor": self.event_cursor,
+            "session": dict(self.session),
+            "artifacts": dict(self.artifacts),
         }
 
 

@@ -86,6 +86,12 @@ class ManualDriver(Driver):
             driver_handle=f"manual:{request.run_id}",
             status="awaiting_input",
             launched_at=utc_now_iso(),
+            launch_mode="staged",
+            transport="manual",
+            metadata={
+                "declared_launch_mode": "staged",
+                "compiled_context_path": request.compiled_context_path,
+            },
         )
 
     def status(self, handle: RunHandle) -> RunStatus:
@@ -101,4 +107,5 @@ class ManualDriver(Driver):
             ),
             waiting_on="operator",
             last_event_at=utc_now_iso(),
+            session={"launch_mode": "staged", "transport": "manual"},
         )

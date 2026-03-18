@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from hive.cli.main import main as hive_main
 from src.hive.console.api import app
-from src.hive.drivers import get_driver
+from src.hive.drivers import RunBudgetUsage, RunHandle, RunLinks, RunProgress, RunStatus, get_driver
 from src.hive.drivers import SteeringRequest
 from src.hive.runtime import request_approval
 from src.hive.runs.engine import accept_run, eval_run, run_artifacts, start_run, steer_run
@@ -114,6 +114,51 @@ def test_driver_doctor_surfaces_binary_backed_probe_details(monkeypatch, capsys,
     assert claude["probed"]["session_id"] is True
     assert claude["probed"]["permission_mode"] is True
     assert claude["probed"]["mcp_config"] is True
+
+
+def test_live_session_contract_fields_round_trip():
+    handle = RunHandle(
+        run_id="run_live",
+        driver="codex",
+        driver_handle="codex:run_live",
+        status="running",
+        launched_at="2026-03-17T00:00:00Z",
+        launch_mode="app_server",
+        transport="ws",
+        session_id="sess_123",
+        thread_id="thread_456",
+        resume_token="resume_789",
+        event_cursor="cursor_001",
+        approval_channel="approvals/live",
+        metadata={"protocol": "json-rpc"},
+    )
+    status = RunStatus(
+        run_id="run_live",
+        state="running",
+        health="healthy",
+        driver="codex",
+        progress=RunProgress(phase="implementing", message="Live session attached.", percent=30),
+        waiting_on=None,
+        last_event_at="2026-03-17T00:01:00Z",
+        budget=RunBudgetUsage(spent_tokens=100, spent_cost_usd=0.12, wall_minutes=1),
+        links=RunLinks(driver_ui="https://example.invalid/runs/run_live"),
+        pending_approvals=[{"approval_id": "approval_1", "kind": "command"}],
+        event_cursor="cursor_001",
+        session={"session_id": "sess_123", "transport": "ws"},
+        artifacts={"transcript_raw_dir": "/tmp/run_live/raw"},
+    )
+
+    handle_payload = handle.to_dict()
+    status_payload = status.to_dict()
+
+    assert handle_payload["session_id"] == "sess_123"
+    assert handle_payload["thread_id"] == "thread_456"
+    assert handle_payload["approval_channel"] == "approvals/live"
+    assert handle_payload["metadata"]["protocol"] == "json-rpc"
+    assert status_payload["event_cursor"] == "cursor_001"
+    assert status_payload["pending_approvals"][0]["approval_id"] == "approval_1"
+    assert status_payload["session"]["transport"] == "ws"
+    assert status_payload["artifacts"]["transcript_raw_dir"] == "/tmp/run_live/raw"
 
 
 def test_sandbox_doctor_lists_scaffolded_backends(capsys, temp_hive_dir):

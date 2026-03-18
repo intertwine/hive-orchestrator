@@ -31,6 +31,9 @@ def load_run(path: str | Path | None, run_id: str) -> dict:
     metadata.setdefault("transcript_ndjson_path", str(run_root / "transcript.ndjson"))
     metadata.setdefault("retrieval_trace_path", str(run_root / "retrieval" / "trace.json"))
     metadata.setdefault("retrieval_hits_path", str(run_root / "retrieval" / "hits.json"))
+    metadata.setdefault("handoff_manifest_path", str(run_root / "context" / "compiled" / "handoffs.json"))
+    metadata.setdefault("reroute_bundle_path", str(run_root / "handoff" / "reroute-bundle.json"))
+    metadata.setdefault("reroute_summary_path", str(run_root / "handoff" / "reroute-summary.md"))
     metadata.setdefault(
         "scheduler_candidate_set_path", str(run_root / "scheduler" / "candidate-set.json")
     )

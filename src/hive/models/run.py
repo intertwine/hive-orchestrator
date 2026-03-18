@@ -49,6 +49,9 @@ class RunRecord:
     approvals_path: str | None = None
     retrieval_trace_path: str | None = None
     retrieval_hits_path: str | None = None
+    handoff_manifest_path: str | None = None
+    reroute_bundle_path: str | None = None
+    reroute_summary_path: str | None = None
     scheduler_candidate_set_path: str | None = None
     scheduler_decision_path: str | None = None
     eval_results_path: str | None = None
@@ -103,6 +106,9 @@ class RunRecord:
             "approvals_path": self.approvals_path,
             "retrieval_trace_path": self.retrieval_trace_path,
             "retrieval_hits_path": self.retrieval_hits_path,
+            "handoff_manifest_path": self.handoff_manifest_path,
+            "reroute_bundle_path": self.reroute_bundle_path,
+            "reroute_summary_path": self.reroute_summary_path,
             "scheduler_candidate_set_path": self.scheduler_candidate_set_path,
             "scheduler_decision_path": self.scheduler_decision_path,
             "eval_results_path": self.eval_results_path,

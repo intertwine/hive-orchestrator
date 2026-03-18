@@ -111,6 +111,32 @@ def steer_run(
             driver_name=target_driver,
             model=str((request.target or {}).get("model") or "") or None,
         )
+        reroute_bundle_path = str(new_request.metadata.get("reroute_bundle_path") or "")
+        reroute_summary_path = str(new_request.metadata.get("reroute_summary_path") or "")
+        if reroute_bundle_path:
+            metadata["reroute_bundle_path"] = reroute_bundle_path
+        if reroute_summary_path:
+            metadata["reroute_summary_path"] = reroute_summary_path
+        metadata.setdefault("metadata_json", {}).setdefault("runtime_v2", {})["reroute_bundle"] = (
+            dict(new_request.metadata.get("reroute_bundle") or {})
+        )
+        emit_event(
+            root,
+            actor={"kind": "system", "id": "hive"},
+            entity_type="run",
+            entity_id=run_id,
+            event_type="handoff.materialized",
+            source="run.steer",
+            payload={
+                "target_driver": target_driver,
+                "bundle_path": reroute_bundle_path,
+                "summary_path": reroute_summary_path,
+            },
+            run_id=run_id,
+            task_id=metadata.get("task_id"),
+            project_id=metadata.get("project_id"),
+            campaign_id=metadata.get("campaign_id"),
+        )
         new_handle = new_driver.launch(new_request)
         new_status = new_driver.status(new_handle)
         handles = _load_driver_handles(metadata)

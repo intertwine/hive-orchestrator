@@ -120,6 +120,9 @@ def _artifact_paths(run_root: Path, run: dict) -> dict[str, str | None]:
         "approvals": run.get("approvals_path"),
         "retrieval_trace": run.get("retrieval_trace_path"),
         "retrieval_hits": run.get("retrieval_hits_path"),
+        "handoff_manifest": run.get("handoff_manifest_path"),
+        "reroute_bundle": run.get("reroute_bundle_path"),
+        "reroute_summary": run.get("reroute_summary_path"),
         "scheduler_candidate_set": run.get("scheduler_candidate_set_path"),
         "scheduler_decision": run.get("scheduler_decision_path"),
         "eval_results": run.get("eval_results_path"),
@@ -265,6 +268,8 @@ def load_run_detail(base_path: Path, run_id: str) -> dict:
     sandbox_policy = _load_json(run.get("sandbox_policy_path")) or {}
     runtime_manifest = _load_json(run.get("runtime_manifest_path")) or {}
     retrieval_trace = _load_json(run.get("retrieval_trace_path")) or {}
+    handoff_manifest = _load_json(run.get("handoff_manifest_path")) or {}
+    reroute_bundle = _load_json(run.get("reroute_bundle_path")) or {}
     scheduler_decision = _load_json(run.get("scheduler_decision_path")) or {}
     eval_results = _load_json(run.get("eval_results_path")) or {}
     final_state = _load_json(run.get("final_path")) or {}
@@ -294,6 +299,8 @@ def load_run_detail(base_path: Path, run_id: str) -> dict:
             "sandbox_policy": sandbox_policy,
             "runtime_manifest": runtime_manifest,
             "retrieval_trace": retrieval_trace,
+            "handoff_manifest": handoff_manifest,
+            "reroute_bundle": reroute_bundle,
             "scheduler_decision": scheduler_decision,
             "outputs": context_manifest.get("outputs", []),
         },
@@ -305,6 +312,8 @@ def load_run_detail(base_path: Path, run_id: str) -> dict:
         "sandbox_policy": sandbox_policy,
         "runtime_manifest": runtime_manifest,
         "retrieval_trace": retrieval_trace,
+        "handoff_manifest": handoff_manifest,
+        "reroute_bundle": reroute_bundle,
         "scheduler_decision": scheduler_decision,
         "eval_results": eval_results,
         "final_state": final_state,

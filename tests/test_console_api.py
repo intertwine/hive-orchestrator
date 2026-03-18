@@ -84,6 +84,8 @@ class TestObserveConsoleApi:
         assert "artifact_preview" in detail.json()["detail"]
         assert "inspector" in detail.json()["detail"]
         assert "context_entries" in detail.json()["detail"]
+        assert "handoff_manifest" in detail.json()["detail"]["inspector"]
+        assert "reroute_bundle" in detail.json()["detail"]["inspector"]
 
     def test_run_steer_endpoint_records_typed_steering_history(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)

@@ -26,12 +26,14 @@ from src.hive.runtime import request_approval
 from src.hive.runs.program import _build_reroute_launch_request
 from src.hive.runs.engine import (
     _refresh_workspace_state,
+    accept_run,
+    eval_run,
     load_run,
     start_run,
     steer_run,
 )
 from src.hive.scheduler.query import ready_tasks
-from src.hive.store.task_files import create_task
+from src.hive.store.task_files import create_task, update_task
 
 
 def _invoke_cli_json(capsys, argv: list[str]) -> dict:
@@ -1184,6 +1186,114 @@ class TestHiveDrivers:
 
         assert request.workspace.base_branch == "release/demo"
         assert request.metadata["task_title"] == run.task_id
+
+    def test_reroute_launch_request_materializes_explicit_handoff_bundle(
+        self, temp_hive_dir, capsys
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="local")
+        request_approval(
+            temp_hive_dir,
+            run.id,
+            kind="command",
+            title="Approve network access",
+            summary="Codex requested network access.",
+            requested_by="codex",
+        )
+        metadata = load_run(temp_hive_dir, run.id)
+        request = _build_reroute_launch_request(
+            Path(temp_hive_dir),
+            metadata,
+            driver_name="codex",
+        )
+        bundle_path = Path(str(request.metadata["reroute_bundle_path"]))
+        bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+
+        assert bundle_path.exists()
+        assert request.metadata["reroute_summary_path"]
+        assert bundle["source_driver"] == "local"
+        assert bundle["target_driver"] == "codex"
+        assert bundle["artifacts"]["transcript"] == metadata["transcript_path"]
+        assert bundle["pending_approvals"]
+        assert request.metadata["reroute_bundle"]["run_id"] == run.id
+
+    def test_start_run_compiles_dependency_handoff_artifacts(self, temp_hive_dir, capsys):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        dependency_task = create_task(
+            temp_hive_dir,
+            "demo",
+            "Dependency task",
+            status="ready",
+            priority=1,
+            summary_md="Land the prerequisite slice.",
+        )
+        follow_up_task = create_task(
+            temp_hive_dir,
+            "demo",
+            "Follow-up task",
+            status="ready",
+            priority=1,
+            summary_md="Consume the prerequisite artifact handoff.",
+        )
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        dependency_task_id = dependency_task.id
+        follow_up_task_id = follow_up_task.id
+        dependency_run = start_run(temp_hive_dir, dependency_task_id, driver_name="local")
+        eval_run(temp_hive_dir, dependency_run.id)
+        accept_run(temp_hive_dir, dependency_run.id)
+        update_task(
+            temp_hive_dir,
+            dependency_task_id,
+            {
+                "edges": {
+                    **dependency_task.edges,
+                    "blocks": [follow_up_task_id],
+                }
+            },
+        )
+
+        run = start_run(temp_hive_dir, follow_up_task_id, driver_name="codex")
+        metadata = load_run(temp_hive_dir, run.id)
+        handoff_path = Path(str(metadata["handoff_manifest_path"]))
+        handoffs = json.loads(handoff_path.read_text(encoding="utf-8"))
+        launch = json.loads(
+            (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "launch.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        assert handoff_path.exists()
+        assert handoffs["runs"][0]["run_id"] == dependency_run.id
+        assert handoffs["runs"][0]["task_id"] == dependency_task_id
+        assert launch["metadata"]["handoff_manifest_path"] == str(handoff_path)
 
     def test_workspace_refresh_keeps_legacy_patch_inside_run_directory(
         self, temp_hive_dir, capsys

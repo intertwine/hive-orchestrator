@@ -57,6 +57,16 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           trigger_phrase: "@claude"
+          prompt: |
+            REPO: ${{ github.repository }}
+            EVENT NAME: ${{ github.event_name }}
+
+            Respond to the GitHub mention or assignment request directly on GitHub.
+            Keep GitHub comments concise and actionable.
+            Never paste raw shell output, test logs, or long diffs into a GitHub comment.
+            Summarize command results in prose and point to the workflow or job URL for full logs.
+            Quote only the minimum relevant evidence needed to support a conclusion.
+            Only publish the final GitHub comment or PR update, not raw action output.
           # Allowed tools for this repository
           claude_args: |
             --allowedTools "Bash(*),Read,Write,Edit,Glob,Grep,TodoWrite"
@@ -91,6 +101,10 @@ jobs:
             - Security or safety risks
             - Mismatches between implementation and stated intent
 
+            Keep GitHub comments concise and actionable.
+            Never paste raw shell output, test logs, or long diffs into a GitHub comment.
+            Summarize command results in prose and point to the workflow or job URL for full logs.
+            Quote only the minimum relevant evidence needed to support a conclusion.
             Use `gh pr comment` for top-level feedback.
             Use `mcp__github_inline_comment__create_inline_comment` with `confirmed: true` for code-specific findings.
             Only post GitHub comments. Do not submit review text as plain action messages.

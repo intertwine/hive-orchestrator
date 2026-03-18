@@ -75,6 +75,13 @@ def dispatch(args, root: Path) -> int:
                 checkpoint=not args.no_checkpoint,
                 checkpoint_message=args.checkpoint_message,
             )
+            startup_step = (
+                f"hive context startup --project {payload['task']['project_id']} "
+                f"--task {payload['task']['id']} --profile {args.profile} --output "
+                "SESSION_CONTEXT.md"
+                if payload["output_path"] is None
+                else f"Review the startup bundle at {payload['output_path']}"
+            )
             response = {
                 "ok": True,
                 "message": (
@@ -87,17 +94,10 @@ def dispatch(args, root: Path) -> int:
                 "recommendation": payload["recommendation"],
                 "checkpoint": payload["checkpoint"],
                 "output_path": payload["output_path"],
-                "next_steps": [
-                    (
-                        f"hive context startup --project {payload['task']['project_id']} "
-                        f"--task {payload['task']['id']} --output SESSION_CONTEXT.md"
-                    )
-                    if payload["output_path"] is None
-                    else f"Review the startup bundle at {payload['output_path']}"
-                ],
+                "next_steps": [startup_step],
             }
             response["next_steps"].append(f"hive finish {payload['run']['id']}")
-            if payload["output_path"] is None and args.print_context:
+            if args.print_context:
                 response["rendered_context"] = payload["rendered_context"]
             return emit(response, args.json)
         if args.command == "finish":
@@ -114,6 +114,14 @@ def dispatch(args, root: Path) -> int:
             if reasons:
                 # Keep the headline compact; the full reason list still renders below.
                 reason_suffix = f": {reasons[0]}"
+            if payload["action"] == "reject":
+                next_steps = [f"hive next --project-id {payload['run']['project_id']}"]
+            elif payload["action"] == "escalate":
+                next_steps = [f"hive run show {args.run_id}"]
+            elif payload["action"] == "accept":
+                next_steps = [f"hive run promote {args.run_id}"]
+            else:
+                next_steps = ["hive next"]
             return emit(
                 {
                     "ok": True,
@@ -126,13 +134,7 @@ def dispatch(args, root: Path) -> int:
                     "promotion_decision": decision,
                     "promotion": payload["promotion"],
                     "action": payload["action"],
-                    "next_steps": (
-                        [f"hive next --project-id {payload['run']['project_id']}"]
-                        if payload["action"] == "reject"
-                        else [f"hive run show {args.run_id}"]
-                        if payload["action"] == "escalate"
-                        else ["hive next"]
-                    ),
+                    "next_steps": next_steps,
                 },
                 args.json,
             )

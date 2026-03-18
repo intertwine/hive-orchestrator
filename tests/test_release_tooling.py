@@ -199,9 +199,10 @@ def test_wheel_force_include_uses_repo_docs_as_the_only_markdown_source():
     repo_root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
     force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    docs_dir = repo_root / "src" / "hive" / "resources" / "docs"
     mirror_files = sorted(
         str(path.relative_to(repo_root))
-        for path in (repo_root / "src" / "hive" / "resources" / "docs").rglob("*")
+        for path in (docs_dir.rglob("*") if docs_dir.exists() else [])
         if path.is_file()
     )
 

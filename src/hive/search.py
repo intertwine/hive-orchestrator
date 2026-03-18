@@ -106,13 +106,13 @@ DOC_TYPE_BOOST = {
     "global": 8,
 }
 
+# Keep a stable view of the checkout root for tests that monkeypatch `_repo_root()`
+# to simulate installed-package behavior without a source docs tree.
+_CHECKOUT_ROOT = Path(__file__).resolve().parents[2]
+
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
-def _source_checkout_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    return _CHECKOUT_ROOT
 
 
 def _packaged_docs_root():
@@ -128,7 +128,7 @@ def _read_doc_resource(relative_path: str) -> tuple[str, str] | None:
     if packaged.is_file():
         return f"package:{relative_path}", packaged.read_text(encoding="utf-8")
 
-    source_checkout = _source_checkout_root() / relative_path
+    source_checkout = _CHECKOUT_ROOT / relative_path
     if source_checkout.exists():
         return f"package:{relative_path}", source_checkout.read_text(encoding="utf-8")
     return None
@@ -163,7 +163,7 @@ def _iter_text_resources(relative_dir: str):
                 )
         return
 
-    source_root = _source_checkout_root() / relative_dir
+    source_root = _CHECKOUT_ROOT / relative_dir
     if not source_root.is_dir():
         return
 

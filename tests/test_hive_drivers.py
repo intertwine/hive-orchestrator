@@ -399,6 +399,243 @@ class TestHiveDrivers:
         assert payload["driver_ack"]["ok"] is True
         assert metadata["status"] == "cancelled"
 
+    def test_claude_live_launch_persists_exec_handle(self, temp_hive_dir, capsys, monkeypatch):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        driver = get_driver("claude-code")
+
+        def fake_live_exec_enabled(self):
+            return True
+
+        def fake_launch_live_exec(self, request):
+            return RunHandle(
+                run_id=request.run_id,
+                driver="claude-code",
+                driver_handle=f"claude-code:exec:{request.run_id}",
+                status="running",
+                launched_at="2026-03-18T06:00:00Z",
+                launch_mode="exec",
+                transport="subprocess",
+                session_id="sess-4242",
+                event_cursor="0",
+                metadata={"pid": 4242, "last_message_path": "/tmp/claude-last.txt"},
+            )
+
+        def fake_status(self, handle):
+            return RunStatus(
+                run_id=handle.run_id,
+                state="running",
+                health="healthy",
+                driver="claude-code",
+                progress=RunProgress(
+                    phase="implementing",
+                    message="Claude live exec is active.",
+                    percent=20,
+                ),
+                waiting_on=None,
+                last_event_at="2026-03-18T06:00:01Z",
+                event_cursor="1",
+                session={
+                    "launch_mode": "exec",
+                    "transport": "subprocess",
+                    "session_id": "sess-4242",
+                },
+                artifacts={"last_message_path": "/tmp/claude-last.txt"},
+            )
+
+        monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+        monkeypatch.setattr(type(driver), "_launch_live_exec", fake_launch_live_exec)
+        monkeypatch.setattr(type(driver), "status", fake_status)
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="claude-code")
+        metadata = load_run(temp_hive_dir, run.id)
+        handles = json.loads(
+            (
+                Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        assert metadata["status"] == "running"
+        assert handles["active"]["launch_mode"] == "exec"
+        assert handles["active"]["transport"] == "subprocess"
+        assert handles["active"]["session_id"] == "sess-4242"
+        assert handles["active"]["metadata"]["pid"] == 4242
+
+    def test_run_status_refreshes_live_claude_driver_status(
+        self, temp_hive_dir, capsys, monkeypatch
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        driver = get_driver("claude-code")
+        calls = {"count": 0}
+
+        def fake_live_exec_enabled(self):
+            return True
+
+        def fake_launch_live_exec(self, request):
+            return RunHandle(
+                run_id=request.run_id,
+                driver="claude-code",
+                driver_handle=f"claude-code:exec:{request.run_id}",
+                status="running",
+                launched_at="2026-03-18T06:00:00Z",
+                launch_mode="exec",
+                transport="subprocess",
+                session_id="sess-9000",
+                event_cursor="0",
+                metadata={"pid": 9000, "last_message_path": "/tmp/claude-last.txt"},
+            )
+
+        def fake_status(self, handle):
+            calls["count"] += 1
+            cursor = "1" if calls["count"] == 1 else "6"
+            return RunStatus(
+                run_id=handle.run_id,
+                state="running",
+                health="healthy",
+                driver="claude-code",
+                progress=RunProgress(
+                    phase="implementing",
+                    message="Claude live exec is active.",
+                    percent=35,
+                ),
+                waiting_on=None,
+                last_event_at="2026-03-18T06:00:30Z",
+                event_cursor=cursor,
+                session={
+                    "launch_mode": "exec",
+                    "transport": "subprocess",
+                    "session_id": "sess-9000",
+                },
+                artifacts={
+                    "last_message_path": "/tmp/claude-last.txt",
+                    "raw_output_path": "/tmp/claude.json",
+                },
+            )
+
+        monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+        monkeypatch.setattr(type(driver), "_launch_live_exec", fake_launch_live_exec)
+        monkeypatch.setattr(type(driver), "status", fake_status)
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="claude-code")
+        payload = _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+        )
+        metadata = load_run(temp_hive_dir, run.id)
+        handles = json.loads(
+            (
+                Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        assert payload["status"]["state"] == "running"
+        assert payload["status"]["event_cursor"] == "6"
+        assert payload["status"]["session"]["session_id"] == "sess-9000"
+        assert metadata["metadata_json"]["driver_status"]["event_cursor"] == "6"
+        assert handles["active"]["event_cursor"] == "6"
+
+    def test_claude_cancel_interrupts_live_session(self, temp_hive_dir, capsys, monkeypatch):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        driver = get_driver("claude-code")
+        interrupt_calls: list[str] = []
+
+        def fake_live_exec_enabled(self):
+            return True
+
+        def fake_launch_live_exec(self, request):
+            return RunHandle(
+                run_id=request.run_id,
+                driver="claude-code",
+                driver_handle=f"claude-code:exec:{request.run_id}",
+                status="running",
+                launched_at="2026-03-18T06:00:00Z",
+                launch_mode="exec",
+                transport="subprocess",
+                session_id="sess-8128",
+                metadata={"pid": 8128},
+            )
+
+        def fake_status(self, handle):
+            return RunStatus(
+                run_id=handle.run_id,
+                state="running",
+                health="healthy",
+                driver="claude-code",
+                progress=RunProgress(
+                    phase="implementing",
+                    message="Claude live exec is active.",
+                    percent=10,
+                ),
+                waiting_on=None,
+                last_event_at="2026-03-18T06:00:30Z",
+                session={
+                    "launch_mode": "exec",
+                    "transport": "subprocess",
+                    "session_id": "sess-8128",
+                },
+            )
+
+        def fake_interrupt(self, handle, mode):
+            interrupt_calls.append(mode)
+            return {"ok": True, "driver": "claude-code", "mode": mode, "pid": 8128}
+
+        monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+        monkeypatch.setattr(type(driver), "_launch_live_exec", fake_launch_live_exec)
+        monkeypatch.setattr(type(driver), "status", fake_status)
+        monkeypatch.setattr(type(driver), "interrupt", fake_interrupt)
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="claude-code")
+        payload = _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "steer", "cancel", run.id, "--reason", "Stop"],
+        )
+        metadata = load_run(temp_hive_dir, run.id)
+
+        assert interrupt_calls == ["cancel"]
+        assert payload["driver_ack"]["ok"] is True
+        assert metadata["status"] == "cancelled"
+
     def test_same_run_can_move_from_local_to_codex_to_claude_code(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)
         _invoke_cli_json(

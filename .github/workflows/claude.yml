@@ -5,6 +5,9 @@ on:
   # Draft PRs already review on pull_request events, so ready_for_review would duplicate work.
   pull_request:
     types: [opened, synchronize, reopened]
+    paths-ignore:
+      - ".github/workflows/claude.yml"
+      - "tests/test_claude_workflow.py"
   # Respond to @claude mentions in issue comments
   issue_comment:
     types: [created]

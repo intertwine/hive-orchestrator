@@ -44,12 +44,15 @@ def test_claude_workflow_reviews_draft_prs_and_uses_sticky_comments():
     response_with = _step_with(workflow["jobs"]["claude-response"], "Run Claude Code Action")
     review_if = workflow["jobs"]["claude-review"]["if"]
     review_types = _workflow_triggers(workflow)["pull_request"]["types"]
+    ignored_paths = _workflow_triggers(workflow)["pull_request"]["paths-ignore"]
     review_permissions = workflow["jobs"]["claude-review"]["permissions"]
 
     assert response_with["use_sticky_comment"] is True
     assert "!github.event.pull_request.draft" not in review_if
     assert "github.event_name == 'pull_request'" in review_if
     assert "ready_for_review" not in review_types
+    assert ".github/workflows/claude.yml" in ignored_paths
+    assert "tests/test_claude_workflow.py" in ignored_paths
     assert review_permissions["id-token"] == "write"
 
 

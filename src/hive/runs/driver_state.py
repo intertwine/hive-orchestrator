@@ -104,6 +104,7 @@ def _update_active_handle_from_status(metadata: dict, status_payload: dict[str, 
     if history and isinstance(history[-1], dict) and history[-1].get("driver_handle") == active.get(
         "driver_handle"
     ):
+        # Keep one mutable latest-state record per live handle; events remain the audit log.
         history[-1] = dict(active)
         handles["history"] = history
     _save_driver_handles(metadata, handles)
@@ -213,6 +214,5 @@ def run_program_policy(program) -> dict[str, object]:
 __all__ = [
     "build_reroute_launch_request",
     "load_driver_metadata",
-    "_refresh_live_driver_status",
     "run_program_policy",
 ]

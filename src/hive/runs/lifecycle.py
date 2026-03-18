@@ -13,7 +13,11 @@ from src.hive.drivers import RunBudget, RunLaunchRequest, RunWorkspace, Steering
 from src.hive.ids import new_id
 from src.hive.models.run import RunRecord
 from src.hive.retrieval_trace import build_retrieval_artifacts
-from src.hive.runtime.approvals import pending_approvals, resolve_approval
+from src.hive.runtime.approvals import (
+    bridge_approval_resolution as _bridge_approval_resolution,
+    pending_approvals,
+    resolve_approval,
+)
 from src.hive.runtime.capabilities import CapabilitySnapshot
 from src.hive.runtime.runpack import (
     runtime_manifest,
@@ -226,79 +230,6 @@ def _build_reroute_launch_request(
 
 def _artifact_payload(metadata: dict) -> dict[str, object]:
     return _artifact_payload_impl(metadata)
-
-
-def _bridge_approval_resolution(
-    root: Path,
-    metadata: dict,
-    *,
-    approval: dict[str, object],
-    action: str,
-    actor: str | None,
-    request: SteeringRequest,
-) -> dict[str, object] | None:
-    driver_ack: dict[str, object] | None = None
-    try:
-        handle = _active_driver_handle(metadata)
-    except ValueError:
-        handle = None
-    if handle is not None:
-        driver = get_driver(str(metadata.get("driver", handle.driver)))
-        driver_ack = cast(
-            dict[str, object],
-            driver.submit_approval_resolution(
-                handle,
-                cast(dict[str, object], approval),
-            ),
-        )
-    metadata.setdefault("metadata_json", {}).setdefault("approval_resolutions", []).append(approval)
-    metadata.setdefault("metadata_json", {}).setdefault("approval_forwarding", []).append(
-        {
-            "approval_id": approval.get("approval_id"),
-            "resolution": approval.get("resolution"),
-            "driver_ack": driver_ack,
-        }
-    )
-    _record_steering_history(
-        metadata,
-        action=action,
-        actor=actor,
-        reason=request.reason,
-        note=request.note,
-        target=cast(dict[str, object] | None, request.target),
-        budget_delta=cast(dict[str, object] | None, request.budget_delta),
-        ack=driver_ack,
-    )
-    if driver_ack is not None:
-        resolution = str(approval.get("resolution") or action)
-        _append_transcript_entry(
-            Path(metadata["transcript_path"]),
-            {
-                "ts": utc_now_iso(),
-                "kind": "system",
-                "driver": metadata.get("driver"),
-                "message": (
-                    f"Approval {approval.get('approval_id')} was {resolution} and forwarded "
-                    "to the driver channel."
-                ),
-                "approval_id": approval.get("approval_id"),
-                "resolution": resolution,
-            },
-        )
-        emit_event(
-            root,
-            actor={"kind": "human", "id": actor or "operator"},
-            entity_type="run",
-            entity_id=str(metadata["id"]),
-            event_type="approval.forwarded",
-            source="runtime.approval",
-            payload={"approval": approval, "driver_ack": driver_ack},
-            run_id=str(metadata["id"]),
-            task_id=metadata.get("task_id"),
-            project_id=metadata.get("project_id"),
-            campaign_id=metadata.get("campaign_id"),
-        )
-    return driver_ack
 
 
 def _selected_pending_approval(
@@ -1106,6 +1037,16 @@ def steer_run(
                 actor=actor,
                 request=request,
             )
+            _record_steering_history(
+                metadata,
+                action=action,
+                actor=actor,
+                reason=request.reason,
+                note=request.note,
+                target=cast(dict[str, object] | None, request.target),
+                budget_delta=cast(dict[str, object] | None, request.budget_delta),
+                ack=driver_ack,
+            )
             save_run(root, run_id, metadata)
             return {
                 "run": load_run(root, run_id),
@@ -1161,6 +1102,16 @@ def steer_run(
                 action=action,
                 actor=actor,
                 request=request,
+            )
+            _record_steering_history(
+                metadata,
+                action=action,
+                actor=actor,
+                reason=request.reason,
+                note=request.note,
+                target=cast(dict[str, object] | None, request.target),
+                budget_delta=cast(dict[str, object] | None, request.budget_delta),
+                ack=driver_ack,
             )
             save_run(root, run_id, metadata)
             return {

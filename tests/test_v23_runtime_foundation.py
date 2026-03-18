@@ -18,6 +18,7 @@ from src.hive.drivers import RunBudgetUsage, RunHandle, RunLinks, RunProgress, R
 from src.hive.drivers import SteeringRequest
 from src.hive.runs.evaluators import run_evaluator
 from src.hive.runs.executors import LocalExecutor
+from src.hive.runs import driver_state as driver_state_module
 from src.hive.runtime import list_approvals, pending_approvals, request_approval
 from src.hive.runtime.runpack import SandboxPolicy
 from src.hive.runs.engine import accept_run, eval_run, load_run, run_artifacts, start_run, steer_run
@@ -25,6 +26,7 @@ from src.hive.scheduler.query import ready_tasks
 from src.hive.sandbox import get_backend
 from src.hive.sandbox.base import SandboxProbe
 from src.hive.sandbox.runtime import resolve_sandbox_policy
+from src.hive.store.events import load_events
 from src.hive.store.task_files import create_task
 from tests.conftest import init_git_repo, write_safe_program
 
@@ -1535,6 +1537,30 @@ def test_cancel_run_rejects_pending_approvals(capsys, temp_hive_dir):
     assert approvals[first["approval_id"]]["resolution_note"] == "Operator stopped the run"
     assert approvals[second["approval_id"]]["resolved_by"] == "operator"
 
+    metadata = load_run(temp_hive_dir, run.id)
+    channel_path = Path(metadata["approval_channel_path"])
+    channel_records = [
+        json.loads(line)
+        for line in channel_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    event_types = [
+        json.loads(line)["type"]
+        for line in (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+
+    assert len(channel_records) == 2
+    assert {item["approval_id"] for item in channel_records} == {
+        first["approval_id"],
+        second["approval_id"],
+    }
+    assert all(item["resolution"] == "rejected" for item in channel_records)
+    assert "approval.forwarded" in event_types
+    assert metadata["metadata_json"]["approval_forwarding"][-1]["driver_ack"]["ok"] is True
+
 
 def test_run_status_refresh_surfaces_live_codex_session_payload(temp_hive_dir, capsys, monkeypatch):
     _bootstrap_workspace(temp_hive_dir, capsys)
@@ -1903,8 +1929,176 @@ def test_run_status_imports_live_claude_output_into_runtime_artifacts(
         "claude-print-result.json"
     )
     assert transcript.count("Delivered the requested implementation.") == 1
-    assert "driver.output.delta" in event_types
-    assert "driver.status" in event_types
+    assert event_types.count("driver.output.delta") == 1
+    assert event_types.count("driver.status") == 1
+
+
+def test_claude_exec_ingest_tolerates_missing_transcript_path(tmp_path):
+    raw_output_path = tmp_path / "claude-print-result.json"
+    raw_output_path.write_text(
+        json.dumps(
+            {
+                "session_id": "sess-missing-transcript",
+                "total_cost_usd": 0.12,
+                "duration_ms": 1_000,
+                "usage": {
+                    "input_tokens": 8,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 3,
+                },
+                "result": "Delivered without a transcript path.",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    metadata = {"id": "run_missing_transcript", "driver": "claude-code", "metadata_json": {}}
+    handle = RunHandle(
+        run_id="run_missing_transcript",
+        driver="claude-code",
+        driver_handle="claude-code:exec:1",
+        status="running",
+        launched_at="2026-03-18T06:00:00Z",
+        launch_mode="exec",
+        transport="subprocess",
+        metadata={"raw_output_path": str(raw_output_path)},
+    )
+    status_payload = {
+        "state": "completed_candidate",
+        "artifacts": {"raw_output_path": str(raw_output_path)},
+        "budget": {"spent_tokens": 0, "spent_cost_usd": 0.0, "wall_minutes": 0},
+    }
+
+    driver_state_module._ingest_claude_exec_output(tmp_path, metadata, handle, status_payload)
+
+    events = load_events(tmp_path)
+
+    assert metadata["metadata_json"]["driver_imports"]["claude_exec_raw_output_path"].endswith(
+        "claude-print-result.json"
+    )
+    assert metadata["metadata_json"]["driver_usage"]["spent_tokens"] == 11
+    assert any(event["type"] == "driver.output.delta" for event in events)
+    assert any(event["type"] == "driver.status" for event in events)
+
+
+def test_claude_exec_ingest_uses_last_valid_json_record(tmp_path):
+    transcript_path = tmp_path / "transcript.ndjson"
+    transcript_path.write_text("", encoding="utf-8")
+    raw_output_path = tmp_path / "claude-print-result.json"
+    raw_output_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "session_id": "sess-last-valid",
+                        "total_cost_usd": 0.31,
+                        "duration_ms": 3_000,
+                        "usage": {
+                            "input_tokens": 21,
+                            "cache_creation_input_tokens": 0,
+                            "cache_read_input_tokens": 0,
+                            "output_tokens": 13,
+                        },
+                        "result": "Recovered from the last valid JSON line.",
+                    }
+                ),
+                "non-json trailer",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    metadata = {
+        "id": "run_last_valid",
+        "driver": "claude-code",
+        "transcript_path": str(transcript_path),
+        "metadata_json": {},
+    }
+    handle = RunHandle(
+        run_id="run_last_valid",
+        driver="claude-code",
+        driver_handle="claude-code:exec:2",
+        status="running",
+        launched_at="2026-03-18T06:00:00Z",
+        launch_mode="exec",
+        transport="subprocess",
+        metadata={"raw_output_path": str(raw_output_path)},
+    )
+    status_payload = {
+        "state": "completed_candidate",
+        "artifacts": {"raw_output_path": str(raw_output_path)},
+        "budget": {"spent_tokens": 0, "spent_cost_usd": 0.0, "wall_minutes": 0},
+    }
+
+    driver_state_module._ingest_claude_exec_output(tmp_path, metadata, handle, status_payload)
+
+    transcript = transcript_path.read_text(encoding="utf-8")
+
+    assert "Recovered from the last valid JSON line." in transcript
+    assert metadata["metadata_json"]["driver_usage"]["spent_tokens"] == 34
+
+
+def test_claude_exec_ingest_emits_truthful_status_when_result_text_is_empty(tmp_path):
+    transcript_path = tmp_path / "transcript.ndjson"
+    transcript_path.write_text("", encoding="utf-8")
+    raw_output_path = tmp_path / "claude-print-result.json"
+    raw_output_path.write_text(
+        json.dumps(
+            {
+                "session_id": "sess-empty",
+                "total_cost_usd": 0.2,
+                "duration_ms": 2_000,
+                "usage": {
+                    "input_tokens": 5,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                    "output_tokens": 0,
+                },
+                "result": "",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    metadata = {
+        "id": "run_empty_result",
+        "driver": "claude-code",
+        "transcript_path": str(transcript_path),
+        "metadata_json": {},
+    }
+    handle = RunHandle(
+        run_id="run_empty_result",
+        driver="claude-code",
+        driver_handle="claude-code:exec:3",
+        status="running",
+        launched_at="2026-03-18T06:00:00Z",
+        launch_mode="exec",
+        transport="subprocess",
+        metadata={"raw_output_path": str(raw_output_path)},
+    )
+    status_payload = {
+        "state": "running",
+        "artifacts": {"raw_output_path": str(raw_output_path)},
+        "budget": {"spent_tokens": 0, "spent_cost_usd": 0.0, "wall_minutes": 0},
+    }
+
+    driver_state_module._ingest_claude_exec_output(tmp_path, metadata, handle, status_payload)
+
+    events = [
+        event
+        for event in load_events(tmp_path)
+        if event["run_id"] == "run_empty_result"
+    ]
+    transcript = transcript_path.read_text(encoding="utf-8")
+    delta_events = [event for event in events if event["type"] == "driver.output.delta"]
+    status_events = [event for event in events if event["type"] == "driver.status"]
+
+    assert transcript == ""
+    assert delta_events == []
+    assert len(status_events) == 1
+    assert status_events[0]["payload"]["driver_event_type"] == "claude.print_metadata"
+    assert status_events[0]["payload"]["payload"]["has_result_text"] is False
 
 
 def test_eval_run_refreshes_live_codex_state_before_review(temp_hive_dir, capsys, monkeypatch):

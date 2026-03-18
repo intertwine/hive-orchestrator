@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from src.hive.clock import utc_now_iso
 from src.hive.ids import new_id
@@ -220,8 +220,77 @@ def resolve_pending_approvals(
     return resolved
 
 
+def bridge_approval_resolution(
+    path: str | Path | None,
+    metadata: dict[str, Any],
+    *,
+    approval: dict[str, Any],
+    action: str,
+    actor: str | None,
+    request: Any,
+) -> dict[str, Any] | None:
+    """Forward one resolved approval to the driver channel and record it in run metadata."""
+    from src.hive.drivers import get_driver
+    from src.hive.runs.driver_state import (
+        _active_driver_handle,
+        _append_transcript_entry,
+    )
+    from src.hive.store.events import emit_event
+
+    driver_ack: dict[str, Any] | None = None
+    try:
+        handle = _active_driver_handle(metadata)
+    except ValueError:
+        handle = None
+    if handle is not None:
+        driver = get_driver(str(metadata.get("driver", handle.driver)))
+        driver_ack = cast(
+            dict[str, Any],
+            driver.submit_approval_resolution(handle, cast(dict[str, Any], approval)),
+        )
+    metadata.setdefault("metadata_json", {}).setdefault("approval_resolutions", []).append(approval)
+    metadata.setdefault("metadata_json", {}).setdefault("approval_forwarding", []).append(
+        {
+            "approval_id": approval.get("approval_id"),
+            "resolution": approval.get("resolution"),
+            "driver_ack": driver_ack,
+        }
+    )
+    if driver_ack is not None:
+        resolution = str(approval.get("resolution") or action)
+        _append_transcript_entry(
+            Path(metadata["transcript_path"]),
+            {
+                "ts": utc_now_iso(),
+                "kind": "system",
+                "driver": metadata.get("driver"),
+                "message": (
+                    f"Approval {approval.get('approval_id')} was {resolution} and forwarded "
+                    "to the driver channel."
+                ),
+                "approval_id": approval.get("approval_id"),
+                "resolution": resolution,
+            },
+        )
+        emit_event(
+            path,
+            actor={"kind": "human", "id": actor or "operator"},
+            entity_type="run",
+            entity_id=str(metadata["id"]),
+            event_type="approval.forwarded",
+            source="runtime.approval",
+            payload={"approval": approval, "driver_ack": driver_ack},
+            run_id=str(metadata["id"]),
+            task_id=metadata.get("task_id"),
+            project_id=metadata.get("project_id"),
+            campaign_id=metadata.get("campaign_id"),
+        )
+    return driver_ack
+
+
 __all__ = [
     "ApprovalRequest",
+    "bridge_approval_resolution",
     "list_approvals",
     "pending_approvals",
     "request_approval",

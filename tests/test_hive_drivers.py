@@ -1157,6 +1157,106 @@ class TestHiveDrivers:
         assert approvals[first["approval_id"]] == "pending"
         assert approvals[second["approval_id"]] == "approved"
 
+    def test_cli_steer_reject_targets_explicit_approval_id(self, temp_hive_dir, capsys, monkeypatch):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        driver = get_driver("codex")
+
+        def fake_live_exec_enabled(self):
+            return True
+
+        def fake_launch_live_exec(self, request):
+            return RunHandle(
+                run_id=request.run_id,
+                driver=self.name,
+                driver_handle="codex:exec:pid-7332",
+                status="running",
+                launched_at="2026-03-18T06:00:00Z",
+                launch_mode="exec",
+                transport="subprocess",
+                session_id="pid-7332",
+                event_cursor="0",
+                approval_channel=str(request.metadata.get("approval_channel") or ""),
+            )
+
+        def fake_status(self, handle):
+            return RunStatus(
+                run_id=handle.run_id,
+                state="running",
+                health="blocked",
+                driver=self.name,
+                progress=RunProgress(
+                    phase="waiting",
+                    message="Codex live exec is waiting on approval.",
+                    percent=0,
+                ),
+                waiting_on="approval",
+                last_event_at="2026-03-18T06:00:01Z",
+                pending_approvals=[],
+            )
+
+        monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+        monkeypatch.setattr(type(driver), "_launch_live_exec", fake_launch_live_exec)
+        monkeypatch.setattr(type(driver), "status", fake_status)
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="codex")
+        first = request_approval(
+            temp_hive_dir,
+            run.id,
+            kind="command",
+            title="Approve git status",
+            summary="Codex wants to inspect the repo status.",
+            requested_by="driver:codex",
+            payload={"command": "git status"},
+        )
+        second = request_approval(
+            temp_hive_dir,
+            run.id,
+            kind="command",
+            title="Approve git diff",
+            summary="Codex wants to inspect the current diff.",
+            requested_by="driver:codex",
+            payload={"command": "git diff"},
+        )
+
+        payload = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "steer",
+                "reject",
+                run.id,
+                "--approval-id",
+                second["approval_id"],
+                "--reason",
+                "not safe",
+                "--owner",
+                "operator",
+            ],
+        )
+
+        approvals = {item["approval_id"]: item["status"] for item in list_approvals(temp_hive_dir, run.id)}
+
+        assert payload["approval"]["approval_id"] == second["approval_id"]
+        assert payload["approval"]["resolution"] == "rejected"
+        assert approvals[first["approval_id"]] == "pending"
+        assert approvals[second["approval_id"]] == "rejected"
+
     def test_multiple_pending_approvals_require_explicit_target(
         self, temp_hive_dir, capsys, monkeypatch
     ):

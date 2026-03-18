@@ -22,6 +22,26 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
 class TestProgramDoctor:
     """Program Doctor should explain policy gaps and offer guided fixes."""
 
+    def test_doctor_program_blank_repo_suggests_generic_starter_template(
+        self, temp_hive_dir, capsys
+    ):
+        create_project(temp_hive_dir, "demo", title="Demo")
+
+        payload = _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "doctor", "program", "demo"],
+        )
+
+        issue_codes = {issue["code"] for issue in payload["issues"]}
+        missing_required = next(
+            issue for issue in payload["issues"] if issue["code"] == "missing_required_evaluator"
+        )
+        assert payload["status"] == "fail"
+        assert payload["blocked_autonomous_promotion"] is True
+        assert "missing_required_evaluator" in issue_codes
+        assert payload["suggested_templates"][0]["id"] == "local-smoke"
+        assert missing_required["suggested_command"] == "hive program add-evaluator demo local-smoke"
+
     def test_doctor_program_suggests_stack_template_and_flags_missing_gates(
         self, temp_hive_dir, capsys
     ):
@@ -61,5 +81,24 @@ class TestProgramDoctor:
         )
 
         assert applied["applied_template"]["id"] == "pytest"
+        assert follow_up["blocked_autonomous_promotion"] is False
+        assert follow_up["status"] in {"pass", "warn"}
+
+    def test_program_add_evaluator_applies_generic_template_in_blank_repo(
+        self, temp_hive_dir, capsys
+    ):
+        create_project(temp_hive_dir, "demo", title="Demo")
+
+        applied = _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "program", "add-evaluator", "demo", "local-smoke"],
+        )
+        follow_up = _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "program", "doctor", "demo"],
+        )
+
+        assert applied["applied_template"]["id"] == "local-smoke"
+        assert applied["applied_template"]["command"] == "python3 -c \"print('local smoke ok')\""
         assert follow_up["blocked_autonomous_promotion"] is False
         assert follow_up["status"] in {"pass", "warn"}

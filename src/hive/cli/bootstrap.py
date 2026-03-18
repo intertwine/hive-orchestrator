@@ -29,6 +29,29 @@ def _starter_specs():
     return _starter_task_specs
 
 
+def _guided_next_steps(payload: dict[str, object]) -> list[str]:
+    """Return onboarding/adoption next steps that match the project policy state."""
+    project = dict(payload.get("project", {}))
+    project_id = str(project.get("id", "")).strip()
+    diagnosis = dict(payload.get("program", {}))
+    next_steps: list[str] = []
+    if project_id:
+        next_steps.append(f"hive next --project-id {project_id}")
+    if diagnosis.get("blocked_autonomous_promotion"):
+        if project_id:
+            next_steps.append(f"hive program doctor {project_id}")
+    elif project_id:
+        next_steps.append(f"hive work --project-id {project_id} --owner <your-name>")
+    applied_template = dict(diagnosis.get("applied_template", {}))
+    if applied_template.get("id") == "local-smoke" and project_id:
+        next_steps.append(
+            "Later, replace the starter `local-smoke` evaluator by editing "
+            f"`projects/{project_id}/PROGRAM.md` and running "
+            f"`hive program add-evaluator {project_id} <real-evaluator-id>`."
+        )
+    return next_steps
+
+
 def dispatch(args, root: Path) -> int:
     """Dispatch bootstrap-style commands."""
     try:
@@ -114,10 +137,7 @@ def dispatch(args, root: Path) -> int:
                 {
                     "ok": True,
                     "message": f"Onboarded Hive workspace at {root}",
-                    "next_steps": [
-                        f"hive next --project-id {payload['project']['id']}",
-                        f"hive work --project-id {payload['project']['id']} --owner <your-name>",
-                    ],
+                    "next_steps": _guided_next_steps(payload),
                     **payload,
                 },
                 args.json,
@@ -133,10 +153,7 @@ def dispatch(args, root: Path) -> int:
                 {
                     "ok": True,
                     "message": f"Adopted repository at {root} into Hive",
-                    "next_steps": [
-                        f"hive next --project-id {payload['project']['id']}",
-                        f"hive work --project-id {payload['project']['id']} --owner <your-name>",
-                    ],
+                    "next_steps": _guided_next_steps(payload),
                     **payload,
                 },
                 args.json,

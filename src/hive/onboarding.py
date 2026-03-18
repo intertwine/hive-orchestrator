@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 
+from src.hive.payloads import project_payload
 from src.hive.program import add_evaluator_template, doctor_program
 from src.hive.scaffold import starter_task_specs
 from src.hive.store.layout import bootstrap_workspace
@@ -109,13 +110,7 @@ def onboard_workspace(
     return {
         "workspace": str(root),
         "bootstrapped": _serializable_bootstrap(bootstrapped),
-        "project": {
-            "id": project.id,
-            "slug": project.slug,
-            "title": project.title,
-            "path": str(project.agency_path),
-            "program_path": str(project.program_path),
-        },
+        "project": project_payload(project),
         "tasks": tasks,
         "program": diagnosis,
         "git_ready": _has_git_head(root),
@@ -143,13 +138,7 @@ def adopt_repository(
     return {
         "workspace": str(root),
         "bootstrapped": _serializable_bootstrap(bootstrapped),
-        "project": {
-            "id": project.id,
-            "slug": project.slug,
-            "title": project.title,
-            "path": str(project.agency_path),
-            "program_path": str(project.program_path),
-        },
+        "project": project_payload(project),
         "tasks": tasks,
         "program": diagnosis,
         "git_ready": _has_git_head(root),

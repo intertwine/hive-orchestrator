@@ -94,9 +94,10 @@ class CodexAppServerBroker:
                 if value:
                     return str(value)
         if method == "item/fileChange/requestApproval":
-            value = params.get("itemId")
-            if value:
-                return str(value)
+            for key in ("itemId", "callId"):
+                value = params.get(key)
+                if value:
+                    return str(value)
         if method == "execCommandApproval":
             value = params.get("approvalId") or params.get("callId")
             if value:

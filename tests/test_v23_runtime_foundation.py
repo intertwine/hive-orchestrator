@@ -2005,6 +2005,58 @@ def test_claude_exec_ingest_uses_last_valid_json_record(tmp_path):
     assert status_payload["budget"]["spent_tokens"] == 123
 
 
+def test_claude_exec_ingest_prefers_last_json_object_in_jsonl(tmp_path):
+    raw_output_path = tmp_path / "claude-print-result.jsonl"
+    raw_output_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "session_id": "sess-7100",
+                        "result": "Older Claude result.",
+                        "usage": {"total_tokens": 11},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "session_id": "sess-7200",
+                        "result": "Newest Claude result wins.",
+                        "usage": {"total_tokens": 123},
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    transcript_path = tmp_path / "transcript.ndjson"
+    metadata = {
+        "id": "run_last_json_object",
+        "driver": "claude-code",
+        "transcript_path": str(transcript_path),
+        "metadata_json": {},
+    }
+    handle = RunHandle(
+        run_id="run_last_json_object",
+        driver="claude-code",
+        driver_handle="claude-code:exec:run_last_json_object",
+        status="running",
+        launched_at="2026-03-18T06:00:00Z",
+        launch_mode="exec",
+        transport="subprocess",
+        metadata={"raw_output_path": str(raw_output_path)},
+    )
+    status_payload = {"artifacts": {"raw_output_path": str(raw_output_path)}, "state": "running"}
+
+    driver_state_module._ingest_claude_exec_output(tmp_path, metadata, handle, status_payload)
+
+    transcript = transcript_path.read_text(encoding="utf-8")
+    assert "Newest Claude result wins." in transcript
+    assert "Older Claude result." not in transcript
+    assert metadata["metadata_json"]["driver_usage"]["spent_tokens"] == 123
+    assert status_payload["budget"]["spent_tokens"] == 123
+
+
 def test_claude_exec_ingest_emits_truthful_status_when_result_text_is_empty(tmp_path):
     raw_output_path = tmp_path / "claude-print-result.json"
     raw_output_path.write_text(

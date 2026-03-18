@@ -599,6 +599,8 @@ def _ingest_claude_exec_output(
                     "state": status_payload.get("state"),
                 },
             )
+            # Keep the digest unset when there is no transcript file so the
+            # legacy last-message import can still backfill the final assistant turn.
             imports["last_message_sha256"] = hashlib.sha256(
                 result_text.encode("utf-8")
             ).hexdigest()

@@ -26,6 +26,7 @@ def load_run(path: str | Path | None, run_id: str) -> dict:
     metadata.setdefault("sandbox_policy_path", str(run_root / "sandbox-policy.json"))
     metadata.setdefault("events_path", str(run_root / "events.jsonl"))
     metadata.setdefault("events_ndjson_path", str(run_root / "events.ndjson"))
+    metadata.setdefault("approval_channel_path", str(run_root / "driver" / "approval-channel.ndjson"))
     metadata.setdefault("approvals_path", str(run_root / "approvals.ndjson"))
     metadata.setdefault("transcript_ndjson_path", str(run_root / "transcript.ndjson"))
     metadata.setdefault("retrieval_trace_path", str(run_root / "retrieval" / "trace.json"))

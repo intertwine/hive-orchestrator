@@ -12,12 +12,23 @@ import subprocess
 
 from tests.conftest import init_git_repo, write_safe_program
 from hive.cli.main import main as hive_main
-from src.hive.drivers import RunHandle, RunProgress, RunStatus, get_driver
+from src.hive.drivers import (
+    RunBudget,
+    RunHandle,
+    RunLaunchRequest,
+    RunProgress,
+    RunStatus,
+    RunWorkspace,
+    SteeringRequest,
+    get_driver,
+)
+from src.hive.runtime import request_approval
 from src.hive.runs.program import _build_reroute_launch_request
 from src.hive.runs.engine import (
     _refresh_workspace_state,
     load_run,
     start_run,
+    steer_run,
 )
 from src.hive.scheduler.query import ready_tasks
 from src.hive.store.task_files import create_task
@@ -81,6 +92,7 @@ class TestHiveDrivers:
             assert (run_root / "workspace" / "changed_files.json").exists()
             assert (run_root / "driver" / "driver-metadata.json").exists()
             assert (run_root / "driver" / "handles.json").exists()
+            assert (run_root / "driver" / "approval-channel.ndjson").exists()
             assert (run_root / "review" / "summary.md").exists()
             assert (run_root / "review" / "review.md").exists()
             assert (run_root / "plan" / "plan.md").exists()
@@ -208,6 +220,7 @@ class TestHiveDrivers:
                 transport="subprocess",
                 session_id="pid-4242",
                 event_cursor="0",
+                approval_channel=str(request.metadata.get("approval_channel") or "") or None,
                 metadata={"pid": 4242, "last_message_path": "/tmp/codex-last.txt"},
             )
 
@@ -246,7 +259,181 @@ class TestHiveDrivers:
         assert handles["active"]["launch_mode"] == "exec"
         assert handles["active"]["transport"] == "subprocess"
         assert handles["active"]["session_id"] == "pid-4242"
+        assert handles["active"]["approval_channel"] == metadata["approval_channel_path"]
         assert handles["active"]["metadata"]["pid"] == 4242
+
+    def test_codex_live_launch_falls_back_to_config_override_when_flag_is_missing(
+        self, monkeypatch, tmp_path
+    ):
+        driver = get_driver("codex")
+        captured: dict[str, object] = {}
+        worktree = tmp_path / "worktree"
+        artifacts = tmp_path / "run"
+        worktree.mkdir()
+        (artifacts / "driver").mkdir(parents=True)
+        (artifacts / "logs").mkdir(parents=True)
+
+        class FakeStdin:
+            def __init__(self):
+                self.buffer = ""
+                self.closed = False
+
+            def write(self, data):
+                self.buffer += data
+                return len(data)
+
+            def close(self):
+                self.closed = True
+
+        class FakeProcess:
+            def __init__(self, argv, **kwargs):
+                captured["argv"] = argv
+                captured["cwd"] = kwargs.get("cwd")
+                self.pid = 4242
+                self.stdin = FakeStdin()
+                captured["stdin"] = self.stdin
+
+        def fake_live_exec_enabled(self):
+            return True
+
+        def fake_detected_binary_details(self):
+            return "codex", "/tmp/codex"
+
+        def fake_command_output(self, *args):
+            if args == ("--help",):
+                return "Commands: exec app-server sandbox"
+            if args == ("exec", "--help"):
+                return "--json --ephemeral --sandbox --output-last-message --cd"
+            if args == ("app-server", "--help"):
+                return "--listen"
+            return None
+
+        def fake_build_exec_prompt(self, request):
+            return "run the task"
+
+        monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+        monkeypatch.setattr(
+            type(driver),
+            "_detected_binary_details",
+            fake_detected_binary_details,
+        )
+        monkeypatch.setattr(type(driver), "_command_output", fake_command_output)
+        monkeypatch.setattr(type(driver), "_build_exec_prompt", fake_build_exec_prompt)
+        monkeypatch.setattr("src.hive.drivers.codex.subprocess.Popen", FakeProcess)
+
+        handle = driver._launch_live_exec(
+            RunLaunchRequest(
+                run_id="run_live",
+                task_id="task_live",
+                project_id="demo",
+                campaign_id=None,
+                driver="codex",
+                model="gpt-5.3-codex",
+                budget=RunBudget(max_tokens=1000, max_cost_usd=1.0, max_wall_minutes=5),
+                workspace=RunWorkspace(
+                    repo_root=str(tmp_path),
+                    worktree_path=str(worktree),
+                    base_branch="main",
+                ),
+                compiled_context_path=str(artifacts / "context" / "compiled"),
+                artifacts_path=str(artifacts),
+                program_policy={},
+            )
+        )
+
+        command_text = (artifacts / "driver" / "codex-exec-command.txt").read_text(
+            encoding="utf-8"
+        )
+        assert handle is not None
+        assert handle.status == "running"
+        assert "approval_policy=" in command_text
+        assert "--ask-for-approval" not in command_text
+        assert "--sandbox workspace-write" in command_text
+        assert "--cd" in command_text
+        assert captured["cwd"] == str(worktree)
+        assert "run the task" in captured["stdin"].buffer
+        assert captured["stdin"].closed is True
+
+    def test_codex_live_launch_prefers_native_approval_flag_when_available(
+        self, monkeypatch, tmp_path
+    ):
+        driver = get_driver("codex")
+        worktree = tmp_path / "worktree"
+        artifacts = tmp_path / "run"
+        worktree.mkdir()
+        (artifacts / "driver").mkdir(parents=True)
+        (artifacts / "logs").mkdir(parents=True)
+
+        class FakeStdin:
+            def write(self, data):
+                return len(data)
+
+            def close(self):
+                return None
+
+        class FakeProcess:
+            def __init__(self, *args, **kwargs):
+                self.pid = 4343
+                self.stdin = FakeStdin()
+
+        def fake_live_exec_enabled(self):
+            return True
+
+        def fake_detected_binary_details(self):
+            return "codex", "/tmp/codex"
+
+        def fake_command_output(self, *args):
+            if args == ("--help",):
+                return "Commands: exec app-server sandbox"
+            if args == ("exec", "--help"):
+                return (
+                    "--json --ephemeral --sandbox --ask-for-approval "
+                    "--output-last-message --cd"
+                )
+            if args == ("app-server", "--help"):
+                return "--listen"
+            return None
+
+        def fake_build_exec_prompt(self, request):
+            return "run the task"
+
+        monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+        monkeypatch.setattr(
+            type(driver),
+            "_detected_binary_details",
+            fake_detected_binary_details,
+        )
+        monkeypatch.setattr(type(driver), "_command_output", fake_command_output)
+        monkeypatch.setattr(type(driver), "_build_exec_prompt", fake_build_exec_prompt)
+        monkeypatch.setattr("src.hive.drivers.codex.subprocess.Popen", FakeProcess)
+
+        handle = driver._launch_live_exec(
+            RunLaunchRequest(
+                run_id="run_live",
+                task_id="task_live",
+                project_id="demo",
+                campaign_id=None,
+                driver="codex",
+                model=None,
+                budget=RunBudget(max_tokens=1000, max_cost_usd=1.0, max_wall_minutes=5),
+                workspace=RunWorkspace(
+                    repo_root=str(tmp_path),
+                    worktree_path=str(worktree),
+                    base_branch="main",
+                ),
+                compiled_context_path=str(artifacts / "context" / "compiled"),
+                artifacts_path=str(artifacts),
+                program_policy={},
+            )
+        )
+
+        command_text = (artifacts / "driver" / "codex-exec-command.txt").read_text(
+            encoding="utf-8"
+        )
+        assert handle is not None
+        assert handle.status == "running"
+        assert "--ask-for-approval never" in command_text
+        assert "approval_policy=" not in command_text
 
     def test_run_status_refreshes_live_codex_driver_status(
         self, temp_hive_dir, capsys, monkeypatch
@@ -455,6 +642,7 @@ class TestHiveDrivers:
                 transport="subprocess",
                 session_id="sess-4242",
                 event_cursor="0",
+                approval_channel=str(request.metadata.get("approval_channel") or "") or None,
                 metadata={"pid": 4242, "last_message_path": "/tmp/claude-last.txt"},
             )
 
@@ -497,7 +685,114 @@ class TestHiveDrivers:
         assert handles["active"]["launch_mode"] == "exec"
         assert handles["active"]["transport"] == "subprocess"
         assert handles["active"]["session_id"] == "sess-4242"
+        assert handles["active"]["approval_channel"] == metadata["approval_channel_path"]
         assert handles["active"]["metadata"]["pid"] == 4242
+
+    def test_approval_resolution_forwards_to_live_driver_channel(
+        self, temp_hive_dir, capsys, monkeypatch
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        driver = get_driver("codex")
+
+        def fake_live_exec_enabled(self):
+            return True
+
+        def fake_launch_live_exec(self, request):
+            return RunHandle(
+                run_id=request.run_id,
+                driver="codex",
+                driver_handle=f"codex:exec:{request.run_id}",
+                status="running",
+                launched_at="2026-03-18T06:00:00Z",
+                launch_mode="exec",
+                transport="subprocess",
+                session_id="pid-7331",
+                event_cursor="0",
+                approval_channel=str(request.metadata.get("approval_channel") or "") or None,
+                metadata={"pid": 7331},
+            )
+
+        def fake_status(self, handle):
+            return RunStatus(
+                run_id=handle.run_id,
+                state="running",
+                health="healthy",
+                driver="codex",
+                progress=RunProgress(
+                    phase="implementing",
+                    message="Codex live exec is active.",
+                    percent=20,
+                ),
+                waiting_on=None,
+                last_event_at="2026-03-18T06:00:01Z",
+                event_cursor="1",
+                session={
+                    "launch_mode": "exec",
+                    "transport": "subprocess",
+                    "session_id": "pid-7331",
+                },
+            )
+
+        monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+        monkeypatch.setattr(type(driver), "_launch_live_exec", fake_launch_live_exec)
+        monkeypatch.setattr(type(driver), "status", fake_status)
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="codex")
+        approval = request_approval(
+            temp_hive_dir,
+            run.id,
+            kind="command",
+            title="Approve git status",
+            summary="Codex wants to inspect the repo status.",
+            requested_by="driver:codex",
+            payload={"command": "git status"},
+        )
+
+        payload = steer_run(
+            temp_hive_dir,
+            run.id,
+            SteeringRequest(action="approve", note="safe"),
+            actor="operator",
+        )
+        metadata = load_run(temp_hive_dir, run.id)
+        channel_path = Path(str(metadata["approval_channel_path"]))
+        broker_records = [
+            json.loads(line)
+            for line in channel_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        event_types = [
+            json.loads(line)["type"]
+            for line in (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+
+        assert payload["approval"]["status"] == "approved"
+        assert payload["driver_ack"]["ok"] is True
+        assert broker_records[-1]["approval_id"] == approval["approval_id"]
+        assert broker_records[-1]["resolution"] == "approved"
+        assert broker_records[-1]["payload"]["command"] == "git status"
+        assert metadata["metadata_json"]["steering_history"][-1]["action"] == "approve"
+        assert metadata["metadata_json"]["approval_forwarding"][-1]["driver_ack"]["channel"] == str(
+            channel_path
+        )
+        assert "approval.forwarded" in event_types
 
     def test_run_status_refreshes_live_claude_driver_status(
         self, temp_hive_dir, capsys, monkeypatch

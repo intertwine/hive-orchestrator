@@ -84,6 +84,7 @@ class LocalDriver(Driver):
             launched_at=utc_now_iso(),
             launch_mode="local",
             transport="process",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
             metadata={
                 "worktree_path": request.workspace.worktree_path,
                 "artifacts_path": request.artifacts_path,

@@ -88,6 +88,7 @@ class ManualDriver(Driver):
             launched_at=utc_now_iso(),
             launch_mode="staged",
             transport="manual",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
             metadata={
                 "declared_launch_mode": "staged",
                 "compiled_context_path": request.compiled_context_path,

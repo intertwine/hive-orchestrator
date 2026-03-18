@@ -228,6 +228,79 @@ def _artifact_payload(metadata: dict) -> dict[str, object]:
     return _artifact_payload_impl(metadata)
 
 
+def _bridge_approval_resolution(
+    root: Path,
+    metadata: dict,
+    *,
+    approval: dict[str, object],
+    action: str,
+    actor: str | None,
+    request: SteeringRequest,
+) -> dict[str, object] | None:
+    driver_ack: dict[str, object] | None = None
+    try:
+        handle = _active_driver_handle(metadata)
+    except ValueError:
+        handle = None
+    if handle is not None:
+        driver = get_driver(str(metadata.get("driver", handle.driver)))
+        driver_ack = cast(
+            dict[str, object],
+            driver.submit_approval_resolution(
+                handle,
+                cast(dict[str, object], approval),
+            ),
+        )
+    metadata.setdefault("metadata_json", {}).setdefault("approval_resolutions", []).append(approval)
+    metadata.setdefault("metadata_json", {}).setdefault("approval_forwarding", []).append(
+        {
+            "approval_id": approval.get("approval_id"),
+            "resolution": approval.get("resolution"),
+            "driver_ack": driver_ack,
+        }
+    )
+    _record_steering_history(
+        metadata,
+        action=action,
+        actor=actor,
+        reason=request.reason,
+        note=request.note,
+        target=cast(dict[str, object] | None, request.target),
+        budget_delta=cast(dict[str, object] | None, request.budget_delta),
+        ack=driver_ack,
+    )
+    if driver_ack is not None:
+        resolution = str(approval.get("resolution") or action)
+        _append_transcript_entry(
+            Path(metadata["transcript_path"]),
+            {
+                "ts": utc_now_iso(),
+                "kind": "system",
+                "driver": metadata.get("driver"),
+                "message": (
+                    f"Approval {approval.get('approval_id')} was {resolution} and forwarded "
+                    "to the driver channel."
+                ),
+                "approval_id": approval.get("approval_id"),
+                "resolution": resolution,
+            },
+        )
+        emit_event(
+            root,
+            actor={"kind": "human", "id": actor or "operator"},
+            entity_type="run",
+            entity_id=str(metadata["id"]),
+            event_type="approval.forwarded",
+            source="runtime.approval",
+            payload={"approval": approval, "driver_ack": driver_ack},
+            run_id=str(metadata["id"]),
+            task_id=metadata.get("task_id"),
+            project_id=metadata.get("project_id"),
+            campaign_id=metadata.get("campaign_id"),
+        )
+    return driver_ack
+
+
 def start_run(
     path: str | Path | None,
     task_id: str,
@@ -446,6 +519,7 @@ def start_run(
     paths["stdout_path"].write_text("", encoding="utf-8")
     paths["stderr_path"].write_text("", encoding="utf-8")
     paths["transcript_path"].write_text("", encoding="utf-8")
+    paths["approval_channel_path"].write_text("", encoding="utf-8")
 
     launch_request = RunLaunchRequest(
         run_id=run_id,
@@ -473,6 +547,7 @@ def start_run(
             "initiator": "human",
             "source": "hive run start",
             "task_title": task.title,
+            "approval_channel": str(paths["approval_channel_path"]),
         },
     )
     handle = driver.launch(launch_request)
@@ -531,6 +606,7 @@ def start_run(
         workspace_changed_files_path=str(paths["changed_files_path"]),
         driver_metadata_path=str(paths["driver_metadata_path"]),
         driver_handles_path=str(paths["driver_handles_path"]),
+        approval_channel_path=str(paths["approval_channel_path"]),
         events_path=str(paths["events_path"]),
         events_ndjson_path=str(paths["events_ndjson_path"]),
         approvals_path=str(paths["approvals_path"]),
@@ -559,6 +635,7 @@ def start_run(
                 "manifest": manifest,
                 "sandbox_policy": sandbox_policy.to_dict(),
                 "capability_snapshot": capability_snapshot.to_dict(),
+                "approval_channel": str(paths["approval_channel_path"]),
             },
         },
     )
@@ -1021,8 +1098,13 @@ def steer_run(
                 actor=actor or "operator",
                 note=request.note or request.reason,
             )
-            metadata.setdefault("metadata_json", {}).setdefault("approval_resolutions", []).append(
-                approval
+            driver_ack = _bridge_approval_resolution(
+                root,
+                metadata,
+                approval=cast(dict[str, object], approval),
+                action=action,
+                actor=actor,
+                request=request,
             )
             save_run(root, run_id, metadata)
             return {
@@ -1030,6 +1112,7 @@ def steer_run(
                 "action": action,
                 "request": request.to_dict(),
                 "approval": approval,
+                "driver_ack": driver_ack,
             }
         emit_event(
             root,
@@ -1070,8 +1153,13 @@ def steer_run(
                 actor=actor or "operator",
                 note=request.note or request.reason,
             )
-            metadata.setdefault("metadata_json", {}).setdefault("approval_resolutions", []).append(
-                approval
+            driver_ack = _bridge_approval_resolution(
+                root,
+                metadata,
+                approval=cast(dict[str, object], approval),
+                action=action,
+                actor=actor,
+                request=request,
             )
             save_run(root, run_id, metadata)
             return {
@@ -1079,6 +1167,7 @@ def steer_run(
                 "action": action,
                 "request": request.to_dict(),
                 "approval": approval,
+                "driver_ack": driver_ack,
             }
         emit_event(
             root,

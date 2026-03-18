@@ -91,6 +91,43 @@ class CodexDriver(HarnessDriver):
             ]
         )
 
+    @staticmethod
+    def _supports_exec_flag(exec_help: str, flag: str) -> bool:
+        return flag in exec_help
+
+    def _build_live_exec_command(
+        self,
+        *,
+        binary_path: str,
+        request: RunLaunchRequest,
+        exec_help: str,
+        last_message_path: Path,
+    ) -> list[str]:
+        command = [
+            binary_path,
+            "exec",
+            "-",
+            "--json",
+            "--skip-git-repo-check",
+        ]
+        if self._supports_exec_flag(exec_help, "--ephemeral"):
+            command.append("--ephemeral")
+        if self._supports_exec_flag(exec_help, "--ask-for-approval"):
+            command.extend(["--sandbox", "workspace-write", "--ask-for-approval", "never"])
+        else:
+            command.extend(["-c", 'approval_policy="never"'])
+            if self._supports_exec_flag(exec_help, "--sandbox"):
+                command.extend(["--sandbox", "workspace-write"])
+            else:
+                command.extend(["-c", 'sandbox_mode="workspace-write"'])
+        if self._supports_exec_flag(exec_help, "--output-last-message"):
+            command.extend(["--output-last-message", str(last_message_path)])
+        if self._supports_exec_flag(exec_help, "--cd"):
+            command.extend(["--cd", request.workspace.worktree_path])
+        if request.model:
+            command.extend(["--model", request.model])
+        return command
+
     def _launch_live_exec(self, request: RunLaunchRequest) -> RunHandle | None:
         binary_name, binary_path = self._detected_binary_details()
         if not self._live_exec_enabled() or not binary_path:
@@ -99,6 +136,7 @@ class CodexDriver(HarnessDriver):
         help_text = self._command_output("--help") or ""
         if "exec" not in help_text:
             return None
+        exec_help = self._command_output("exec", "--help") or ""
 
         run_root = Path(request.artifacts_path)
         raw_output_path = run_root / "transcript" / "raw" / "codex-exec-events.jsonl"
@@ -108,24 +146,12 @@ class CodexDriver(HarnessDriver):
         stderr_path = run_root / "logs" / "stderr.txt"
         raw_output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        command = [
-            binary_path,
-            "exec",
-            "-",
-            "--json",
-            "--ephemeral",
-            "--skip-git-repo-check",
-            "--sandbox",
-            "workspace-write",
-            "--ask-for-approval",
-            "never",
-            "--output-last-message",
-            str(last_message_path),
-            "--cd",
-            request.workspace.worktree_path,
-        ]
-        if request.model:
-            command.extend(["--model", request.model])
+        command = self._build_live_exec_command(
+            binary_path=binary_path,
+            request=request,
+            exec_help=exec_help,
+            last_message_path=last_message_path,
+        )
 
         command_path.write_text(" ".join(shlex.quote(part) for part in command), encoding="utf-8")
         shell_command = (
@@ -181,6 +207,7 @@ class CodexDriver(HarnessDriver):
             transport="subprocess",
             session_id=str(process.pid),
             event_cursor="0",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
             metadata={
                 "binary_name": binary_name,
                 "binary_path": binary_path,
@@ -210,13 +237,20 @@ class CodexDriver(HarnessDriver):
             "app_server_available": "app-server" in help_text,
             "sandbox_cli_available": "sandbox" in help_text,
             "features_cli_available": "features" in help_text,
+            "exec_approval_flag": "--ask-for-approval" in exec_help,
             "exec_json_output": "--json" in exec_help,
             "exec_output_schema": "--output-schema" in exec_help,
+            "exec_output_last_message": "--output-last-message" in exec_help,
             "app_server_listen": "--listen" in app_server_help,
         }
         notes = []
         if probed["exec_available"]:
             notes.append("Codex CLI exposes `exec`, so batch fallback can be probed truthfully.")
+        if not probed["exec_approval_flag"]:
+            notes.append(
+                "Codex CLI does not expose `--ask-for-approval`; Hive falls back to config "
+                "overrides for non-interactive exec launches."
+            )
         if probed["app_server_available"]:
             notes.append(
                 "Codex CLI exposes `app-server`, but Hive still stages runs until the protocol "

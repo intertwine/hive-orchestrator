@@ -16,6 +16,7 @@ RUNTIME_EVENT_TYPES = (
     "diff.updated",
     "approval.requested",
     "approval.resolved",
+    "approval.forwarded",
     "steer.requested",
     "steer.applied",
     "interrupt.requested",

@@ -43,6 +43,7 @@ class RunRecord:
     workspace_changed_files_path: str | None = None
     driver_metadata_path: str | None = None
     driver_handles_path: str | None = None
+    approval_channel_path: str | None = None
     events_path: str | None = None
     events_ndjson_path: str | None = None
     approvals_path: str | None = None
@@ -96,6 +97,7 @@ class RunRecord:
             "workspace_changed_files_path": self.workspace_changed_files_path,
             "driver_metadata_path": self.driver_metadata_path,
             "driver_handles_path": self.driver_handles_path,
+            "approval_channel_path": self.approval_channel_path,
             "events_path": self.events_path,
             "events_ndjson_path": self.events_ndjson_path,
             "approvals_path": self.approvals_path,

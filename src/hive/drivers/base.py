@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -60,6 +61,46 @@ class Driver(ABC):
             "run_id": handle.run_id,
             "action": request.action,
             "message": f"Recorded steering action {request.action!r} for {self.name}.",
+        }
+
+    def submit_approval_resolution(
+        self,
+        handle: RunHandle,
+        approval: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Forward a resolved approval onto the driver-owned channel when one exists."""
+        channel_path = str(handle.approval_channel or handle.metadata.get("approval_channel") or "")
+        if not channel_path.strip():
+            return {
+                "ok": False,
+                "driver": self.name,
+                "run_id": handle.run_id,
+                "approval_id": approval.get("approval_id"),
+                "message": f"Driver {self.name} does not expose an approval channel.",
+            }
+        record = {
+            "ts": utc_now_iso(),
+            "kind": "approval_resolution",
+            "driver": self.name,
+            "run_id": handle.run_id,
+            "driver_handle": handle.driver_handle,
+            "approval_id": approval.get("approval_id"),
+            "resolution": approval.get("resolution"),
+            "resolved_by": approval.get("resolved_by"),
+            "resolution_note": approval.get("resolution_note"),
+            "payload": dict(approval.get("payload") or {}),
+        }
+        target = Path(channel_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, "a", encoding="utf-8") as handle_out:
+            handle_out.write(json.dumps(record, sort_keys=True) + "\n")
+        return {
+            "ok": True,
+            "driver": self.name,
+            "run_id": handle.run_id,
+            "approval_id": approval.get("approval_id"),
+            "channel": str(target),
+            "message": "Forwarded approval resolution to the driver channel.",
         }
 
     def collect_artifacts(self, handle: RunHandle) -> dict[str, Any]:
@@ -249,6 +290,7 @@ class HarnessDriver(Driver):
             launched_at=utc_now_iso(),
             launch_mode="staged",
             transport="manual",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
             metadata={
                 "declared_launch_mode": self.declared_launch_mode,
                 "compiled_context_path": request.compiled_context_path,

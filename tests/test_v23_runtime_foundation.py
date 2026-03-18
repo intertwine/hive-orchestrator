@@ -110,7 +110,9 @@ def test_driver_doctor_surfaces_binary_backed_probe_details(monkeypatch, capsys,
     assert codex["probed"]["binary_name"] == "codex"
     assert codex["probed"]["exec_available"] is True
     assert codex["probed"]["app_server_available"] is True
+    assert codex["probed"]["exec_approval_flag"] is False
     assert codex["probed"]["exec_json_output"] is True
+    assert codex["probed"]["exec_output_last_message"] is True
     assert codex["probed"]["app_server_listen"] is True
 
     claude = drivers["claude-code"]
@@ -227,6 +229,7 @@ def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):
 
     assert (run_root / "events.ndjson").exists()
     assert (run_root / "approvals.ndjson").exists()
+    assert (run_root / "driver" / "approval-channel.ndjson").exists()
     assert (run_root / "transcript.ndjson").exists()
     assert (run_root / "retrieval" / "trace.json").exists()
     assert (run_root / "scheduler" / "decision.json").exists()

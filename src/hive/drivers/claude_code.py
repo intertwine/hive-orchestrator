@@ -240,6 +240,7 @@ class ClaudeCodeDriver(HarnessDriver):
             transport="subprocess",
             session_id=session_id,
             event_cursor="0",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
             metadata={
                 "binary_name": binary_name,
                 "binary_path": binary_path,

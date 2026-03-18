@@ -20,7 +20,7 @@ _PROFILE_BACKENDS = {
     "team-self-hosted": ("daytona",),
     "experimental": ("cloudflare",),
 }
-_WIRED_BACKENDS = {"podman", "docker-rootless", "asrt", "e2b"}
+_WIRED_BACKENDS = {"podman", "docker-rootless", "asrt", "e2b", "daytona"}
 
 
 def _backend_readiness_reason(backend_name: str, probe) -> str:

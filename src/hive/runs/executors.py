@@ -49,23 +49,23 @@ class LocalExecutor:
 
     def run_command(self, command: str, *, cwd: Path, timeout_seconds: int) -> CommandResult:
         started_at = utc_now_iso()
+        if self.sandbox_policy is not None and self.sandbox_policy.backend == "e2b":
+            return _run_e2b_command(
+                self.sandbox_policy,
+                command=command,
+                cwd=cwd,
+                timeout_seconds=timeout_seconds,
+                started_at=started_at,
+            )
+        if self.sandbox_policy is not None and self.sandbox_policy.backend == "daytona":
+            return _run_daytona_command(
+                self.sandbox_policy,
+                command=command,
+                cwd=cwd,
+                timeout_seconds=timeout_seconds,
+                started_at=started_at,
+            )
         try:
-            if self.sandbox_policy is not None and self.sandbox_policy.backend == "e2b":
-                return _run_e2b_command(
-                    self.sandbox_policy,
-                    command=command,
-                    cwd=cwd,
-                    timeout_seconds=timeout_seconds,
-                    started_at=started_at,
-                )
-            if self.sandbox_policy is not None and self.sandbox_policy.backend == "daytona":
-                return _run_daytona_command(
-                    self.sandbox_policy,
-                    command=command,
-                    cwd=cwd,
-                    timeout_seconds=timeout_seconds,
-                    started_at=started_at,
-                )
             argv, use_shell = self._command_payload(command, cwd=cwd)
             sandbox = self._sandbox_metadata(command, argv=argv, use_shell=use_shell, cwd=cwd)
             completed = subprocess.run(
@@ -491,13 +491,16 @@ def _validated_daytona_allowlist(policy: SandboxPolicy) -> list[str]:
             invalid.append(entry)
             continue
         try:
-            ipaddress.ip_network(entry, strict=False)
+            network = ipaddress.ip_network(entry, strict=False)
         except ValueError:
+            invalid.append(entry)
+            continue
+        if network.version != 4 or network.prefixlen == 0:
             invalid.append(entry)
     if invalid:
         raise ValueError(
-            "Daytona team-self-hosted execution only supports network allowlists as CIDR "
-            f"blocks; unsupported entries: {', '.join(invalid)}"
+            "Daytona team-self-hosted execution only supports IPv4 CIDR network allowlists "
+            f"with prefix lengths greater than 0; unsupported entries: {', '.join(invalid)}"
         )
     return allowlist
 
@@ -517,17 +520,9 @@ def _run_daytona_command(
 ) -> CommandResult:
     """Run one evaluator-style command inside an ephemeral Daytona sandbox."""
     started = started_at
-    host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
-    if list(policy.mounts.get("read_only") or []):
-        raise NotImplementedError(
-            "Daytona team-self-hosted execution does not yet project extra read-only mounts."
-        )
-    allowlist = _validated_daytona_allowlist(policy)
-    try:
-        relative_cwd = cwd.resolve().relative_to(host_worktree)
-    except ValueError:
-        relative_cwd = Path(".")
-    remote_cwd = str((Path(_REMOTE_WORKTREE) / relative_cwd).as_posix())
+    allowlist = [
+        str(item).strip() for item in list(policy.network.get("allowlist") or []) if str(item).strip()
+    ]
     sandbox_metadata: dict[str, object] = {
         "backend": policy.backend,
         "profile": policy.profile,
@@ -535,15 +530,47 @@ def _run_daytona_command(
         "network_mode": policy.network.get("mode"),
         "network_allowlist": allowlist,
         "command": command,
-        "command_payload": {
-            "transport": "daytona-sdk",
-            "remote_cwd": remote_cwd,
-        },
+        "command_payload": {"transport": "daytona-sdk"},
         "shell": False,
         "cwd": str(cwd),
         "workspace_sync": "upload_only",
         "remote_worktree": _REMOTE_WORKTREE,
         "remote_artifacts": _REMOTE_ARTIFACTS,
+    }
+    host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
+    if list(policy.mounts.get("read_only") or []):
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr="Daytona team-self-hosted execution does not yet project extra read-only mounts.",
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
+    try:
+        allowlist = _validated_daytona_allowlist(policy)
+    except ValueError as exc:
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr=str(exc),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
+    try:
+        relative_cwd = cwd.resolve().relative_to(host_worktree)
+    except ValueError:
+        relative_cwd = Path(".")
+    remote_cwd = str((Path(_REMOTE_WORKTREE) / relative_cwd).as_posix())
+    sandbox_metadata["network_allowlist"] = allowlist
+    sandbox_metadata["command_payload"] = {
+        "transport": "daytona-sdk",
+        "remote_cwd": remote_cwd,
     }
     sandbox = None
     session_created = False
@@ -578,7 +605,8 @@ def _run_daytona_command(
                 "hive_cwd": str(cwd),
             },
             "ephemeral": True,
-            # Daytona applies the allow list as the network boundary when entries are present.
+            # Daytona treats a non-empty allow list as the network boundary, so we reject /0
+            # above and only disable block-all when a bounded IPv4 allow list is present.
             "network_block_all": policy.network.get("mode") == "deny" and not allowlist,
             "network_allow_list": ",".join(allowlist) if allowlist else None,
             "resources": _daytona_resources(policy, resources_class),

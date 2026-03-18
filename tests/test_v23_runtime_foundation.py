@@ -1367,6 +1367,111 @@ def test_run_status_imports_live_codex_events_into_runtime_artifacts(
     assert "approval.requested" in event_types
 
 
+def test_run_status_imports_live_claude_output_into_runtime_artifacts(
+    temp_hive_dir, capsys, monkeypatch
+):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    driver = get_driver("claude-code")
+
+    def fake_live_exec_enabled(self):
+        return True
+
+    def fake_launch_live_exec(self, request):
+        raw_output_path = (
+            Path(request.artifacts_path) / "transcript" / "raw" / "claude-print-result.json"
+        )
+        raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_output_path.write_text(
+            json.dumps(
+                {
+                    "session_id": "sess-7200",
+                    "total_cost_usd": 0.45,
+                    "duration_ms": 90_000,
+                    "usage": {
+                        "input_tokens": 100,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                        "output_tokens": 23,
+                    },
+                    "result": "Delivered the requested implementation.",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return RunHandle(
+            run_id=request.run_id,
+            driver="claude-code",
+            driver_handle=f"claude-code:exec:{request.run_id}",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="exec",
+            transport="subprocess",
+            session_id="sess-7200",
+            event_cursor="0",
+            metadata={"pid": 7200, "raw_output_path": str(raw_output_path)},
+        )
+
+    def fake_status(self, handle):
+        raw_output_path = str(handle.metadata["raw_output_path"])
+        return RunStatus(
+            run_id=handle.run_id,
+            state="completed_candidate",
+            health="healthy",
+            driver="claude-code",
+            progress=RunProgress(
+                phase="completed",
+                message="Claude live exec finished.",
+                percent=100,
+            ),
+            waiting_on="review",
+            last_event_at="2026-03-18T06:04:00Z",
+            event_cursor="1",
+            session={
+                "launch_mode": "exec",
+                "transport": "subprocess",
+                "session_id": "sess-7200",
+            },
+            artifacts={"raw_output_path": raw_output_path},
+        )
+
+    monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+    monkeypatch.setattr(type(driver), "_launch_live_exec", fake_launch_live_exec)
+    monkeypatch.setattr(type(driver), "status", fake_status)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="claude-code")
+    first_payload = _invoke_cli_json(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+    )
+    second_payload = _invoke_cli_json(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+    )
+    metadata = load_run(temp_hive_dir, run.id)
+    run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
+    transcript = (run_root / "transcript.ndjson").read_text(encoding="utf-8")
+    event_types = [
+        json.loads(line)["type"]
+        for line in (run_root / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert first_payload["status"]["state"] == "completed_candidate"
+    assert second_payload["status"]["budget"]["spent_tokens"] == 123
+    assert metadata["metadata_json"]["driver_usage"]["spent_tokens"] == 123
+    assert metadata["tokens_in"] == 100
+    assert metadata["tokens_out"] == 23
+    assert metadata["cost_usd"] == 0.45
+    assert metadata["metadata_json"]["driver_imports"]["claude_exec_raw_output_path"].endswith(
+        "claude-print-result.json"
+    )
+    assert transcript.count("Delivered the requested implementation.") == 1
+    assert "driver.output.delta" in event_types
+    assert "driver.status" in event_types
+
+
 def test_eval_run_refreshes_live_codex_state_before_review(temp_hive_dir, capsys, monkeypatch):
     _bootstrap_workspace(temp_hive_dir, capsys)
     driver = get_driver("codex")

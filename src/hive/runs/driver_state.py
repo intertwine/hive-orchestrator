@@ -158,6 +158,19 @@ def _normalize_codex_event(record: dict[str, Any]) -> tuple[str | None, dict[str
     return event_type, dict(payload), ts
 
 
+def _load_json_record(path: Path) -> dict[str, Any] | None:
+    lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if not lines:
+        return None
+    try:
+        payload = json.loads(lines[-1])
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
 def _record_driver_usage(metadata: dict, status_payload: dict[str, object], usage: dict[str, Any]) -> None:
     input_tokens = int(
         usage.get("input_tokens", 0)
@@ -535,6 +548,83 @@ def _thread_token_usage_payload(payload: dict[str, Any]) -> dict[str, Any] | Non
     }
 
 
+def _ingest_claude_exec_output(
+    root: Path,
+    metadata: dict,
+    handle: RunHandle,
+    status_payload: dict[str, object],
+) -> None:
+    if str(metadata.get("driver")) != "claude-code" or handle.launch_mode != "exec":
+        return
+    artifacts = status_payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        return
+    raw_output_path = artifacts.get("raw_output_path") or handle.metadata.get("raw_output_path")
+    if not isinstance(raw_output_path, str) or not raw_output_path.strip():
+        return
+    raw_path = Path(raw_output_path)
+    if not raw_path.exists():
+        return
+    payload = _load_json_record(raw_path)
+    if payload is None:
+        return
+
+    imports = _driver_imports(metadata)
+    usage = dict(payload.get("usage") or {})
+    if usage:
+        usage["cost_usd"] = float(payload.get("total_cost_usd") or usage.get("cost_usd") or 0.0)
+        _record_driver_usage(metadata, status_payload, usage)
+
+    payload_digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    if imports.get("claude_exec_result_sha256") == payload_digest:
+        imports["claude_exec_raw_output_path"] = str(raw_path)
+        return
+
+    source = "driver.claude.exec"
+    result_text = str(payload.get("result") or "").strip()
+    if result_text:
+        _append_transcript_entry(
+            Path(metadata["transcript_path"]),
+            {
+                "ts": utc_now_iso(),
+                "kind": "assistant",
+                "driver": metadata.get("driver"),
+                "message": result_text,
+                "driver_event_type": "claude.print_result",
+                "state": status_payload.get("state"),
+            },
+        )
+        _emit_runtime_driver_event(
+            root,
+            metadata,
+            event_type="driver.output.delta",
+            source=source,
+            payload={"driver_event_type": "claude.print_result", "message": result_text},
+        )
+        imports["last_message_sha256"] = hashlib.sha256(
+            result_text.encode("utf-8")
+        ).hexdigest()
+
+    _emit_runtime_driver_event(
+        root,
+        metadata,
+        event_type="driver.status",
+        source=source,
+        payload={
+            "driver_event_type": "claude.print_result",
+            "payload": {
+                "session_id": payload.get("session_id"),
+                "total_cost_usd": payload.get("total_cost_usd"),
+                "duration_ms": payload.get("duration_ms"),
+            },
+        },
+    )
+    imports["claude_exec_result_sha256"] = payload_digest
+    imports["claude_exec_raw_output_path"] = str(raw_path)
+
+
 def _ingest_codex_app_server_events(
     root: Path,
     metadata: dict,
@@ -739,6 +829,7 @@ def _refresh_live_driver_status(root: Path, metadata: dict) -> dict[str, object]
     status = driver.status(handle)
     status_payload = status.to_dict()
     _ingest_codex_exec_events(root, metadata, handle, status_payload)
+    _ingest_claude_exec_output(root, metadata, handle, status_payload)
     _ingest_codex_app_server_events(root, metadata, handle, status_payload)
     _sync_run_budget_from_status(metadata, status_payload)
     _record_driver_status(metadata, status_payload)

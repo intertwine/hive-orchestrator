@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from hive.cli.main import main as hive_main
 from src.hive.console.api import app
+from src.hive.drivers import get_driver
 from src.hive.drivers import SteeringRequest
 from src.hive.runtime import request_approval
 from src.hive.runs.engine import accept_run, eval_run, run_artifacts, start_run, steer_run
@@ -58,6 +59,61 @@ def test_driver_doctor_reports_truthful_staged_capabilities(capsys, temp_hive_di
     claude = drivers["claude-code"]
     assert claude["declared"]["launch_mode"] == "sdk"
     assert claude["effective"]["launch_mode"] == "staged"
+
+
+def test_driver_doctor_surfaces_binary_backed_probe_details(monkeypatch, capsys, temp_hive_dir):
+    codex_driver = get_driver("codex")
+    claude_driver = get_driver("claude")
+
+    def fake_binary_details(self):
+        if self.name == "codex":
+            return "codex", "/tmp/codex"
+        return "claude", "/tmp/claude"
+
+    def fake_command_output(self, *args):
+        if self.name == "codex":
+            if args == ("--version",):
+                return "codex 1.2.3"
+            if args == ("--help",):
+                return "Commands: exec app-server sandbox features"
+            if args == ("exec", "--help"):
+                return "--json --output-schema --output-last-message"
+            if args == ("app-server", "--help"):
+                return "generate-ts generate-json-schema --listen"
+        if self.name == "claude-code":
+            if args == ("--version",):
+                return "claude 2.1.78 (Claude Code)"
+            if args == ("--help",):
+                return (
+                    "--print --output-format json stream-json --input-format stream-json "
+                    "--resume --continue --session-id --permission-mode --tools "
+                    "--mcp-config --no-session-persistence"
+                )
+        return None
+
+    monkeypatch.setattr(type(codex_driver), "_detected_binary_details", fake_binary_details)
+    monkeypatch.setattr(type(codex_driver), "_command_output", fake_command_output)
+    monkeypatch.setattr(type(claude_driver), "_detected_binary_details", fake_binary_details)
+    monkeypatch.setattr(type(claude_driver), "_command_output", fake_command_output)
+
+    payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "driver", "doctor"])
+    drivers = {driver["driver"]: driver for driver in payload["drivers"]}
+
+    codex = drivers["codex"]
+    assert codex["version"] == "codex 1.2.3"
+    assert codex["probed"]["binary_name"] == "codex"
+    assert codex["probed"]["exec_available"] is True
+    assert codex["probed"]["app_server_available"] is True
+    assert codex["probed"]["exec_json_output"] is True
+    assert codex["probed"]["app_server_listen"] is True
+
+    claude = drivers["claude-code"]
+    assert claude["version"] == "claude 2.1.78 (Claude Code)"
+    assert claude["probed"]["binary_name"] == "claude"
+    assert claude["probed"]["resume"] is True
+    assert claude["probed"]["session_id"] is True
+    assert claude["probed"]["permission_mode"] is True
+    assert claude["probed"]["mcp_config"] is True
 
 
 def test_sandbox_doctor_lists_scaffolded_backends(capsys, temp_hive_dir):

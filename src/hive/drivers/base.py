@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 import shutil
+import subprocess
 from typing import Any, Iterator
 
 from src.hive.clock import utc_now_iso
@@ -88,12 +89,50 @@ class HarnessDriver(Driver):
     declared_artifacts: tuple[str, ...] = ("runpack",)
     declared_reroute_export: str = "none"
 
-    def _detected_binary(self) -> str | None:
+    def _detected_binary_details(self) -> tuple[str | None, str | None]:
         for candidate in self.binary_names:
             binary = shutil.which(candidate)
             if binary:
-                return str(Path(binary).resolve())
+                return candidate, str(Path(binary).resolve())
+        return None, None
+
+    def _detected_binary(self) -> str | None:
+        """Return the resolved binary path when one of the declared names exists."""
+        return self._detected_binary_details()[1]
+
+    def _command_output(self, *args: str) -> str | None:
+        binary_name, binary_path = self._detected_binary_details()
+        del binary_name
+        if not binary_path:
+            return None
+        try:
+            result = subprocess.run(
+                [binary_path, *args],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        output = result.stdout.strip() or result.stderr.strip()
+        return output or None
+
+    def _version_text(self) -> str | None:
+        for args in (("--version",), ("version",)):
+            output = self._command_output(*args)
+            if output:
+                return output.splitlines()[0].strip()
         return None
+
+    def _probe_details(
+        self,
+        *,
+        binary_name: str | None,
+        binary_path: str | None,
+    ) -> tuple[dict[str, Any], list[str], dict[str, str]]:
+        del binary_name, binary_path
+        return {}, [], {}
 
     def _notes(self) -> list[str]:
         notes = [
@@ -168,13 +207,21 @@ class HarnessDriver(Driver):
         )
 
     def probe(self) -> DriverInfo:
-        binary_path = self._detected_binary()
+        binary_name, binary_path = self._detected_binary_details()
         snapshot = self._declared_snapshot(
             binary_present=bool(binary_path),
             binary_path=binary_path,
         )
+        extra_probed, extra_notes, extra_evidence = self._probe_details(
+            binary_name=binary_name,
+            binary_path=binary_path,
+        )
+        snapshot.probed.update(extra_probed)
+        snapshot.evidence.update(extra_evidence)
+        version_text = self._version_text()
         return DriverInfo(
             driver=self.name,
+            version=version_text or "0.0.0",
             capabilities=DriverCapabilities(
                 worktrees=True,
                 resume=False,
@@ -190,7 +237,7 @@ class HarnessDriver(Driver):
                 reroute_export="none",
             ),
             capability_snapshot=snapshot,
-            notes=self._notes(),
+            notes=[*self._notes(), *extra_notes],
         )
 
     def launch(self, request: RunLaunchRequest) -> RunHandle:

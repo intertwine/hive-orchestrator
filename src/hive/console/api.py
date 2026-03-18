@@ -19,7 +19,7 @@ from src.hive.control import campaign_status
 from src.hive.context_bundle import build_context_bundle
 from src.hive.drivers import SteeringRequest
 from src.hive.program.doctor import doctor_program
-from src.hive.runtime.approvals import list_approvals, resolve_approval
+from src.hive.runtime.approvals import list_approvals
 from src.hive.search import search_workspace
 from src.hive.store.campaigns import list_campaigns
 from src.hive.runs.engine import steer_run
@@ -273,20 +273,22 @@ def approve_run_approval(
     root = _workspace_root(path)
     sync_workspace(root)
     try:
-        approval = resolve_approval(
+        payload = steer_run(
             root,
             run_id,
-            approval_id,
-            resolution="approved",
+            SteeringRequest(
+                action="approve",
+                target={"approval_id": approval_id},
+                note=request.note,
+            ),
             actor=request.actor or "operator",
-            note=request.note,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     sync_workspace(root)
-    return {"ok": True, "approval": approval}
+    return {"ok": True, **payload}
 
 
 @app.post("/runs/{run_id}/approvals/{approval_id}/reject")
@@ -300,20 +302,22 @@ def reject_run_approval(
     root = _workspace_root(path)
     sync_workspace(root)
     try:
-        approval = resolve_approval(
+        payload = steer_run(
             root,
             run_id,
-            approval_id,
-            resolution="rejected",
+            SteeringRequest(
+                action="reject",
+                target={"approval_id": approval_id},
+                note=request.note,
+            ),
             actor=request.actor or "operator",
-            note=request.note,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     sync_workspace(root)
-    return {"ok": True, "approval": approval}
+    return {"ok": True, **payload}
 
 
 @app.post("/runs/{run_id}/steer")

@@ -301,6 +301,21 @@ def _bridge_approval_resolution(
     return driver_ack
 
 
+def _selected_pending_approval(
+    pending: list[dict[str, object]],
+    request: SteeringRequest,
+) -> dict[str, object] | None:
+    target_id = str((request.target or {}).get("approval_id") or "").strip()
+    if not pending:
+        return None
+    if not target_id:
+        return cast(dict[str, object], pending[-1])
+    for item in pending:
+        if str(item.get("approval_id") or "") == target_id:
+            return cast(dict[str, object], item)
+    raise FileNotFoundError(f"Pending approval not found: {target_id}")
+
+
 def start_run(
     path: str | Path | None,
     task_id: str,
@@ -1071,11 +1086,12 @@ def steer_run(
 
     if action == "approve":
         pending = pending_approvals(root, run_id)
-        if pending:
+        selected = _selected_pending_approval(pending, request)
+        if selected is not None:
             approval = resolve_approval(
                 root,
                 run_id,
-                str(pending[-1]["approval_id"]),
+                str(selected["approval_id"]),
                 resolution="approved",
                 actor=actor or "operator",
                 note=request.note or request.reason,
@@ -1126,11 +1142,12 @@ def steer_run(
         return {"run": accepted, "action": action, "request": request.to_dict()}
     if action == "reject":
         pending = pending_approvals(root, run_id)
-        if pending:
+        selected = _selected_pending_approval(pending, request)
+        if selected is not None:
             approval = resolve_approval(
                 root,
                 run_id,
-                str(pending[-1]["approval_id"]),
+                str(selected["approval_id"]),
                 resolution="rejected",
                 actor=actor or "operator",
                 note=request.note or request.reason,

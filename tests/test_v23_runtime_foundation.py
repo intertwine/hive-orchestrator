@@ -727,6 +727,50 @@ def test_approval_request_surfaces_in_inbox_and_can_be_resolved(temp_hive_dir, c
     assert resolution.json()["approval"]["status"] == "approved"
 
 
+def test_console_approval_resolution_targets_requested_item(temp_hive_dir, capsys):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="codex")
+    first = request_approval(
+        temp_hive_dir,
+        run.id,
+        kind="command",
+        title="Approve git status",
+        summary="Driver wants to run `git status`.",
+        requested_by="driver:codex",
+        payload={"command": "git status"},
+    )
+    second = request_approval(
+        temp_hive_dir,
+        run.id,
+        kind="command",
+        title="Approve git diff",
+        summary="Driver wants to run `git diff`.",
+        requested_by="driver:codex",
+        payload={"command": "git diff"},
+    )
+
+    client = TestClient(app)
+    resolution = client.post(
+        f"/runs/{run.id}/approvals/{first['approval_id']}/approve",
+        params={"path": temp_hive_dir},
+        json={"actor": "operator", "note": "approve the first request"},
+    )
+    approvals = client.get(f"/runs/{run.id}/approvals", params={"path": temp_hive_dir})
+    broker_path = Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "approval-channel.ndjson"
+    broker_records = [
+        json.loads(line) for line in broker_path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+
+    assert resolution.status_code == 200
+    assert resolution.json()["approval"]["approval_id"] == first["approval_id"]
+    statuses = {item["approval_id"]: item["status"] for item in approvals.json()["approvals"]}
+    assert statuses[first["approval_id"]] == "approved"
+    assert statuses[second["approval_id"]] == "pending"
+    assert broker_records[-1]["approval_id"] == first["approval_id"]
+    assert broker_records[-1]["resolution"] == "approved"
+
+
 def test_run_status_surfaces_session_and_pending_approvals(capsys, temp_hive_dir):
     _bootstrap_workspace(temp_hive_dir, capsys)
     task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]

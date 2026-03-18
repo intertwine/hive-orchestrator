@@ -221,7 +221,7 @@ def resolve_pending_approvals(
 
 
 def bridge_approval_resolution(
-    path: str | Path | None,
+    path: str | Path,
     metadata: dict[str, Any],
     *,
     approval: dict[str, Any],
@@ -258,20 +258,22 @@ def bridge_approval_resolution(
     )
     if driver_ack is not None:
         resolution = str(approval.get("resolution") or action)
-        _append_transcript_entry(
-            Path(metadata["transcript_path"]),
-            {
-                "ts": utc_now_iso(),
-                "kind": "system",
-                "driver": metadata.get("driver"),
-                "message": (
-                    f"Approval {approval.get('approval_id')} was {resolution} and forwarded "
-                    "to the driver channel."
-                ),
-                "approval_id": approval.get("approval_id"),
-                "resolution": resolution,
-            },
-        )
+        transcript_path_value = str(metadata.get("transcript_path") or "").strip()
+        if transcript_path_value:
+            _append_transcript_entry(
+                Path(transcript_path_value),
+                {
+                    "ts": utc_now_iso(),
+                    "kind": "system",
+                    "driver": metadata.get("driver"),
+                    "message": (
+                        f"Approval {approval.get('approval_id')} was {resolution} and forwarded "
+                        "to the driver channel."
+                    ),
+                    "approval_id": approval.get("approval_id"),
+                    "resolution": resolution,
+                },
+            )
         emit_event(
             path,
             actor={"kind": "human", "id": actor or "operator"},

@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 import pytest
@@ -20,6 +21,7 @@ from src.hive.runs.evaluators import run_evaluator
 from src.hive.runs.executors import LocalExecutor
 from src.hive.runs import driver_state as driver_state_module
 from src.hive.runtime import list_approvals, pending_approvals, request_approval
+from src.hive.runtime.approvals import bridge_approval_resolution
 from src.hive.runtime.runpack import SandboxPolicy
 from src.hive.runs.engine import accept_run, eval_run, load_run, run_artifacts, start_run, steer_run
 from src.hive.scheduler.query import ready_tasks
@@ -1559,7 +1561,54 @@ def test_cancel_run_rejects_pending_approvals(capsys, temp_hive_dir):
     }
     assert all(item["resolution"] == "rejected" for item in channel_records)
     assert "approval.forwarded" in event_types
+    assert [item["action"] for item in metadata["metadata_json"]["steering_history"]] == [
+        "cancel"
+    ]
     assert metadata["metadata_json"]["approval_forwarding"][-1]["driver_ack"]["ok"] is True
+
+
+def test_bridge_approval_resolution_skips_missing_transcript_path(tmp_path, monkeypatch):
+    class FakeDriver:
+        name = "codex"
+
+        def submit_approval_resolution(self, handle, approval):
+            return {"ok": True, "channel": "driver-channel"}
+
+    def fake_active_driver_handle(metadata):
+        return SimpleNamespace(
+            driver="codex",
+            driver_handle="codex:run_1",
+            launch_mode="app_server",
+        )
+
+    monkeypatch.setattr("src.hive.drivers.get_driver", lambda name: FakeDriver())
+    monkeypatch.setattr(driver_state_module, "_active_driver_handle", fake_active_driver_handle)
+
+    metadata = {
+        "id": "run_1",
+        "driver": "codex",
+        "transcript_path": "",
+        "metadata_json": {},
+    }
+    approval = {
+        "approval_id": "approval_1",
+        "resolution": "rejected",
+    }
+
+    ack = bridge_approval_resolution(
+        tmp_path,
+        metadata,
+        approval=approval,
+        action="cancel",
+        actor="operator",
+        request=SimpleNamespace(),
+    )
+
+    assert ack == {"ok": True, "channel": "driver-channel"}
+    assert metadata["metadata_json"]["approval_forwarding"][-1]["driver_ack"]["channel"] == (
+        "driver-channel"
+    )
+    assert metadata["metadata_json"]["approval_resolutions"][-1]["approval_id"] == "approval_1"
 
 
 def test_run_status_refresh_surfaces_live_codex_session_payload(temp_hive_dir, capsys, monkeypatch):

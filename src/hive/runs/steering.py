@@ -88,6 +88,11 @@ def steer_run(
             )
             if resolved:
                 metadata = load_run(root, run_id)
+                metadata.setdefault("metadata_json", {}).setdefault("steering_history", []).append(
+                    timeline_entry
+                )
+                # Cancel records one outer steering-history entry; individual approvals are
+                # bridged below without creating per-approval steering entries.
                 for approval in resolved:
                     bridge_approval_resolution(
                         root,

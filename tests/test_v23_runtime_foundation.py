@@ -333,6 +333,37 @@ def test_start_run_selects_local_safe_sandbox_backend_when_available(
     assert manifest["sandbox_profile"] == "local-safe"
 
 
+def test_start_run_selects_local_fast_asrt_backend_when_available(
+    temp_hive_dir, capsys, monkeypatch
+):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    asrt = get_backend("asrt")
+
+    def fake_asrt_probe(self):
+        return SandboxProbe(
+            backend="asrt",
+            available=True,
+            isolation_class="process-wrapper",
+            supported_profiles=["local-fast"],
+            notes=["Detected Anthropic Sandbox Runtime."],
+            evidence={"binary": "/tmp/srt", "version": "srt 0.1.0"},
+        )
+
+    monkeypatch.setattr(type(asrt), "probe", fake_asrt_probe)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="local", profile="local-fast")
+    run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
+    sandbox = json.loads((run_root / "sandbox-policy.json").read_text(encoding="utf-8"))
+    manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
+
+    assert sandbox["backend"] == "asrt"
+    assert sandbox["isolation_class"] == "process-wrapper"
+    assert sandbox["profile"] == "local-fast"
+    assert manifest["sandbox_backend"] == "asrt"
+    assert manifest["sandbox_profile"] == "local-fast"
+
+
 def test_start_run_emits_sandbox_selected_event(temp_hive_dir, capsys, monkeypatch):
     _bootstrap_workspace(temp_hive_dir, capsys)
     podman = get_backend("podman")
@@ -460,6 +491,60 @@ def test_local_executor_wraps_commands_for_container_sandbox(monkeypatch, tmp_pa
     assert "/workspace" in " ".join(argv)
 
 
+def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path):
+    calls: list[dict[str, object]] = []
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    def fake_run(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+
+        class Result:
+            returncode = 0
+            stdout = "ok\n"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr("src.hive.runs.executors.subprocess.run", fake_run)
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="asrt",
+            isolation_class="process-wrapper",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": ["LANG"], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="local-fast",
+            provenance="sandbox_v2_backend:asrt",
+        )
+    )
+
+    result = executor.run_command("python -c \"print('ok')\"", cwd=worktree, timeout_seconds=30)
+
+    argv = list(calls[0]["args"][0])
+    settings_path = Path(argv[2])
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+
+    assert result.returncode == 0
+    assert result.sandbox is not None
+    assert result.sandbox["backend"] == "asrt"
+    assert result.sandbox["network_mode"] == "deny"
+    assert calls[0]["kwargs"]["shell"] is False
+    assert argv[:4] == ["srt", "--settings", str(settings_path), "sh"]
+    assert settings["filesystem"]["allowWrite"][:2] == [str(worktree), str(artifacts)]
+    assert settings["network"]["allowedDomains"] == []
+
+
 def test_local_executor_reports_unwired_backend_as_failed_command(tmp_path):
     worktree = tmp_path / "worktree"
     artifacts = tmp_path / "artifacts"
@@ -553,6 +638,60 @@ def test_execute_local_safe_wraps_python_runner_in_container(monkeypatch, tmp_pa
     assert "/artifacts/payload.json" in argv[-1]
 
 
+def test_execute_local_fast_wraps_python_runner_with_asrt(monkeypatch, tmp_path):
+    calls: list[dict[str, object]] = []
+    settings_payload: dict[str, object] = {}
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    asrt = get_backend("asrt")
+
+    def fake_asrt_probe(self):
+        return SandboxProbe(
+            backend="asrt",
+            available=True,
+            isolation_class="process-wrapper",
+            supported_profiles=["local-fast"],
+            notes=["Detected Anthropic Sandbox Runtime."],
+            evidence={"binary": "/tmp/srt"},
+        )
+
+    def fake_run(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        argv = list(args[0])
+        settings_path = Path(argv[2])
+        settings_payload.update(json.loads(settings_path.read_text(encoding="utf-8")))
+
+        class Result:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(type(asrt), "probe", fake_asrt_probe)
+    monkeypatch.setattr("src.hive.codemode.execute.subprocess.run", fake_run)
+
+    payload = execute_code(
+        workspace,
+        language="python",
+        code="result = {'ok': True}",
+        profile="local-fast",
+        timeout_seconds=10,
+    )
+
+    argv = list(calls[0]["args"][0])
+
+    assert payload["ok"] is True
+    assert payload["sandbox_backend"] == "asrt"
+    assert payload["sandbox_profile"] == "local-fast"
+    assert payload["sandbox_network_mode"] == "deny"
+    assert calls[0]["kwargs"]["shell"] is False
+    assert calls[0]["kwargs"]["env"] is None
+    assert argv[:4] == ["srt", "--settings", argv[2], "sh"]
+    assert "python -m src.hive.codemode.python_runner" in argv[-1]
+    assert settings_payload["filesystem"]["allowRead"][0] == str(workspace)
+
+
 def test_execute_local_safe_returns_error_when_backend_is_unavailable(monkeypatch, tmp_path):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -605,6 +744,28 @@ def test_docker_rootless_probe_requires_rootless_daemon(monkeypatch):
     assert probe.available is True
     assert probe.evidence["rootless"] is True
     assert "rootless" in probe.notes[-1]
+
+
+def test_asrt_probe_prefers_srt_binary(monkeypatch):
+    backend = get_backend("asrt")
+
+    def fake_find_binary(self):
+        return "/tmp/srt"
+
+    def fake_command_output(self, *args):
+        if args == ("--version",):
+            return "srt 0.1.0"
+        return None
+
+    monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
+    monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+
+    probe = backend.probe()
+
+    assert backend.binaries[0] == "srt"
+    assert probe.available is True
+    assert probe.evidence["binary"] == "/tmp/srt"
+    assert probe.evidence["version"] == "srt 0.1.0"
 
 
 def test_run_evaluator_records_sandbox_metadata(monkeypatch, tmp_path):

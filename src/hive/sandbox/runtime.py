@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -33,6 +34,30 @@ def _read_write_mounts(policy: SandboxPolicy, cwd: Path) -> tuple[Path, Path]:
     host_worktree = Path(str(mounts[0] if mounts else cwd)).resolve()
     host_artifacts = Path(str(mounts[1] if len(mounts) > 1 else cwd)).resolve()
     return host_worktree, host_artifacts
+
+
+def _asrt_settings_path(policy: SandboxPolicy, cwd: Path) -> Path:
+    _, host_artifacts = _read_write_mounts(policy, cwd)
+    return host_artifacts / "asrt-settings.json"
+
+
+def _asrt_settings_payload(policy: SandboxPolicy, cwd: Path) -> dict[str, object]:
+    host_worktree, host_artifacts = _read_write_mounts(policy, cwd)
+    return {
+        "network": {
+            "allowedDomains": list(policy.network.get("allowlist") or []),
+            "deniedDomains": [],
+            "allowLocalBinding": False,
+        },
+        "filesystem": {
+            "denyRead": [str(Path.home())],
+            "allowRead": [str(host_worktree), str(host_artifacts)],
+            "allowWrite": [str(host_worktree), str(host_artifacts), "/tmp"],
+            "denyWrite": [],
+        },
+        "enableWeakerNestedSandbox": False,
+        "enableWeakerNetworkIsolation": False,
+    }
 
 
 def container_path_for_host(policy: SandboxPolicy, host_path: str | Path) -> str:
@@ -119,6 +144,22 @@ def sandboxed_command(
     """Return an executor-ready command payload for the selected sandbox."""
     if policy.backend == "legacy-host":
         return command, True
+
+    if policy.backend == "asrt":
+        settings_path = _asrt_settings_path(policy, cwd)
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        settings_path.write_text(
+            json.dumps(_asrt_settings_payload(policy, cwd), indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        return [
+            "srt",
+            "--settings",
+            str(settings_path),
+            "sh",
+            "-lc",
+            command,
+        ], False
 
     if policy.backend not in {"podman", "docker-rootless"}:
         raise NotImplementedError(

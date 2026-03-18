@@ -66,10 +66,10 @@ def _effective_status(task: TaskRecord, tasks_by_id: dict[str, TaskRecord] | Non
 def _blocked_by(task: TaskRecord, tasks_by_id: dict[str, TaskRecord]) -> list[str]:
     blockers = []
     for candidate in tasks_by_id.values():
-        if task.id in candidate.edges.get("blocks", []) and _claim_adjusted_status(candidate) not in {
-            "done",
-            "archived",
-        }:
+        if (
+            task.id in candidate.edges.get("blocks", [])
+            and _claim_adjusted_status(candidate) not in {"done", "archived"}
+        ):
             blockers.append(candidate.id)
     return blockers
 
@@ -386,7 +386,8 @@ def project_summary(path: str | Path | None = None) -> list[dict[str, object]]:
                     [
                         task
                         for task in project_tasks
-                        if _effective_status(task, project_tasks_by_id) in {"claimed", "in_progress"}
+                        if _effective_status(task, project_tasks_by_id)
+                        in {"claimed", "in_progress"}
                     ]
                 ),
                 "blocked": len(

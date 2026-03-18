@@ -15,6 +15,12 @@ from src.hive.scheduler.query import ready_tasks
 from src.hive.store.projects import get_project
 from src.hive.store.task_files import create_task
 
+DEMO_PROJECTS = {
+    "alpha": "Alpha Control Plane",
+    "beta": "Beta Research Ops",
+    "gamma": "Gamma Launch Loop",
+}
+
 
 def _run(cmd: list[str], *, cwd: Path) -> None:
     subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True)
@@ -115,12 +121,7 @@ def build_north_star_demo(path: str | Path) -> dict[str, Any]:
     root.mkdir(parents=True, exist_ok=True)
     _init_git_repo(root)
 
-    projects = {
-        "alpha": "Alpha Control Plane",
-        "beta": "Beta Research Ops",
-        "gamma": "Gamma Launch Loop",
-    }
-    for project_id, title in projects.items():
+    for project_id, title in DEMO_PROJECTS.items():
         _seed_project(root, project_id, title)
 
     campaign = create_campaign_flow(
@@ -168,7 +169,9 @@ def build_north_star_demo(path: str | Path) -> dict[str, Any]:
     tick = tick_campaign(root, str(campaign["campaign"]["id"]), owner="campaign-manager")
     launched_runs = tick.get("launched_runs", [])
     if not launched_runs:
-        raise RuntimeError("Campaign tick produced no runs. Check the demo fixture ready-task pool.")
+        raise RuntimeError(
+            "Campaign tick produced no runs. Check the demo fixture ready-task pool."
+        )
     campaign_run_id = str(launched_runs[0]["id"])
     brief = generate_brief(root, cadence="daily")
 
@@ -182,7 +185,7 @@ def build_north_star_demo(path: str | Path) -> dict[str, Any]:
         "waiting_runs": waiting_runs,
         "running_runs": [gamma_running, campaign_run_id],
         "showcase_run_id": rerouted,
-        "projects": projects,
+        "projects": DEMO_PROJECTS,
         "all_runs": accepted_runs
         + review_runs
         + waiting_runs[:-1]

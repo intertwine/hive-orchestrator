@@ -13,7 +13,10 @@ from src.security import safe_dump_agency_md, safe_load_agency_md
 
 
 def _campaign_body(goal: str, notes_md: str = "") -> str:
-    notes = notes_md.strip() or "Use this space for operator notes, constraints, and campaign updates."
+    notes = (
+        notes_md.strip()
+        or "Use this space for operator notes, constraints, and campaign updates."
+    )
     return f"""# Goal
 
 {goal.strip()}
@@ -77,7 +80,10 @@ def list_campaigns(path: str | Path | None = None) -> list[CampaignRecord]:
     root = campaigns_dir(path)
     if not root.exists():
         return []
-    return sorted((_parse_campaign(item) for item in root.glob("campaign_*.md")), key=lambda c: c.id)
+    return sorted(
+        (_parse_campaign(item) for item in root.glob("campaign_*.md")),
+        key=lambda c: c.id,
+    )
 
 
 def get_campaign(path: str | Path | None, campaign_id: str) -> CampaignRecord:
@@ -96,7 +102,10 @@ def save_campaign(path: str | Path | None, campaign: CampaignRecord) -> Campaign
     target = campaign.path or _campaign_path(path, campaign.id)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
-        safe_dump_agency_md(campaign.to_frontmatter(), _campaign_body(campaign.goal, campaign.notes_md)),
+        safe_dump_agency_md(
+            campaign.to_frontmatter(),
+            _campaign_body(campaign.goal, campaign.notes_md),
+        ),
         encoding="utf-8",
     )
     campaign.path = target
@@ -135,9 +144,13 @@ def create_campaign(
 def next_tick_at(campaign: CampaignRecord) -> str | None:
     """Return the next scheduled campaign tick timestamp."""
     if campaign.cadence == "daily":
-        return (datetime.now(timezone.utc) + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+        return (
+            datetime.now(timezone.utc) + timedelta(days=1)
+        ).isoformat().replace("+00:00", "Z")
     if campaign.cadence == "weekly":
-        return (datetime.now(timezone.utc) + timedelta(days=7)).isoformat().replace("+00:00", "Z")
+        return (
+            datetime.now(timezone.utc) + timedelta(days=7)
+        ).isoformat().replace("+00:00", "Z")
     return None
 
 

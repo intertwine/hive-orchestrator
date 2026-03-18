@@ -92,7 +92,8 @@ class HarnessDriver(Driver):
                 break
         else:
             notes.append(
-                f"{self.cli_label} was not detected on PATH; the staged run can still be handed off."
+                f"{self.cli_label} was not detected on PATH; "
+                "the staged run can still be handed off."
             )
         return notes
 

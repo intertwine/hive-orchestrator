@@ -1693,7 +1693,7 @@ class TestHiveV2Cli:
         assert "<!-- hive:begin compatibility -->" in (workspace / "AGENTS.md").read_text(
             encoding="utf-8"
         )
-        assert any("hive quickstart demo" in step for step in payload["next_steps"])
+        assert any("hive onboard demo" in step for step in payload["next_steps"])
 
     def test_cli_doctor_guides_empty_workspace_and_first_project(self, tmp_path, capsys):
         """Doctor should recommend bootstrap and first-project steps as the workspace evolves."""
@@ -1705,7 +1705,7 @@ class TestHiveV2Cli:
         payload = json.loads(captured.out)
 
         assert exit_code == 0
-        assert any("hive quickstart demo" in step for step in payload["next_steps"])
+        assert any("hive onboard demo" in step for step in payload["next_steps"])
         assert any("hive init" in step for step in payload["next_steps"])
 
         hive_main(["--path", str(workspace), "--json", "init"])

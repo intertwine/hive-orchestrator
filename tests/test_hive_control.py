@@ -36,6 +36,91 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
 class TestHiveControlPlane:
     """Tests for agent-manager style portfolio commands."""
 
+    def test_cli_work_human_output_defaults_to_summary_view(self, temp_hive_dir, capsys):
+        """Human-facing work output should stay compact unless the operator asks for context."""
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+
+        exit_code = hive_main(
+            [
+                "--path",
+                temp_hive_dir,
+                "work",
+                "--project-id",
+                "demo",
+                "--owner",
+                "manager",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "Started governed work on" in captured.out
+        assert "Run:" in captured.out
+        assert "# AGENTS" not in captured.out
+
+    def test_cli_work_human_output_can_print_context_on_demand(self, temp_hive_dir, capsys):
+        """`--print-context` should preserve the old full-bundle behavior when requested."""
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+
+        exit_code = hive_main(
+            [
+                "--path",
+                temp_hive_dir,
+                "work",
+                "--project-id",
+                "demo",
+                "--owner",
+                "manager",
+                "--print-context",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "# AGENTS" in captured.out
+
+    def test_cli_finish_human_output_includes_reject_reason(self, tmp_path, capsys):
+        """Human-facing finish output should explain why a run was rejected."""
+        workspace = tmp_path / "finish-human"
+        workspace.mkdir(parents=True, exist_ok=True)
+        init_git_repo(workspace)
+
+        onboard = _invoke_cli_json(
+            capsys,
+            ["--path", str(workspace), "--json", "onboard", "demo", "--title", "Demo"],
+        )
+        run = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "work",
+                "--project-id",
+                "demo",
+                "--owner",
+                "manager",
+            ],
+        )["run"]
+
+        exit_code = hive_main(["--path", str(workspace), "finish", run["id"], "--owner", "manager"])
+        captured = capsys.readouterr()
+
+        assert onboard["program"]["applied_template"]["id"] == "local-smoke"
+        assert exit_code == 0
+        assert "Promotion decision: reject" in captured.out
+        assert "Run did not produce workspace changes" in captured.out
+
     def test_recommend_next_skips_paused_projects(self, temp_hive_dir, capsys):
         """Paused projects should drop out of manager recommendations."""
         init_git_repo(temp_hive_dir)

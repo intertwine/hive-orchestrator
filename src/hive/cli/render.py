@@ -182,6 +182,15 @@ def _render_events(events: list[dict[str, object]]) -> str:
     return "\n".join(lines)
 
 
+def _render_promotion_decision(decision: dict[str, object]) -> str:
+    lines = [f"Promotion decision: {decision.get('decision')}"]
+    reasons = decision.get("reasons") or []
+    if reasons:
+        lines.append("Reasons:")
+        lines.extend(f"- {reason}" for reason in reasons)
+    return "\n".join(lines)
+
+
 def render_payload(payload: dict[str, object]) -> str:
     """Render a CLI payload for humans."""
     if not payload.get("ok", True) and payload.get("error"):
@@ -220,6 +229,8 @@ def render_payload(payload: dict[str, object]) -> str:
         sections.append(_render_steering(payload["steering"]))
     if isinstance(payload.get("recent_events"), list):
         sections.append(_render_events(payload["recent_events"]))
+    if isinstance(payload.get("promotion_decision"), dict):
+        sections.append(_render_promotion_decision(payload["promotion_decision"]))
     if isinstance(payload.get("next_steps"), list):
         sections.append(_render_next_steps(payload["next_steps"]))
 

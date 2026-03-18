@@ -94,9 +94,9 @@ def dispatch(args, root: Path) -> int:
                     )
                     if payload["output_path"] is None
                     else f"Review the startup bundle at {payload['output_path']}"
-                ]
-                + [f"hive finish {payload['run']['id']}"],
+                ],
             }
+            response["next_steps"].append(f"hive finish {payload['run']['id']}")
             if payload["output_path"] is None and args.print_context:
                 response["rendered_context"] = payload["rendered_context"]
             return emit(response, args.json)
@@ -112,6 +112,7 @@ def dispatch(args, root: Path) -> int:
             reason_suffix = ""
             reasons = decision.get("reasons") or []
             if reasons:
+                # Keep the headline compact; the full reason list still renders below.
                 reason_suffix = f": {reasons[0]}"
             return emit(
                 {

@@ -88,6 +88,7 @@ class TestHiveControlPlane:
 
         assert exit_code == 0
         assert "# AGENTS" in captured.out
+        assert "Next steps:" not in captured.out
 
     def test_cli_finish_human_output_includes_reject_reason(self, tmp_path, capsys):
         """Human-facing finish output should explain why a run was rejected."""

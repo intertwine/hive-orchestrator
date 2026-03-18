@@ -159,16 +159,16 @@ def _normalize_codex_event(record: dict[str, Any]) -> tuple[str | None, dict[str
 
 
 def _load_json_record(path: Path) -> dict[str, Any] | None:
+    """Return the last valid JSON object from a JSONL-ish output file."""
     lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    if not lines:
-        return None
-    try:
-        payload = json.loads(lines[-1])
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(payload, dict):
-        return None
-    return payload
+    for raw_line in reversed(lines):
+        try:
+            payload = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return None
 
 
 def _record_driver_usage(metadata: dict, status_payload: dict[str, object], usage: dict[str, Any]) -> None:
@@ -570,6 +570,7 @@ def _ingest_claude_exec_output(
         return
 
     imports = _driver_imports(metadata)
+    transcript_path_value = str(metadata.get("transcript_path") or "").strip()
     usage = dict(payload.get("usage") or {})
     if usage:
         usage["cost_usd"] = float(payload.get("total_cost_usd") or usage.get("cost_usd") or 0.0)
@@ -584,18 +585,20 @@ def _ingest_claude_exec_output(
 
     source = "driver.claude.exec"
     result_text = str(payload.get("result") or "").strip()
+    driver_event_type = "claude.print_result" if result_text else "claude.print_metadata"
     if result_text:
-        _append_transcript_entry(
-            Path(metadata["transcript_path"]),
-            {
-                "ts": utc_now_iso(),
-                "kind": "assistant",
-                "driver": metadata.get("driver"),
-                "message": result_text,
-                "driver_event_type": "claude.print_result",
-                "state": status_payload.get("state"),
-            },
-        )
+        if transcript_path_value:
+            _append_transcript_entry(
+                Path(transcript_path_value),
+                {
+                    "ts": utc_now_iso(),
+                    "kind": "assistant",
+                    "driver": metadata.get("driver"),
+                    "message": result_text,
+                    "driver_event_type": "claude.print_result",
+                    "state": status_payload.get("state"),
+                },
+            )
         _emit_runtime_driver_event(
             root,
             metadata,
@@ -613,11 +616,12 @@ def _ingest_claude_exec_output(
         event_type="driver.status",
         source=source,
         payload={
-            "driver_event_type": "claude.print_result",
+            "driver_event_type": driver_event_type,
             "payload": {
                 "session_id": payload.get("session_id"),
                 "total_cost_usd": payload.get("total_cost_usd"),
                 "duration_ms": payload.get("duration_ms"),
+                "has_result_text": bool(result_text),
             },
         },
     )

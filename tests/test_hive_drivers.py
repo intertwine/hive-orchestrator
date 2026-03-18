@@ -294,7 +294,7 @@ def _wait_for_run_status(
     run_id: str,
     *,
     predicate,
-    attempts: int = 160,
+    attempts: int = 80,
     sleep_seconds: float = 0.1,
 ) -> dict:
     payload: dict = {}

@@ -199,6 +199,55 @@ class TestHiveControlPlane:
         assert payload["action"] == "accept"
         assert payload["next_steps"] == [f"hive run promote {run['id']}"]
 
+    def test_cli_finish_json_next_steps_return_to_queue_after_promotion(self, tmp_path, capsys):
+        """Default finish flow should send the operator back to the queue after promotion."""
+        workspace = tmp_path / "finish-promote"
+        workspace.mkdir(parents=True, exist_ok=True)
+        init_git_repo(workspace)
+        _invoke_cli_json(
+            capsys,
+            ["--path", str(workspace), "--json", "onboard", "demo", "--title", "Demo"],
+        )
+        write_safe_program(workspace, "demo")
+        run = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "work",
+                "--project-id",
+                "demo",
+                "--owner",
+                "manager",
+            ],
+        )["run"]
+        promoted_path = Path(run["worktree_path"]) / "docs" / "promoted.md"
+        promoted_path.parent.mkdir(parents=True, exist_ok=True)
+        promoted_path.write_text("promoted\n", encoding="utf-8")
+        subprocess.run(["git", "add", "docs/promoted.md"], cwd=run["worktree_path"], check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "promoted change"],
+            cwd=run["worktree_path"],
+            check=True,
+        )
+
+        payload = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "finish",
+                run["id"],
+                "--owner",
+                "manager",
+            ],
+        )
+
+        assert payload["action"] == "promote"
+        assert payload["next_steps"] == ["hive next"]
+
     def test_recommend_next_skips_paused_projects(self, temp_hive_dir, capsys):
         """Paused projects should drop out of manager recommendations."""
         init_git_repo(temp_hive_dir)

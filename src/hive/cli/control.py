@@ -119,7 +119,9 @@ def dispatch(args, root: Path) -> int:
             elif payload["action"] == "escalate":
                 next_steps = [f"hive run show {args.run_id}"]
             elif payload["action"] == "accept":
-                next_steps = [f"hive run promote {args.run_id}"]
+                next_steps = (
+                    [f"hive run promote {args.run_id}"] if args.no_promote else ["hive next"]
+                )
             else:
                 next_steps = ["hive next"]
             return emit(

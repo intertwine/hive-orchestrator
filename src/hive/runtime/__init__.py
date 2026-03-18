@@ -29,6 +29,7 @@ __all__ = [
     "pending_approvals",
     "request_approval",
     "resolve_approval",
+    "resolve_pending_approvals",
     "runtime_manifest",
     "sync_runtime_status_artifacts",
     "write_runtime_scaffold",
@@ -61,3 +62,10 @@ def resolve_approval(*args: Any, **kwargs: Any):
     from src.hive.runtime.approvals import resolve_approval as _resolve_approval
 
     return _resolve_approval(*args, **kwargs)
+
+
+def resolve_pending_approvals(*args: Any, **kwargs: Any):
+    """Lazily load bulk approval resolution helpers to avoid package import cycles."""
+    from src.hive.runtime.approvals import resolve_pending_approvals as _resolve_pending_approvals
+
+    return _resolve_pending_approvals(*args, **kwargs)

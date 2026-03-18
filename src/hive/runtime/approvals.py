@@ -173,10 +173,58 @@ def resolve_approval(
     return updated
 
 
+def resolve_pending_approvals(
+    path: str | Path | None,
+    run_id: str,
+    *,
+    resolution: str,
+    actor: str,
+    note: str | None = None,
+) -> list[dict[str, Any]]:
+    """Resolve every still-pending approval for a run and emit per-item events."""
+    from src.hive.runs.metadata import load_run, save_run
+
+    if resolution not in {"approved", "rejected"}:
+        raise ValueError(f"Unsupported approval resolution: {resolution}")
+    metadata = load_run(path, run_id)
+    approvals = _read_approvals(metadata)
+    resolved: list[dict[str, Any]] = []
+    for item in approvals:
+        if item.get("status") != "pending":
+            continue
+        item["status"] = resolution
+        item["resolution"] = resolution
+        item["resolved_at"] = utc_now_iso()
+        item["resolved_by"] = actor
+        item["resolution_note"] = note
+        resolved.append(dict(item))
+    if not resolved:
+        return []
+    _write_approvals(metadata, approvals)
+    metadata.setdefault("metadata_json", {})["approvals"] = approvals
+    save_run(path, run_id, metadata)
+    for item in resolved:
+        emit_event(
+            path,
+            actor={"kind": "human", "id": actor},
+            entity_type="run",
+            entity_id=run_id,
+            event_type="approval.resolved",
+            source="runtime.approval",
+            payload=item,
+            run_id=run_id,
+            task_id=metadata.get("task_id"),
+            project_id=metadata.get("project_id"),
+            campaign_id=metadata.get("campaign_id"),
+        )
+    return resolved
+
+
 __all__ = [
     "ApprovalRequest",
     "list_approvals",
     "pending_approvals",
     "request_approval",
     "resolve_approval",
+    "resolve_pending_approvals",
 ]

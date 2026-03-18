@@ -286,6 +286,25 @@ def _poll_run_status(temp_hive_dir: str, capsys, run_id: str, *, attempts: int =
     return payload
 
 
+def _wait_for_run_status(
+    temp_hive_dir: str,
+    capsys,
+    run_id: str,
+    *,
+    predicate,
+    attempts: int = 80,
+    sleep_seconds: float = 0.1,
+) -> dict:
+    payload: dict = {}
+    for _ in range(attempts):
+        payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "run", "status", run_id])
+        status = payload.get("status")
+        if isinstance(status, dict) and predicate(status):
+            return payload
+        time.sleep(sleep_seconds)
+    return payload
+
+
 class TestHiveDrivers:
     """Conformance tests for the v2.2 driver layer."""
 
@@ -1069,15 +1088,12 @@ class TestHiveDrivers:
         task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
         run = start_run(temp_hive_dir, task_id, driver_name="codex")
 
-        pending_payload = {}
-        for _ in range(30):
-            pending_payload = _invoke_cli_json(
-                capsys,
-                ["--path", temp_hive_dir, "--json", "run", "status", run.id],
-            )
-            if pending_payload["status"]["pending_approvals"]:
-                break
-            time.sleep(0.1)
+        pending_payload = _wait_for_run_status(
+            temp_hive_dir,
+            capsys,
+            run.id,
+            predicate=lambda status: bool(status.get("pending_approvals")),
+        )
 
         approval_id = pending_payload["status"]["pending_approvals"][0]["approval_id"]
         resolution = steer_run(
@@ -1087,15 +1103,12 @@ class TestHiveDrivers:
             actor="operator",
         )
 
-        completed_payload = {}
-        for _ in range(30):
-            completed_payload = _invoke_cli_json(
-                capsys,
-                ["--path", temp_hive_dir, "--json", "run", "status", run.id],
-            )
-            if completed_payload["status"]["state"] == "completed_candidate":
-                break
-            time.sleep(0.1)
+        completed_payload = _wait_for_run_status(
+            temp_hive_dir,
+            capsys,
+            run.id,
+            predicate=lambda status: status.get("state") == "completed_candidate",
+        )
 
         metadata = load_run(temp_hive_dir, run.id)
         run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
@@ -1156,15 +1169,12 @@ class TestHiveDrivers:
             actor="operator",
         )
 
-        cancelled_payload = {}
-        for _ in range(30):
-            cancelled_payload = _invoke_cli_json(
-                capsys,
-                ["--path", temp_hive_dir, "--json", "run", "status", run.id],
-            )
-            if cancelled_payload["status"]["state"] == "cancelled":
-                break
-            time.sleep(0.1)
+        cancelled_payload = _wait_for_run_status(
+            temp_hive_dir,
+            capsys,
+            run.id,
+            predicate=lambda status: status.get("state") == "cancelled",
+        )
 
         assert interrupt_payload["driver_ack"]["ok"] is True
         assert cancelled_payload["status"]["state"] == "cancelled"
@@ -1204,15 +1214,12 @@ class TestHiveDrivers:
         task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
         run = start_run(temp_hive_dir, task_id, driver_name="codex")
 
-        pending_payload = {}
-        for _ in range(30):
-            pending_payload = _invoke_cli_json(
-                capsys,
-                ["--path", temp_hive_dir, "--json", "run", "status", run.id],
-            )
-            if pending_payload["status"]["pending_approvals"]:
-                break
-            time.sleep(0.1)
+        pending_payload = _wait_for_run_status(
+            temp_hive_dir,
+            capsys,
+            run.id,
+            predicate=lambda status: bool(status.get("pending_approvals")),
+        )
 
         pending_approval = pending_payload["status"]["pending_approvals"][0]
         resolution = steer_run(
@@ -1222,15 +1229,12 @@ class TestHiveDrivers:
             actor="operator",
         )
 
-        completed_payload = {}
-        for _ in range(30):
-            completed_payload = _invoke_cli_json(
-                capsys,
-                ["--path", temp_hive_dir, "--json", "run", "status", run.id],
-            )
-            if completed_payload["status"]["state"] == "completed_candidate":
-                break
-            time.sleep(0.1)
+        completed_payload = _wait_for_run_status(
+            temp_hive_dir,
+            capsys,
+            run.id,
+            predicate=lambda status: status.get("state") == "completed_candidate",
+        )
 
         metadata = load_run(temp_hive_dir, run.id)
         transcript = (

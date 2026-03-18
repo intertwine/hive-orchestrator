@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 from src.hive.store.task_files import list_tasks
 
@@ -12,10 +13,35 @@ from src.hive.store.task_files import list_tasks
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_demo_project_uses_the_checked_in_three_step_onboarding_chain():
+def _head_snapshot(tmp_path: Path, *relative_paths: str) -> Path:
+    """Materialize committed files into a temp workspace without touching local state."""
+    snapshot_root = tmp_path / "head-snapshot"
+    for relative_path in relative_paths:
+        target = snapshot_root / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        content = subprocess.run(
+            ["git", "show", f"HEAD:{relative_path}"],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        target.write_text(content, encoding="utf-8")
+    return snapshot_root
+
+
+def test_demo_project_uses_the_checked_in_three_step_onboarding_chain(tmp_path):
     """The repo demo should stay aligned with the real quickstart story."""
+    task_paths = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "HEAD", ".hive/tasks"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    snapshot_root = _head_snapshot(tmp_path, *task_paths)
     demo_tasks = sorted(
-        [task for task in list_tasks(REPO_ROOT) if task.project_id == "demo"],
+        [task for task in list_tasks(snapshot_root) if task.project_id == "demo"],
         key=lambda task: (task.priority, task.title.lower()),
     )
 

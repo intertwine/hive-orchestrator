@@ -34,6 +34,9 @@ hive --version
 hive doctor
 ```
 
+The full install matrix, lane chooser, and maintainer split live in
+[docs/START_HERE.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/START_HERE.md).
+
 If you want optional extras:
 
 - Observe console: `uv tool install --upgrade 'mellona-hive[console]'`
@@ -55,11 +58,11 @@ mkdir my-hive
 cd my-hive
 git init
 hive onboard demo --title "Demo project" --objective "Ship one governed slice."
-hive console serve
 ```
 
 That gives you a real workspace, a starter project, a conservative `PROGRAM.md`, and a first task chain with one
-ready task.
+ready task. If you want the observe-and-steer console, install `mellona-hive[console]` first, then run
+`hive console serve`.
 
 Then use the normal loop:
 

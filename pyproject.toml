@@ -90,6 +90,7 @@ only-packages = true
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/hive/store/SCHEMA.sql" = "src/hive/store/SCHEMA.sql"
+"README.md" = "src/hive/resources/docs/README.md"
 "docs/START_HERE.md" = "src/hive/resources/docs/START_HERE.md"
 "docs/QUICKSTART.md" = "src/hive/resources/docs/QUICKSTART.md"
 "docs/ADOPT_EXISTING_REPO.md" = "src/hive/resources/docs/ADOPT_EXISTING_REPO.md"

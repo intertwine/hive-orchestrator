@@ -111,6 +111,10 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _source_checkout_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
 def _packaged_docs_root():
     return files("src.hive.resources").joinpath("docs")
 
@@ -123,6 +127,10 @@ def _read_doc_resource(relative_path: str) -> tuple[str, str] | None:
     packaged = _packaged_docs_root().joinpath(relative_path.removeprefix("docs/"))
     if packaged.is_file():
         return f"package:{relative_path}", packaged.read_text(encoding="utf-8")
+
+    source_checkout = _source_checkout_root() / relative_path
+    if source_checkout.exists():
+        return f"package:{relative_path}", source_checkout.read_text(encoding="utf-8")
     return None
 
 
@@ -134,25 +142,37 @@ def _iter_text_resources(relative_dir: str):
                 yield str(file_path), str(file_path.relative_to(source_root)), file_path.read_text(
                     encoding="utf-8"
                 )
-
-    packaged_root = _packaged_docs_root().joinpath(relative_dir.removeprefix("docs/"))
-    if not packaged_root.is_dir():
         return
 
-    stack = [(packaged_root, "")]
-    while stack:
-        current, prefix = stack.pop()
-        children = sorted(current.iterdir(), key=lambda item: item.name, reverse=True)
-        for child in children:
-            relative_name = f"{prefix}{child.name}"
-            if child.is_dir():
-                stack.append((child, relative_name + "/"))
-                continue
-            suffix = Path(child.name).suffix.lower()
-            if suffix not in EXAMPLE_TEXT_SUFFIXES:
-                continue
-            yield f"package:{relative_dir}/{relative_name}", relative_name, child.read_text(
-                encoding="utf-8"
+    packaged_root = _packaged_docs_root().joinpath(relative_dir.removeprefix("docs/"))
+    if packaged_root.is_dir():
+        stack = [(packaged_root, "")]
+        while stack:
+            current, prefix = stack.pop()
+            children = sorted(current.iterdir(), key=lambda item: item.name, reverse=True)
+            for child in children:
+                relative_name = f"{prefix}{child.name}"
+                if child.is_dir():
+                    stack.append((child, relative_name + "/"))
+                    continue
+                suffix = Path(child.name).suffix.lower()
+                if suffix not in EXAMPLE_TEXT_SUFFIXES:
+                    continue
+                yield f"package:{relative_dir}/{relative_name}", relative_name, child.read_text(
+                    encoding="utf-8"
+                )
+        return
+
+    source_root = _source_checkout_root() / relative_dir
+    if not source_root.is_dir():
+        return
+
+    for file_path in sorted(source_root.rglob("*")):
+        if file_path.is_file() and file_path.suffix.lower() in EXAMPLE_TEXT_SUFFIXES:
+            yield (
+                f"package:{relative_dir}/{file_path.relative_to(source_root)}",
+                str(file_path.relative_to(source_root)),
+                file_path.read_text(encoding="utf-8"),
             )
 
 

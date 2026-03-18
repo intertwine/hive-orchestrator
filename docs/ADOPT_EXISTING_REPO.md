@@ -36,14 +36,14 @@ hive task create \
 Then run the normal loop:
 
 ```bash
-hive console serve
 hive next --project-id app
 hive work --project-id app --owner <your-name> --output SESSION_CONTEXT.md
 ```
 
 That manager loop only works once `projects/app/PROGRAM.md` has at least one required evaluator and lists it under
 `promotion.requires_all`. `hive adopt` runs Program Doctor during setup and will apply a safe default when it has one
-obvious choice. If you need to tighten the policy yourself, run:
+obvious choice. If you want the observe-and-steer console, install `mellona-hive[console]` first, then run
+`hive console serve`. If you need to tighten the policy yourself, run:
 
 ```bash
 hive program doctor app
@@ -83,14 +83,13 @@ That keeps the old history available in git while moving the machine state into 
 Once Hive is in the repo, the daily path is the same everywhere:
 
 ```bash
-hive console serve
 hive next
 hive work --project-id <project-id> --owner <your-name>
 hive finish <run-id>
 ```
 
-`hive work` assumes the project already has a real `PROGRAM.md` contract. If the file is still on the default
-stub, Hive will stop and tell you what to configure.
+Install `mellona-hive[console]` if you want `hive console serve` on top of that loop. `hive work` assumes the project
+already has a real `PROGRAM.md` contract. If the file is still blocked, Hive will stop and tell you what to configure.
 
 The short mental model is simple:
 

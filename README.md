@@ -35,46 +35,19 @@ There are three clean ways into Hive:
 `mellona-hive` is the package you install. Mellona is the distribution family, Agent Hive is the current product,
 and the install gives you the `hive` command.
 
-Pick the installer you already trust:
+Use [docs/START_HERE.md](docs/START_HERE.md) for the canonical install matrix, optional extras, and git-install
+fallback. The fastest base install for most users is:
 
 ```bash
 uv tool install mellona-hive
 ```
 
-```bash
-pipx install mellona-hive
-```
-
-```bash
-python -m pip install mellona-hive
-```
-
-```bash
-brew tap intertwine/tap
-brew install intertwine/tap/mellona-hive
-```
-
-Then verify:
-
-```bash
 hive --version
 hive doctor
 ```
 
-Optional extras:
-
-| Installer | Observe console | MCP adapter | Notes |
-|---|---|---|---|
-| `uv tool` | `uv tool install --upgrade 'mellona-hive[console]'` | `uv tool install --upgrade 'mellona-hive[mcp]'` | Cleanest path for most users |
-| `pipx` | `pipx install 'mellona-hive[console]'` | `pipx install 'mellona-hive[mcp]'` | Best if you already use `pipx` |
-| `pip` | `python -m pip install 'mellona-hive[console]'` | `python -m pip install 'mellona-hive[mcp]'` | Best inside your own virtualenv |
-| Homebrew | use one of the Python package installs above | use one of the Python package installs above | Homebrew currently ships the base CLI |
-
-If you are reading this before the first tagged public release lands on PyPI and Homebrew, use the git install:
-
-```bash
-uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git mellona-hive
-```
+Add `mellona-hive[console]` when you want `hive console serve`, and add `mellona-hive[mcp]` when you want the thin
+`hive-mcp` adapter.
 
 ## Five-Minute First Run
 
@@ -85,12 +58,11 @@ mkdir my-hive
 cd my-hive
 git init
 hive onboard demo --title "Demo project" --objective "Ship one small, governed slice."
-hive console serve
 ```
 
 That gives you a real workspace with `.hive/`, a starter project, a safe default `PROGRAM.md`, and the first task
-chain. `hive console serve` starts the React observe-and-steer console once the console extra is installed. The longer
-walkthrough lives in [docs/QUICKSTART.md](docs/QUICKSTART.md).
+chain. If you want the React observe-and-steer console, install `mellona-hive[console]` first, then run
+`hive console serve`. The longer walkthrough lives in [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
 

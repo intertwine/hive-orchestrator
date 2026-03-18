@@ -9,7 +9,11 @@ from typing import cast
 from src.hive.clock import utc_now_iso
 from src.hive.constants import RUN_TERMINAL_STATUSES
 from src.hive.drivers import SteeringRequest, get_driver
-from src.hive.runtime.approvals import list_approvals, resolve_pending_approvals
+from src.hive.runtime.approvals import (
+    bridge_approval_resolution,
+    resolve_pending_approvals,
+)
+from src.hive.runs.metadata import load_run, save_run
 from src.hive.runtime.runpack import sync_runtime_status_artifacts
 from src.hive.runs.driver_state import (
     _active_driver_handle,
@@ -21,7 +25,6 @@ from src.hive.runs.driver_state import (
     _save_driver_handles,
     _steering_event_type,
 )
-from src.hive.runs.metadata import load_run, save_run
 from src.hive.store.events import emit_event
 from src.hive.store.task_files import get_task, save_task
 
@@ -84,7 +87,21 @@ def steer_run(
                 note=request.reason or "Run cancelled before pending approvals were resolved.",
             )
             if resolved:
-                metadata.setdefault("metadata_json", {})["approvals"] = list_approvals(root, run_id)
+                metadata = load_run(root, run_id)
+                metadata.setdefault("metadata_json", {}).setdefault("steering_history", []).append(
+                    timeline_entry
+                )
+                # Cancel records one outer steering-history entry; individual approvals are
+                # bridged below without creating per-approval steering entries.
+                for approval in resolved:
+                    bridge_approval_resolution(
+                        root,
+                        metadata,
+                        approval=approval,
+                        action=action,
+                        actor=actor,
+                        request=request,
+                    )
             metadata["status"] = "cancelled"
             metadata["health"] = "cancelled"
             metadata["finished_at"] = utc_now_iso()

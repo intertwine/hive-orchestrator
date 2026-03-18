@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -60,6 +61,7 @@ class BinarySandboxBackend(SandboxBackend):
         binary = self._find_binary()
         notes = []
         evidence = {}
+        blockers = []
         if binary:
             notes.append(f"Detected backend binary at {binary}.")
             evidence["binary"] = binary
@@ -67,16 +69,69 @@ class BinarySandboxBackend(SandboxBackend):
             if version:
                 evidence["version"] = version
         else:
-            notes.append(self.note_when_missing)
+            blockers.append(self.note_when_missing)
         return SandboxProbe(
             backend=self.name,
             available=bool(binary),
             isolation_class=self.isolation_class,
+            configured=bool(binary),
             supported_profiles=list(self.supported_profiles),
             experimental=self.experimental,
+            blockers=blockers,
             notes=notes,
             evidence=evidence,
         )
+
+
+class CredentialAwareSandboxBackend(BinarySandboxBackend):
+    """Probe remote backends that need non-interactive auth or target config."""
+
+    auth_env_groups: tuple[tuple[str, ...], ...] = ()
+    required_env: tuple[str, ...] = ()
+    auth_warning = (
+        "Hive could not verify non-interactive credentials from environment variables; "
+        "interactive CLI login may still be configured."
+    )
+    required_env_note = ""
+
+    def probe(self) -> SandboxProbe:
+        probe = super().probe()
+        if not probe.available:
+            probe.configured = False
+            return probe
+        env_names = {
+            name
+            for group in self.auth_env_groups
+            for name in group
+        } | set(self.required_env)
+        env_state = {name: bool(os.getenv(name)) for name in sorted(env_names)}
+        if env_state:
+            probe.evidence["env"] = env_state
+        matched_group = next(
+            (
+                group
+                for group in self.auth_env_groups
+                if group and all(os.getenv(name) for name in group)
+            ),
+            None,
+        )
+        if matched_group:
+            probe.notes.append(
+                "Detected non-interactive configuration via "
+                + ", ".join(matched_group)
+                + "."
+            )
+            probe.evidence["auth_source"] = list(matched_group)
+        elif self.auth_env_groups:
+            probe.warnings.append(self.auth_warning)
+        missing_required = [name for name in self.required_env if not os.getenv(name)]
+        if missing_required:
+            note = self.required_env_note or (
+                "Missing required configuration: " + ", ".join(missing_required) + "."
+            )
+            probe.blockers.append(note)
+        probe.configured = matched_group is not None and not missing_required
+        return probe
 
 
 class PodmanBackend(BinarySandboxBackend):
@@ -102,6 +157,7 @@ class PodmanBackend(BinarySandboxBackend):
         probe.evidence["rootless"] = rootless
         if not rootless:
             probe.available = False
+            probe.configured = False
             probe.notes.append("Podman is installed but is not running rootless.")
         else:
             probe.notes.append("Podman rootless mode is available for local-safe sandboxing.")
@@ -126,6 +182,7 @@ class DockerRootlessBackend(BinarySandboxBackend):
             probe.notes.append("Docker daemon advertises rootless security mode.")
             return probe
         probe.available = False
+        probe.configured = False
         probe.notes.append("Docker CLI is present, but the daemon is not advertising rootless mode.")
         return probe
 
@@ -138,27 +195,47 @@ class AsrtBackend(BinarySandboxBackend):
     note_when_missing = "Anthropic Sandbox Runtime (`srt`) was not detected on PATH."
 
 
-class E2BBackend(BinarySandboxBackend):
+class E2BBackend(CredentialAwareSandboxBackend):
     name = "e2b"
     isolation_class = "managed-sandbox"
     binaries = ("e2b",)
     supported_profiles = ("hosted-managed",)
+    auth_env_groups = (("E2B_API_KEY",), ("E2B_ACCESS_TOKEN",))
+    auth_warning = (
+        "E2B CLI is present, but Hive did not detect `E2B_API_KEY` or `E2B_ACCESS_TOKEN`; "
+        "interactive `e2b auth login` may still work, but automation readiness is unverified."
+    )
 
 
-class DaytonaBackend(BinarySandboxBackend):
+class DaytonaBackend(CredentialAwareSandboxBackend):
     name = "daytona"
     isolation_class = "remote-sandbox"
     binaries = ("daytona",)
     supported_profiles = ("team-self-hosted",)
+    auth_env_groups = (("DAYTONA_API_KEY",), ("DAYTONA_JWT_TOKEN", "DAYTONA_ORGANIZATION_ID"))
+    required_env = ("DAYTONA_API_URL",)
+    auth_warning = (
+        "Daytona CLI is present, but Hive did not detect `DAYTONA_API_KEY` or the "
+        "`DAYTONA_JWT_TOKEN` + `DAYTONA_ORGANIZATION_ID` pair."
+    )
+    required_env_note = (
+        "Missing `DAYTONA_API_URL`, so Hive cannot verify a team-self-hosted Daytona "
+        "control plane target."
+    )
 
 
-class CloudflareBackend(BinarySandboxBackend):
+class CloudflareBackend(CredentialAwareSandboxBackend):
     name = "cloudflare"
     isolation_class = "remote-sandbox"
     binaries = ("wrangler",)
     experimental = True
     supported_profiles = ("experimental",)
     note_when_missing = "Wrangler was not detected on PATH for Cloudflare sandbox experiments."
+    auth_env_groups = (("CLOUDFLARE_API_TOKEN",), ("CLOUDFLARE_API_KEY", "CLOUDFLARE_EMAIL"))
+    auth_warning = (
+        "Wrangler is present, but Hive did not detect Cloudflare API credentials; "
+        "interactive `wrangler login` may still work, but automation readiness is unverified."
+    )
 
 
 _BACKENDS = {

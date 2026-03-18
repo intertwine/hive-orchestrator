@@ -306,14 +306,16 @@ def _selected_pending_approval(
     request: SteeringRequest,
 ) -> dict[str, object] | None:
     target_id = str((request.target or {}).get("approval_id") or "").strip()
+    if target_id:
+        for item in pending:
+            if str(item.get("approval_id") or "") == target_id:
+                return cast(dict[str, object], item)
+        raise FileNotFoundError(f"Pending approval not found: {target_id}")
     if not pending:
         return None
-    if not target_id:
-        return cast(dict[str, object], pending[-1])
-    for item in pending:
-        if str(item.get("approval_id") or "") == target_id:
-            return cast(dict[str, object], item)
-    raise FileNotFoundError(f"Pending approval not found: {target_id}")
+    if len(pending) > 1:
+        raise ValueError("Multiple pending approvals require an explicit approval_id.")
+    return cast(dict[str, object], pending[0])
 
 
 def start_run(

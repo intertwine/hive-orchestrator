@@ -9,6 +9,7 @@ from typing import cast
 from src.hive.clock import utc_now_iso
 from src.hive.constants import RUN_TERMINAL_STATUSES
 from src.hive.drivers import SteeringRequest, get_driver
+from src.hive.runtime.approvals import list_approvals, resolve_pending_approvals
 from src.hive.runtime.runpack import sync_runtime_status_artifacts
 from src.hive.runs.driver_state import (
     _active_driver_handle,
@@ -75,6 +76,15 @@ def steer_run(
             metadata["health"] = "healthy"
             metadata.setdefault("metadata_json", {})["paused"] = False
         else:
+            resolved = resolve_pending_approvals(
+                root,
+                run_id,
+                resolution="rejected",
+                actor=actor or "operator",
+                note=request.reason or "Run cancelled before pending approvals were resolved.",
+            )
+            if resolved:
+                metadata.setdefault("metadata_json", {})["approvals"] = list_approvals(root, run_id)
             metadata["status"] = "cancelled"
             metadata["health"] = "cancelled"
             metadata["finished_at"] = utc_now_iso()

@@ -18,7 +18,7 @@ from src.hive.drivers import RunBudgetUsage, RunHandle, RunLinks, RunProgress, R
 from src.hive.drivers import SteeringRequest
 from src.hive.runs.evaluators import run_evaluator
 from src.hive.runs.executors import LocalExecutor
-from src.hive.runtime import request_approval
+from src.hive.runtime import list_approvals, pending_approvals, request_approval
 from src.hive.runtime.runpack import SandboxPolicy
 from src.hive.runs.engine import accept_run, eval_run, load_run, run_artifacts, start_run, steer_run
 from src.hive.scheduler.query import ready_tasks
@@ -983,6 +983,45 @@ def test_run_status_surfaces_session_and_pending_approvals(capsys, temp_hive_dir
     assert payload["status"]["progress"]["phase"] == "implementing"
     assert payload["status"]["pending_approvals"][0]["title"] == "Approve git diff"
     assert payload["pending_approvals"][0]["payload"]["command"] == "git diff"
+
+
+def test_cancel_run_rejects_pending_approvals(capsys, temp_hive_dir):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="local")
+    first = request_approval(
+        temp_hive_dir,
+        run.id,
+        kind="command",
+        title="Approve git status",
+        summary="Driver wants to inspect the repo status.",
+        requested_by="driver:local",
+        payload={"command": "git status"},
+    )
+    second = request_approval(
+        temp_hive_dir,
+        run.id,
+        kind="command",
+        title="Approve git diff",
+        summary="Driver wants to inspect the current diff.",
+        requested_by="driver:local",
+        payload={"command": "git diff"},
+    )
+
+    payload = steer_run(
+        temp_hive_dir,
+        run.id,
+        SteeringRequest(action="cancel", reason="Operator stopped the run"),
+        actor="operator",
+    )
+    approvals = {item["approval_id"]: item for item in list_approvals(temp_hive_dir, run.id)}
+
+    assert payload["run"]["status"] == "cancelled"
+    assert pending_approvals(temp_hive_dir, run.id) == []
+    assert approvals[first["approval_id"]]["status"] == "rejected"
+    assert approvals[second["approval_id"]]["status"] == "rejected"
+    assert approvals[first["approval_id"]]["resolution_note"] == "Operator stopped the run"
+    assert approvals[second["approval_id"]]["resolved_by"] == "operator"
 
 
 def test_run_status_refresh_surfaces_live_codex_session_payload(temp_hive_dir, capsys, monkeypatch):

@@ -147,9 +147,13 @@ def dispatch(args, root: Path) -> int:
                 request.note = args.message
             elif args.steer_command == "approve":
                 request.action = "approve"
+                if getattr(args, "approval_id", None):
+                    request.target = {"approval_id": args.approval_id}
             elif args.steer_command == "reject":
                 request.action = "reject"
                 request.reason = args.reason
+                if getattr(args, "approval_id", None):
+                    request.target = {"approval_id": args.approval_id}
             elif args.steer_command == "reroute":
                 request.action = "reroute"
                 request.reason = args.reason

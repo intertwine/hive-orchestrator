@@ -64,6 +64,9 @@ That gives you a real workspace, a starter project, a conservative `PROGRAM.md`,
 ready task. If you want the observe-and-steer console, install `mellona-hive[console]` first, then run
 `hive console serve`.
 
+Fresh onboarded projects may start with the placeholder `local-smoke` evaluator so the loop works immediately. Replace
+it with a real repo-specific evaluator before you trust autonomous promotion.
+
 Then use the normal loop:
 
 ```bash

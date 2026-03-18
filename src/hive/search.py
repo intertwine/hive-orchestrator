@@ -34,7 +34,7 @@ COMMAND_DOCS = (
     },
     {
         "title": "hive quickstart",
-        "summary": "Compatibility alias for the older fresh-workspace bootstrap path.",
+        "summary": "Legacy compatibility alias for `hive onboard`; prefer `hive onboard`.",
         "example": 'hive quickstart demo --title "Demo project"',
     },
     {

@@ -129,6 +129,35 @@ def _evaluator_ids(
     return values
 
 
+def _program_summary(metadata: dict[str, Any]) -> dict[str, Any]:
+    evaluators = _dict_list(metadata.get("evaluators"))
+    promotion = _mapping(metadata.get("promotion"))
+    requires_all = _string_list(promotion.get("requires_all"))
+    evaluator_ids = _evaluator_ids(evaluators)
+    required_ids = _evaluator_ids(evaluators, required_only=True)
+    return {
+        "evaluator_count": len(evaluators),
+        "required_evaluator_count": len(required_ids),
+        "promotion_gate_active": bool(requires_all),
+        "starter_evaluator_in_place": "local-smoke" in evaluator_ids,
+    }
+
+
+def _program_summary_lines(summary: dict[str, Any]) -> list[str]:
+    evaluator_count = int(summary.get("evaluator_count", 0))
+    lines = [
+        f"{evaluator_count} evaluator{'s' if evaluator_count != 1 else ''} configured",
+        (
+            "promotion gate active"
+            if bool(summary.get("promotion_gate_active"))
+            else "promotion gate not configured yet"
+        ),
+    ]
+    if bool(summary.get("starter_evaluator_in_place")):
+        lines.append("starter evaluator still in place")
+    return lines
+
+
 def _detected_stack(root: Path, project_dir: Path) -> DetectedStack:
     package_candidates = [project_dir / "package.json", root / "package.json"]
     py_candidates = [
@@ -264,10 +293,11 @@ def evaluator_templates(root: Path, project_dir: Path) -> list[dict[str, Any]]:
         _template(
             "local-smoke",
             "python3 -c \"print('local smoke ok')\"",
-            label="Local smoke check",
+            label="Local smoke placeholder",
             reason=(
                 "No repo-specific test or lint entrypoint was detected, so Hive can seed "
-                "a minimal starter evaluator for the first governed run."
+                "a placeholder evaluator that only proves the governed loop is wired up. "
+                "Replace it with a real repo-specific check before trusting autonomous promotion."
             ),
         )
     ]
@@ -612,6 +642,7 @@ def doctor_program(path: str | Path | None, project_ref: str) -> dict[str, Any]:
 
     blocked = any(issue["blocking"] for issue in issues)
     status = "fail" if blocked else "warn" if issues else "pass"
+    summary = _program_summary(metadata)
     return {
         "scope": "program",
         "project_id": project.id,
@@ -621,6 +652,13 @@ def doctor_program(path: str | Path | None, project_ref: str) -> dict[str, Any]:
         "blocked_autonomous_promotion": blocked,
         "issues": issues,
         "suggested_templates": suggested_templates,
+        "headline": (
+            "PROGRAM.md looks healthy"
+            if status == "pass"
+            else "PROGRAM.md needs attention"
+        ),
+        "program_summary": summary,
+        "summary_lines": _program_summary_lines(summary),
     }
 
 

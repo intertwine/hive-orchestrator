@@ -45,7 +45,8 @@ def _guided_next_steps(payload: dict[str, object]) -> list[str]:
     applied_template = dict(diagnosis.get("applied_template", {}))
     if applied_template.get("id") == "local-smoke" and project_id:
         next_steps.append(
-            "Later, replace the starter `local-smoke` evaluator by editing "
+            "`local-smoke` is a starter stub: it proves the loop is wired up, but it does not "
+            "validate real project behavior. Replace it by editing "
             f"`projects/{project_id}/PROGRAM.md` and running "
             f"`hive program add-evaluator {project_id} <real-evaluator-id>`."
         )

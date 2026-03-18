@@ -14,7 +14,8 @@ from src.hive import __version__
 def _add_bootstrap_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     quickstart_parser = subparsers.add_parser(
         "quickstart",
-        help="Compatibility alias for the older fresh-workspace bootstrap path.",
+        help="Legacy compatibility alias for `hive onboard`.",
+        description="Legacy compatibility alias for `hive onboard`. Prefer `hive onboard`.",
     )
     quickstart_parser.add_argument("slug", nargs="?", default="demo")
     quickstart_parser.add_argument("--title")
@@ -422,4 +423,6 @@ def build_parser() -> argparse.ArgumentParser:
     _add_project_parsers(subparsers)
     _add_run_parsers(subparsers)
     _add_knowledge_parsers(subparsers)
+    visible_commands = [name for name in subparsers.choices if name != "quickstart"]
+    subparsers.metavar = "{" + ",".join(visible_commands) + "}"
     return parser

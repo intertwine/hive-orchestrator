@@ -76,6 +76,7 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     assert "If you are maintaining Hive itself" in quickstart
     assert "Once you have more than one project and want the cross-project queue" in quickstart
     assert "hive program doctor demo" in quickstart
+    assert "does not validate project behavior" in quickstart
 
     assert "hive task ready --project-id demo" in demo_agency
     assert "make session PROJECT=demo" in demo_agency

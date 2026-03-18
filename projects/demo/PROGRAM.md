@@ -39,9 +39,9 @@ Teach the standard Hive loop on a safe, docs-only surface.
 
 # Constraints
 
-- Keep changes small enough to review in one session or PR.
-- Prefer docs and narrative updates over product changes in this demo project.
-- This walkthrough is intentionally manual: claiming tasks and closing the loop happens through the CLI,
-  so the demo policy does not grant autonomous writes to `.hive/tasks/*.md`.
-- Governed runs stay disabled until you add at least one required evaluator and list it in
+- This demo is meant for small, reviewable changes that fit in one session or PR.
+- Stay on the docs-only surface here: `README.md`, `docs/**`, and `projects/demo/**`.
+- Claim tasks and close the loop through the CLI. The canonical task files stay in `.hive/tasks/*.md`,
+  so this policy does not grant autonomous writes there.
+- Runs will stop for review until you add at least one real evaluator and list it in
   `promotion.requires_all`.

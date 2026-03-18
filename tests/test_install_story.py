@@ -61,6 +61,19 @@ def test_public_docs_call_out_console_extra_before_console_serve():
     assert "install `mellona-hive[console]` first" in pypi_readme.lower()
 
 
+def test_onboarding_docs_explain_local_smoke_is_only_a_placeholder():
+    """Onboarding docs should distinguish a wired-up loop from a real quality gate."""
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    quickstart = (REPO_ROOT / "docs" / "QUICKSTART.md").read_text(encoding="utf-8")
+    pypi_readme = (REPO_ROOT / "docs" / "PYPI_README.md").read_text(encoding="utf-8")
+    recipe = (REPO_ROOT / "docs" / "recipes" / "program-doctor.md").read_text(encoding="utf-8")
+
+    assert "placeholder `local-smoke` evaluator" in readme
+    assert "does not validate project behavior" in quickstart
+    assert "placeholder `local-smoke` evaluator" in pypi_readme
+    assert "bootstrap placeholder" in recipe
+
+
 def test_start_here_install_matrix_covers_common_installers_and_homebrew_limit():
     """Everyday users should see the real install choices and the Homebrew boundary."""
     start_here = (REPO_ROOT / "docs" / "START_HERE.md").read_text(encoding="utf-8")

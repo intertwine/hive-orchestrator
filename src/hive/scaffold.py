@@ -47,14 +47,14 @@ Define the autonomous work contract for this project.
 
 # Constraints
 
-- Governed runs stay disabled until you add at least one required evaluator and list it in
+- This file tells Hive what it may change, which checks must pass, and when a human should stop the loop.
+- Runs will stop for review until you add at least one real evaluator and list it in
   `promotion.requires_all`.
-- If you intentionally want a manual or low-governance project, set
-  `promotion.allow_unsafe_without_evaluators: true` explicitly so the risk is visible in code
-  review.
-- If you intentionally want report-only or no-op runs to promote, set
-  `promotion.allow_accept_without_changes: true` explicitly so that policy is obvious in review.
-- Commands in `commands.allow` must match evaluator commands exactly.
+- If this project is intentionally manual or low-governance, set
+  `promotion.allow_unsafe_without_evaluators: true` explicitly so reviewers can see that choice.
+- If you want report-only or no-change runs to promote, set
+  `promotion.allow_accept_without_changes: true` explicitly so that choice is visible too.
+- Keep `commands.allow` aligned with the exact commands you expect Hive to run.
 """
 
 

@@ -82,7 +82,12 @@ class TestProgramDoctor:
 
         assert applied["applied_template"]["id"] == "pytest"
         assert follow_up["blocked_autonomous_promotion"] is False
-        assert follow_up["status"] in {"pass", "warn"}
+        assert follow_up["status"] == "pass"
+        assert follow_up["headline"] == "PROGRAM.md looks healthy"
+        assert follow_up["program_summary"]["evaluator_count"] == 1
+        assert follow_up["program_summary"]["promotion_gate_active"] is True
+        assert "1 evaluator configured" in follow_up["summary_lines"]
+        assert "promotion gate active" in follow_up["summary_lines"]
 
     def test_program_add_evaluator_applies_generic_template_in_blank_repo(
         self, temp_hive_dir, capsys
@@ -101,4 +106,6 @@ class TestProgramDoctor:
         assert applied["applied_template"]["id"] == "local-smoke"
         assert applied["applied_template"]["command"] == "python3 -c \"print('local smoke ok')\""
         assert follow_up["blocked_autonomous_promotion"] is False
-        assert follow_up["status"] in {"pass", "warn"}
+        assert follow_up["status"] == "pass"
+        assert follow_up["program_summary"]["starter_evaluator_in_place"] is True
+        assert "starter evaluator still in place" in follow_up["summary_lines"]

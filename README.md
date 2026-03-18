@@ -42,6 +42,7 @@ fallback. The fastest base install for most users is:
 uv tool install mellona-hive
 ```
 
+```bash
 hive --version
 hive doctor
 ```
@@ -63,6 +64,9 @@ hive onboard demo --title "Demo project" --objective "Ship one small, governed s
 That gives you a real workspace with `.hive/`, a starter project, a safe default `PROGRAM.md`, and the first task
 chain. If you want the React observe-and-steer console, install `mellona-hive[console]` first, then run
 `hive console serve`. The longer walkthrough lives in [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
+Fresh onboarded projects may start with the placeholder `local-smoke` evaluator so the first governed loop works
+immediately. Replace it with a real repo-specific evaluator before you trust autonomous promotion.
 
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
 
@@ -107,7 +111,7 @@ If you want to stay closer to the underlying primitives, `hive task ready`, `hiv
 and `hive run start` are still there. `--json` is available across the CLI when you want to script Hive instead of
 reading it by eye.
 
-When you want the live operator view instead of the raw CLI:
+When you want the live operator view instead of the raw CLI, install `mellona-hive[console]` first and run:
 
 ```bash
 hive console serve

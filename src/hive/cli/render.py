@@ -191,6 +191,14 @@ def _render_promotion_decision(decision: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _render_summary_lines(headline: object, summary_lines: list[object]) -> str:
+    lines: list[str] = []
+    if headline:
+        lines.append(str(headline))
+    lines.extend(f"- {str(line)}" for line in summary_lines)
+    return "\n".join(lines)
+
+
 def render_payload(payload: dict[str, object]) -> str:
     """Render a CLI payload for humans."""
     if not payload.get("ok", True) and payload.get("error"):
@@ -231,6 +239,8 @@ def render_payload(payload: dict[str, object]) -> str:
         sections.append(_render_events(payload["recent_events"]))
     if isinstance(payload.get("promotion_decision"), dict):
         sections.append(_render_promotion_decision(payload["promotion_decision"]))
+    if isinstance(payload.get("summary_lines"), list) and payload["summary_lines"]:
+        sections.append(_render_summary_lines(payload.get("headline"), payload["summary_lines"]))
     if isinstance(payload.get("next_steps"), list):
         sections.append(_render_next_steps(payload["next_steps"]))
 

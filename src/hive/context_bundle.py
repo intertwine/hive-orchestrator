@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.hive.common import isoformat_z
 from src.hive.memory.context import handoff_context, startup_context
+from src.hive.payloads import project_payload
 from src.hive.scheduler.query import ready_tasks
 from src.hive.store.projects import get_project
 from src.hive.workspace import sync_workspace
@@ -76,20 +77,7 @@ def _render_context_sections(context: dict[str, object]) -> str:
 
     return "\n\n---\n\n".join(sections) if sections else "*No v2 context sections available.*"
 
-
-def _project_payload(project) -> dict[str, object]:
-    return {
-        "id": project.id,
-        "slug": project.slug,
-        "title": project.title,
-        "status": project.status,
-        "priority": project.priority,
-        "owner": project.owner,
-        "path": str(project.agency_path),
-        "program_path": str(project.program_path),
-    }
-
-
+# pylint: disable-next=too-many-arguments
 def build_context_bundle(
     path: str | Path | None,
     *,
@@ -99,7 +87,7 @@ def build_context_bundle(
     query: str | None = None,
     task_id: str | None = None,
     refresh: bool = True,
-) -> dict[str, object]:  # pylint: disable=too-many-arguments
+) -> dict[str, object]:
     """Build a rendered startup or handoff bundle for a project."""
     root = Path(path or Path.cwd()).resolve()
     if refresh:
@@ -171,7 +159,7 @@ Before ending your session:
 """.strip()
     return {
         "project": project,
-        "project_payload": _project_payload(project),
+        "project_payload": project_payload(project),
         "ready_tasks": ready,
         "context": context,
         "agency_document": agency_document,

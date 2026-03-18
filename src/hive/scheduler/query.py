@@ -2,15 +2,41 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import json
 
 from src.hive.constants import RUN_ACTIVE_STATUSES, RUN_TERMINAL_STATUSES
+from src.hive.models.project import ProjectRecord
 from src.hive.models.task import TaskRecord
 from src.hive.store.layout import runs_dir
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import list_tasks
+
+
+@dataclass(frozen=True)
+class _TaskScoreContext:
+    """Stable inputs for ready-task scoring."""
+
+    effective_status: str
+    project_priority: int
+    active_runs: int
+    recent_terminal_age_hours: float | None
+    project_downstream_count: int
+    project_in_cycle: bool
+    task_unblock_count: int
+
+
+@dataclass(frozen=True)
+class _ReadyProjectState:
+    """Graph and run context shared by ready-task ranking."""
+
+    projects: dict[str, ProjectRecord]
+    reverse_graph: dict[str, set[str]]
+    projects_in_cycles: set[str]
+    active_runs_by_project: dict[str, int]
+    recent_terminal_by_project: dict[str, float]
 
 
 def _parse_iso(value: str | None) -> datetime | None:
@@ -66,10 +92,10 @@ def _effective_status(task: TaskRecord, tasks_by_id: dict[str, TaskRecord] | Non
 def _blocked_by(task: TaskRecord, tasks_by_id: dict[str, TaskRecord]) -> list[str]:
     blockers = []
     for candidate in tasks_by_id.values():
-        if task.id in candidate.edges.get("blocks", []) and _claim_adjusted_status(candidate) not in {
-            "done",
-            "archived",
-        }:
+        if (
+            task.id in candidate.edges.get("blocks", [])
+            and _claim_adjusted_status(candidate) not in {"done", "archived"}
+        ):
             blockers.append(candidate.id)
     return blockers
 
@@ -218,27 +244,17 @@ def _reachable_count(node: str, adjacency: dict[str, set[str]]) -> int:
     return len(seen)
 
 
-def _task_score(
-    task: TaskRecord,
-    *,
-    effective_status: str,
-    project_priority: int,
-    active_runs: int,
-    recent_terminal_age_hours: float | None,
-    project_downstream_count: int,
-    project_in_cycle: bool,
-    task_unblock_count: int,
-) -> tuple[float, list[str]]:
+def _task_score(task: TaskRecord, context: _TaskScoreContext) -> tuple[float, list[str]]:
     reasons: list[str] = []
     score = 140.0 - (task.priority * 18.0)
     reasons.append(f"Priority p{task.priority} sets the baseline")
 
-    project_bonus = max(0.0, 12.0 - (project_priority * 4.0))
+    project_bonus = max(0.0, 12.0 - (context.project_priority * 4.0))
     if project_bonus:
         score += project_bonus
         reasons.append(f"Project priority adds +{project_bonus:.1f}")
 
-    if effective_status == "ready":
+    if context.effective_status == "ready":
         score += 8.0
         reasons.append("Already in ready state")
     else:
@@ -254,31 +270,136 @@ def _task_score(
         score += stale_age_bonus
         reasons.append(f"Stale context bonus +{stale_age_bonus:.1f}")
 
-    if active_runs:
-        penalty = active_runs * 18.0
+    if context.active_runs:
+        penalty = context.active_runs * 18.0
         score -= penalty
-        reasons.append(f"Project already has {active_runs} active run(s)")
+        reasons.append(f"Project already has {context.active_runs} active run(s)")
 
-    if recent_terminal_age_hours is not None and recent_terminal_age_hours < 12:
-        penalty = max(0.0, 12.0 - recent_terminal_age_hours)
+    if (
+        context.recent_terminal_age_hours is not None
+        and context.recent_terminal_age_hours < 12
+    ):
+        penalty = max(0.0, 12.0 - context.recent_terminal_age_hours)
         score -= penalty
         reasons.append("Recent project activity nudges work toward quieter projects")
 
-    if project_downstream_count:
-        downstream_bonus = min(project_downstream_count * 2.0, 10.0)
+    if context.project_downstream_count:
+        downstream_bonus = min(context.project_downstream_count * 2.0, 10.0)
         score += downstream_bonus
-        reasons.append(f"Project unblocks {project_downstream_count} downstream project(s)")
+        reasons.append(
+            f"Project unblocks {context.project_downstream_count} downstream project(s)"
+        )
 
-    if task_unblock_count:
-        unblock_bonus = min(task_unblock_count * 3.0, 15.0)
+    if context.task_unblock_count:
+        unblock_bonus = min(context.task_unblock_count * 3.0, 15.0)
         score += unblock_bonus
-        reasons.append(f"Completing this task would unblock {task_unblock_count} task(s)")
+        reasons.append(
+            f"Completing this task would unblock {context.task_unblock_count} task(s)"
+        )
 
-    if project_in_cycle:
+    if context.project_in_cycle:
         score -= 12.0
         reasons.append("Project is inside a dependency cycle and needs human untangling")
 
     return score, reasons
+
+
+def _build_ready_state(path: str | Path | None) -> _ReadyProjectState:
+    """Load shared project, graph, and run context for ready-task ranking."""
+    project_records = discover_projects(path)
+    project_graph, reverse_graph = _project_dependency_graph(project_records)
+    project_cycles = _find_project_cycles(project_graph)
+    active_runs_by_project, recent_terminal_by_project = _run_pressure(path)
+    return _ReadyProjectState(
+        projects={project.id: project for project in project_records},
+        reverse_graph=reverse_graph,
+        projects_in_cycles={
+            project_id
+            for cycle in project_cycles
+            for project_id in cycle[:-1]
+        },
+        active_runs_by_project=active_runs_by_project,
+        recent_terminal_by_project=recent_terminal_by_project,
+    )
+
+
+def _ready_entry(
+    task: TaskRecord,
+    tasks_by_id: dict[str, TaskRecord],
+    state: _ReadyProjectState,
+) -> dict[str, object] | None:
+    """Build a ranked ready-task payload when the task is truly actionable."""
+    project = state.projects.get(task.project_id)
+    if project is None or project.status in {"blocked", "completed", "archived"}:
+        return None
+
+    effective_status = _effective_status(task, tasks_by_id)
+    if effective_status not in {"proposed", "ready"}:
+        return None
+
+    blocked = _blocked_by(task, tasks_by_id)
+    if blocked or _is_superseded(task, tasks_by_id):
+        return None
+
+    project_downstream_count = _reachable_count(task.project_id, state.reverse_graph)
+    task_unblock_count = _count_task_unblock_impact(task, tasks_by_id)
+    context = _TaskScoreContext(
+        effective_status=effective_status,
+        project_priority=project.priority,
+        active_runs=state.active_runs_by_project.get(task.project_id, 0),
+        recent_terminal_age_hours=state.recent_terminal_by_project.get(task.project_id),
+        project_downstream_count=project_downstream_count,
+        project_in_cycle=task.project_id in state.projects_in_cycles,
+        task_unblock_count=task_unblock_count,
+    )
+    score, reasons = _task_score(task, context)
+    return {
+        "id": task.id,
+        "project_id": task.project_id,
+        "title": task.title,
+        "status": effective_status,
+        "priority": task.priority,
+        "project_priority": project.priority,
+        "owner": task.owner,
+        "blocked_by": blocked,
+        "score": round(score, 2),
+        "graph_rank": {
+            "project_downstream_count": project_downstream_count,
+            "task_unblock_count": task_unblock_count,
+            "project_in_cycle": context.project_in_cycle,
+        },
+        "reasons": reasons,
+    }
+
+
+def _ready_tasks_with_state(
+    tasks: list[TaskRecord],
+    tasks_by_id: dict[str, TaskRecord],
+    state: _ReadyProjectState,
+    *,
+    project_id: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, object]]:
+    """Return ranked ready tasks using precomputed project/run state."""
+    ready: list[dict[str, object]] = []
+    for task in tasks:
+        if project_id and task.project_id != project_id:
+            continue
+        entry = _ready_entry(task, tasks_by_id, state)
+        if entry is not None:
+            ready.append(entry)
+
+    ready.sort(
+        key=lambda item: (
+            -float(item["score"]),
+            int(item["priority"]),
+            str(item["title"]).lower(),
+            str(item["id"]),
+        )
+    )
+    if limit is not None:
+        return ready[:limit]
+    return ready
 
 
 def ready_tasks(
@@ -290,85 +411,33 @@ def ready_tasks(
     """Return ranked ready tasks."""
     tasks = list_tasks(path)
     tasks_by_id = {task.id: task for task in tasks}
-    project_records = discover_projects(path)
-    projects = {project.id: project for project in project_records}
-    project_graph, reverse_graph = _project_dependency_graph(project_records)
-    project_cycles = _find_project_cycles(project_graph)
-    projects_in_cycles = {
-        project_id
-        for cycle in project_cycles
-        for project_id in cycle[:-1]
-    }
-    active_runs_by_project, recent_terminal_by_project = _run_pressure(path)
-    ready: list[dict[str, object]] = []
-
-    for task in tasks:
-        if project_id and task.project_id != project_id:
-            continue
-        project = projects.get(task.project_id)
-        if project is None:
-            continue
-        if project.status in {"blocked", "completed", "archived"}:
-            continue
-        effective_status = _effective_status(task, tasks_by_id)
-        if effective_status not in {"proposed", "ready"}:
-            continue
-        blocked = _blocked_by(task, tasks_by_id)
-        superseded = _is_superseded(task, tasks_by_id)
-        if blocked or superseded:
-            continue
-        score, reasons = _task_score(
-            task,
-            effective_status=effective_status,
-            project_priority=project.priority,
-            active_runs=active_runs_by_project.get(task.project_id, 0),
-            recent_terminal_age_hours=recent_terminal_by_project.get(task.project_id),
-            project_downstream_count=_reachable_count(task.project_id, reverse_graph),
-            project_in_cycle=task.project_id in projects_in_cycles,
-            task_unblock_count=_count_task_unblock_impact(task, tasks_by_id),
-        )
-        ready.append(
-            {
-                "id": task.id,
-                "project_id": task.project_id,
-                "title": task.title,
-                "status": effective_status,
-                "priority": task.priority,
-                "project_priority": project.priority,
-                "owner": task.owner,
-                "blocked_by": blocked,
-                "score": round(score, 2),
-                "graph_rank": {
-                    "project_downstream_count": _reachable_count(task.project_id, reverse_graph),
-                    "task_unblock_count": _count_task_unblock_impact(task, tasks_by_id),
-                    "project_in_cycle": task.project_id in projects_in_cycles,
-                },
-                "reasons": reasons,
-            }
-        )
-
-    ready.sort(
-        key=lambda item: (
-            -float(item["score"]),
-            int(item["priority"]),
-            str(item["title"]).lower(),
-            str(item["id"]),
-        )
+    state = _build_ready_state(path)
+    return _ready_tasks_with_state(
+        tasks,
+        tasks_by_id,
+        state,
+        project_id=project_id,
+        limit=limit,
     )
-    if limit is not None:
-        ready = ready[:limit]
-    return ready
 
 
 def project_summary(path: str | Path | None = None) -> list[dict[str, object]]:
     """Return discovered projects with truthful task counts and next-work hints."""
-    projects = discover_projects(path)
+    state = _build_ready_state(path)
+    projects = list(state.projects.values())
     tasks = list_tasks(path)
+    tasks_by_id = {task.id: task for task in tasks}
     summaries: list[dict[str, object]] = []
     for project in projects:
         project_tasks = [task for task in tasks if task.project_id == project.id]
         project_tasks_by_id = {task.id: task for task in project_tasks}
-        ready = ready_tasks(path, project_id=project.id, limit=None)
+        ready = _ready_tasks_with_state(
+            tasks,
+            tasks_by_id,
+            state,
+            project_id=project.id,
+            limit=None,
+        )
         summaries.append(
             {
                 "id": project.id,
@@ -386,7 +455,8 @@ def project_summary(path: str | Path | None = None) -> list[dict[str, object]]:
                     [
                         task
                         for task in project_tasks
-                        if _effective_status(task, project_tasks_by_id) in {"claimed", "in_progress"}
+                        if _effective_status(task, project_tasks_by_id)
+                        in {"claimed", "in_progress"}
                     ]
                 ),
                 "blocked": len(

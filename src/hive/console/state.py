@@ -74,6 +74,63 @@ def _read_preview(path_value: str | None, *, limit: int = 12000) -> str | None:
     return path.read_text(encoding="utf-8")[:limit]
 
 
+def _compiled_context_details(run_root: Path, context_manifest: dict) -> dict[str, object]:
+    compiled_entries = list(context_manifest.get("entries") or [])
+    memory_entries = [entry for entry in compiled_entries if entry.get("source_type") == "memory"]
+    search_entries = [
+        entry for entry in compiled_entries if entry.get("source_type") == "search-hit"
+    ]
+    skill_entries = [
+        entry
+        for entry in compiled_entries
+        if entry.get("source_type") in {"skill", "skill-meta", "skills"}
+    ]
+    search_hits = _load_json(str(run_root / "context" / "compiled" / "search-hits.json")) or {}
+    skills_manifest = (
+        _load_json(str(run_root / "context" / "compiled" / "skills-manifest.json")) or {}
+    )
+    return {
+        "compiled_entries": compiled_entries,
+        "memory_entries": memory_entries,
+        "search_entries": search_entries,
+        "skill_entries": skill_entries,
+        "search_hits": search_hits.get("results", []),
+        "skills_manifest": skills_manifest,
+    }
+
+
+def _artifact_paths(run_root: Path, run: dict) -> dict[str, str | None]:
+    return {
+        "plan": run.get("plan_path"),
+        "launch": run.get("launch_path"),
+        "context_manifest": run.get("context_manifest_path"),
+        "context_compiled_dir": run.get("context_compiled_dir"),
+        "transcript": run.get("transcript_path"),
+        "patch": run.get("workspace_patch_path") or run.get("patch_path"),
+        "changed_files": run.get("workspace_changed_files_path"),
+        "summary": run.get("summary_path"),
+        "review": run.get("review_path"),
+        "events": run.get("events_path"),
+        "logs": run.get("logs_dir"),
+        "run_brief": str(run_root / "context" / "compiled" / "run-brief.md"),
+        "skills_manifest": str(run_root / "context" / "compiled" / "skills-manifest.json"),
+        "search_hits": str(run_root / "context" / "compiled" / "search-hits.json"),
+        "stdout": str(run_root / "logs" / "stdout.txt"),
+        "stderr": str(run_root / "logs" / "stderr.txt"),
+    }
+
+
+def _artifact_preview(artifacts: dict[str, str | None], run: dict) -> dict[str, str | None]:
+    return {
+        "run_brief": _read_preview(artifacts["run_brief"]),
+        "review_summary": _read_preview(run.get("summary_path")),
+        "review_notes": _read_preview(run.get("review_path")),
+        "diff": _read_preview(run.get("workspace_patch_path") or run.get("patch_path")),
+        "stdout": _read_preview(artifacts["stdout"]),
+        "stderr": _read_preview(artifacts["stderr"]),
+    }
+
+
 def build_inbox(base_path: Path) -> list[dict]:
     """Return typed attention items for the operator inbox."""
     items: list[dict] = []
@@ -98,7 +155,9 @@ def build_inbox(base_path: Path) -> list[dict]:
                     "run_id": run["id"],
                     "project_id": run.get("project_id"),
                     "title": f"Attach driver for {run['id']}",
-                    "reason": f"Driver {run.get('driver', 'unknown')} staged the run and is waiting.",
+                    "reason": (
+                        f"Driver {run.get('driver', 'unknown')} staged the run and is waiting."
+                    ),
                 }
             )
         elif status in {"escalated", "failed", "blocked"}:
@@ -133,6 +192,9 @@ def build_home_view(base_path: Path) -> dict:
     deps = dependency_summary(base_path)
     inbox = build_inbox(base_path)
     accepted = [run for run in list_runs(base_path) if run.get("status") == "accepted"][:5]
+    blocked_projects = [
+        project for project in deps.get("projects", []) if project.get("effectively_blocked")
+    ]
     return {
         "workspace": str(base_path),
         "recommended_next": recommend_next_task(base_path),
@@ -140,9 +202,7 @@ def build_home_view(base_path: Path) -> dict:
         "active_runs": status["active_runs"],
         "evaluating_runs": status["evaluating_runs"],
         "inbox": inbox,
-        "blocked_projects": [
-            project for project in deps.get("projects", []) if project.get("effectively_blocked")
-        ],
+        "blocked_projects": blocked_projects,
         "recent_accepts": accepted,
         "recent_events": status["recent_events"],
         "campaigns": [
@@ -168,66 +228,33 @@ def load_run_detail(base_path: Path, run_id: str) -> dict:
     context_manifest = _load_json(run.get("context_manifest_path")) or {}
     changed_files = _load_json(run.get("workspace_changed_files_path")) or {}
     driver_metadata = _load_json(run.get("driver_metadata_path")) or {}
+    context_details = _compiled_context_details(run_root, context_manifest)
+    artifacts = _artifact_paths(run_root, run)
     steering_history = [
         event for event in timeline if str(event.get("type", "")).startswith("steering.")
     ]
-    compiled_entries = list(context_manifest.get("entries") or [])
-    memory_entries = [entry for entry in compiled_entries if entry.get("source_type") == "memory"]
-    search_entries = [entry for entry in compiled_entries if entry.get("source_type") == "search-hit"]
-    skill_entries = [
-        entry
-        for entry in compiled_entries
-        if entry.get("source_type") in {"skill", "skill-meta", "skills"}
-    ]
-    search_hits = _load_json(str(run_root / "context" / "compiled" / "search-hits.json")) or {}
-    skills_manifest = _load_json(str(run_root / "context" / "compiled" / "skills-manifest.json")) or {}
-    artifacts = {
-        "plan": run.get("plan_path"),
-        "launch": run.get("launch_path"),
-        "context_manifest": run.get("context_manifest_path"),
-        "context_compiled_dir": run.get("context_compiled_dir"),
-        "transcript": run.get("transcript_path"),
-        "patch": run.get("workspace_patch_path") or run.get("patch_path"),
-        "changed_files": run.get("workspace_changed_files_path"),
-        "summary": run.get("summary_path"),
-        "review": run.get("review_path"),
-        "events": run.get("events_path"),
-        "logs": run.get("logs_dir"),
-        "run_brief": str(run_root / "context" / "compiled" / "run-brief.md"),
-        "skills_manifest": str(run_root / "context" / "compiled" / "skills-manifest.json"),
-        "search_hits": str(run_root / "context" / "compiled" / "search-hits.json"),
-        "stdout": str(run_root / "logs" / "stdout.txt"),
-        "stderr": str(run_root / "logs" / "stderr.txt"),
-    }
     promotion_decision = run.get("metadata_json", {}).get("promotion_decision")
     return {
         "run": run,
         "timeline": timeline,
         "context_manifest": context_manifest,
         "changed_files": changed_files,
-        "context_entries": compiled_entries,
-        "memory_entries": memory_entries,
-        "search_entries": search_entries,
-        "skill_entries": skill_entries,
+        "context_entries": context_details["compiled_entries"],
+        "memory_entries": context_details["memory_entries"],
+        "search_entries": context_details["search_entries"],
+        "skill_entries": context_details["skill_entries"],
         "inspector": {
-            "memory_entries": memory_entries,
-            "skill_entries": skill_entries,
-            "search_entries": search_entries,
-            "search_hits": search_hits.get("results", []),
-            "skills_manifest": skills_manifest,
+            "memory_entries": context_details["memory_entries"],
+            "skill_entries": context_details["skill_entries"],
+            "search_entries": context_details["search_entries"],
+            "search_hits": context_details["search_hits"],
+            "skills_manifest": context_details["skills_manifest"],
             "outputs": context_manifest.get("outputs", []),
         },
         "steering_history": steering_history,
         "artifacts": artifacts,
         "driver_metadata": driver_metadata,
         "promotion_decision": promotion_decision,
-        "artifact_preview": {
-            "run_brief": _read_preview(artifacts["run_brief"]),
-            "review_summary": _read_preview(run.get("summary_path")),
-            "review_notes": _read_preview(run.get("review_path")),
-            "diff": _read_preview(run.get("workspace_patch_path") or run.get("patch_path")),
-            "stdout": _read_preview(artifacts["stdout"]),
-            "stderr": _read_preview(artifacts["stderr"]),
-        },
+        "artifact_preview": _artifact_preview(artifacts, run),
         "evaluations": run.get("metadata_json", {}).get("evaluations", []),
     }

@@ -12,12 +12,14 @@ SECURITY NOTE: This module addresses critical vulnerabilities identified
 in the December 2025 security audit. All changes should be carefully reviewed.
 """
 
+import hmac
+import json
 import os
 import re
-import json
+import sys
 from pathlib import Path
-from typing import Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 import yaml
 
@@ -164,7 +166,8 @@ def safe_parse_frontmatter(content: str) -> ParsedAgencyMd:
     if len(parts) < 3:
         # Invalid format - only one delimiter or malformed
         raise ValueError(
-            "Invalid frontmatter format: expected '---' delimiters " "at start and after YAML block"
+            "Invalid frontmatter format: expected '---' delimiters "
+            "at start and after YAML block"
         )
 
     # parts[0] is empty (before first ---)
@@ -382,8 +385,6 @@ def validate_api_key(provided_key: Optional[str], expected_key: Optional[str]) -
     Returns:
         True if keys match, False otherwise
     """
-    import hmac
-
     if not provided_key or not expected_key:
         return False
 
@@ -458,8 +459,6 @@ def set_recursion_limit_for_dfs():
 
     This prevents DoS via deeply nested or cyclic dependency graphs.
     """
-    import sys
-
     # Set a reasonable limit that allows normal operation but prevents abuse
     current_limit = sys.getrecursionlimit()
     if current_limit > MAX_RECURSION_DEPTH * 10:

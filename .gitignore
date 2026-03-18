@@ -220,3 +220,4 @@ node_modules/
 frontend/console/*.tsbuildinfo
 frontend/console/vite.config.js
 frontend/console/vite.config.d.ts
+marketing/

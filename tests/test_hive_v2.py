@@ -1,5 +1,11 @@
 """Tests for the Hive v2 substrate and CLI."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring,unused-argument
+# pylint: disable=redefined-outer-name,too-few-public-methods,too-many-lines
+# pylint: disable=line-too-long,import-error,no-name-in-module
+# pylint: disable=too-many-public-methods,too-many-arguments,too-many-positional-arguments
+# pylint: disable=too-many-locals,use-implicit-booleaness-not-comparison,duplicate-code
+
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor

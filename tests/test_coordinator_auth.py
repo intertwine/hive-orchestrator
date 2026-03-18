@@ -1,5 +1,9 @@
 """Tests for CoordinatorClient authentication."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring,unused-argument
+# pylint: disable=redefined-outer-name,import-outside-toplevel,protected-access
+# pylint: disable=too-few-public-methods,too-many-arguments,too-many-positional-arguments,unused-variable,duplicate-code
+
 import os
 from unittest.mock import patch, MagicMock
 import pytest

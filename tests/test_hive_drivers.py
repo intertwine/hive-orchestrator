@@ -1,5 +1,9 @@
 """Driver and run-contract tests for Hive 2.2 foundations."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring,unused-argument
+# pylint: disable=import-error,no-name-in-module,line-too-long,too-few-public-methods
+# pylint: disable=duplicate-code
+
 from __future__ import annotations
 
 import json
@@ -8,8 +12,8 @@ import subprocess
 
 from tests.conftest import init_git_repo, write_safe_program
 from hive.cli.main import main as hive_main
+from src.hive.runs.program import _build_reroute_launch_request
 from src.hive.runs.engine import (
-    _build_reroute_launch_request,
     _refresh_workspace_state,
     load_run,
     start_run,

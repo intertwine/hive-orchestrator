@@ -16,7 +16,6 @@ from src.hive.store.task_files import (
     list_tasks as _list_tasks,
     release_task as _release_task,
     save_task as _save_task,
-    task_path,
     update_task as _update_task,
 )
 

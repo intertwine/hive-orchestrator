@@ -16,54 +16,67 @@ class HivePaths:
 
     @property
     def hive_dir(self) -> Path:
+        """Return the `.hive` substrate root."""
         return self.root / ".hive"
 
     @property
     def tasks_dir(self) -> Path:
+        """Return the canonical task directory."""
         return self.hive_dir / "tasks"
 
     @property
     def runs_dir(self) -> Path:
+        """Return the governed run artifact directory."""
         return self.hive_dir / "runs"
 
     @property
     def events_dir(self) -> Path:
+        """Return the event log directory."""
         return self.hive_dir / "events"
 
     @property
     def cache_dir(self) -> Path:
+        """Return the derived cache directory."""
         return self.hive_dir / "cache"
 
     @property
     def cache_db(self) -> Path:
+        """Return the derived SQLite cache path."""
         return self.cache_dir / "index.sqlite"
 
     @property
     def memory_dir(self) -> Path:
+        """Return the observational memory root."""
         return self.hive_dir / "memory"
 
     @property
     def project_memory_dir(self) -> Path:
+        """Return the project-scoped memory directory."""
         return self.memory_dir / "project"
 
     @property
     def transcripts_dir(self) -> Path:
+        """Return the transcript capture directory."""
         return self.memory_dir / "transcripts"
 
     @property
     def worktrees_dir(self) -> Path:
+        """Return the linked Git worktree directory."""
         return self.hive_dir / "worktrees"
 
     @property
     def global_file(self) -> Path:
+        """Return the generated global rollup path."""
         return self.root / "GLOBAL.md"
 
     @property
     def agents_file(self) -> Path:
+        """Return the workspace operating-instructions file."""
         return self.root / "AGENTS.md"
 
     @property
     def projects_dir(self) -> Path:
+        """Return the project directory root."""
         return self.root / "projects"
 
 

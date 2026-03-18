@@ -1,6 +1,7 @@
 """Tests for the Context Assembler module."""
 
 # pylint: disable=unused-argument,import-error,wrong-import-position
+# pylint: disable=too-few-public-methods,import-outside-toplevel,duplicate-code
 
 import os
 import subprocess

@@ -1,5 +1,7 @@
 """Tests for run worktree helpers."""
 
+# pylint: disable=protected-access,duplicate-code
+
 from __future__ import annotations
 
 from pathlib import Path

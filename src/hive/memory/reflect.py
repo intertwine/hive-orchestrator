@@ -165,6 +165,46 @@ def _write_summary_doc(
     )
 
 
+def _memory_output_paths(directory: Path, *, propose: bool) -> dict[str, Path]:
+    suffix = ".proposed.md" if propose else ".md"
+    return {
+        "reflections": directory / f"reflections{suffix}",
+        "profile": directory / f"profile{suffix}",
+        "active": directory / f"active{suffix}",
+        "review": directory / "memory-review.md",
+    }
+
+
+def _reflection_lines(
+    *,
+    grouped: list[dict[str, object]],
+    entries: list[dict[str, str]],
+    recurring_terms: list[str],
+    recent_groups: list[dict[str, object]],
+) -> list[str]:
+    pattern_line = (
+        f"- Synthesized {len(grouped)} distinct memory signals from {len(entries)} observations."
+        if entries
+        else "- No reflections yet."
+    )
+    recurring_line = (
+        "- Recurring themes: " + ", ".join(f"`{term}`" for term in recurring_terms)
+        if recurring_terms
+        else "- No recurring themes identified yet."
+    )
+    return [
+        "# Reflections",
+        "",
+        "## Patterns",
+        pattern_line,
+        recurring_line,
+        "",
+        "## Highest-Signal Notes",
+        *_render_items(recent_groups[:6], empty_message="No recent project signals captured yet."),
+        "",
+    ]
+
+
 def _load_observations_from_candidates(
     path: str | Path | None,
     *,
@@ -177,7 +217,11 @@ def _load_observations_from_candidates(
             scope=scope,
         )
         observations_path = directory / "observations.md"
-        content = observations_path.read_text(encoding="utf-8") if observations_path.exists() else ""
+        content = (
+            observations_path.read_text(encoding="utf-8")
+            if observations_path.exists()
+            else ""
+        )
         return directory, content
 
     candidate_dirs = project_memory_read_dirs(path, project_id=project_id)
@@ -215,56 +259,43 @@ def reflect(
     active_groups = recent_groups[:4]
     recurring_terms = _top_terms(entries)
 
-    suffix = ".proposed.md" if propose else ".md"
-    reflections_path = directory / f"reflections{suffix}"
-    profile_path = directory / f"profile{suffix}"
-    active_path = directory / f"active{suffix}"
-    review_path = directory / "memory-review.md"
+    output_paths = _memory_output_paths(directory, propose=propose)
 
-    reflections_lines = [
-        "# Reflections",
-        "",
-        "## Patterns",
-        (
-            f"- Synthesized {len(grouped)} distinct memory signals from {len(entries)} observations."
-            if entries
-            else "- No reflections yet."
+    output_paths["reflections"].write_text(
+        "\n".join(
+            _reflection_lines(
+                grouped=grouped,
+                entries=entries,
+                recurring_terms=recurring_terms,
+                recent_groups=recent_groups,
+            )
         ),
-        (
-            "- Recurring themes: " + ", ".join(f"`{term}`" for term in recurring_terms)
-            if recurring_terms
-            else "- No recurring themes identified yet."
-        ),
-        "",
-        "## Highest-Signal Notes",
-        *_render_items(recent_groups[:6], empty_message="No recent project signals captured yet."),
-        "",
-    ]
-    reflections_path.write_text("\n".join(reflections_lines), encoding="utf-8")
+        encoding="utf-8",
+    )
 
     _write_summary_doc(
-        profile_path,
+        output_paths["profile"],
         heading="Profile",
         section_heading="Stable Context",
         items=profile_groups,
         empty_message="No stable profile details captured yet.",
     )
     _write_summary_doc(
-        active_path,
+        output_paths["active"],
         heading="Active Context",
         section_heading="Right Now",
         items=active_groups,
         empty_message="No active context yet.",
     )
     if propose:
-        review_path.write_text(
+        output_paths["review"].write_text(
             "\n".join(
                 [
                     "# Memory Review",
                     "",
-                    f"- Proposed profile: `{profile_path.name}`",
-                    f"- Proposed active context: `{active_path.name}`",
-                    f"- Proposed reflections: `{reflections_path.name}`",
+                    f"- Proposed profile: `{output_paths['profile'].name}`",
+                    f"- Proposed active context: `{output_paths['active'].name}`",
+                    f"- Proposed reflections: `{output_paths['reflections'].name}`",
                     "",
                     "Use `hive memory accept` to promote these changes or "
                     "`hive memory reject` to discard them.",
@@ -275,10 +306,10 @@ def reflect(
         )
 
     payload = {
-        "reflections": reflections_path,
-        "profile": profile_path,
-        "active": active_path,
+        "reflections": output_paths["reflections"],
+        "profile": output_paths["profile"],
+        "active": output_paths["active"],
     }
     if propose:
-        payload["review"] = review_path
+        payload["review"] = output_paths["review"]
     return payload

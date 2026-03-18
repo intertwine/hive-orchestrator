@@ -1,5 +1,9 @@
 """Tests for the Hive 2.1 portfolio control plane."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring,unused-argument
+# pylint: disable=redefined-outer-name,import-error,no-name-in-module,too-few-public-methods
+# pylint: disable=line-too-long,wrong-import-order,unsubscriptable-object,duplicate-code
+
 from __future__ import annotations
 
 import json

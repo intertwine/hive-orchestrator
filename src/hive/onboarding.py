@@ -8,7 +8,7 @@ import subprocess
 from src.hive.program import add_evaluator_template, doctor_program
 from src.hive.scaffold import starter_task_specs
 from src.hive.store.layout import bootstrap_workspace
-from src.hive.store.projects import create_project, discover_projects, get_project
+from src.hive.store.projects import create_project, discover_projects
 from src.hive.store.task_files import create_task, link_tasks, list_tasks
 from src.hive.workspace import sync_workspace
 
@@ -98,7 +98,7 @@ def onboard_workspace(
     bootstrapped = bootstrap_workspace(root)
     project = None
     for candidate in discover_projects(root):
-        if candidate.slug == slug or candidate.id == slug:
+        if slug in {candidate.slug, candidate.id}:
             project = candidate
             break
     if project is None:

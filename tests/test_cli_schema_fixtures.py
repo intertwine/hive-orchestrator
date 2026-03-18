@@ -1,5 +1,9 @@
 """Fixture-backed CLI schema checks for the v2.2 manager loop."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring,unused-argument
+# pylint: disable=import-error,no-name-in-module,line-too-long,too-few-public-methods
+# pylint: disable=too-many-return-statements,duplicate-code
+
 from __future__ import annotations
 
 import json

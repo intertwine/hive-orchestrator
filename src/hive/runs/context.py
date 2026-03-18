@@ -117,7 +117,9 @@ def compile_run_context(
     program_document = _read_text(project.program_path.resolve())
     task_document = _read_text(Path(task.path).resolve())
     task_acceptance = (
-        "\n".join(f"- {item}" for item in task.acceptance) if getattr(task, "acceptance", None) else ""
+        "\n".join(f"- {item}" for item in task.acceptance)
+        if getattr(task, "acceptance", None)
+        else ""
     )
     task_relevant_files = (
         "\n".join(f"- {item}" for item in task.relevant_files)
@@ -176,7 +178,9 @@ def compile_run_context(
             {
                 "driver": driver,
                 "skills": selected_skills,
-                "context_files": [name for name in ("AGENTS.md", "CLAUDE.md") if (root / name).exists()],
+                "context_files": [
+                    name for name in ("AGENTS.md", "CLAUDE.md") if (root / name).exists()
+                ],
                 "generated_at": utc_now_iso(),
             },
             indent=2,

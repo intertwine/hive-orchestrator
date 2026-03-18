@@ -508,6 +508,9 @@ def start_run(
             "source": "hive run start",
             "task_title": task.title,
             "approval_channel": str(paths["approval_channel_path"]),
+            "handoff_manifest_path": context_bundle["handoff_bundle"].get("manifest_path"),
+            "handoff_summary_path": context_bundle["handoff_bundle"].get("summary_path"),
+            "handoff_runs": list(context_bundle["handoff_bundle"].get("items") or []),
         },
     )
     handle = driver.launch(launch_request)
@@ -572,6 +575,7 @@ def start_run(
         approvals_path=str(paths["approvals_path"]),
         retrieval_trace_path=str(paths["retrieval_trace_path"]),
         retrieval_hits_path=str(paths["retrieval_hits_path"]),
+        handoff_manifest_path=context_bundle["handoff_bundle"].get("manifest_path"),
         scheduler_candidate_set_path=str(paths["scheduler_candidate_set_path"]),
         scheduler_decision_path=str(paths["scheduler_decision_path"]),
         eval_results_path=str(paths["eval_results_path"]),
@@ -596,6 +600,9 @@ def start_run(
                 "sandbox_policy": sandbox_policy.to_dict(),
                 "capability_snapshot": capability_snapshot.to_dict(),
                 "approval_channel": str(paths["approval_channel_path"]),
+                "handoff_manifest_path": context_bundle["handoff_bundle"].get("manifest_path"),
+                "handoff_summary_path": context_bundle["handoff_bundle"].get("summary_path"),
+                "handoff_runs": list(context_bundle["handoff_bundle"].get("items") or []),
                 "scheduler_candidate_set": scheduler_candidate_set or default_candidate_set,
                 "scheduler_decision": scheduler_decision or default_decision,
             },
@@ -665,6 +672,19 @@ def start_run(
         run_id=run.id,
         task_id=task.id,
         project_id=project.id,
+    )
+    emit_event(
+        root,
+        actor={"kind": "system", "id": "hive"},
+        entity_type="run",
+        entity_id=run.id,
+        event_type="sandbox.selected",
+        source="run.start",
+        payload=sandbox_policy.to_dict(),
+        run_id=run.id,
+        task_id=task.id,
+        project_id=project.id,
+        campaign_id=campaign_id,
     )
     if run_status.state == "awaiting_input":
         emit_event(

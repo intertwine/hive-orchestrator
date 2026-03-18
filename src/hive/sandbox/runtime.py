@@ -140,6 +140,9 @@ def sandboxed_command(
         "run",
         "--rm",
         "--interactive",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,noexec,nosuid,size=64m",
         "--network",
         "none",
         "--volume",
@@ -148,7 +151,29 @@ def sandboxed_command(
         f"{host_artifacts}:{container_artifacts}:rw",
         "--workdir",
         container_cwd,
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
     ]
+    for readonly in list(policy.mounts.get("read_only") or []):
+        readonly_path = Path(str(readonly)).resolve()
+        target_name = readonly_path.name or "ro"
+        base.extend(["--volume", f"{readonly_path}:/readonly/{target_name}:ro"])
+    for env_name in list(policy.env.get("allowlist") or []):
+        value = os.environ.get(str(env_name))
+        if value is not None:
+            base.extend(["--env", f"{env_name}={value}"])
+    for env_name in list(policy.env.get("passthrough") or []):
+        value = os.environ.get(str(env_name))
+        if value is not None:
+            base.extend(["--env", f"{env_name}={value}"])
+    cpu_limit = policy.resources.get("cpu")
+    memory_mb = policy.resources.get("memory_mb")
+    if cpu_limit:
+        base.extend(["--cpus", str(cpu_limit)])
+    if memory_mb:
+        base.extend(["--memory", f"{memory_mb}m"])
     if policy.backend == "podman":
         base.extend(["--userns=keep-id", "--security-opt", "label=disable"])
     base.extend([image, "sh", "-lc", command])

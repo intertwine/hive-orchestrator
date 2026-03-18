@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import json
 from pathlib import Path
 import shutil
+import subprocess
 from typing import Iterable
 
 from src.hive.sandbox.base import SandboxProbe
@@ -36,6 +38,24 @@ class BinarySandboxBackend(SandboxBackend):
                 return str(Path(location).resolve())
         return None
 
+    def _command_output(self, *args: str) -> str | None:
+        binary = self._find_binary()
+        if binary is None:
+            return None
+        try:
+            completed = subprocess.run(
+                [binary, *args],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=5,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if completed.returncode != 0:
+            return None
+        return completed.stdout.strip() or None
+
     def probe(self) -> SandboxProbe:
         binary = self._find_binary()
         notes = []
@@ -43,6 +63,9 @@ class BinarySandboxBackend(SandboxBackend):
         if binary:
             notes.append(f"Detected backend binary at {binary}.")
             evidence["binary"] = binary
+            version = self._command_output("--version")
+            if version:
+                evidence["version"] = version
         else:
             notes.append(self.note_when_missing)
         return SandboxProbe(
@@ -62,6 +85,28 @@ class PodmanBackend(BinarySandboxBackend):
     binaries = ("podman",)
     supported_profiles = ("local-safe",)
 
+    def probe(self) -> SandboxProbe:
+        probe = super().probe()
+        if not probe.available:
+            return probe
+        info_text = self._command_output("info", "--format", "json")
+        if not info_text:
+            probe.notes.append("Podman info was unavailable; assuming local-safe support from CLI.")
+            return probe
+        try:
+            payload = json.loads(info_text)
+        except json.JSONDecodeError:
+            probe.notes.append("Podman info returned non-JSON output; rootless status unverified.")
+            return probe
+        rootless = bool(((payload.get("host") or {}).get("security") or {}).get("rootless", True))
+        probe.evidence["rootless"] = rootless
+        if not rootless:
+            probe.available = False
+            probe.notes.append("Podman is installed but is not running rootless.")
+        else:
+            probe.notes.append("Podman rootless mode is available for local-safe sandboxing.")
+        return probe
+
 
 class DockerRootlessBackend(BinarySandboxBackend):
     name = "docker-rootless"
@@ -69,6 +114,20 @@ class DockerRootlessBackend(BinarySandboxBackend):
     binaries = ("docker",)
     supported_profiles = ("local-safe",)
     note_when_missing = "Docker CLI was not detected on PATH."
+
+    def probe(self) -> SandboxProbe:
+        probe = super().probe()
+        if not probe.available:
+            return probe
+        security_options = self._command_output("info", "--format", "{{json .SecurityOptions}}")
+        rootless = bool(security_options and "rootless" in security_options.casefold())
+        probe.evidence["rootless"] = rootless
+        if rootless:
+            probe.notes.append("Docker daemon advertises rootless security mode.")
+            return probe
+        probe.available = False
+        probe.notes.append("Docker CLI is present, but the daemon is not advertising rootless mode.")
+        return probe
 
 
 class AsrtBackend(BinarySandboxBackend):

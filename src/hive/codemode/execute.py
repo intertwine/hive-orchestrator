@@ -95,6 +95,12 @@ def execute_code(
                 "profile": profile,
                 "timed_out": False,
             }
+        sandbox_metadata = {
+            "sandbox_backend": sandbox_policy.backend,
+            "sandbox_profile": sandbox_policy.profile,
+            "sandbox_provenance": sandbox_policy.provenance,
+            "sandbox_network_mode": sandbox_policy.network.get("mode"),
+        }
         payload_root = str(root)
         payload_result_path = str(result_path)
         if sandbox_policy.backend != "legacy-host":
@@ -140,11 +146,12 @@ def execute_code(
                     "ok": False,
                     "error": str(exc),
                     "stdout": "",
-                    "stderr": "",
-                    "language": language,
-                    "profile": profile,
-                    "timed_out": False,
-                }
+                "stderr": "",
+                "language": language,
+                "profile": profile,
+                "timed_out": False,
+                **sandbox_metadata,
+            }
             env = None
         try:
             completed = subprocess.run(
@@ -166,6 +173,7 @@ def execute_code(
                 "language": language,
                 "profile": profile,
                 "timed_out": False,
+                **sandbox_metadata,
             }
         except subprocess.TimeoutExpired as exc:
             return {
@@ -176,6 +184,7 @@ def execute_code(
                 "language": language,
                 "profile": profile,
                 "timed_out": True,
+                **sandbox_metadata,
             }
 
         payload = {
@@ -186,6 +195,7 @@ def execute_code(
             "language": language,
             "profile": profile,
             "timed_out": False,
+            **sandbox_metadata,
         }
         if result_path.exists():
             result_payload = json.loads(result_path.read_text(encoding="utf-8"))

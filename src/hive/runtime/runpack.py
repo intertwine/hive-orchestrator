@@ -195,6 +195,12 @@ def _artifact_status_payload(
         "task_id": metadata.get("task_id"),
         "project_id": metadata.get("project_id"),
         "driver": metadata.get("driver"),
+        "sandbox_backend": ((metadata_json.get("runtime_v2") or {}).get("sandbox_policy") or {}).get(
+            "backend"
+        ),
+        "sandbox_profile": ((metadata_json.get("runtime_v2") or {}).get("sandbox_policy") or {}).get(
+            "profile"
+        ),
         "status": metadata.get("status"),
         "health": metadata.get("health"),
         "task_status": task_status,

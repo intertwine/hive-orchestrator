@@ -16,6 +16,7 @@ from src.hive.codemode.execute import execute_code
 from src.hive.console.api import app
 from src.hive.drivers import RunBudgetUsage, RunHandle, RunLinks, RunProgress, RunStatus, get_driver
 from src.hive.drivers import SteeringRequest
+from src.hive.runs.evaluators import run_evaluator
 from src.hive.runs.executors import LocalExecutor
 from src.hive.runtime import request_approval
 from src.hive.runtime.runpack import SandboxPolicy
@@ -252,6 +253,7 @@ def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):
     assert all(item["provenance"] for item in retrieval_trace["selected_context"])
     assert all(item["explanation"] for item in retrieval_trace["selected_context"])
     assert retrieval_hits["candidate_count"] >= retrieval_hits["selected_count"]
+    assert manifest["compiled_context_manifest"].endswith("context/manifest.json")
     assert eval_results["status"] == "awaiting_input"
     assert final_state["run_id"] == run.id
     assert final_state["status"] == "awaiting_input"
@@ -300,6 +302,53 @@ def test_start_run_selects_local_safe_sandbox_backend_when_available(
     assert sandbox["profile"] == "local-safe"
     assert manifest["sandbox_backend"] == "podman"
     assert manifest["sandbox_profile"] == "local-safe"
+
+
+def test_start_run_emits_sandbox_selected_event(temp_hive_dir, capsys, monkeypatch):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    podman = get_backend("podman")
+    docker = get_backend("docker-rootless")
+
+    def fake_podman_probe(self):
+        return SandboxProbe(
+            backend="podman",
+            available=True,
+            isolation_class="container",
+            supported_profiles=["local-safe"],
+            notes=["Detected rootless Podman."],
+            evidence={"binary": "/tmp/podman", "rootless": True},
+        )
+
+    def fake_docker_probe(self):
+        return SandboxProbe(
+            backend="docker-rootless",
+            available=False,
+            isolation_class="container",
+            supported_profiles=["local-safe"],
+            notes=["Docker unavailable."],
+            evidence={},
+        )
+
+    monkeypatch.setattr(type(podman), "probe", fake_podman_probe)
+    monkeypatch.setattr(type(docker), "probe", fake_docker_probe)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="local", profile="local-safe")
+    events = list((Path(temp_hive_dir) / ".hive" / "runs" / run.id / "events.ndjson").read_text(
+        encoding="utf-8"
+    ).splitlines())
+    final_state = json.loads(
+        (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "final.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    sandbox_events = [json.loads(line) for line in events if line.strip()]
+    selected = [event for event in sandbox_events if event["type"] == "sandbox.selected"]
+    assert selected
+    assert selected[0]["payload"]["backend"] == "podman"
+    assert final_state["sandbox_backend"] == "podman"
+    assert final_state["sandbox_profile"] == "local-safe"
 
 
 def test_start_run_rejects_local_safe_when_no_backend_is_available(
@@ -372,6 +421,9 @@ def test_local_executor_wraps_commands_for_container_sandbox(monkeypatch, tmp_pa
 
     argv = list(calls[0]["args"][0])
     assert result.returncode == 0
+    assert result.sandbox is not None
+    assert result.sandbox["backend"] == "podman"
+    assert result.sandbox["network_mode"] == "deny"
     assert calls[0]["kwargs"]["shell"] is False
     assert argv[:4] == ["podman", "run", "--rm", "--interactive"]
     assert "--network" in argv
@@ -462,6 +514,9 @@ def test_execute_local_safe_wraps_python_runner_in_container(monkeypatch, tmp_pa
 
     argv = list(calls[0]["args"][0])
     assert payload["ok"] is True
+    assert payload["sandbox_backend"] == "podman"
+    assert payload["sandbox_profile"] == "local-safe"
+    assert payload["sandbox_network_mode"] == "deny"
     assert calls[0]["kwargs"]["shell"] is False
     assert calls[0]["kwargs"]["env"] is None
     assert argv[0] == "podman"
@@ -498,6 +553,86 @@ def test_execute_local_safe_returns_error_when_backend_is_unavailable(monkeypatc
 
     assert payload["ok"] is False
     assert "Sandbox profile 'local-safe' requires one of" in payload["error"]
+
+
+def test_docker_rootless_probe_requires_rootless_daemon(monkeypatch):
+    backend = get_backend("docker-rootless")
+
+    def fake_find_binary(self):
+        return "/tmp/docker"
+
+    def fake_command_output(self, *args):
+        if args == ("--version",):
+            return "Docker version 28.3.3"
+        if args == ("info", "--format", "{{json .SecurityOptions}}"):
+            return '["name=rootless","name=seccomp"]'
+        return None
+
+    monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
+    monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+
+    probe = backend.probe()
+
+    assert probe.available is True
+    assert probe.evidence["rootless"] is True
+    assert "rootless" in probe.notes[-1]
+
+
+def test_run_evaluator_records_sandbox_metadata(monkeypatch, tmp_path):
+    calls: list[dict[str, object]] = []
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    output_dir = tmp_path / "eval"
+    command_log = tmp_path / "command-log.ndjson"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    def fake_run(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+
+        class Result:
+            returncode = 0
+            stdout = "ok\n"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr("src.hive.runs.executors.subprocess.run", fake_run)
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="podman",
+            isolation_class="container",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": ["LANG"], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="local-safe",
+            provenance="sandbox_v2_backend:podman",
+        )
+    )
+
+    result = run_evaluator(
+        executor,
+        "python -c \"print('ok')\"",
+        worktree,
+        output_dir,
+        "sandbox-check",
+        True,
+        command_log_path=command_log,
+        seq=1,
+        timeout_seconds=30,
+    )
+
+    command_entry = json.loads(command_log.read_text(encoding="utf-8").splitlines()[0])
+    assert result["metadata_json"]["sandbox"]["backend"] == "podman"
+    assert command_entry["metadata_json"]["sandbox"]["network_mode"] == "deny"
 
 
 def test_runtime_artifacts_track_eval_accept_and_cancel(temp_hive_dir, capsys):

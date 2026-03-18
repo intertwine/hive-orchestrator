@@ -24,6 +24,7 @@ class CommandResult:
     stdout: str
     stderr: str
     timed_out: bool = False
+    sandbox: dict[str, object] | None = None
 
 
 class Executor(Protocol):
@@ -45,6 +46,7 @@ class LocalExecutor:
         started_at = utc_now_iso()
         try:
             argv, use_shell = self._command_payload(command, cwd=cwd)
+            sandbox = self._sandbox_metadata(command, argv=argv, use_shell=use_shell, cwd=cwd)
             completed = subprocess.run(
                 argv,
                 shell=use_shell,
@@ -62,6 +64,7 @@ class LocalExecutor:
                 stdout=completed.stdout,
                 stderr=completed.stderr,
                 timed_out=False,
+                sandbox=sandbox,
             )
         except (NotImplementedError, OSError, ValueError) as exc:
             return CommandResult(
@@ -72,6 +75,7 @@ class LocalExecutor:
                 stdout="",
                 stderr=str(exc),
                 timed_out=False,
+                sandbox=self._sandbox_metadata(command, cwd=cwd),
             )
         except subprocess.TimeoutExpired as exc:
             stdout = (
@@ -92,12 +96,40 @@ class LocalExecutor:
                 stdout=stdout,
                 stderr=stderr,
                 timed_out=True,
+                sandbox=self._sandbox_metadata(command, argv=argv, use_shell=use_shell, cwd=cwd),
             )
 
     def _command_payload(self, command: str, *, cwd: Path) -> tuple[list[str] | str, bool]:
         if self.sandbox_policy is None:
             return command, True
         return sandboxed_command(self.sandbox_policy, command=command, cwd=cwd)
+
+    def _sandbox_metadata(
+        self,
+        command: str,
+        *,
+        argv: list[str] | str | None = None,
+        use_shell: bool | None = None,
+        cwd: Path | None = None,
+    ) -> dict[str, object] | None:
+        if self.sandbox_policy is None:
+            return None
+        command_payload: list[str] | str | None = None
+        if isinstance(argv, list):
+            command_payload = list(argv)
+        elif isinstance(argv, str):
+            command_payload = argv
+        return {
+            "backend": self.sandbox_policy.backend,
+            "profile": self.sandbox_policy.profile,
+            "provenance": self.sandbox_policy.provenance,
+            "network_mode": self.sandbox_policy.network.get("mode"),
+            "network_allowlist": list(self.sandbox_policy.network.get("allowlist") or []),
+            "command": command,
+            "command_payload": command_payload,
+            "shell": use_shell,
+            "cwd": str(cwd) if cwd else None,
+        }
 
 
 class GitHubActionsExecutor:

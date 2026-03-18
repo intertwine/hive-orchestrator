@@ -46,6 +46,7 @@ def _append_command_log(
             "evaluator_id": evaluator_id,
             "returncode": step_result.returncode,
             "timed_out": step_result.timed_out,
+            "sandbox": step_result.sandbox,
         },
     }
     with open(command_log_path, "a", encoding="utf-8") as handle:
@@ -89,6 +90,7 @@ def run_evaluator(
             "returncode": step_result.returncode,
             "timed_out": step_result.timed_out,
             "started_at": step_result.started_at,
+            "sandbox": step_result.sandbox,
         },
     }
     (output_dir / f"{evaluator_id}.json").write_text(

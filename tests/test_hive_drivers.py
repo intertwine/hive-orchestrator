@@ -6,9 +6,12 @@
 
 from __future__ import annotations
 
+import atexit
 import json
 from pathlib import Path
+import shlex
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -40,6 +43,17 @@ from src.hive.scheduler.query import ready_tasks
 from src.hive.store.task_files import create_task, update_task
 
 
+_FAKE_CODEX_TEMP_DIRS: list[tempfile.TemporaryDirectory[str]] = []
+
+
+def _cleanup_fake_codex_dirs() -> None:
+    while _FAKE_CODEX_TEMP_DIRS:
+        _FAKE_CODEX_TEMP_DIRS.pop().cleanup()
+
+
+atexit.register(_cleanup_fake_codex_dirs)
+
+
 def _invoke_cli_json(capsys, argv: list[str]) -> dict:
     exit_code = hive_main(argv)
     captured = capsys.readouterr()
@@ -47,13 +61,23 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
     return json.loads(captured.out)
 
 
-def _write_fake_codex_binary(base_dir: str) -> Path:
-    temp_dir = Path(tempfile.mkdtemp(prefix="fake-codex-"))
-    target = temp_dir / "fake-codex.py"
-    target.write_text(
-        """#!/usr/bin/env python3
+def _write_fake_codex_binary() -> Path:
+    temp_root = tempfile.TemporaryDirectory(
+        prefix="fake-codex-",
+        dir=Path(__file__).resolve().parent,
+    )
+    _FAKE_CODEX_TEMP_DIRS.append(temp_root)
+    temp_dir = Path(temp_root.name)
+    impl_path = temp_dir / "fake-codex.py"
+    impl_path.write_text(
+        """
 import json
 import sys
+
+
+def debug(message):
+    sys.stderr.write(message + "\\n")
+    sys.stderr.flush()
 
 
 def send(payload):
@@ -63,6 +87,7 @@ def send(payload):
 
 def main():
     args = sys.argv[1:]
+    debug(f"fake-codex argv={args!r}")
     if args == ["--help"]:
         sys.stdout.write("Codex CLI\\nCommands:\\n  exec\\n  app-server\\n")
         return 0
@@ -86,6 +111,7 @@ def main():
             continue
         message = json.loads(line)
         method = message.get("method")
+        debug(f"fake-codex method={method!r}")
         if method == "initialize":
             send({"id": message["id"], "result": {"userAgent": "fake-codex"}})
         elif method == "thread/start":
@@ -274,6 +300,12 @@ if __name__ == "__main__":
 """,
         encoding="utf-8",
     )
+    target = temp_dir / "fake-codex"
+    target.write_text(
+        "#!/bin/sh\n"
+        f"exec {shlex.quote(sys.executable)} -u {shlex.quote(str(impl_path))} \"$@\"\n",
+        encoding="utf-8",
+    )
     target.chmod(0o755)
     return target
 
@@ -286,6 +318,151 @@ def _poll_run_status(temp_hive_dir: str, capsys, run_id: str, *, attempts: int =
             return payload
         time.sleep(0.1)
     return payload
+
+
+def _read_preview(path_value: str | None, *, max_chars: int = 4000) -> str | None:
+    if not path_value:
+        return None
+    path = Path(path_value)
+    if not path.exists():
+        return f"<missing:{path}>"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return f"<error reading {path}: {exc}>"
+    if len(text) <= max_chars:
+        return text
+    half = max_chars // 2
+    return text[:half] + "\n...<truncated>...\n" + text[-half:]
+
+
+def _handle_metadata_preview(
+    path_value: str | None,
+    metadata_key: str,
+    *,
+    max_chars: int = 4000,
+) -> str | None:
+    if not path_value:
+        return None
+    path = Path(path_value)
+    if not path.exists():
+        return f"<missing:{path}>"
+    try:
+        handles = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        return f"<error reading {path}: {exc}>"
+    handle_records: list[dict] = []
+    if isinstance(handles, dict):
+        active = handles.get("active")
+        history = list(handles.get("history") or [])
+        if isinstance(active, dict):
+            handle_records.append(active)
+        handle_records.extend(record for record in history if isinstance(record, dict))
+    elif isinstance(handles, list):
+        handle_records.extend(record for record in handles if isinstance(record, dict))
+    else:
+        return f"<unexpected handles payload:{type(handles).__name__}>"
+    for handle in reversed(handle_records):
+        if not isinstance(handle, dict):
+            continue
+        metadata = handle.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        value = str(metadata.get(metadata_key) or "").strip()
+        if value:
+            return _read_preview(value, max_chars=max_chars)
+    return None
+
+
+def _handle_metadata_value(path_value: str | None, metadata_key: str) -> str | None:
+    if not path_value:
+        return None
+    path = Path(path_value)
+    if not path.exists():
+        return None
+    try:
+        handles = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    handle_records: list[dict] = []
+    if isinstance(handles, dict):
+        active = handles.get("active")
+        history = list(handles.get("history") or [])
+        if isinstance(active, dict):
+            handle_records.append(active)
+        handle_records.extend(record for record in history if isinstance(record, dict))
+    elif isinstance(handles, list):
+        handle_records.extend(record for record in handles if isinstance(record, dict))
+    for handle in reversed(handle_records):
+        metadata = handle.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        value = str(metadata.get(metadata_key) or "").strip()
+        if value:
+            return value
+    return None
+
+
+def _timeout_diagnostics(payload: dict) -> dict[str, object]:
+    status = payload.get("status")
+    run_payload = payload.get("run")
+    driver_status = payload.get("driver_status")
+    diagnostics: dict[str, object] = {}
+    if isinstance(status, dict):
+        diagnostics["status"] = status
+    if isinstance(driver_status, dict):
+        diagnostics["driver_status"] = driver_status
+
+    artifacts: dict[str, object] = {}
+    if isinstance(status, dict) and isinstance(status.get("artifacts"), dict):
+        artifacts.update(status["artifacts"])
+    if isinstance(driver_status, dict) and isinstance(driver_status.get("artifacts"), dict):
+        artifacts.update(driver_status["artifacts"])
+    if artifacts:
+        diagnostics["artifacts"] = artifacts
+
+    logs_dir = ""
+    if isinstance(run_payload, dict):
+        logs_dir = str(run_payload.get("logs_dir") or "")
+        diagnostics["run_paths"] = {
+            "driver_handles_path": run_payload.get("driver_handles_path"),
+            "driver_metadata_path": run_payload.get("driver_metadata_path"),
+            "logs_dir": run_payload.get("logs_dir"),
+        }
+
+    previews = {
+        "raw_output": _read_preview(str(artifacts.get("raw_output_path") or "")),
+        "state": _read_preview(str(artifacts.get("state_path") or "")),
+        "exit_code": _read_preview(str(artifacts.get("exit_code_path") or "")),
+        "last_message": _read_preview(str(artifacts.get("last_message_path") or "")),
+        "worker_stderr": _read_preview(str(artifacts.get("worker_stderr_path") or "")),
+        "stderr": _read_preview(str(Path(logs_dir) / "stderr.txt") if logs_dir else None),
+        "stdout": _read_preview(str(Path(logs_dir) / "stdout.txt") if logs_dir else None),
+        "driver_handles": _read_preview(
+            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None
+        ),
+        "driver_metadata": _read_preview(
+            str(run_payload.get("driver_metadata_path") or "") if isinstance(run_payload, dict) else None
+        ),
+        "command": _handle_metadata_preview(
+            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
+            "command_path",
+        ),
+        "prompt": _handle_metadata_preview(
+            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
+            "prompt_path",
+        ),
+        "binary": _handle_metadata_preview(
+            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
+            "binary_path",
+        ),
+        "launch_error": _handle_metadata_value(
+            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
+            "launch_error",
+        ),
+    }
+    diagnostics["previews"] = previews
+    return diagnostics
 
 
 def _wait_for_run_status(
@@ -304,7 +481,11 @@ def _wait_for_run_status(
         if isinstance(status, dict) and predicate(status):
             return payload
         time.sleep(sleep_seconds)
-    return payload
+    pytest.fail(
+        "Timed out waiting for run status predicate for "
+        f"{run_id}. Last payload: {json.dumps(payload, sort_keys=True)}. "
+        f"Diagnostics: {json.dumps(_timeout_diagnostics(payload), sort_keys=True)}"
+    )
 
 
 class TestHiveDrivers:
@@ -1260,7 +1441,7 @@ class TestHiveDrivers:
             text=True,
         )
         driver = get_driver("codex")
-        fake_binary = _write_fake_codex_binary(temp_hive_dir)
+        fake_binary = _write_fake_codex_binary()
 
         def fake_detected_binary_details(self):
             return ("codex", str(fake_binary))
@@ -1277,6 +1458,7 @@ class TestHiveDrivers:
             capsys,
             run.id,
             predicate=lambda status: bool(status.get("pending_approvals")),
+            attempts=200,
         )
 
         approval_id = pending_payload["status"]["pending_approvals"][0]["approval_id"]
@@ -1298,6 +1480,9 @@ class TestHiveDrivers:
         run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
         handles = json.loads((run_root / "driver" / "handles.json").read_text(encoding="utf-8"))
         transcript = (run_root / "transcript.ndjson").read_text(encoding="utf-8")
+        command_text = (run_root / "driver" / "codex-app-server-command.txt").read_text(
+            encoding="utf-8"
+        )
 
         assert resolution["driver_ack"]["ok"] is True
         assert pending_payload["status"]["session"]["launch_mode"] == "app_server"
@@ -1308,6 +1493,7 @@ class TestHiveDrivers:
         assert completed_payload["status"]["session"]["thread_id"] == "thread_test"
         assert handles["active"]["launch_mode"] == "app_server"
         assert handles["active"]["thread_id"] == "thread_test"
+        assert "-m src.hive.drivers.codex_app_server_worker" in command_text
         assert metadata["metadata_json"]["budget_rollup"]["spent_tokens"] == 9
         assert "Working" in transcript
         assert "approved" in transcript
@@ -1330,7 +1516,7 @@ class TestHiveDrivers:
             text=True,
         )
         driver = get_driver("codex")
-        fake_binary = _write_fake_codex_binary(temp_hive_dir)
+        fake_binary = _write_fake_codex_binary()
 
         def fake_detected_binary_details(self):
             return ("codex", str(fake_binary))
@@ -1358,6 +1544,7 @@ class TestHiveDrivers:
             capsys,
             run.id,
             predicate=lambda status: status.get("state") == "cancelled",
+            attempts=200,
         )
 
         assert interrupt_payload["driver_ack"]["ok"] is True
@@ -1382,7 +1569,7 @@ class TestHiveDrivers:
             text=True,
         )
         driver = get_driver("codex")
-        fake_binary = _write_fake_codex_binary(temp_hive_dir)
+        fake_binary = _write_fake_codex_binary()
 
         def fake_detected_binary_details(self):
             return ("codex", str(fake_binary))
@@ -1403,6 +1590,7 @@ class TestHiveDrivers:
             capsys,
             run.id,
             predicate=lambda status: bool(status.get("pending_approvals")),
+            attempts=200,
         )
 
         pending_approval = pending_payload["status"]["pending_approvals"][0]
@@ -1477,6 +1665,94 @@ class TestHiveDrivers:
         assert status.health == "needs_attention"
         assert status.waiting_on == "review"
         assert status.budget.spent_tokens == 12
+
+    def test_codex_app_server_reports_failed_when_broker_never_initializes_state(self, tmp_path, monkeypatch):
+        driver = get_driver("codex")
+        raw_output_path = tmp_path / "codex-events.jsonl"
+        stderr_path = tmp_path / "stderr.txt"
+        worker_stderr_path = tmp_path / "worker-stderr.txt"
+        stderr_path.write_text("", encoding="utf-8")
+        worker_stderr_path.write_text("worker bootstrap stalled\n", encoding="utf-8")
+
+        monkeypatch.setattr(type(driver), "_pid_is_running", staticmethod(lambda pid: True))
+
+        status = driver.status(
+            RunHandle(
+                run_id="run_1",
+                driver="codex",
+                driver_handle="codex:app-server:7000",
+                status="running",
+                launched_at="2026-03-18T06:00:00Z",
+                launch_mode="app_server",
+                transport="stdio-jsonrpc",
+                session_id="7000",
+                event_cursor="0",
+                metadata={
+                    "pid": 7000,
+                    "raw_output_path": str(raw_output_path),
+                    "state_path": str(tmp_path / "missing-state.json"),
+                    "exit_code_path": str(tmp_path / "missing-exit.txt"),
+                    "stderr_path": str(stderr_path),
+                    "worker_stderr_path": str(worker_stderr_path),
+                },
+            )
+        )
+
+        assert status.state == "failed"
+        assert status.health == "failed"
+        assert status.waiting_on == "operator"
+        assert "never initialized its startup state" in status.progress.message
+        assert status.artifacts["worker_stderr_path"] == str(worker_stderr_path)
+
+    def test_codex_startup_timeout_seconds_respects_env_override(self, monkeypatch):
+        driver = get_driver("codex")
+
+        monkeypatch.delenv("HIVE_CODEX_STARTUP_TIMEOUT_SECONDS", raising=False)
+        assert type(driver)._startup_timeout_seconds() == 3.0
+
+        monkeypatch.setenv("HIVE_CODEX_STARTUP_TIMEOUT_SECONDS", "7.5")
+        assert type(driver)._startup_timeout_seconds() == 7.5
+
+        monkeypatch.setenv("HIVE_CODEX_STARTUP_TIMEOUT_SECONDS", "invalid")
+        assert type(driver)._startup_timeout_seconds() == 3.0
+
+    def test_codex_terminate_process_swallows_repeated_wait_timeouts(self):
+        driver = get_driver("codex")
+
+        class FakeProcess:
+            def poll(self):
+                return None
+
+            def terminate(self):
+                return None
+
+            def wait(self, timeout=None):
+                raise subprocess.TimeoutExpired(cmd="fake", timeout=timeout or 0)
+
+            def kill(self):
+                return None
+
+        type(driver)._terminate_process(FakeProcess())
+
+    def test_codex_wait_for_startup_artifact_allows_fast_exit_after_state_write(self, tmp_path):
+        driver = get_driver("codex")
+        state_path = tmp_path / "state.json"
+
+        class FastExitProcess:
+            def __init__(self):
+                self.poll_calls = 0
+
+            def poll(self):
+                self.poll_calls += 1
+                state_path.write_text('{"status":"ready"}', encoding="utf-8")
+                return 0
+
+        assert type(driver)._wait_for_startup_artifact(
+            state_path,
+            process=FastExitProcess(),
+            timeout_seconds=0.2,
+            poll_seconds=0.01,
+        )
 
     def test_claude_live_exec_recovers_result_without_exit_marker(self, tmp_path, monkeypatch):
         driver = get_driver("claude-code")

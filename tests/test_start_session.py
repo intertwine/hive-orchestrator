@@ -1,5 +1,7 @@
 """Tests for the Hive v2 session bootstrap script."""
 
+# pylint: disable=missing-function-docstring,too-few-public-methods,unused-argument,duplicate-code
+
 import os
 import subprocess
 from pathlib import Path

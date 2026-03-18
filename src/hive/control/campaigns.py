@@ -35,14 +35,15 @@ def _campaign_runs(root: Path, campaign_id: str) -> list[dict[str, Any]]:
 def _best_campaign_recommendation(root: Path, project_ids: list[str]) -> dict[str, Any] | None:
     """Return the best next-task recommendation across campaign projects."""
     recommendation: dict[str, Any] | None = None
+    best_score = float("-inf")
     for project_id in project_ids:
         candidate = recommend_next_task(root, project_id=project_id, emit_decision_event=False)
         if candidate is not None:
-            if (
-                recommendation is None
-                or float(candidate["score"]) > float(recommendation["score"])
-            ):
-                recommendation = candidate
+            candidate_payload = dict(candidate)
+            candidate_score = float(candidate_payload["score"])
+            if recommendation is None or candidate_score > best_score:
+                recommendation = candidate_payload
+                best_score = candidate_score
     return recommendation
 
 
@@ -76,6 +77,7 @@ def campaign_status(path: str | Path | None, campaign_id: str) -> dict[str, Any]
     }
 
 
+# pylint: disable-next=too-many-arguments
 def create_campaign_flow(
     path: str | Path | None,
     *,
@@ -180,13 +182,15 @@ def generate_brief(path: str | Path | None, *, cadence: str = "daily") -> dict[s
         f"- Recent management events: {len(portfolio['recent_events'])}",
     ]
     if portfolio["recommended_next"]:
-        recommendation = portfolio["recommended_next"]
+        recommendation = dict(portfolio["recommended_next"])
+        task_payload = dict(recommendation["task"])
+        project_payload = dict(recommendation["project"])
         lines.extend(
             [
                 "",
                 "## Recommended Next",
-                f"- Task: {recommendation['task']['title']} ({recommendation['task']['id']})",
-                f"- Project: {recommendation['project']['title']}",
+                f"- Task: {task_payload['title']} ({task_payload['id']})",
+                f"- Project: {project_payload['title']}",
             ]
         )
     if campaigns:

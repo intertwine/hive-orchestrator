@@ -1,5 +1,7 @@
 """Regression checks for the public install and launch story."""
 
+# pylint: disable=line-too-long,duplicate-code
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,5 +1,7 @@
 """Regression tests for the checked-in onboarding story."""
 
+# pylint: disable=cyclic-import,duplicate-code
+
 from __future__ import annotations
 
 from pathlib import Path

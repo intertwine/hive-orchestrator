@@ -1,5 +1,9 @@
 """Tests for the Agent Hive Coordinator server and client."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring,unused-argument
+# pylint: disable=redefined-outer-name,import-outside-toplevel,too-few-public-methods
+# pylint: disable=redefined-builtin,duplicate-code
+
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 import pytest

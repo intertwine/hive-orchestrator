@@ -11,6 +11,7 @@ import os
 
 from src.hive.constants import RUN_ACTIVE_STATUSES
 from src.hive.context_bundle import build_context_bundle
+from src.hive.payloads import project_payload
 from src.hive.runs.engine import (
     accept_run,
     cleanup_terminal_runs,
@@ -96,17 +97,9 @@ def steering_state(project) -> dict[str, Any]:
 
 
 def _project_payload(project) -> dict[str, Any]:
-    return {
-        "id": project.id,
-        "slug": project.slug,
-        "title": project.title,
-        "status": project.status,
-        "priority": project.priority,
-        "owner": project.owner,
-        "path": str(project.agency_path),
-        "program_path": str(project.program_path),
-        "steering": steering_state(project),
-    }
+    payload = dict(project_payload(project))
+    payload["steering"] = steering_state(project)
+    return payload
 
 
 def _run_metadata_paths(root: Path) -> list[Path]:
@@ -224,6 +217,8 @@ def recommend_next_task(
     )
     recommendation = ranked[0] if ranked else None
     if recommendation and emit_decision_event:
+        selected = dict(recommendation)
+        selected_task = dict(selected["task"])
         emit_event(
             root,
             actor="hive",
@@ -232,14 +227,14 @@ def recommend_next_task(
             event_type="portfolio.recommended",
             source="portfolio.next",
             payload={
-                "task_id": recommendation["task"]["id"],
-                "project_id": recommendation["task"]["project_id"],
-                "reasons": recommendation["reasons"],
+                "task_id": selected_task["id"],
+                "project_id": selected_task["project_id"],
+                "reasons": selected["reasons"],
             },
         )
     return recommendation
 
-
+# pylint: disable-next=too-many-arguments
 def steer_project(
     path: str | Path | None,
     project_ref: str,
@@ -285,7 +280,7 @@ def steer_project(
     )
     return {"project": _project_payload(project), "steering": steering}
 
-
+# pylint: disable-next=too-many-arguments,too-many-locals
 def work_on_task(
     path: str | Path | None,
     *,
@@ -309,7 +304,8 @@ def work_on_task(
         recommendation = recommend_next_task(root, project_id=project_id)
         if recommendation is None:
             raise ValueError("No ready task is available for `hive work`.")
-        task_id = str(recommendation["task"]["id"])
+        selected = dict(recommendation)
+        task_id = str(dict(selected["task"])["id"])
 
     task = get_task(root, task_id)
 
@@ -454,7 +450,7 @@ def finish_run_flow(
         "promotion": promotion,
     }
 
-
+# pylint: disable-next=too-many-arguments
 def tick_portfolio(
     path: str | Path | None,
     *,

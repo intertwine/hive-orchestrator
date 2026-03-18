@@ -1,5 +1,8 @@
 """Focused tests for the Hive 2.1 quality pass."""
 
+# pylint: disable=missing-function-docstring,unused-argument
+# pylint: disable=import-error,no-name-in-module,too-few-public-methods,line-too-long
+
 from __future__ import annotations
 
 from pathlib import Path

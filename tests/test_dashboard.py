@@ -1,6 +1,7 @@
 """Tests for the Dashboard UI functions."""
 
 # pylint: disable=unused-argument,unused-import,import-error,wrong-import-position
+# pylint: disable=line-too-long,missing-function-docstring,duplicate-code
 
 import sys
 import os

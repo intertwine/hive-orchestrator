@@ -1,5 +1,7 @@
 """Tests for packaging and release tooling."""
 
+# pylint: disable=line-too-long,duplicate-code
+
 from __future__ import annotations
 
 import importlib.util

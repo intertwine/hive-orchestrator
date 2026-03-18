@@ -84,7 +84,9 @@ COMMAND_DOCS = (
     },
     {
         "title": "hive context startup",
-        "summary": "Assemble startup context from AGENTS, AGENCY, PROGRAM, memory, and recent runs.",
+        "summary": (
+            "Assemble startup context from AGENTS, AGENCY, PROGRAM, memory, and recent runs."
+        ),
         "example": "hive context startup --project demo --profile light",
     },
 )
@@ -224,7 +226,10 @@ def _match_reasons(
         term
         for term in terms
         if term
-        in " ".join(str(metadata.get(key, "")) for key in ("summary", "notes", "history")).casefold()
+        in " ".join(
+            str(metadata.get(key, ""))
+            for key in ("summary", "notes", "history")
+        ).casefold()
     ]
     if note_hits and not body_hits:
         reasons.append("matched task narrative")
@@ -236,7 +241,7 @@ def _match_reasons(
         reasons.append(f"project: {metadata['project_id']}")
     return reasons or ["matched indexed workspace content"]
 
-
+# pylint: disable-next=too-many-arguments
 def _cache_result(
     *,
     doc_type: str,
@@ -289,7 +294,7 @@ def _matches_task_filter(metadata: dict[str, object], task_id: str | None) -> bo
         return True
     return metadata.get("task_id") == task_id or metadata.get("entity_id") == task_id
 
-
+# pylint: disable-next=too-many-arguments,too-many-locals
 def search_cache_documents(
     root: Path,
     query: str,
@@ -507,7 +512,7 @@ def _search_project_summary(
 
     return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[:limit]
 
-
+# pylint: disable-next=too-many-arguments
 def search_workspace(
     path: str | Path | None,
     query: str,
@@ -537,7 +542,10 @@ def search_workspace(
 
     deduped: list[dict[str, object]] = []
     seen: set[str] = set()
-    for item in sorted(results, key=lambda result: (-float(result["score"]), str(result["title"]))):
+    for item in sorted(
+        results,
+        key=lambda result: (-float(result["score"]), str(result["title"])),
+    ):
         metadata = item.get("metadata")
         key = str(metadata.get("entity_key") if isinstance(metadata, dict) else "")
         if not key:
@@ -548,7 +556,7 @@ def search_workspace(
         deduped.append(item)
     return deduped[:limit]
 
-
+# pylint: disable-next=too-many-arguments
 def search_workspace_corpus(
     path: str | Path | None,
     query: str,

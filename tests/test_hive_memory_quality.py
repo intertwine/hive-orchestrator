@@ -1,5 +1,9 @@
 """Focused tests for Hive 2.1 memory and scheduler quality."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring,unused-argument
+# pylint: disable=import-error,no-name-in-module,line-too-long,too-few-public-methods
+# pylint: disable=unused-import,duplicate-code
+
 from __future__ import annotations
 
 from pathlib import Path

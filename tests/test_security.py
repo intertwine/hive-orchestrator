@@ -8,6 +8,8 @@ These tests verify that security mitigations are working correctly:
 - API key authentication
 """
 
+# pylint: disable=wrong-import-order,duplicate-code
+
 import pytest
 from pathlib import Path
 

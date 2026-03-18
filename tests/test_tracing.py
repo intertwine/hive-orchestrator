@@ -1,6 +1,7 @@
 """Tests for the Weave tracing integration module."""
 
 # pylint: disable=unused-argument,import-error,wrong-import-position,protected-access
+# pylint: disable=too-few-public-methods,unused-import,import-outside-toplevel,duplicate-code
 
 import sys
 import os

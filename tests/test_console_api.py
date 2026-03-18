@@ -1,5 +1,9 @@
 """Tests for the Hive observe-console API."""
 
+# pylint: disable=missing-function-docstring,unused-argument
+# pylint: disable=import-error,no-name-in-module,too-few-public-methods,line-too-long,duplicate-code
+# pylint: disable=wrong-import-order
+
 from __future__ import annotations
 
 import json

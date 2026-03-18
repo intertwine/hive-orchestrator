@@ -1,5 +1,7 @@
 """Tests for graph-aware project and task ranking."""
 
+# pylint: disable=missing-function-docstring,too-few-public-methods,line-too-long,duplicate-code
+
 from __future__ import annotations
 
 from src.hive.scheduler.query import dependency_summary, ready_tasks

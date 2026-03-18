@@ -1,5 +1,8 @@
 """Tests for Hive 2.2 Program Doctor flows."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring,unused-argument
+# pylint: disable=import-error,no-name-in-module,line-too-long,too-few-public-methods
+
 from __future__ import annotations
 
 import json

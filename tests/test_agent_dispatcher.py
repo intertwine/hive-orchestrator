@@ -1,6 +1,7 @@
 """Tests for the Agent Dispatcher module."""
 
 # pylint: disable=unused-argument,import-error,wrong-import-position
+# pylint: disable=too-many-arguments,too-many-positional-arguments,unused-import,import-outside-toplevel,duplicate-code
 
 import os
 import subprocess

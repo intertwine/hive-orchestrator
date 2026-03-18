@@ -1,5 +1,9 @@
 """Release-grade acceptance proofs for Hive 2.2."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring,unused-argument
+# pylint: disable=import-error,no-name-in-module,line-too-long,too-few-public-methods
+# pylint: disable=too-many-locals,duplicate-code
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,5 +1,9 @@
 """Driver and run-contract tests for Hive 2.2 foundations."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring,unused-argument
+# pylint: disable=import-error,no-name-in-module,line-too-long,too-few-public-methods
+# pylint: disable=duplicate-code
+
 from __future__ import annotations
 
 import json

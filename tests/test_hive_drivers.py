@@ -1480,6 +1480,9 @@ class TestHiveDrivers:
         run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
         handles = json.loads((run_root / "driver" / "handles.json").read_text(encoding="utf-8"))
         transcript = (run_root / "transcript.ndjson").read_text(encoding="utf-8")
+        command_text = (run_root / "driver" / "codex-app-server-command.txt").read_text(
+            encoding="utf-8"
+        )
 
         assert resolution["driver_ack"]["ok"] is True
         assert pending_payload["status"]["session"]["launch_mode"] == "app_server"
@@ -1490,6 +1493,7 @@ class TestHiveDrivers:
         assert completed_payload["status"]["session"]["thread_id"] == "thread_test"
         assert handles["active"]["launch_mode"] == "app_server"
         assert handles["active"]["thread_id"] == "thread_test"
+        assert "-m src.hive.drivers.codex_app_server_worker" in command_text
         assert metadata["metadata_json"]["budget_rollup"]["spent_tokens"] == 9
         assert "Working" in transcript
         assert "approved" in transcript

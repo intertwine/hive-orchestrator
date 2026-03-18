@@ -213,11 +213,13 @@ class CodexDriver(HarnessDriver):
             )
 
         prompt_path.write_text(prompt, encoding="utf-8")
-        worker_path = Path(__file__).with_name("codex_app_server_worker.py")
+        repo_root = Path(__file__).resolve().parents[3]
+        worker_module = "src.hive.drivers.codex_app_server_worker"
         command = [
             sys.executable,
             "-u",
-            str(worker_path),
+            "-m",
+            worker_module,
             "--binary",
             binary_path,
             "--worktree",
@@ -244,7 +246,7 @@ class CodexDriver(HarnessDriver):
             with open(worker_stderr_path, "a", encoding="utf-8") as worker_stderr_handle:
                 process = subprocess.Popen(
                     command,
-                    cwd=request.workspace.worktree_path,
+                    cwd=str(repo_root),
                     stdout=subprocess.DEVNULL,
                     stderr=worker_stderr_handle,
                     text=True,

@@ -314,21 +314,6 @@ def _run_e2b_command(
     }
     try:
         host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
-        if allowlist:
-            return CommandResult(
-                command=command,
-                started_at=started,
-                finished_at=utc_now_iso(),
-                returncode=1,
-                stdout="",
-                stderr=(
-                    "E2B hosted-managed execution currently supports deny-all or inherited "
-                    "network policies only; allowlists are not wired yet."
-                ),
-                timed_out=False,
-                sandbox=sandbox_metadata,
-            )
-        relative_cwd = cwd.resolve().relative_to(host_worktree)
     except ValueError:
         return CommandResult(
             command=command,
@@ -340,6 +325,33 @@ def _run_e2b_command(
                 "Remote sandbox execution requires read_write mounts for both the worktree and "
                 "artifacts directories."
             ),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
+    if allowlist:
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr=(
+                "E2B hosted-managed execution currently supports deny-all or inherited "
+                "network policies only; allowlists are not wired yet."
+            ),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
+    try:
+        relative_cwd = cwd.resolve().relative_to(host_worktree)
+    except ValueError as exc:
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr=str(exc),
             timed_out=False,
             sandbox=sandbox_metadata,
         )
@@ -410,9 +422,7 @@ def _run_e2b_command(
                 timed_out=True,
                 sandbox=sandbox_metadata,
             )
-        if exc.__class__.__name__ == "CommandExitException" or getattr(
-            exc, "exit_code", None
-        ) is not None:
+        if _is_e2b_command_exit_exception(exc):
             return CommandResult(
                 command=command,
                 started_at=started,

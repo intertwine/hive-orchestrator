@@ -29,6 +29,7 @@ _ASRT_SETTINGS_DIR_PREFIX = "asrt-settings-"
 _ASRT_SETTINGS_FILE_NAME = "settings.json"
 _ASRT_SETTINGS_MAX_AGE_SECONDS = 24 * 60 * 60
 _ASRT_SETTINGS_CLEANUP_DIRS: set[Path] = set()
+_RESOLVED_BACKEND_BINARIES: dict[str, str] = {}
 
 
 def _backend_readiness_reason(backend_name: str, probe) -> str:
@@ -67,9 +68,16 @@ def _read_write_mounts(policy: SandboxPolicy, cwd: Path) -> tuple[Path, Path]:
     return host_worktree, host_artifacts
 
 
-def _resolved_backend_binary(backend_name: str) -> str:
+def _discover_backend_binary(backend_name: str, *, probe=None) -> str:
+    """Resolve a backend binary once from probe evidence or backend lookup.
+
+    Probe-backed policies normally populate the cache at selection time. The
+    `_find_binary()` fallback remains for compatibility paths that bypass
+    `resolve_sandbox_policy()` entirely, such as manually constructed policies or
+    deserialized policies whose backend probe omitted `evidence["binary"]`.
+    """
     backend = get_backend(backend_name)
-    probe = backend.probe()
+    probe = probe or backend.probe()
     binary = str((probe.evidence or {}).get("binary") or "").strip()
     if binary:
         return binary
@@ -81,6 +89,15 @@ def _resolved_backend_binary(backend_name: str) -> str:
     raise ValueError(
         f"Sandbox backend {backend_name!r} was selected, but Hive could not resolve its binary path."
     )
+
+
+def _resolved_backend_binary(backend_name: str) -> str:
+    cached = _RESOLVED_BACKEND_BINARIES.get(backend_name)
+    if cached:
+        return cached
+    resolved = _discover_backend_binary(backend_name)
+    _RESOLVED_BACKEND_BINARIES[backend_name] = resolved
+    return resolved
 
 
 def _register_asrt_settings_cleanup(directory: Path) -> None:
@@ -107,6 +124,9 @@ def _prune_stale_asrt_settings_dirs(parent: Path) -> None:
 
 
 def _write_asrt_settings_file(policy: SandboxPolicy, cwd: Path) -> Path:
+    # The local executor consumes the returned path after this helper returns, so
+    # runtime-level cleanup cannot safely delete the directory immediately. We
+    # keep per-process cleanup plus stale-dir pruning for orphaned leftovers.
     _, host_artifacts = _read_write_mounts(policy, cwd)
     settings_root = host_artifacts.parent
     settings_root.mkdir(parents=True, exist_ok=True)
@@ -198,6 +218,14 @@ def resolve_sandbox_policy(
             continue
         if probe.configured is False or backend_name not in _WIRED_BACKENDS:
             readiness_failures.append(_backend_readiness_reason(backend_name, probe))
+            continue
+        try:
+            _RESOLVED_BACKEND_BINARIES[backend_name] = _discover_backend_binary(
+                backend_name,
+                probe=probe,
+            )
+        except ValueError as exc:
+            readiness_failures.append(str(exc))
             continue
         return SandboxPolicy(
             backend=backend_name,

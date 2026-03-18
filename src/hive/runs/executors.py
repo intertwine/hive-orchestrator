@@ -520,15 +520,15 @@ def _run_daytona_command(
 ) -> CommandResult:
     """Run one evaluator-style command inside an ephemeral Daytona sandbox."""
     started = started_at
-    allowlist = [
+    raw_allowlist = [
         str(item).strip() for item in list(policy.network.get("allowlist") or []) if str(item).strip()
     ]
+    network_mode = policy.network.get("mode")
     sandbox_metadata: dict[str, object] = {
         "backend": policy.backend,
         "profile": policy.profile,
         "provenance": policy.provenance,
-        "network_mode": policy.network.get("mode"),
-        "network_allowlist": allowlist,
+        "network_mode": network_mode,
         "command": command,
         "command_payload": {"transport": "daytona-sdk"},
         "shell": False,
@@ -537,6 +537,8 @@ def _run_daytona_command(
         "remote_worktree": _REMOTE_WORKTREE,
         "remote_artifacts": _REMOTE_ARTIFACTS,
     }
+    if raw_allowlist:
+        sandbox_metadata["raw_network_allowlist"] = raw_allowlist
     host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
     if list(policy.mounts.get("read_only") or []):
         return CommandResult(
@@ -549,25 +551,28 @@ def _run_daytona_command(
             timed_out=False,
             sandbox=sandbox_metadata,
         )
-    try:
-        allowlist = _validated_daytona_allowlist(policy)
-    except ValueError as exc:
-        return CommandResult(
-            command=command,
-            started_at=started,
-            finished_at=utc_now_iso(),
-            returncode=1,
-            stdout="",
-            stderr=str(exc),
-            timed_out=False,
-            sandbox=sandbox_metadata,
-        )
+    allowlist: list[str] = []
+    if network_mode == "deny":
+        try:
+            allowlist = _validated_daytona_allowlist(policy)
+        except ValueError as exc:
+            return CommandResult(
+                command=command,
+                started_at=started,
+                finished_at=utc_now_iso(),
+                returncode=1,
+                stdout="",
+                stderr=str(exc),
+                timed_out=False,
+                sandbox=sandbox_metadata,
+            )
+        if allowlist:
+            sandbox_metadata["network_allowlist"] = allowlist
     try:
         relative_cwd = cwd.resolve().relative_to(host_worktree)
     except ValueError:
         relative_cwd = Path(".")
     remote_cwd = str((Path(_REMOTE_WORKTREE) / relative_cwd).as_posix())
-    sandbox_metadata["network_allowlist"] = allowlist
     sandbox_metadata["command_payload"] = {
         "transport": "daytona-sdk",
         "remote_cwd": remote_cwd,
@@ -607,8 +612,8 @@ def _run_daytona_command(
             "ephemeral": True,
             # Daytona treats a non-empty allow list as the network boundary, so we reject /0
             # above and only disable block-all when a bounded IPv4 allow list is present.
-            "network_block_all": policy.network.get("mode") == "deny" and not allowlist,
-            "network_allow_list": ",".join(allowlist) if allowlist else None,
+            "network_block_all": network_mode == "deny" and not allowlist,
+            "network_allow_list": ",".join(allowlist) if network_mode == "deny" and allowlist else None,
             "resources": _daytona_resources(policy, resources_class),
         }
         snapshot = os.environ.get("HIVE_DAYTONA_SNAPSHOT")

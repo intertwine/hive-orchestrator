@@ -1030,7 +1030,7 @@ def test_local_executor_rejects_daytona_read_only_mount_projection(monkeypatch, 
         SandboxPolicy(
             backend="daytona",
             isolation_class="remote-sandbox",
-            network={"mode": "deny", "allowlist": []},
+            network={"mode": "deny", "allowlist": ["example.com"]},
             mounts={
                 "read_only": [str(readonly)],
                 "read_write": [str(worktree), str(artifacts)],
@@ -1055,6 +1055,8 @@ def test_local_executor_rejects_daytona_read_only_mount_projection(monkeypatch, 
     )
     assert result.sandbox is not None
     assert result.sandbox["backend"] == "daytona"
+    assert result.sandbox["raw_network_allowlist"] == ["example.com"]
+    assert "network_allowlist" not in result.sandbox
 
 
 def test_local_executor_rejects_non_cidr_daytona_allowlist(monkeypatch, tmp_path):
@@ -1098,6 +1100,8 @@ def test_local_executor_rejects_non_cidr_daytona_allowlist(monkeypatch, tmp_path
     assert "example.com" in result.stderr
     assert result.sandbox is not None
     assert result.sandbox["backend"] == "daytona"
+    assert result.sandbox["raw_network_allowlist"] == ["example.com"]
+    assert "network_allowlist" not in result.sandbox
 
 
 def test_local_executor_rejects_ipv6_daytona_allowlist(monkeypatch, tmp_path):
@@ -1366,6 +1370,147 @@ def test_local_executor_accepts_daytona_allowlist_boundary_of_ten_entries(monkey
     assert result.sandbox["network_allowlist"] == allowlist
     assert calls["create_params"]["network_block_all"] is False
     assert calls["create_params"]["network_allow_list"] == ",".join(allowlist)
+    assert calls["upload"]["source_type"] == "bytes"
+
+
+def test_local_executor_ignores_daytona_allowlist_when_network_mode_is_allow(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+    (worktree / "README.md").write_text("hello\n", encoding="utf-8")
+    calls: dict[str, object] = {}
+    allowlist = ["10.10.0.0/16", "bad-entry"]
+
+    class FakeDaytonaConfig:
+        def __init__(self, **kwargs):
+            calls["config"] = kwargs
+
+    class FakeCreateSandboxFromImageParams:
+        def __init__(self, **kwargs):
+            calls["create_params"] = kwargs
+            self.kwargs = kwargs
+
+    class FakeCreateSandboxFromSnapshotParams:
+        def __init__(self, **kwargs):
+            raise AssertionError("snapshot params should not be used without HIVE_DAYTONA_SNAPSHOT")
+
+    class FakeResources:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeSessionExecuteRequest:
+        def __init__(self, command):
+            self.command = command
+
+    class FakeSyncResult:
+        exit_code = 0
+        result = ""
+
+    class FakeSessionResult:
+        exit_code = 0
+        stdout = "ok\n"
+        stderr = ""
+        output = "ok\n"
+
+    class FakeProcess:
+        def exec(self, command, **kwargs):
+            calls.setdefault("process_exec", []).append({"command": command, "kwargs": kwargs})
+            return FakeSyncResult()
+
+        def create_session(self, session_id):
+            calls["session_id"] = session_id
+            return None
+
+        def execute_session_command(self, session_id, req, **kwargs):
+            calls["session_exec"] = {
+                "session_id": session_id,
+                "command": req.command,
+                "kwargs": kwargs,
+            }
+            return FakeSessionResult()
+
+        def delete_session(self, session_id):
+            calls["deleted_session"] = session_id
+            return None
+
+    class FakeFileSystem:
+        def create_folder(self, path, mode):
+            return None
+
+        def upload_file(self, src, dst, timeout=1800):
+            calls["upload"] = {
+                "dst": dst,
+                "timeout": timeout,
+                "size": len(src),
+                "source_type": type(src).__name__,
+            }
+            return None
+
+    class FakeSandbox:
+        id = "daytona_allow_mode"
+
+        def __init__(self):
+            self.fs = FakeFileSystem()
+            self.process = FakeProcess()
+
+        def delete(self, timeout=60):
+            calls["deleted"] = timeout
+            return None
+
+    class FakeDaytona:
+        def __init__(self, config):
+            calls["client"] = config
+
+        def create(self, params, timeout=60):
+            calls["create_timeout"] = timeout
+            calls["created_with"] = params
+            return FakeSandbox()
+
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_daytona_sdk",
+        lambda: (
+            FakeDaytona,
+            FakeDaytonaConfig,
+            FakeCreateSandboxFromImageParams,
+            FakeCreateSandboxFromSnapshotParams,
+            FakeResources,
+            FakeSessionExecuteRequest,
+        ),
+    )
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+    monkeypatch.delenv("HIVE_DAYTONA_SNAPSHOT", raising=False)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="daytona",
+            isolation_class="remote-sandbox",
+            network={"mode": "allow", "allowlist": allowlist},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": ["LANG"], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="team-self-hosted",
+            provenance="sandbox_v2_backend:daytona",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 0
+    assert result.sandbox is not None
+    assert result.sandbox["backend"] == "daytona"
+    assert result.sandbox["raw_network_allowlist"] == allowlist
+    assert "network_allowlist" not in result.sandbox
+    assert calls["create_params"]["network_block_all"] is False
+    assert calls["create_params"]["network_allow_list"] is None
     assert calls["upload"]["source_type"] == "bytes"
 
 

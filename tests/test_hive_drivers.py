@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shlex
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -51,9 +53,9 @@ def _write_fake_codex_binary(base_dir: str) -> Path:
     temp_dir = Path(
         tempfile.mkdtemp(prefix="fake-codex-", dir=Path(__file__).resolve().parent)
     )
-    target = temp_dir / "fake-codex.py"
-    target.write_text(
-        """#!/usr/bin/env python3
+    impl_path = temp_dir / "fake-codex.py"
+    impl_path.write_text(
+        """
 import json
 import sys
 
@@ -274,6 +276,12 @@ def main():
 if __name__ == "__main__":
     raise SystemExit(main())
 """,
+        encoding="utf-8",
+    )
+    target = temp_dir / "fake-codex"
+    target.write_text(
+        "#!/bin/sh\n"
+        f"exec {shlex.quote(sys.executable)} {shlex.quote(str(impl_path))} \"$@\"\n",
         encoding="utf-8",
     )
     target.chmod(0o755)

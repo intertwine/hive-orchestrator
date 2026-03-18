@@ -399,6 +399,31 @@ class TestHiveDrivers:
         assert payload["driver_ack"]["ok"] is True
         assert metadata["status"] == "cancelled"
 
+    def test_codex_interrupt_targets_process_group(self, monkeypatch):
+        driver = get_driver("codex")
+        handle = RunHandle(
+            run_id="run_codex_pg",
+            driver="codex",
+            driver_handle="codex:exec:4242",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="exec",
+            transport="subprocess",
+            metadata={"pid": 4242},
+        )
+        calls: list[tuple[int, object]] = []
+
+        monkeypatch.setattr("src.hive.drivers.codex.os.getpgid", lambda pid: pid + 1000)
+        monkeypatch.setattr(
+            "src.hive.drivers.codex.os.killpg",
+            lambda pgid, sig: calls.append((pgid, sig)),
+        )
+
+        payload = driver.interrupt(handle, "cancel")
+
+        assert payload["ok"] is True
+        assert calls and calls[0][0] == 5242
+
     def test_claude_live_launch_persists_exec_handle(self, temp_hive_dir, capsys, monkeypatch):
         init_git_repo(temp_hive_dir)
         _invoke_cli_json(
@@ -635,6 +660,31 @@ class TestHiveDrivers:
         assert interrupt_calls == ["cancel"]
         assert payload["driver_ack"]["ok"] is True
         assert metadata["status"] == "cancelled"
+
+    def test_claude_interrupt_targets_process_group(self, monkeypatch):
+        driver = get_driver("claude-code")
+        handle = RunHandle(
+            run_id="run_claude_pg",
+            driver="claude-code",
+            driver_handle="claude-code:exec:3131",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="exec",
+            transport="subprocess",
+            metadata={"pid": 3131},
+        )
+        calls: list[tuple[int, object]] = []
+
+        monkeypatch.setattr("src.hive.drivers.claude_code.os.getpgid", lambda pid: pid + 2000)
+        monkeypatch.setattr(
+            "src.hive.drivers.claude_code.os.killpg",
+            lambda pgid, sig: calls.append((pgid, sig)),
+        )
+
+        payload = driver.interrupt(handle, "cancel")
+
+        assert payload["ok"] is True
+        assert calls and calls[0][0] == 5131
 
     def test_same_run_can_move_from_local_to_codex_to_claude_code(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)

@@ -134,7 +134,19 @@ class CodexDriver(HarnessDriver):
             f"2> {shlex.quote(str(stderr_path))}; "
             f"status=$?; printf '%s\\n' \"$status\" > {shlex.quote(str(exit_code_path))}"
         )
-        prompt = self._build_exec_prompt(request)
+        try:
+            prompt = self._build_exec_prompt(request)
+        except OSError as exc:
+            return RunHandle(
+                run_id=request.run_id,
+                driver=self.name,
+                driver_handle=f"{self.name}:exec:{request.run_id}",
+                status="failed",
+                launched_at=utc_now_iso(),
+                launch_mode="exec",
+                transport="subprocess",
+                metadata={"launch_error": str(exc)},
+            )
         try:
             process = subprocess.Popen(
                 ["/bin/sh", "-lc", shell_command],
@@ -378,7 +390,7 @@ class CodexDriver(HarnessDriver):
         if sig is None:
             return super().interrupt(handle, mode)
         try:
-            os.kill(pid, sig)
+            os.killpg(os.getpgid(pid), sig)
         except OSError as exc:
             return {
                 "ok": False,

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import subprocess
 from typing import Protocol
 
 from src.hive.clock import utc_now_iso
+from src.hive.runtime.runpack import SandboxPolicy
+from src.hive.sandbox import sandboxed_command
 
 
 @dataclass
@@ -35,12 +38,16 @@ class LocalExecutor:
 
     name = "local"
 
+    def __init__(self, sandbox_policy: SandboxPolicy | None = None):
+        self.sandbox_policy = sandbox_policy
+
     def run_command(self, command: str, *, cwd: Path, timeout_seconds: int) -> CommandResult:
         started_at = utc_now_iso()
         try:
+            argv, use_shell = self._command_payload(command, cwd=cwd)
             completed = subprocess.run(
-                command,
-                shell=True,
+                argv,
+                shell=use_shell,
                 cwd=cwd,
                 text=True,
                 capture_output=True,
@@ -77,6 +84,11 @@ class LocalExecutor:
                 timed_out=True,
             )
 
+    def _command_payload(self, command: str, *, cwd: Path) -> tuple[list[str] | str, bool]:
+        if self.sandbox_policy is None:
+            return command, True
+        return sandboxed_command(self.sandbox_policy, command=command, cwd=cwd)
+
 
 class GitHubActionsExecutor:
     """Placeholder executor surface for future remote execution."""
@@ -88,11 +100,30 @@ class GitHubActionsExecutor:
         raise NotImplementedError("The github-actions executor is a stub in this MVP")
 
 
-def get_executor(name: str) -> Executor:
+def _load_sandbox_policy(
+    policy: SandboxPolicy | dict | str | Path | None,
+) -> SandboxPolicy | None:
+    if policy is None:
+        return None
+    if isinstance(policy, SandboxPolicy):
+        return policy
+    if isinstance(policy, (str, Path)):
+        payload = json.loads(Path(policy).read_text(encoding="utf-8"))
+        return SandboxPolicy(**payload)
+    if isinstance(policy, dict):
+        return SandboxPolicy(**policy)
+    return None
+
+
+def get_executor(
+    name: str,
+    *,
+    sandbox_policy: SandboxPolicy | dict | str | Path | None = None,
+) -> Executor:
     """Return a named executor implementation."""
     normalized = name.strip().lower()
     if normalized == "local":
-        return LocalExecutor()
+        return LocalExecutor(_load_sandbox_policy(sandbox_policy))
     if normalized == "github-actions":
         return GitHubActionsExecutor()
     raise ValueError(f"Unsupported executor: {name}")

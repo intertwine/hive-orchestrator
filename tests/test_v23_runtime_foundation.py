@@ -14,9 +14,13 @@ from hive.cli.main import main as hive_main
 from src.hive.console.api import app
 from src.hive.drivers import RunBudgetUsage, RunHandle, RunLinks, RunProgress, RunStatus, get_driver
 from src.hive.drivers import SteeringRequest
+from src.hive.runs.executors import LocalExecutor
 from src.hive.runtime import request_approval
+from src.hive.runtime.runpack import SandboxPolicy
 from src.hive.runs.engine import accept_run, eval_run, load_run, run_artifacts, start_run, steer_run
 from src.hive.scheduler.query import ready_tasks
+from src.hive.sandbox import get_backend
+from src.hive.sandbox.base import SandboxProbe
 from src.hive.store.task_files import create_task
 from tests.conftest import init_git_repo, write_safe_program
 
@@ -144,12 +148,13 @@ def test_driver_doctor_surfaces_claude_live_exec_when_enabled(monkeypatch, capsy
         capsys,
         ["--path", temp_hive_dir, "--json", "driver", "doctor", "claude-code"],
     )
+    driver_payload = payload["drivers"][0]
 
-    assert payload["driver"]["driver"] == "claude-code"
-    assert payload["driver"]["effective"]["launch_mode"] == "exec"
-    assert payload["driver"]["effective"]["session_persistence"] == "session"
-    assert payload["driver"]["confidence"]["effective"] == "verified"
-    assert "non-interactive Claude run" in payload["driver"]["notes"][-1]
+    assert driver_payload["driver"] == "claude-code"
+    assert driver_payload["effective"]["launch_mode"] == "exec"
+    assert driver_payload["effective"]["session_persistence"] == "ephemeral"
+    assert driver_payload["confidence"]["effective"] == "verified"
+    assert "non-interactive Claude run" in driver_payload["notes"][-1]
 
 
 def test_live_session_contract_fields_round_trip():
@@ -231,6 +236,99 @@ def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):
     assert final_state["run_id"] == run.id
     assert final_state["status"] == "awaiting_input"
     assert final_state["task_status"] == "in_progress"
+
+
+def test_start_run_selects_local_safe_sandbox_backend_when_available(
+    temp_hive_dir, capsys, monkeypatch
+):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    podman = get_backend("podman")
+    docker = get_backend("docker-rootless")
+
+    def fake_podman_probe(self):
+        return SandboxProbe(
+            backend="podman",
+            available=True,
+            isolation_class="container",
+            supported_profiles=["local-safe"],
+            notes=["Detected rootless Podman."],
+            evidence={"binary": "/tmp/podman"},
+        )
+
+    def fake_docker_probe(self):
+        return SandboxProbe(
+            backend="docker-rootless",
+            available=False,
+            isolation_class="container",
+            supported_profiles=["local-safe"],
+            notes=["Docker unavailable."],
+            evidence={},
+        )
+
+    monkeypatch.setattr(type(podman), "probe", fake_podman_probe)
+    monkeypatch.setattr(type(docker), "probe", fake_docker_probe)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="local", profile="local-safe")
+    run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
+    sandbox = json.loads((run_root / "sandbox-policy.json").read_text(encoding="utf-8"))
+    manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
+
+    assert sandbox["backend"] == "podman"
+    assert sandbox["isolation_class"] == "container"
+    assert sandbox["network"]["mode"] == "deny"
+    assert sandbox["profile"] == "local-safe"
+    assert manifest["sandbox_backend"] == "podman"
+    assert manifest["sandbox_profile"] == "local-safe"
+
+
+def test_local_executor_wraps_commands_for_container_sandbox(monkeypatch, tmp_path):
+    calls: list[dict[str, object]] = []
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    def fake_run(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+
+        class Result:
+            returncode = 0
+            stdout = "ok\n"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr("src.hive.runs.executors.subprocess.run", fake_run)
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="podman",
+            isolation_class="container",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": ["LANG"], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="local-safe",
+            provenance="sandbox_v2_backend:podman",
+        )
+    )
+
+    result = executor.run_command("python -c \"print('ok')\"", cwd=worktree, timeout_seconds=30)
+
+    argv = list(calls[0]["args"][0])
+    assert result.returncode == 0
+    assert calls[0]["kwargs"]["shell"] is False
+    assert argv[:4] == ["podman", "run", "--rm", "--interactive"]
+    assert "--network" in argv
+    assert "none" in argv
+    assert "/workspace" in " ".join(argv)
 
 
 def test_runtime_artifacts_track_eval_accept_and_cancel(temp_hive_dir, capsys):

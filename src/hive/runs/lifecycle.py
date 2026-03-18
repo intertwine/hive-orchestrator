@@ -14,13 +14,13 @@ from src.hive.ids import new_id
 from src.hive.models.run import RunRecord
 from src.hive.runtime import (
     CapabilitySnapshot,
-    default_sandbox_policy,
     pending_approvals,
     resolve_approval,
     runtime_manifest,
     sync_runtime_status_artifacts,
     write_runtime_scaffold,
 )
+from src.hive.sandbox import resolve_sandbox_policy
 from src.hive.runs.context import compile_run_context
 from src.hive.runs.evaluators import run_evaluator, validate_evaluator_command
 from src.hive.runs.executors import get_executor
@@ -271,7 +271,7 @@ def start_run(
         profile=profile,
     )
     capability_snapshot = driver_info.capability_snapshot or CapabilitySnapshot(driver=driver.name)
-    sandbox_policy = default_sandbox_policy(
+    sandbox_policy = resolve_sandbox_policy(
         worktree_path=str(worktree_path),
         artifacts_path=str(run_directory),
         profile=profile,
@@ -712,7 +712,10 @@ def eval_run(path: str | Path | None, run_id: str) -> dict:
         1,
         int(float(program.metadata.get("budgets", {}).get("max_wall_clock_minutes", 30)) * 60),
     )
-    executor = get_executor(metadata.get("executor", program.metadata["default_executor"]))
+    executor = get_executor(
+        metadata.get("executor", program.metadata["default_executor"]),
+        sandbox_policy=metadata.get("sandbox_policy_path"),
+    )
     results = []
     seq = len(_read_command_log(command_log_path)) + 1
     commands_policy = program.metadata.get("commands", {})

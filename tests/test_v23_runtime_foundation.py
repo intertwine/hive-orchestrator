@@ -24,6 +24,7 @@ from src.hive.runs.engine import accept_run, eval_run, load_run, run_artifacts, 
 from src.hive.scheduler.query import ready_tasks
 from src.hive.sandbox import get_backend
 from src.hive.sandbox.base import SandboxProbe
+from src.hive.sandbox.runtime import resolve_sandbox_policy
 from src.hive.store.task_files import create_task
 from tests.conftest import init_git_repo, write_safe_program
 
@@ -259,6 +260,7 @@ def test_e2b_probe_reports_auth_unverified_without_env(monkeypatch):
 
     monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
     monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+    monkeypatch.setattr(type(backend), "_sdk_available", staticmethod(lambda: True))
     monkeypatch.delenv("E2B_API_KEY", raising=False)
     monkeypatch.delenv("E2B_ACCESS_TOKEN", raising=False)
 
@@ -269,6 +271,31 @@ def test_e2b_probe_reports_auth_unverified_without_env(monkeypatch):
     assert probe.warnings
     assert probe.evidence["env"]["E2B_API_KEY"] is False
     assert probe.evidence["env"]["E2B_ACCESS_TOKEN"] is False
+
+
+def test_e2b_probe_requires_python_sdk_for_hosted_execution(monkeypatch):
+    backend = get_backend("e2b")
+
+    def fake_find_binary(self):
+        return "/tmp/e2b"
+
+    def fake_command_output(self, *args):
+        if args == ("--version",):
+            return "e2b 0.1.0"
+        return None
+
+    monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
+    monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+    monkeypatch.setattr(type(backend), "_sdk_available", staticmethod(lambda: False))
+    monkeypatch.setenv("E2B_API_KEY", "token")
+    monkeypatch.delenv("E2B_ACCESS_TOKEN", raising=False)
+
+    probe = backend.probe()
+
+    assert probe.available is True
+    assert probe.configured is False
+    assert probe.evidence["python_sdk"] is False
+    assert any("sandbox-e2b" in blocker for blocker in probe.blockers)
 
 
 def test_daytona_probe_requires_api_url_for_self_hosted(monkeypatch):
@@ -622,11 +649,116 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
     assert settings["network"]["allowedDomains"] == []
 
 
-def test_local_executor_reports_unwired_backend_as_failed_command(tmp_path):
+def test_local_executor_reports_unwired_daytona_backend_as_failed_command(tmp_path):
     worktree = tmp_path / "worktree"
     artifacts = tmp_path / "artifacts"
     worktree.mkdir()
     artifacts.mkdir()
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="daytona",
+            isolation_class="remote-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": ["LANG"], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="team-self-hosted",
+            provenance="sandbox_v2_backend:daytona",
+        )
+    )
+
+    result = executor.run_command("python -c \"print('ok')\"", cwd=worktree, timeout_seconds=30)
+
+    assert result.returncode == 1
+    assert result.timed_out is False
+    assert "not wired into the local executor yet" in result.stderr
+
+
+def test_resolve_hosted_managed_requires_configured_backend(monkeypatch, tmp_path):
+    backend = get_backend("e2b")
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    def fake_probe(self):
+        return SandboxProbe(
+            backend="e2b",
+            available=True,
+            configured=False,
+            isolation_class="managed-sandbox",
+            supported_profiles=["hosted-managed"],
+            blockers=["Missing E2B_API_KEY"],
+            warnings=["CLI login is not enough for automation"],
+            notes=[],
+            evidence={},
+        )
+
+    monkeypatch.setattr(type(backend), "probe", fake_probe)
+
+    with pytest.raises(ValueError) as excinfo:
+        resolve_sandbox_policy(
+            worktree_path=str(worktree),
+            artifacts_path=str(artifacts),
+            profile="hosted-managed",
+        )
+
+    assert "e2b:" in str(excinfo.value)
+    assert "Missing E2B_API_KEY" in str(excinfo.value)
+
+
+def test_local_executor_runs_commands_via_e2b_sdk(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+    (worktree / "README.md").write_text("hello\n", encoding="utf-8")
+    calls: dict[str, object] = {}
+
+    class FakeCommandResult:
+        exit_code = 0
+        stdout = "ok\n"
+        stderr = ""
+
+    class FakeCommands:
+        def run(self, cmd, **kwargs):
+            calls.setdefault("commands", []).append({"cmd": cmd, "kwargs": kwargs})
+            return FakeCommandResult()
+
+    class FakeFiles:
+        def make_dir(self, path):
+            calls.setdefault("dirs", []).append(path)
+            return True
+
+        def write(self, path, data):
+            calls["write"] = {"path": path, "size": len(data)}
+            return {"path": path}
+
+    class FakeSandbox:
+        sandbox_id = "sbx_123"
+
+        def __init__(self):
+            self.files = FakeFiles()
+            self.commands = FakeCommands()
+
+        def kill(self):
+            calls["killed"] = True
+            return True
+
+        @classmethod
+        def create(cls, **kwargs):
+            calls["create"] = kwargs
+            return cls()
+
+    monkeypatch.setattr("src.hive.runs.executors._load_e2b_sdk", lambda: FakeSandbox)
+
     executor = LocalExecutor(
         SandboxPolicy(
             backend="e2b",
@@ -647,11 +779,60 @@ def test_local_executor_reports_unwired_backend_as_failed_command(tmp_path):
         )
     )
 
-    result = executor.run_command("python -c \"print('ok')\"", cwd=worktree, timeout_seconds=30)
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    sync_command = calls["commands"][0]
+    run_command = calls["commands"][1]
+
+    assert result.returncode == 0
+    assert result.stdout == "ok\n"
+    assert result.sandbox is not None
+    assert result.sandbox["backend"] == "e2b"
+    assert result.sandbox["workspace_sync"] == "upload_only"
+    assert result.sandbox["remote_sandbox_id"] == "sbx_123"
+    assert calls["create"]["allow_internet_access"] is False
+    assert calls["write"]["path"] == "/tmp/hive-mounts.tar.gz"
+    assert sync_command["cmd"].startswith("mkdir -p /workspace /artifacts && tar -xzf")
+    assert run_command["kwargs"]["cwd"] == "/workspace"
+    assert calls["killed"] is True
+
+
+def test_local_executor_reports_missing_e2b_sdk(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_e2b_sdk",
+        lambda: (_ for _ in ()).throw(ImportError("sandbox-e2b missing")),
+    )
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
 
     assert result.returncode == 1
-    assert result.timed_out is False
-    assert "not wired into the local executor yet" in result.stderr
+    assert "sandbox-e2b" in result.stderr
+    assert result.sandbox is not None
+    assert result.sandbox["backend"] == "e2b"
 
 
 def test_execute_local_safe_wraps_python_runner_in_container(monkeypatch, tmp_path):

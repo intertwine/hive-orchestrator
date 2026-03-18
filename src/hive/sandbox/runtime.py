@@ -20,12 +20,35 @@ _PROFILE_BACKENDS = {
     "team-self-hosted": ("daytona",),
     "experimental": ("cloudflare",),
 }
+_WIRED_BACKENDS = {"podman", "docker-rootless", "asrt", "e2b"}
 
 
-def _sandbox_profile_unavailable(profile: str, backend_names: tuple[str, ...]) -> ValueError:
+def _backend_readiness_reason(backend_name: str, probe) -> str:
+    details: list[str] = []
+    blockers = [str(item) for item in list(probe.blockers or []) if str(item).strip()]
+    warnings = [str(item) for item in list(probe.warnings or []) if str(item).strip()]
+    if blockers:
+        details.append("; ".join(blockers))
+    if warnings:
+        details.append("; ".join(warnings))
+    if backend_name not in _WIRED_BACKENDS:
+        details.append("executor wiring has not landed yet")
+    return f"{backend_name}: " + "; ".join(details) if details else backend_name
+
+
+def _sandbox_profile_unavailable(
+    profile: str,
+    backend_names: tuple[str, ...],
+    *,
+    details: list[str] | None = None,
+) -> ValueError:
     supported = ", ".join(backend_names)
+    suffix = ""
+    if details:
+        suffix = " " + " ".join(details)
     return ValueError(
         f"Sandbox profile {profile!r} requires one of [{supported}], but none were detected."
+        + suffix
     )
 
 
@@ -106,9 +129,13 @@ def resolve_sandbox_policy(
             profile=normalized,
         )
     probes = {probe.backend: probe for probe in iter_backend_probes(backend_names)}
+    readiness_failures: list[str] = []
     for backend_name in backend_names:
         probe = probes.get(backend_name)
         if probe is None or not probe.available:
+            continue
+        if probe.configured is False or backend_name not in _WIRED_BACKENDS:
+            readiness_failures.append(_backend_readiness_reason(backend_name, probe))
             continue
         return SandboxPolicy(
             backend=backend_name,
@@ -132,7 +159,7 @@ def resolve_sandbox_policy(
             profile=normalized,
             provenance=f"sandbox_v2_backend:{backend_name}",
         )
-    raise _sandbox_profile_unavailable(normalized, backend_names)
+    raise _sandbox_profile_unavailable(normalized, backend_names, details=readiness_failures)
 
 
 def sandboxed_command(

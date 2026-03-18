@@ -76,6 +76,7 @@ def main():
     thread_id = "thread_test"
     turn_id = "turn_test"
     approval_request_id = 9001
+    approval_request_kind = None
 
     for raw_line in sys.stdin:
         line = raw_line.strip()
@@ -123,6 +124,24 @@ def main():
             if "WAIT_FOR_INTERRUPT" in prompt:
                 continue
             send({"method": "item/agentMessage/delta", "params": {"threadId": thread_id, "turnId": turn_id, "itemId": "msg_1", "delta": "Working"}})
+            if "REQUEST_FILE_APPROVAL_CALL_ID_ONLY" in prompt:
+                approval_request_kind = "file_call_id_only"
+                send(
+                    {
+                        "method": "item/fileChange/requestApproval",
+                        "id": approval_request_id,
+                        "params": {
+                            "threadId": thread_id,
+                            "turnId": turn_id,
+                            "callId": "patch_1",
+                            "grantRoot": ".",
+                            "reason": "Need to update README",
+                            "fileChanges": [{"path": "README.md", "kind": "update"}],
+                        },
+                    }
+                )
+                continue
+            approval_request_kind = "command"
             send({"method": "turn/plan/updated", "params": {"threadId": thread_id, "turnId": turn_id, "explanation": "Inspect repo", "plan": [{"step": "Inspect repo", "status": "inProgress"}]}})
             send(
                 {
@@ -168,6 +187,45 @@ def main():
             )
             return 0
         elif message.get("id") == approval_request_id and "result" in message:
+            if approval_request_kind == "file_call_id_only":
+                send({"method": "item/agentMessage/delta", "params": {"threadId": thread_id, "turnId": turn_id, "itemId": "msg_1", "delta": " file approved"}})
+                send({"method": "turn/diff/updated", "params": {"threadId": thread_id, "turnId": turn_id, "diff": "diff --git a/README.md b/README.md"}})
+                send(
+                    {
+                        "method": "item/completed",
+                        "params": {
+                            "threadId": thread_id,
+                            "turnId": turn_id,
+                            "item": {"type": "agentMessage", "id": "msg_1", "text": "Working file approved", "phase": "final_answer"},
+                        },
+                    }
+                )
+                send(
+                    {
+                        "method": "thread/tokenUsage/updated",
+                        "params": {
+                            "threadId": thread_id,
+                            "turnId": turn_id,
+                            "tokenUsage": {
+                                "total": {
+                                    "totalTokens": 12,
+                                    "inputTokens": 5,
+                                    "cachedInputTokens": 1,
+                                    "outputTokens": 6,
+                                    "reasoningOutputTokens": 0,
+                                }
+                            },
+                        },
+                    }
+                )
+                send({"method": "thread/status/changed", "params": {"threadId": thread_id, "status": {"type": "idle"}}})
+                send(
+                    {
+                        "method": "turn/completed",
+                        "params": {"threadId": thread_id, "turn": {"id": turn_id, "items": [], "status": "completed", "error": None}},
+                    }
+                )
+                return 0
             send({"method": "item/agentMessage/delta", "params": {"threadId": thread_id, "turnId": turn_id, "itemId": "msg_1", "delta": " approved"}})
             send({"method": "turn/diff/updated", "params": {"threadId": thread_id, "turnId": turn_id, "diff": "diff --git a/README.md b/README.md"}})
             send(
@@ -1111,6 +1169,81 @@ class TestHiveDrivers:
         assert interrupt_payload["driver_ack"]["ok"] is True
         assert cancelled_payload["status"]["state"] == "cancelled"
         assert cancelled_payload["status"]["session"]["launch_mode"] == "app_server"
+
+    def test_codex_app_server_file_approval_supports_call_id_only_requests(
+        self, temp_hive_dir, capsys, monkeypatch
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        driver = get_driver("codex")
+        fake_binary = _write_fake_codex_binary(temp_hive_dir)
+
+        def fake_detected_binary_details(self):
+            return ("codex", str(fake_binary))
+
+        def fake_prompt(self, request):
+            return "REQUEST_FILE_APPROVAL_CALL_ID_ONLY"
+
+        monkeypatch.setattr(type(driver), "_detected_binary_details", fake_detected_binary_details)
+        monkeypatch.setattr(type(driver), "_build_exec_prompt", fake_prompt)
+        monkeypatch.setenv("HIVE_CODEX_LIVE_APP_SERVER", "1")
+        monkeypatch.delenv("HIVE_CODEX_LIVE_EXEC", raising=False)
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="codex")
+
+        pending_payload = {}
+        for _ in range(30):
+            pending_payload = _invoke_cli_json(
+                capsys,
+                ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+            )
+            if pending_payload["status"]["pending_approvals"]:
+                break
+            time.sleep(0.1)
+
+        pending_approval = pending_payload["status"]["pending_approvals"][0]
+        resolution = steer_run(
+            temp_hive_dir,
+            run.id,
+            SteeringRequest(action="approve", target={"approval_id": pending_approval["approval_id"]}),
+            actor="operator",
+        )
+
+        completed_payload = {}
+        for _ in range(30):
+            completed_payload = _invoke_cli_json(
+                capsys,
+                ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+            )
+            if completed_payload["status"]["state"] == "completed_candidate":
+                break
+            time.sleep(0.1)
+
+        metadata = load_run(temp_hive_dir, run.id)
+        transcript = (
+            Path(temp_hive_dir) / ".hive" / "runs" / run.id / "transcript.ndjson"
+        ).read_text(encoding="utf-8")
+
+        assert pending_approval["kind"] == "file"
+        assert pending_approval["payload"]["call_id"] == "patch_1"
+        assert pending_approval["payload"]["grant_root"] == "."
+        assert resolution["driver_ack"]["ok"] is True
+        assert completed_payload["status"]["state"] == "completed_candidate"
+        assert metadata["metadata_json"]["budget_rollup"]["spent_tokens"] == 12
+        assert "file approved" in transcript
 
     def test_run_status_refreshes_live_claude_driver_status(
         self, temp_hive_dir, capsys, monkeypatch

@@ -304,7 +304,10 @@ def _wait_for_run_status(
         if isinstance(status, dict) and predicate(status):
             return payload
         time.sleep(sleep_seconds)
-    return payload
+    pytest.fail(
+        "Timed out waiting for run status predicate for "
+        f"{run_id}. Last payload: {json.dumps(payload, sort_keys=True)}"
+    )
 
 
 class TestHiveDrivers:
@@ -1277,6 +1280,7 @@ class TestHiveDrivers:
             capsys,
             run.id,
             predicate=lambda status: bool(status.get("pending_approvals")),
+            attempts=200,
         )
 
         approval_id = pending_payload["status"]["pending_approvals"][0]["approval_id"]
@@ -1358,6 +1362,7 @@ class TestHiveDrivers:
             capsys,
             run.id,
             predicate=lambda status: status.get("state") == "cancelled",
+            attempts=200,
         )
 
         assert interrupt_payload["driver_ack"]["ok"] is True
@@ -1403,6 +1408,7 @@ class TestHiveDrivers:
             capsys,
             run.id,
             predicate=lambda status: bool(status.get("pending_approvals")),
+            attempts=200,
         )
 
         pending_approval = pending_payload["status"]["pending_approvals"][0]

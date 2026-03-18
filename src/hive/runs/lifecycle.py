@@ -702,7 +702,7 @@ def refresh_run_driver_state(path: str | Path | None, run_id: str) -> dict:
 def eval_run(path: str | Path | None, run_id: str) -> dict:
     root = Path(path or Path.cwd()).resolve()
 
-    metadata = load_run(root, run_id)
+    metadata = refresh_run_driver_state(root, run_id)
     if metadata.get("status") not in {"running", "awaiting_input", "completed_candidate"}:
         raise ValueError(f"Cannot evaluate run with status {metadata.get('status')!r}")
     program = _load_run_program(metadata)

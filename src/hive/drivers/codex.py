@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 import shlex
@@ -75,7 +76,7 @@ class CodexDriver(HarnessDriver):
         if not candidates:
             return None
         latest = max(candidate.stat().st_mtime for candidate in candidates)
-        return utc_now_iso() if latest else None
+        return datetime.fromtimestamp(latest, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
     def _build_exec_prompt(self, request: RunLaunchRequest) -> str:
         run_brief_path = Path(request.artifacts_path) / "context" / "compiled" / "run-brief.md"
@@ -393,4 +394,17 @@ class CodexDriver(HarnessDriver):
             "mode": mode,
             "pid": pid,
             "message": f"Sent {sig.name} to Codex exec pid {pid}.",
+        }
+
+    def collect_artifacts(self, handle: RunHandle) -> dict[str, Any]:
+        if handle.launch_mode != "exec":
+            return super().collect_artifacts(handle)
+        return {
+            "driver": self.name,
+            "run_id": handle.run_id,
+            "artifacts": [
+                handle.metadata.get("raw_output_path"),
+                handle.metadata.get("last_message_path"),
+                handle.metadata.get("exit_code_path"),
+            ],
         }

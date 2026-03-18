@@ -373,3 +373,60 @@ def test_run_status_refresh_surfaces_live_codex_session_payload(temp_hive_dir, c
     assert payload["status"]["session"]["session_id"] == "pid-7000"
     assert payload["status"]["event_cursor"] == "9"
     assert payload["status"]["artifacts"]["raw_output_path"] == "/tmp/codex.jsonl"
+
+
+def test_eval_run_refreshes_live_codex_state_before_review(temp_hive_dir, capsys, monkeypatch):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    driver = get_driver("codex")
+    calls = {"count": 0}
+
+    def fake_live_exec_enabled(self):
+        return True
+
+    def fake_launch_live_exec(self, request):
+        return RunHandle(
+            run_id=request.run_id,
+            driver="codex",
+            driver_handle=f"codex:exec:{request.run_id}",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="exec",
+            transport="subprocess",
+            session_id="pid-7100",
+            event_cursor="0",
+            metadata={"pid": 7100, "last_message_path": str(last_message_path)},
+        )
+
+    def fake_status(self, handle):
+        calls["count"] += 1
+        state = "running" if calls["count"] == 1 else "completed_candidate"
+        return RunStatus(
+            run_id=handle.run_id,
+            state=state,
+            health="healthy",
+            driver="codex",
+            progress=RunProgress(
+                phase="implementing" if state == "running" else "completed",
+                message="Codex live exec is active.",
+                percent=50 if state == "running" else 100,
+            ),
+            waiting_on=None if state == "running" else "review",
+            last_event_at="2026-03-18T06:03:00Z",
+            event_cursor="5",
+            session={"launch_mode": "exec", "transport": "subprocess", "session_id": "pid-7100"},
+            artifacts={"last_message_path": str(last_message_path)},
+        )
+
+    monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+    monkeypatch.setattr(type(driver), "_launch_live_exec", fake_launch_live_exec)
+    monkeypatch.setattr(type(driver), "status", fake_status)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    last_message_path = Path(temp_hive_dir).parent / "codex-last-message.txt"
+    last_message_path.write_text("Implemented the requested change.\n", encoding="utf-8")
+    run = start_run(temp_hive_dir, task_id, driver_name="codex")
+    evaluated = eval_run(temp_hive_dir, run.id)
+    transcript_path = Path(temp_hive_dir) / ".hive" / "runs" / run.id / "transcript.ndjson"
+
+    assert evaluated["run"]["status"] == "awaiting_review"
+    assert "Implemented the requested change." in transcript_path.read_text(encoding="utf-8")

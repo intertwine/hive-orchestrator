@@ -269,20 +269,18 @@ def _e2b_allow_internet_access(policy: SandboxPolicy) -> bool:
 
 
 def _is_e2b_timeout_exception(exc: Exception) -> bool:
-    if isinstance(exc, TimeoutError):
-        return True
-    return exc.__class__.__name__ == "TimeoutException" and exc.__class__.__module__.startswith(
-        "e2b"
-    )
+    if not exc.__class__.__module__.startswith("e2b"):
+        return False
+    return exc.__class__.__name__ == "TimeoutException" or isinstance(exc, TimeoutError)
 
 
 def _is_e2b_command_exit_exception(exc: Exception) -> bool:
+    if not exc.__class__.__module__.startswith("e2b"):
+        return False
     exit_code = getattr(exc, "exit_code", None)
     if exit_code is not None:
         return True
-    return exc.__class__.__name__ == "CommandExitException" and exc.__class__.__module__.startswith(
-        "e2b"
-    )
+    return exc.__class__.__name__ == "CommandExitException"
 
 
 def _run_e2b_command(

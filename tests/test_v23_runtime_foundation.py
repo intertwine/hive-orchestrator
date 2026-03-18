@@ -1352,6 +1352,48 @@ def test_local_executor_does_not_treat_non_e2b_timeout_names_as_remote_timeouts(
     assert result.stderr == "pretend timeout"
 
 
+def test_local_executor_does_not_treat_e2b_infrastructure_timeouts_as_command_timeouts(
+    monkeypatch, tmp_path
+):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    class FakeSandbox:
+        @classmethod
+        def create(cls, **kwargs):
+            raise TimeoutError("sandbox create timed out")
+
+    monkeypatch.setattr("src.hive.runs.executors._load_e2b_sdk", lambda: FakeSandbox)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert result.timed_out is False
+    assert result.stderr == "sandbox create timed out"
+
+
 def test_local_executor_does_not_treat_non_e2b_command_exit_names_as_remote_exits(
     monkeypatch, tmp_path
 ):
@@ -1362,6 +1404,7 @@ def test_local_executor_does_not_treat_non_e2b_command_exit_names_as_remote_exit
 
     class PretenderCommandExitException(Exception):
         __module__ = "pretender.sdk"
+        exit_code = 7
 
     class FakeCommands:
         def __init__(self):

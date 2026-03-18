@@ -475,6 +475,21 @@ def _daytona_resources(policy: SandboxPolicy, resources_class):
     )
 
 
+def _is_daytona_timeout_exception(exc: Exception) -> bool:
+    if not exc.__class__.__module__.startswith("daytona"):
+        return False
+    return exc.__class__.__name__ == "TimeoutException" or isinstance(exc, TimeoutError)
+
+
+def _is_daytona_command_exit_exception(exc: Exception) -> bool:
+    if not exc.__class__.__module__.startswith("daytona"):
+        return False
+    exit_code = getattr(exc, "exit_code", None)
+    if exit_code is not None:
+        return True
+    return exc.__class__.__name__ == "CommandExitException"
+
+
 def _validated_daytona_allowlist(policy: SandboxPolicy) -> list[str]:
     allowlist = [
         str(item).strip() for item in list(policy.network.get("allowlist") or []) if str(item).strip()
@@ -539,7 +554,22 @@ def _run_daytona_command(
     }
     if raw_allowlist:
         sandbox_metadata["raw_network_allowlist"] = raw_allowlist
-    host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
+    try:
+        host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
+    except ValueError:
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr=(
+                "Remote sandbox execution requires read_write mounts for both the worktree and "
+                "artifacts directories."
+            ),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
     if list(policy.mounts.get("read_only") or []):
         return CommandResult(
             command=command,
@@ -571,7 +601,19 @@ def _run_daytona_command(
     try:
         relative_cwd = cwd.resolve().relative_to(host_worktree)
     except ValueError:
-        relative_cwd = Path(".")
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr=(
+                "Daytona team-self-hosted execution requires the command cwd to remain within "
+                "the mounted worktree."
+            ),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
     remote_cwd = str((Path(_REMOTE_WORKTREE) / relative_cwd).as_posix())
     sandbox_metadata["command_payload"] = {
         "transport": "daytona-sdk",
@@ -670,7 +712,7 @@ def _run_daytona_command(
             sandbox=sandbox_metadata,
         )
     except Exception as exc:  # pylint: disable=broad-except
-        if "Timeout" in exc.__class__.__name__:
+        if _is_daytona_timeout_exception(exc):
             return CommandResult(
                 command=command,
                 started_at=started,
@@ -683,7 +725,7 @@ def _run_daytona_command(
                 timed_out=True,
                 sandbox=sandbox_metadata,
             )
-        if getattr(exc, "exit_code", None) is not None:
+        if _is_daytona_command_exit_exception(exc):
             return CommandResult(
                 command=command,
                 started_at=started,

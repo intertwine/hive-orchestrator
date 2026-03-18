@@ -1059,6 +1059,93 @@ def test_local_executor_rejects_daytona_read_only_mount_projection(monkeypatch, 
     assert "network_allowlist" not in result.sandbox
 
 
+def test_local_executor_rejects_misconfigured_daytona_mounts(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_daytona_sdk",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("SDK should not be loaded for misconfigured Daytona mounts")
+        ),
+    )
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="daytona",
+            isolation_class="remote-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="team-self-hosted",
+            provenance="sandbox_v2_backend:daytona",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert (
+        "Remote sandbox execution requires read_write mounts for both the worktree and artifacts "
+        "directories." in result.stderr
+    )
+    assert result.sandbox is not None
+    assert result.sandbox["backend"] == "daytona"
+
+
+def test_local_executor_rejects_daytona_cwd_outside_mounted_worktree(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    outside = tmp_path / "outside"
+    worktree.mkdir()
+    artifacts.mkdir()
+    outside.mkdir()
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_daytona_sdk",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("SDK should not be loaded when the cwd escapes the Daytona worktree")
+        ),
+    )
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="daytona",
+            isolation_class="remote-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="team-self-hosted",
+            provenance="sandbox_v2_backend:daytona",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=outside, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert "requires the command cwd to remain within the mounted worktree" in result.stderr
+    assert result.sandbox is not None
+    assert result.sandbox["backend"] == "daytona"
+
+
 def test_local_executor_rejects_non_cidr_daytona_allowlist(monkeypatch, tmp_path):
     worktree = tmp_path / "worktree"
     artifacts = tmp_path / "artifacts"
@@ -1512,6 +1599,235 @@ def test_local_executor_ignores_daytona_allowlist_when_network_mode_is_allow(mon
     assert calls["create_params"]["network_block_all"] is False
     assert calls["create_params"]["network_allow_list"] is None
     assert calls["upload"]["source_type"] == "bytes"
+
+
+def test_local_executor_does_not_treat_non_daytona_timeout_names_as_remote_timeouts(
+    monkeypatch, tmp_path
+):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    class PretenderTimeoutException(Exception):
+        __module__ = "pretender.sdk"
+
+    class FakeDaytonaConfig:
+        def __init__(self, **kwargs):
+            return None
+
+    class FakeCreateSandboxFromImageParams:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeCreateSandboxFromSnapshotParams:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeResources:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeSessionExecuteRequest:
+        def __init__(self, command):
+            self.command = command
+
+    class FakeSyncResult:
+        exit_code = 0
+        result = ""
+
+    class FakeProcess:
+        def exec(self, command, **kwargs):
+            return FakeSyncResult()
+
+        def create_session(self, session_id):
+            return None
+
+        def execute_session_command(self, session_id, req, **kwargs):
+            raise PretenderTimeoutException("pretend timeout")
+
+        def delete_session(self, session_id):
+            return None
+
+    class FakeFileSystem:
+        def create_folder(self, path, mode):
+            return None
+
+        def upload_file(self, src, dst, timeout=1800):
+            return None
+
+    class FakeSandbox:
+        id = "daytona_timeout_guard"
+
+        def __init__(self):
+            self.fs = FakeFileSystem()
+            self.process = FakeProcess()
+
+        def delete(self, timeout=60):
+            return None
+
+    class FakeDaytona:
+        def __init__(self, config):
+            return None
+
+        def create(self, params, timeout=60):
+            return FakeSandbox()
+
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_daytona_sdk",
+        lambda: (
+            FakeDaytona,
+            FakeDaytonaConfig,
+            FakeCreateSandboxFromImageParams,
+            FakeCreateSandboxFromSnapshotParams,
+            FakeResources,
+            FakeSessionExecuteRequest,
+        ),
+    )
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+    monkeypatch.delenv("HIVE_DAYTONA_SNAPSHOT", raising=False)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="daytona",
+            isolation_class="remote-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="team-self-hosted",
+            provenance="sandbox_v2_backend:daytona",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert result.timed_out is False
+    assert result.stderr == "pretend timeout"
+
+
+def test_local_executor_does_not_treat_non_daytona_command_exit_names_as_remote_exits(
+    monkeypatch, tmp_path
+):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    class PretenderCommandExitException(Exception):
+        __module__ = "pretender.sdk"
+        exit_code = 7
+
+    class FakeDaytonaConfig:
+        def __init__(self, **kwargs):
+            return None
+
+    class FakeCreateSandboxFromImageParams:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeCreateSandboxFromSnapshotParams:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeResources:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeSessionExecuteRequest:
+        def __init__(self, command):
+            self.command = command
+
+    class FakeSyncResult:
+        exit_code = 0
+        result = ""
+
+    class FakeProcess:
+        def exec(self, command, **kwargs):
+            return FakeSyncResult()
+
+        def create_session(self, session_id):
+            return None
+
+        def execute_session_command(self, session_id, req, **kwargs):
+            raise PretenderCommandExitException("pretend command exit")
+
+        def delete_session(self, session_id):
+            return None
+
+    class FakeFileSystem:
+        def create_folder(self, path, mode):
+            return None
+
+        def upload_file(self, src, dst, timeout=1800):
+            return None
+
+    class FakeSandbox:
+        id = "daytona_exit_guard"
+
+        def __init__(self):
+            self.fs = FakeFileSystem()
+            self.process = FakeProcess()
+
+        def delete(self, timeout=60):
+            return None
+
+    class FakeDaytona:
+        def __init__(self, config):
+            return None
+
+        def create(self, params, timeout=60):
+            return FakeSandbox()
+
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_daytona_sdk",
+        lambda: (
+            FakeDaytona,
+            FakeDaytonaConfig,
+            FakeCreateSandboxFromImageParams,
+            FakeCreateSandboxFromSnapshotParams,
+            FakeResources,
+            FakeSessionExecuteRequest,
+        ),
+    )
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+    monkeypatch.delenv("HIVE_DAYTONA_SNAPSHOT", raising=False)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="daytona",
+            isolation_class="remote-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="team-self-hosted",
+            provenance="sandbox_v2_backend:daytona",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert result.timed_out is False
+    assert result.stderr == "pretend command exit"
 
 
 def test_resolve_hosted_managed_requires_configured_backend(monkeypatch, tmp_path):

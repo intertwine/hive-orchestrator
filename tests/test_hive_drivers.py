@@ -1433,6 +1433,101 @@ class TestHiveDrivers:
         assert metadata["metadata_json"]["budget_rollup"]["spent_tokens"] == 12
         assert "file approved" in transcript
 
+    def test_codex_app_server_recovers_completed_turn_without_exit_marker(self, tmp_path, monkeypatch):
+        driver = get_driver("codex")
+        raw_output_path = tmp_path / "codex-events.jsonl"
+        raw_output_path.write_text("", encoding="utf-8")
+        state_path = tmp_path / "codex-state.json"
+        state_path.write_text(
+            json.dumps(
+                {
+                    "thread_id": "thread_1",
+                    "thread_status": "idle",
+                    "turn_id": "turn_1",
+                    "turn_status": "completed",
+                    "token_usage": {"total": {"totalTokens": 12, "inputTokens": 5, "outputTokens": 7}},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(type(driver), "_pid_is_running", staticmethod(lambda pid: False))
+
+        status = driver.status(
+            RunHandle(
+                run_id="run_1",
+                driver="codex",
+                driver_handle="codex:app-server:7000",
+                status="running",
+                launched_at="2026-03-18T06:00:00Z",
+                launch_mode="app_server",
+                transport="stdio-jsonrpc",
+                session_id="7000",
+                event_cursor="0",
+                metadata={
+                    "pid": 7000,
+                    "raw_output_path": str(raw_output_path),
+                    "state_path": str(state_path),
+                    "exit_code_path": str(tmp_path / "missing-exit.txt"),
+                },
+            )
+        )
+
+        assert status.state == "completed_candidate"
+        assert status.health == "needs_attention"
+        assert status.waiting_on == "review"
+        assert status.budget.spent_tokens == 12
+
+    def test_claude_live_exec_recovers_result_without_exit_marker(self, tmp_path, monkeypatch):
+        driver = get_driver("claude-code")
+        raw_output_path = tmp_path / "claude-print-result.json"
+        raw_output_path.write_text(
+            json.dumps(
+                {
+                    "session_id": "sess_1",
+                    "total_cost_usd": 0.45,
+                    "duration_ms": 90_000,
+                    "usage": {
+                        "input_tokens": 100,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                        "output_tokens": 23,
+                    },
+                    "result": "Delivered the requested implementation.",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(type(driver), "_pid_is_running", staticmethod(lambda pid: False))
+
+        status = driver.status(
+            RunHandle(
+                run_id="run_1",
+                driver="claude-code",
+                driver_handle="claude-code:exec:7000",
+                status="running",
+                launched_at="2026-03-18T06:00:00Z",
+                launch_mode="exec",
+                transport="subprocess",
+                session_id="sess_1",
+                event_cursor="0",
+                metadata={
+                    "pid": 7000,
+                    "raw_output_path": str(raw_output_path),
+                    "last_message_path": str(tmp_path / "last-message.txt"),
+                    "exit_code_path": str(tmp_path / "missing-exit.txt"),
+                },
+            )
+        )
+
+        assert status.state == "completed_candidate"
+        assert status.health == "needs_attention"
+        assert status.waiting_on == "review"
+        assert status.budget.spent_tokens == 123
+        assert status.budget.spent_cost_usd == pytest.approx(0.45)
+
     def test_run_status_refreshes_live_claude_driver_status(
         self, temp_hive_dir, capsys, monkeypatch
     ):

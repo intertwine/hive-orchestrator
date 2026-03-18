@@ -389,6 +389,27 @@ class ClaudeCodeDriver(HarnessDriver):
                     session=session,
                     artifacts=artifacts,
                 )
+            if isinstance(payload.get("result"), str) and str(payload.get("result")).strip():
+                return RunStatus(
+                    run_id=handle.run_id,
+                    state="completed_candidate",
+                    health="needs_attention",
+                    driver=self.name,
+                    progress=RunProgress(
+                        phase="completed",
+                        message=(
+                            "Claude Code produced a result, but the live exec helper stopped "
+                            "before writing an exit marker."
+                        ),
+                        percent=100,
+                    ),
+                    waiting_on="review",
+                    last_event_at=last_event_at or handle.launched_at,
+                    budget=budget,
+                    event_cursor=cursor,
+                    session=session,
+                    artifacts=artifacts,
+                )
             return RunStatus(
                 run_id=handle.run_id,
                 state="failed",

@@ -555,6 +555,48 @@ class CodexDriver(HarnessDriver):
                         session=session,
                         artifacts=artifacts,
                     )
+                if turn_status == "completed":
+                    return RunStatus(
+                        run_id=handle.run_id,
+                        state="completed_candidate",
+                        health="needs_attention",
+                        driver=self.name,
+                        progress=RunProgress(
+                            phase="completed",
+                            message=(
+                                "Codex app-server recorded a completed turn, but the bridge "
+                                "stopped before writing an exit marker."
+                            ),
+                            percent=100,
+                        ),
+                        waiting_on="review",
+                        last_event_at=last_event_at or handle.launched_at,
+                        budget=budget,
+                        event_cursor=cursor,
+                        session=session,
+                        artifacts=artifacts,
+                    )
+                if turn_status in {"cancelled", "interrupted"}:
+                    return RunStatus(
+                        run_id=handle.run_id,
+                        state="cancelled",
+                        health="needs_attention",
+                        driver=self.name,
+                        progress=RunProgress(
+                            phase="cancelled",
+                            message=(
+                                "Codex app-server recorded an interrupted turn, but the bridge "
+                                "stopped before writing an exit marker."
+                            ),
+                            percent=100,
+                        ),
+                        waiting_on="operator",
+                        last_event_at=last_event_at or handle.launched_at,
+                        budget=budget,
+                        event_cursor=cursor,
+                        session=session,
+                        artifacts=artifacts,
+                    )
                 return RunStatus(
                     run_id=handle.run_id,
                     state="failed",

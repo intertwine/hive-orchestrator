@@ -99,6 +99,6 @@ class TestProgramDoctor:
         )
 
         assert applied["applied_template"]["id"] == "local-smoke"
-        assert applied["applied_template"]["command"] == "python -c \"print('local smoke ok')\""
+        assert applied["applied_template"]["command"] == "python3 -c \"print('local smoke ok')\""
         assert follow_up["blocked_autonomous_promotion"] is False
         assert follow_up["status"] in {"pass", "warn"}

@@ -263,7 +263,7 @@ def evaluator_templates(root: Path, project_dir: Path) -> list[dict[str, Any]]:
     return [
         _template(
             "local-smoke",
-            "python -c \"print('local smoke ok')\"",
+            "python3 -c \"print('local smoke ok')\"",
             label="Local smoke check",
             reason=(
                 "No repo-specific test or lint entrypoint was detected, so Hive can seed "

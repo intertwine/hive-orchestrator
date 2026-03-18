@@ -48,7 +48,9 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
 
 
 def _write_fake_codex_binary(base_dir: str) -> Path:
-    temp_dir = Path(tempfile.mkdtemp(prefix="fake-codex-"))
+    temp_dir = Path(
+        tempfile.mkdtemp(prefix="fake-codex-", dir=Path(__file__).resolve().parent)
+    )
     target = temp_dir / "fake-codex.py"
     target.write_text(
         """#!/usr/bin/env python3

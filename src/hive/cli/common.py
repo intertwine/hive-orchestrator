@@ -11,13 +11,21 @@ from pathlib import Path
 
 from src.hive import __version__
 from src.hive.codemode.execute import MAX_EXECUTE_BYTES
-from src.hive.payloads import project_payload  # pylint: disable=unused-import
+from src.hive.payloads import project_payload
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import list_tasks
 from src.hive.scheduler.query import ready_tasks
 from src.hive.store.cache import CacheBusyError
 from src.hive.workspace import WorkspaceBusyError
 from src.hive.cli.render import render_payload
+
+__all__ = [
+    "clean_string_list",
+    "emit",
+    "emit_error",
+    "load_execute_code",
+    "project_payload",
+]
 
 
 def emit(payload: dict, as_json: bool) -> int:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from src.hive.clock import utc_now_iso
 from src.hive.ids import new_id
@@ -20,6 +20,18 @@ _CAMPAIGN_OPTION_KEYS = {
     "max_active_runs",
     "notes_md",
 }
+
+
+class _CampaignRequest(TypedDict):
+    title: str
+    goal: str
+    project_ids: list[str]
+    driver: str
+    model: str | None
+    cadence: str
+    brief_cadence: str
+    max_active_runs: int
+    notes_md: str
 
 
 def _campaign_body(goal: str, notes_md: str = "") -> str:
@@ -127,17 +139,18 @@ def _campaign_request(
     goal: str,
     project_ids: list[str],
     options: dict[str, Any],
-) -> dict[str, Any]:
+) -> _CampaignRequest:
     unexpected = sorted(set(options) - _CAMPAIGN_OPTION_KEYS)
     if unexpected:
         unexpected_list = ", ".join(unexpected)
         raise TypeError(f"Unsupported campaign option(s): {unexpected_list}")
+    model = options.get("model")
     return {
         "title": title.strip(),
         "goal": goal.strip(),
         "project_ids": list(project_ids),
         "driver": str(options.get("driver", "local")),
-        "model": options.get("model"),
+        "model": None if model is None else str(model),
         "cadence": str(options.get("cadence", "daily")),
         "brief_cadence": str(options.get("brief_cadence", "daily")),
         "max_active_runs": int(options.get("max_active_runs", 1)),
@@ -157,15 +170,15 @@ def create_campaign(
     request = _campaign_request(title, goal, project_ids, options)
     campaign = CampaignRecord(
         id=new_id("camp"),
-        title=str(request["title"]),
-        goal=str(request["goal"]),
+        title=request["title"],
+        goal=request["goal"],
         project_ids=list(request["project_ids"]),
-        driver=str(request["driver"]),
+        driver=request["driver"],
         model=request["model"],
-        cadence=str(request["cadence"]),
-        brief_cadence=str(request["brief_cadence"]),
-        max_active_runs=int(request["max_active_runs"]),
-        notes_md=str(request["notes_md"]),
+        cadence=request["cadence"],
+        brief_cadence=request["brief_cadence"],
+        max_active_runs=request["max_active_runs"],
+        notes_md=request["notes_md"],
     )
     return save_campaign(path, campaign)
 

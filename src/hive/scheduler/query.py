@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import json
-from typing import Any
 
 from src.hive.constants import RUN_ACTIVE_STATUSES, RUN_TERMINAL_STATUSES
+from src.hive.models.project import ProjectRecord
 from src.hive.models.task import TaskRecord
 from src.hive.store.layout import runs_dir
 from src.hive.store.projects import discover_projects
@@ -16,7 +16,7 @@ from src.hive.store.task_files import list_tasks
 
 
 @dataclass(frozen=True)
-class TaskScoreContext:
+class _TaskScoreContext:
     """Stable inputs for ready-task scoring."""
 
     effective_status: str
@@ -29,10 +29,10 @@ class TaskScoreContext:
 
 
 @dataclass(frozen=True)
-class ReadyProjectState:
+class _ReadyProjectState:
     """Graph and run context shared by ready-task ranking."""
 
-    projects: dict[str, Any]
+    projects: dict[str, ProjectRecord]
     reverse_graph: dict[str, set[str]]
     projects_in_cycles: set[str]
     active_runs_by_project: dict[str, int]
@@ -244,7 +244,7 @@ def _reachable_count(node: str, adjacency: dict[str, set[str]]) -> int:
     return len(seen)
 
 
-def _task_score(task: TaskRecord, context: TaskScoreContext) -> tuple[float, list[str]]:
+def _task_score(task: TaskRecord, context: _TaskScoreContext) -> tuple[float, list[str]]:
     reasons: list[str] = []
     score = 140.0 - (task.priority * 18.0)
     reasons.append(f"Priority p{task.priority} sets the baseline")
@@ -304,13 +304,13 @@ def _task_score(task: TaskRecord, context: TaskScoreContext) -> tuple[float, lis
     return score, reasons
 
 
-def _build_ready_state(path: str | Path | None) -> ReadyProjectState:
+def _build_ready_state(path: str | Path | None) -> _ReadyProjectState:
     """Load shared project, graph, and run context for ready-task ranking."""
     project_records = discover_projects(path)
     project_graph, reverse_graph = _project_dependency_graph(project_records)
     project_cycles = _find_project_cycles(project_graph)
     active_runs_by_project, recent_terminal_by_project = _run_pressure(path)
-    return ReadyProjectState(
+    return _ReadyProjectState(
         projects={project.id: project for project in project_records},
         reverse_graph=reverse_graph,
         projects_in_cycles={
@@ -326,7 +326,7 @@ def _build_ready_state(path: str | Path | None) -> ReadyProjectState:
 def _ready_entry(
     task: TaskRecord,
     tasks_by_id: dict[str, TaskRecord],
-    state: ReadyProjectState,
+    state: _ReadyProjectState,
 ) -> dict[str, object] | None:
     """Build a ranked ready-task payload when the task is truly actionable."""
     project = state.projects.get(task.project_id)
@@ -343,7 +343,7 @@ def _ready_entry(
 
     project_downstream_count = _reachable_count(task.project_id, state.reverse_graph)
     task_unblock_count = _count_task_unblock_impact(task, tasks_by_id)
-    context = TaskScoreContext(
+    context = _TaskScoreContext(
         effective_status=effective_status,
         project_priority=project.priority,
         active_runs=state.active_runs_by_project.get(task.project_id, 0),
@@ -372,18 +372,16 @@ def _ready_entry(
     }
 
 
-def ready_tasks(
-    path: str | Path | None = None,
+def _ready_tasks_with_state(
+    tasks: list[TaskRecord],
+    tasks_by_id: dict[str, TaskRecord],
+    state: _ReadyProjectState,
     *,
     project_id: str | None = None,
     limit: int | None = None,
 ) -> list[dict[str, object]]:
-    """Return ranked ready tasks."""
-    tasks = list_tasks(path)
-    tasks_by_id = {task.id: task for task in tasks}
-    state = _build_ready_state(path)
+    """Return ranked ready tasks using precomputed project/run state."""
     ready: list[dict[str, object]] = []
-
     for task in tasks:
         if project_id and task.project_id != project_id:
             continue
@@ -400,19 +398,46 @@ def ready_tasks(
         )
     )
     if limit is not None:
-        ready = ready[:limit]
+        return ready[:limit]
     return ready
+
+
+def ready_tasks(
+    path: str | Path | None = None,
+    *,
+    project_id: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, object]]:
+    """Return ranked ready tasks."""
+    tasks = list_tasks(path)
+    tasks_by_id = {task.id: task for task in tasks}
+    state = _build_ready_state(path)
+    return _ready_tasks_with_state(
+        tasks,
+        tasks_by_id,
+        state,
+        project_id=project_id,
+        limit=limit,
+    )
 
 
 def project_summary(path: str | Path | None = None) -> list[dict[str, object]]:
     """Return discovered projects with truthful task counts and next-work hints."""
-    projects = discover_projects(path)
+    state = _build_ready_state(path)
+    projects = list(state.projects.values())
     tasks = list_tasks(path)
+    tasks_by_id = {task.id: task for task in tasks}
     summaries: list[dict[str, object]] = []
     for project in projects:
         project_tasks = [task for task in tasks if task.project_id == project.id]
         project_tasks_by_id = {task.id: task for task in project_tasks}
-        ready = ready_tasks(path, project_id=project.id, limit=None)
+        ready = _ready_tasks_with_state(
+            tasks,
+            tasks_by_id,
+            state,
+            project_id=project.id,
+            limit=None,
+        )
         summaries.append(
             {
                 "id": project.id,

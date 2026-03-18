@@ -9,7 +9,9 @@ from src.hive.runs.engine import (
     load_run,
     promote_run,
     reject_run,
+    run_artifacts,
     start_run,
+    steer_run,
 )
 
 __all__ = [
@@ -22,4 +24,6 @@ __all__ = [
     "cleanup_terminal_runs",
     "reject_run",
     "escalate_run",
+    "run_artifacts",
+    "steer_run",
 ]

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from fnmatch import fnmatch
-from hashlib import sha256
 from pathlib import Path
 
 from src.hive.drivers import RunHandle, RunLaunchRequest
@@ -64,10 +62,6 @@ def load_program(project_path: Path) -> ProgramRecord:
     return _load_program_impl(project_path)
 
 
-def _program_sha(path: Path) -> str:
-    return sha256(path.read_bytes()).hexdigest()
-
-
 def _load_run_program(metadata: dict) -> ProgramRecord:
     """Load the recorded run contract and reject policy drift."""
     return _load_run_program_impl(metadata)
@@ -100,10 +94,6 @@ def _read_command_log(command_log_path: Path) -> list[dict]:
 
 def _parse_iso(value: str | None) -> datetime | None:
     return _parse_iso_impl(value)
-
-
-def _matches_path(path: str, pattern: str) -> bool:
-    return fnmatch(path, pattern)
 
 
 def _refresh_workspace_state(root: Path, metadata: dict) -> dict[str, object]:

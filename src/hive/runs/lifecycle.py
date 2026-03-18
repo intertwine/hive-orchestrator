@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from fnmatch import fnmatch
-from hashlib import sha256
 import json
 from pathlib import Path
 from typing import cast
@@ -13,7 +11,6 @@ from src.hive.clock import utc_now_iso
 from src.hive.constants import RUN_ACTIVE_STATUSES, RUN_TERMINAL_STATUSES
 from src.hive.drivers import RunBudget, RunLaunchRequest, RunWorkspace, SteeringRequest, get_driver
 from src.hive.ids import new_id
-from src.hive.models.program import ProgramRecord
 from src.hive.models.run import RunRecord
 from src.hive.runs.context import compile_run_context
 from src.hive.runs.evaluators import run_evaluator, validate_evaluator_command
@@ -29,6 +26,7 @@ from src.hive.runs.paths import _task_display as _task_display_impl
 from src.hive.runs.program import (
     _load_run_program as _load_run_program_impl,
     _preflight_program_for_run as _preflight_program_for_run_impl,
+    _program_sha,
     _run_program_policy as _run_program_policy_impl,
 )
 from src.hive.runs.state import (
@@ -67,19 +65,6 @@ from src.hive.store.events import emit_event
 from src.hive.store.layout import runs_dir, worktrees_dir
 from src.hive.store.projects import get_project
 from src.hive.store.task_files import get_task, save_task
-from src.security import safe_load_agency_md
-
-
-def load_program(project_path: Path):
-    """Load and validate PROGRAM.md."""
-    parsed = safe_load_agency_md(project_path)
-    program = ProgramRecord(path=project_path, body=parsed.content, metadata=dict(parsed.metadata))
-    program.validate()
-    return program
-
-
-def _program_sha(path: Path) -> str:
-    return sha256(path.read_bytes()).hexdigest()
 
 
 def _load_run_program(metadata: dict):
@@ -112,10 +97,6 @@ def _read_command_log(command_log_path: Path) -> list[dict]:
 
 def _parse_iso(value: str | None) -> datetime | None:
     return _parse_iso_impl(value)
-
-
-def _matches_path(path: str, pattern: str) -> bool:
-    return fnmatch(path, pattern)
 
 
 def _refresh_workspace_state(root: Path, metadata: dict) -> dict[str, object]:

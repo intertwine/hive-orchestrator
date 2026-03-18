@@ -138,12 +138,4 @@ __all__ = [
     "build_reroute_launch_request",
     "load_driver_metadata",
     "run_program_policy",
-    "_active_driver_handle",
-    "_append_transcript_entry",
-    "_emit_context_compiled_events",
-    "_load_driver_handles",
-    "_record_driver_status",
-    "_record_steering_history",
-    "_save_driver_handles",
-    "_steering_event_type",
 ]

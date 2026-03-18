@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from hive.cli.main import main as hive_main
 from src.hive.console.api import app
-from src.hive.runs.engine import eval_run, start_run
+from src.hive.runs.engine import accept_run, eval_run, start_run
 from src.hive.scheduler.query import ready_tasks
 from src.hive.store.task_files import create_task
 
@@ -115,6 +115,42 @@ class TestObserveConsoleApi:
         assert response.json()["run"]["id"] == run.id
         assert detail.status_code == 200
         assert detail.json()["detail"]["steering_history"]
+        assert detail.json()["detail"]["steering_history"][-1]["type"] == "steering.note_added"
+
+    def test_run_steer_endpoint_allows_note_on_accepted_run(self, temp_hive_dir, capsys):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="local")
+        eval_run(temp_hive_dir, run.id)
+        accept_run(temp_hive_dir, run.id)
+
+        client = TestClient(app)
+        response = client.post(
+            f"/runs/{run.id}/steer",
+            params={"path": temp_hive_dir},
+            json={"action": "note", "note": "Capture final operator context.", "actor": "operator"},
+        )
+        detail = client.get(f"/runs/{run.id}", params={"path": temp_hive_dir})
+
+        assert response.status_code == 200
+        assert response.json()["run"]["status"] == "accepted"
+        assert response.json()["run"]["metadata_json"]["steering_history"][-1]["note"] == (
+            "Capture final operator context."
+        )
+        assert detail.status_code == 200
         assert detail.json()["detail"]["steering_history"][-1]["type"] == "steering.note_added"
 
     def test_projects_campaigns_search_and_console_routes_are_available(

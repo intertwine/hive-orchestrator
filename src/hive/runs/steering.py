@@ -10,61 +10,18 @@ from src.hive.clock import utc_now_iso
 from src.hive.constants import RUN_TERMINAL_STATUSES
 from src.hive.drivers import SteeringRequest, get_driver
 from src.hive.runs.driver_state import (
-    _active_driver_handle as _active_driver_handle_impl,
-    _append_transcript_entry as _append_transcript_entry_impl,
-    _build_reroute_launch_request as _build_reroute_launch_request_impl,
-    _load_driver_handles as _load_driver_handles_impl,
-    _record_driver_status as _record_driver_status_impl,
-    _record_steering_history as _record_steering_history_impl,
-    _save_driver_handles as _save_driver_handles_impl,
-    _steering_event_type as _steering_event_type_impl,
+    _active_driver_handle,
+    _append_transcript_entry,
+    _build_reroute_launch_request,
+    _load_driver_handles,
+    _record_driver_status,
+    _record_steering_history,
+    _save_driver_handles,
+    _steering_event_type,
 )
 from src.hive.runs.metadata import load_run, save_run
 from src.hive.store.events import emit_event
 from src.hive.store.task_files import get_task, save_task
-
-
-def _active_driver_handle(metadata: dict):
-    return _active_driver_handle_impl(metadata)
-
-
-def _append_transcript_entry(path: Path, record: dict[str, object]) -> None:
-    _append_transcript_entry_impl(path, record)
-
-
-def _load_driver_handles(metadata: dict) -> dict[str, object]:
-    return _load_driver_handles_impl(metadata)
-
-
-def _save_driver_handles(metadata: dict, handles: dict[str, object]) -> None:
-    _save_driver_handles_impl(metadata, handles)
-
-
-def _record_driver_status(metadata: dict, status: dict[str, object]) -> None:
-    _record_driver_status_impl(metadata, status)
-
-
-def _record_steering_history(metadata: dict, **kwargs) -> dict[str, object]:
-    return _record_steering_history_impl(metadata, **kwargs)
-
-
-def _steering_event_type(action: str) -> str:
-    return _steering_event_type_impl(action)
-
-
-def _build_reroute_launch_request(
-    root: Path,
-    metadata: dict,
-    *,
-    driver_name: str,
-    model: str | None = None,
-):
-    return _build_reroute_launch_request_impl(
-        root,
-        metadata,
-        driver_name=driver_name,
-        model=model,
-    )
 
 
 def steer_run(
@@ -91,7 +48,7 @@ def steer_run(
         raise ValueError(f"Unsupported steering action {action!r}")
     if action in {"approve", "reject"}:
         raise ValueError("Approval and rejection are handled by the lifecycle wrapper.")
-    if metadata.get("status") in RUN_TERMINAL_STATUSES:
+    if action != "note" and metadata.get("status") in RUN_TERMINAL_STATUSES:
         raise ValueError(f"Cannot steer terminal run with status {metadata.get('status')!r}")
 
     driver = get_driver(str(metadata.get("driver", "local")))

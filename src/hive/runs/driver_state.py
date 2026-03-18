@@ -295,7 +295,11 @@ def _request_codex_app_server_command_approval(
 ) -> dict[str, Any] | None:
     imports = _driver_imports(metadata)
     seen_ids = imports.setdefault("app_server_command_approval_ids", [])
-    approval_key = str(payload.get("approvalId") or payload.get("itemId") or request_id or "")
+    approval_key = (
+        str(request_id)
+        if request_id is not None
+        else str(payload.get("approvalId") or payload.get("itemId") or "")
+    )
     if approval_key and approval_key in seen_ids:
         return None
     command_text = str(payload.get("command") or payload.get("itemId") or "command")
@@ -333,7 +337,11 @@ def _request_codex_app_server_file_approval(
 ) -> dict[str, Any] | None:
     imports = _driver_imports(metadata)
     seen_ids = imports.setdefault("app_server_file_approval_ids", [])
-    approval_key = str(payload.get("itemId") or payload.get("callId") or request_id or "")
+    approval_key = (
+        str(request_id)
+        if request_id is not None
+        else str(payload.get("itemId") or payload.get("callId") or "")
+    )
     if approval_key and approval_key in seen_ids:
         return None
     grant_root = str(payload.get("grantRoot") or "").strip()

@@ -12,6 +12,8 @@ import sys
 import time
 from typing import Any
 
+TERMINAL_TURN_STATUSES = {"completed", "interrupted", "cancelled", "failed"}
+
 
 def _append_ndjson(path: Path, record: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -125,7 +127,10 @@ class CodexAppServerBroker:
         request_id = message.get("id")
         method = str(message.get("method") or "")
         params = dict(message.get("params") or {})
-        key = self._approval_key(request_id, method, params)
+        if request_id is not None:
+            key = str(request_id)
+        else:
+            key = self._approval_key(request_id, method, params)
         self.pending_requests[key] = {
             "id": request_id,
             "method": method,
@@ -232,6 +237,9 @@ class CodexAppServerBroker:
     def _send_interrupt(self) -> None:
         if not self.pending_interrupt:
             return
+        if self.state.get("turn_status") in TERMINAL_TURN_STATUSES:
+            self.pending_interrupt = False
+            return
         thread_id = str(self.state.get("thread_id") or "").strip()
         turn_id = str(self.state.get("turn_id") or "").strip()
         if not thread_id or not turn_id:
@@ -251,9 +259,9 @@ class CodexAppServerBroker:
         payload = dict(record.get("payload") or {})
         resolution = str(record.get("resolution") or "")
         for candidate in (
+            payload.get("server_request_id"),
             payload.get("approval_id"),
             payload.get("item_id"),
-            payload.get("server_request_id"),
             payload.get("call_id"),
         ):
             key = str(candidate or "").strip()
@@ -371,7 +379,7 @@ class CodexAppServerBroker:
                     self._check_driver_channel()
                     if process.poll() is not None:
                         break
-                    if self.state.get("turn_status") in {"completed", "interrupted", "cancelled", "failed"}:
+                    if self.state.get("turn_status") in TERMINAL_TURN_STATUSES:
                         if completed_at is None:
                             completed_at = time.monotonic()
                         elif time.monotonic() - completed_at >= 0.5 and not self.pending_requests:

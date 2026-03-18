@@ -158,8 +158,37 @@ def test_driver_doctor_surfaces_claude_live_exec_when_enabled(monkeypatch, capsy
     assert driver_payload["driver"] == "claude-code"
     assert driver_payload["effective"]["launch_mode"] == "exec"
     assert driver_payload["effective"]["session_persistence"] == "ephemeral"
+
+
+def test_driver_doctor_surfaces_codex_app_server_when_enabled(monkeypatch, capsys, temp_hive_dir):
+    driver = get_driver("codex")
+
+    def fake_detected_binary_details(self):
+        return ("codex", "/tmp/codex")
+
+    def fake_command_output(self, *args):
+        if args == ("--help",):
+            return "Commands:\n  exec\n  app-server\n"
+        if args == ("app-server", "--help"):
+            return "Usage: codex app-server --listen <URL>\n  --listen <URL>\n"
+        if args == ("exec", "--help"):
+            return "Usage: codex exec --json\n"
+        if args in {("--version",), ("version",)}:
+            return "codex 0.0.0-test"
+        return ""
+
+    monkeypatch.setattr(type(driver), "_detected_binary_details", fake_detected_binary_details)
+    monkeypatch.setattr(type(driver), "_command_output", fake_command_output)
+    monkeypatch.setenv("HIVE_CODEX_LIVE_APP_SERVER", "1")
+    monkeypatch.delenv("HIVE_CODEX_LIVE_EXEC", raising=False)
+
+    payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "driver", "doctor", "codex"])
+
+    driver_payload = payload["drivers"][0]
+    assert driver_payload["effective"]["launch_mode"] == "app_server"
+    assert driver_payload["effective"]["session_persistence"] == "thread"
     assert driver_payload["confidence"]["effective"] == "verified"
-    assert "non-interactive Claude run" in driver_payload["notes"][-1]
+    assert "live interactive Codex run" in driver_payload["notes"][-1]
 
 
 def test_live_session_contract_fields_round_trip():

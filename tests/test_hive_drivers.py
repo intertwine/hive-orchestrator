@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import subprocess
+import tempfile
+import time
 
 from tests.conftest import init_git_repo, write_safe_program
 from hive.cli.main import main as hive_main
@@ -41,6 +43,189 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
     captured = capsys.readouterr()
     assert exit_code == 0
     return json.loads(captured.out)
+
+
+def _write_fake_codex_binary(base_dir: str) -> Path:
+    temp_dir = Path(tempfile.mkdtemp(prefix="fake-codex-"))
+    target = temp_dir / "fake-codex.py"
+    target.write_text(
+        """#!/usr/bin/env python3
+import json
+import sys
+
+
+def send(payload):
+    sys.stdout.write(json.dumps(payload, sort_keys=True) + "\\n")
+    sys.stdout.flush()
+
+
+def main():
+    args = sys.argv[1:]
+    if args == ["--help"]:
+        sys.stdout.write("Codex CLI\\nCommands:\\n  exec\\n  app-server\\n")
+        return 0
+    if args == ["--version"]:
+        sys.stdout.write("codex 0.0.0-test\\n")
+        return 0
+    if args[:2] == ["app-server", "--help"]:
+        sys.stdout.write("Usage: codex app-server --listen <URL>\\n  --listen <URL>\\n")
+        return 0
+    if args[:3] != ["app-server", "--listen", "stdio://"]:
+        return 2
+
+    thread_id = "thread_test"
+    turn_id = "turn_test"
+    approval_request_id = 9001
+
+    for raw_line in sys.stdin:
+        line = raw_line.strip()
+        if not line:
+            continue
+        message = json.loads(line)
+        method = message.get("method")
+        if method == "initialize":
+            send({"id": message["id"], "result": {"userAgent": "fake-codex"}})
+        elif method == "thread/start":
+            send(
+                {
+                    "id": message["id"],
+                    "result": {
+                        "thread": {"id": thread_id, "status": {"type": "idle"}},
+                        "model": "gpt-5.4",
+                        "modelProvider": "openai",
+                        "cwd": ".",
+                        "approvalPolicy": "on-request",
+                        "sandbox": {"type": "workspaceWrite"},
+                    },
+                }
+            )
+            send({"method": "thread/started", "params": {"thread": {"id": thread_id, "status": {"type": "idle"}}}})
+            send({"method": "thread/status/changed", "params": {"threadId": thread_id, "status": {"type": "idle"}}})
+        elif method == "turn/start":
+            prompt = " ".join(
+                item.get("text", "")
+                for item in message.get("params", {}).get("input", [])
+                if isinstance(item, dict)
+            )
+            send(
+                {
+                    "id": message["id"],
+                    "result": {"turn": {"id": turn_id, "items": [], "status": "inProgress", "error": None}},
+                }
+            )
+            send(
+                {
+                    "method": "turn/started",
+                    "params": {"threadId": thread_id, "turn": {"id": turn_id, "items": [], "status": "inProgress", "error": None}},
+                }
+            )
+            send({"method": "thread/status/changed", "params": {"threadId": thread_id, "status": {"type": "active", "activeFlags": []}}})
+            if "WAIT_FOR_INTERRUPT" in prompt:
+                continue
+            send({"method": "item/agentMessage/delta", "params": {"threadId": thread_id, "turnId": turn_id, "itemId": "msg_1", "delta": "Working"}})
+            send({"method": "turn/plan/updated", "params": {"threadId": thread_id, "turnId": turn_id, "explanation": "Inspect repo", "plan": [{"step": "Inspect repo", "status": "inProgress"}]}})
+            send(
+                {
+                    "method": "item/commandExecution/requestApproval",
+                    "id": approval_request_id,
+                    "params": {
+                        "threadId": thread_id,
+                        "turnId": turn_id,
+                        "itemId": "cmd_1",
+                        "approvalId": "appr_1",
+                        "command": "git status",
+                        "cwd": ".",
+                        "reason": "Need repo status",
+                    },
+                }
+            )
+        elif method == "turn/interrupt":
+            send({"id": message["id"], "result": {}})
+            send({"method": "thread/status/changed", "params": {"threadId": thread_id, "status": {"type": "idle"}}})
+            send(
+                {
+                    "method": "thread/tokenUsage/updated",
+                    "params": {
+                        "threadId": thread_id,
+                        "turnId": turn_id,
+                        "tokenUsage": {
+                            "total": {
+                                "totalTokens": 7,
+                                "inputTokens": 3,
+                                "cachedInputTokens": 0,
+                                "outputTokens": 4,
+                                "reasoningOutputTokens": 0,
+                            }
+                        },
+                    },
+                }
+            )
+            send(
+                {
+                    "method": "turn/completed",
+                    "params": {"threadId": thread_id, "turn": {"id": turn_id, "items": [], "status": "interrupted", "error": None}},
+                }
+            )
+            return 0
+        elif message.get("id") == approval_request_id and "result" in message:
+            send({"method": "item/agentMessage/delta", "params": {"threadId": thread_id, "turnId": turn_id, "itemId": "msg_1", "delta": " approved"}})
+            send({"method": "turn/diff/updated", "params": {"threadId": thread_id, "turnId": turn_id, "diff": "diff --git a/README.md b/README.md"}})
+            send(
+                {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": thread_id,
+                        "turnId": turn_id,
+                        "item": {"type": "agentMessage", "id": "msg_1", "text": "Working approved", "phase": "final_answer"},
+                    },
+                }
+            )
+            send(
+                {
+                    "method": "thread/tokenUsage/updated",
+                    "params": {
+                        "threadId": thread_id,
+                        "turnId": turn_id,
+                        "tokenUsage": {
+                            "total": {
+                                "totalTokens": 9,
+                                "inputTokens": 4,
+                                "cachedInputTokens": 1,
+                                "outputTokens": 5,
+                                "reasoningOutputTokens": 0,
+                            }
+                        },
+                    },
+                }
+            )
+            send({"method": "thread/status/changed", "params": {"threadId": thread_id, "status": {"type": "idle"}}})
+            send(
+                {
+                    "method": "turn/completed",
+                    "params": {"threadId": thread_id, "turn": {"id": turn_id, "items": [], "status": "completed", "error": None}},
+                }
+            )
+            return 0
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+""",
+        encoding="utf-8",
+    )
+    target.chmod(0o755)
+    return target
+
+
+def _poll_run_status(temp_hive_dir: str, capsys, run_id: str, *, attempts: int = 20) -> dict:
+    payload: dict = {}
+    for _ in range(attempts):
+        payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "run", "status", run_id])
+        if payload.get("status"):
+            return payload
+        time.sleep(0.1)
+    return payload
 
 
 class TestHiveDrivers:
@@ -795,6 +980,137 @@ class TestHiveDrivers:
             channel_path
         )
         assert "approval.forwarded" in event_types
+
+    def test_codex_app_server_launches_live_run_and_round_trips_approval(
+        self, temp_hive_dir, capsys, monkeypatch
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        driver = get_driver("codex")
+        fake_binary = _write_fake_codex_binary(temp_hive_dir)
+
+        def fake_detected_binary_details(self):
+            return ("codex", str(fake_binary))
+
+        monkeypatch.setattr(type(driver), "_detected_binary_details", fake_detected_binary_details)
+        monkeypatch.setenv("HIVE_CODEX_LIVE_APP_SERVER", "1")
+        monkeypatch.delenv("HIVE_CODEX_LIVE_EXEC", raising=False)
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="codex")
+
+        pending_payload = {}
+        for _ in range(30):
+            pending_payload = _invoke_cli_json(
+                capsys,
+                ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+            )
+            if pending_payload["status"]["pending_approvals"]:
+                break
+            time.sleep(0.1)
+
+        approval_id = pending_payload["status"]["pending_approvals"][0]["approval_id"]
+        resolution = steer_run(
+            temp_hive_dir,
+            run.id,
+            SteeringRequest(action="approve", target={"approval_id": approval_id}),
+            actor="operator",
+        )
+
+        completed_payload = {}
+        for _ in range(30):
+            completed_payload = _invoke_cli_json(
+                capsys,
+                ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+            )
+            if completed_payload["status"]["state"] == "completed_candidate":
+                break
+            time.sleep(0.1)
+
+        metadata = load_run(temp_hive_dir, run.id)
+        run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
+        handles = json.loads((run_root / "driver" / "handles.json").read_text(encoding="utf-8"))
+        transcript = (run_root / "transcript.ndjson").read_text(encoding="utf-8")
+
+        assert resolution["driver_ack"]["ok"] is True
+        assert pending_payload["status"]["session"]["launch_mode"] == "app_server"
+        assert pending_payload["status"]["session"]["transport"] == "stdio-jsonrpc"
+        assert pending_payload["status"]["waiting_on"] == "approval"
+        assert pending_payload["status"]["pending_approvals"][0]["payload"]["command"] == "git status"
+        assert completed_payload["status"]["state"] == "completed_candidate"
+        assert completed_payload["status"]["session"]["thread_id"] == "thread_test"
+        assert handles["active"]["launch_mode"] == "app_server"
+        assert handles["active"]["thread_id"] == "thread_test"
+        assert metadata["metadata_json"]["budget_rollup"]["spent_tokens"] == 9
+        assert "Working" in transcript
+        assert "approved" in transcript
+
+    def test_codex_app_server_cancel_routes_interrupt_request(
+        self, temp_hive_dir, capsys, monkeypatch
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        driver = get_driver("codex")
+        fake_binary = _write_fake_codex_binary(temp_hive_dir)
+
+        def fake_detected_binary_details(self):
+            return ("codex", str(fake_binary))
+
+        def fake_prompt(self, request):
+            return "WAIT_FOR_INTERRUPT"
+
+        monkeypatch.setattr(type(driver), "_detected_binary_details", fake_detected_binary_details)
+        monkeypatch.setattr(type(driver), "_build_exec_prompt", fake_prompt)
+        monkeypatch.setenv("HIVE_CODEX_LIVE_APP_SERVER", "1")
+        monkeypatch.delenv("HIVE_CODEX_LIVE_EXEC", raising=False)
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="codex")
+
+        interrupt_payload = steer_run(
+            temp_hive_dir,
+            run.id,
+            SteeringRequest(action="cancel"),
+            actor="operator",
+        )
+
+        cancelled_payload = {}
+        for _ in range(30):
+            cancelled_payload = _invoke_cli_json(
+                capsys,
+                ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+            )
+            if cancelled_payload["status"]["state"] == "cancelled":
+                break
+            time.sleep(0.1)
+
+        assert interrupt_payload["driver_ack"]["ok"] is True
+        assert cancelled_payload["status"]["state"] == "cancelled"
+        assert cancelled_payload["status"]["session"]["launch_mode"] == "app_server"
 
     def test_run_status_refreshes_live_claude_driver_status(
         self, temp_hive_dir, capsys, monkeypatch

@@ -1076,6 +1076,423 @@ def test_local_executor_reports_missing_e2b_sdk(monkeypatch, tmp_path):
     assert result.sandbox["backend"] == "e2b"
 
 
+def test_local_executor_rejects_e2b_network_allowlist(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+    calls: dict[str, object] = {}
+
+    class FakeSandbox:
+        @classmethod
+        def create(cls, **kwargs):
+            calls["create"] = kwargs
+            return cls()
+
+    monkeypatch.setattr("src.hive.runs.executors._load_e2b_sdk", lambda: FakeSandbox)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "inherit", "allowlist": ["api.example.com"]},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert "allowlists are not wired yet" in result.stderr
+    assert result.sandbox is not None
+    assert result.sandbox["network_allowlist"] == ["api.example.com"]
+    assert "create" not in calls
+
+
+def test_local_executor_rejects_invalid_e2b_network_mode(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+    calls: dict[str, object] = {}
+
+    class FakeSandbox:
+        @classmethod
+        def create(cls, **kwargs):
+            calls["create"] = kwargs
+            return cls()
+
+    monkeypatch.setattr("src.hive.runs.executors._load_e2b_sdk", lambda: FakeSandbox)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "surprise", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert "only supports network modes 'deny' and 'inherit'" in result.stderr
+    assert result.sandbox is not None
+    assert result.sandbox["network_mode"] == "surprise"
+    assert "create" not in calls
+
+
+def test_local_executor_rejects_misconfigured_e2b_mounts(tmp_path):
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert "requires read_write mounts for both the worktree and artifacts" in result.stderr
+
+
+def test_local_executor_reports_e2b_cwd_outside_worktree(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    outside = tmp_path / "outside"
+    worktree.mkdir()
+    artifacts.mkdir()
+    outside.mkdir()
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_e2b_sdk",
+        lambda: (_ for _ in ()).throw(AssertionError("SDK should not be loaded for invalid cwd")),
+    )
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=outside, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert str(outside.resolve()) in result.stderr
+    assert str(worktree.resolve()) in result.stderr
+
+
+def test_local_executor_rejects_unknown_e2b_result_shape(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    class SyncResult:
+        exit_code = 0
+        stdout = ""
+        stderr = ""
+
+    class UnknownResult:
+        stdout = "ok\n"
+        stderr = ""
+
+    class FakeCommands:
+        def __init__(self):
+            self.calls = 0
+
+        def run(self, cmd, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return SyncResult()
+            return UnknownResult()
+
+    class FakeFiles:
+        def make_dir(self, path):
+            return True
+
+        def write(self, path, data):
+            return {"path": path}
+
+    class FakeSandbox:
+        sandbox_id = "sbx_123"
+
+        def __init__(self):
+            self.files = FakeFiles()
+            self.commands = FakeCommands()
+
+        def kill(self):
+            return True
+
+        @classmethod
+        def create(cls, **kwargs):
+            return cls()
+
+    monkeypatch.setattr("src.hive.runs.executors._load_e2b_sdk", lambda: FakeSandbox)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert "did not expose an exit_code/returncode" in result.stderr
+    assert result.timed_out is False
+
+
+def test_local_executor_does_not_treat_non_e2b_timeout_names_as_remote_timeouts(
+    monkeypatch, tmp_path
+):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    class PretenderTimeoutException(Exception):
+        __module__ = "pretender.sdk"
+
+    class FakeCommands:
+        def __init__(self):
+            self.calls = 0
+
+        def run(self, cmd, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return {"exit_code": 0, "stdout": "", "stderr": ""}
+            raise PretenderTimeoutException("pretend timeout")
+
+    class FakeFiles:
+        def make_dir(self, path):
+            return True
+
+        def write(self, path, data):
+            return {"path": path}
+
+    class FakeSandbox:
+        sandbox_id = "sbx_123"
+
+        def __init__(self):
+            self.files = FakeFiles()
+            self.commands = FakeCommands()
+
+        def kill(self):
+            return True
+
+        @classmethod
+        def create(cls, **kwargs):
+            return cls()
+
+    monkeypatch.setattr("src.hive.runs.executors._load_e2b_sdk", lambda: FakeSandbox)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert result.timed_out is False
+    assert result.stderr == "pretend timeout"
+
+
+def test_local_executor_does_not_treat_e2b_infrastructure_timeouts_as_command_timeouts(
+    monkeypatch, tmp_path
+):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    class FakeSandbox:
+        @classmethod
+        def create(cls, **kwargs):
+            raise TimeoutError("sandbox create timed out")
+
+    monkeypatch.setattr("src.hive.runs.executors._load_e2b_sdk", lambda: FakeSandbox)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert result.timed_out is False
+    assert result.stderr == "sandbox create timed out"
+
+
+def test_local_executor_does_not_treat_non_e2b_command_exit_names_as_remote_exits(
+    monkeypatch, tmp_path
+):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    class PretenderCommandExitException(Exception):
+        __module__ = "pretender.sdk"
+        exit_code = 7
+
+    class FakeCommands:
+        def __init__(self):
+            self.calls = 0
+
+        def run(self, cmd, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return {"exit_code": 0, "stdout": "", "stderr": ""}
+            raise PretenderCommandExitException("pretend command exit")
+
+    class FakeFiles:
+        def make_dir(self, path):
+            return True
+
+        def write(self, path, data):
+            return {"path": path}
+
+    class FakeSandbox:
+        sandbox_id = "sbx_123"
+
+        def __init__(self):
+            self.files = FakeFiles()
+            self.commands = FakeCommands()
+
+        def kill(self):
+            return True
+
+        @classmethod
+        def create(cls, **kwargs):
+            return cls()
+
+    monkeypatch.setattr("src.hive.runs.executors._load_e2b_sdk", lambda: FakeSandbox)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert result.timed_out is False
+    assert result.stderr == "pretend command exit"
+
+
 def test_local_executor_reports_missing_daytona_sdk(monkeypatch, tmp_path):
     worktree = tmp_path / "worktree"
     artifacts = tmp_path / "artifacts"

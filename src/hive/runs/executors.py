@@ -160,8 +160,13 @@ _DAYTONA_SESSION_ID = "hive-exec"
 
 def _policy_mount_roots(policy: SandboxPolicy, cwd: Path) -> tuple[Path, Path]:
     mounts = list(policy.mounts.get("read_write") or [])
-    host_worktree = Path(str(mounts[0] if mounts else cwd)).resolve()
-    host_artifacts = Path(str(mounts[1] if len(mounts) > 1 else cwd)).resolve()
+    if len(mounts) < 2:
+        raise ValueError(
+            "Remote sandbox execution requires read_write mounts for both the worktree "
+            "and artifacts directories."
+        )
+    host_worktree = Path(str(mounts[0])).resolve()
+    host_artifacts = Path(str(mounts[1])).resolve()
     return host_worktree, host_artifacts
 
 
@@ -240,8 +245,42 @@ def _coerce_remote_returncode(result: object) -> int:
         if value is None and isinstance(result, dict):
             value = result.get(key)
         if value is not None:
-            return int(value)
-    return 0
+            try:
+                return int(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"Remote executor returned a non-integer {key}: {value!r}"
+                ) from exc
+    raise ValueError(
+        "Remote executor result did not expose an exit_code/returncode; refusing to assume success."
+    )
+
+
+def _e2b_allow_internet_access(policy: SandboxPolicy) -> bool:
+    mode = str(policy.network.get("mode") or "").strip().lower()
+    if mode == "deny":
+        return False
+    if mode == "inherit":
+        return True
+    raise ValueError(
+        "E2B hosted-managed execution only supports network modes 'deny' and 'inherit'; "
+        f"got {mode or '<unset>'!r}."
+    )
+
+
+def _is_e2b_timeout_exception(exc: Exception) -> bool:
+    if not exc.__class__.__module__.startswith("e2b"):
+        return False
+    return exc.__class__.__name__ == "TimeoutException" or isinstance(exc, TimeoutError)
+
+
+def _is_e2b_command_exit_exception(exc: Exception) -> bool:
+    if not exc.__class__.__module__.startswith("e2b"):
+        return False
+    exit_code = getattr(exc, "exit_code", None)
+    if exit_code is not None:
+        return True
+    return exc.__class__.__name__ == "CommandExitException"
 
 
 def _run_e2b_command(
@@ -254,10 +293,39 @@ def _run_e2b_command(
 ) -> CommandResult:
     """Run one evaluator-style command inside an ephemeral E2B sandbox."""
     started = started_at
-    host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
     allowlist = [
         str(item) for item in list(policy.network.get("allowlist") or []) if str(item).strip()
     ]
+    sandbox_metadata: dict[str, object] = {
+        "backend": policy.backend,
+        "profile": policy.profile,
+        "provenance": policy.provenance,
+        "network_mode": policy.network.get("mode"),
+        "network_allowlist": allowlist,
+        "command": command,
+        "command_payload": {"transport": "e2b-sdk"},
+        "shell": False,
+        "cwd": str(cwd),
+        "workspace_sync": "upload_only",
+        "remote_worktree": _REMOTE_WORKTREE,
+        "remote_artifacts": _REMOTE_ARTIFACTS,
+    }
+    try:
+        host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
+    except ValueError:
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr=(
+                "Remote sandbox execution requires read_write mounts for both the worktree and "
+                "artifacts directories."
+            ),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
     if allowlist:
         return CommandResult(
             command=command,
@@ -266,45 +334,27 @@ def _run_e2b_command(
             returncode=1,
             stdout="",
             stderr=(
-                "E2B hosted-managed execution currently supports deny-all or inherited network "
-                "policies only; allowlists are not wired yet."
+                "E2B hosted-managed execution currently supports deny-all or inherited "
+                "network policies only; allowlists are not wired yet."
             ),
             timed_out=False,
-            sandbox={
-                "backend": policy.backend,
-                "profile": policy.profile,
-                "provenance": policy.provenance,
-                "network_mode": policy.network.get("mode"),
-                "network_allowlist": allowlist,
-                "command": command,
-                "command_payload": {"transport": "e2b-sdk"},
-                "shell": False,
-                "cwd": str(cwd),
-                "workspace_sync": "upload_only",
-            },
+            sandbox=sandbox_metadata,
         )
     try:
         relative_cwd = cwd.resolve().relative_to(host_worktree)
-    except ValueError:
-        relative_cwd = Path(".")
+    except ValueError as exc:
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr=str(exc),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
     remote_cwd = str((Path(_REMOTE_WORKTREE) / relative_cwd).as_posix())
-    sandbox_metadata: dict[str, object] = {
-        "backend": policy.backend,
-        "profile": policy.profile,
-        "provenance": policy.provenance,
-        "network_mode": policy.network.get("mode"),
-        "network_allowlist": allowlist,
-        "command": command,
-        "command_payload": {
-            "transport": "e2b-sdk",
-            "remote_cwd": remote_cwd,
-        },
-        "shell": False,
-        "cwd": str(cwd),
-        "workspace_sync": "upload_only",
-        "remote_worktree": _REMOTE_WORKTREE,
-        "remote_artifacts": _REMOTE_ARTIFACTS,
-    }
+    sandbox_metadata["command_payload"] = {"transport": "e2b-sdk", "remote_cwd": remote_cwd}
     sandbox = None
     try:
         if any(
@@ -326,7 +376,7 @@ def _run_e2b_command(
                 "hive_profile": policy.profile,
                 "hive_cwd": str(cwd),
             },
-            "allow_internet_access": policy.network.get("mode") != "deny",
+            "allow_internet_access": _e2b_allow_internet_access(policy),
         }
         sandbox = sandbox_class.create(**create_kwargs)
         sandbox_metadata["remote_sandbox_id"] = getattr(sandbox, "sandbox_id", None)
@@ -359,7 +409,7 @@ def _run_e2b_command(
             sandbox=sandbox_metadata,
         )
     except Exception as exc:  # pylint: disable=broad-except
-        if exc.__class__.__name__ == "TimeoutException":
+        if _is_e2b_timeout_exception(exc):
             return CommandResult(
                 command=command,
                 started_at=started,
@@ -370,9 +420,7 @@ def _run_e2b_command(
                 timed_out=True,
                 sandbox=sandbox_metadata,
             )
-        if exc.__class__.__name__ == "CommandExitException" or getattr(
-            exc, "exit_code", None
-        ) is not None:
+        if _is_e2b_command_exit_exception(exc):
             return CommandResult(
                 command=command,
                 started_at=started,

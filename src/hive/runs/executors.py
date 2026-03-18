@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import ipaddress
 import io
 import json
 import os
@@ -474,6 +475,51 @@ def _daytona_resources(policy: SandboxPolicy, resources_class):
     )
 
 
+def _is_daytona_timeout_exception(exc: Exception) -> bool:
+    if not exc.__class__.__module__.startswith("daytona"):
+        return False
+    return exc.__class__.__name__ == "TimeoutException" or isinstance(exc, TimeoutError)
+
+
+def _is_daytona_command_exit_exception(exc: Exception) -> bool:
+    if not exc.__class__.__module__.startswith("daytona"):
+        return False
+    exit_code = getattr(exc, "exit_code", None)
+    if exit_code is not None:
+        return True
+    return exc.__class__.__name__ == "CommandExitException"
+
+
+def _validated_daytona_allowlist(policy: SandboxPolicy) -> list[str]:
+    allowlist = [
+        str(item).strip() for item in list(policy.network.get("allowlist") or []) if str(item).strip()
+    ]
+    if not allowlist:
+        return []
+    if len(allowlist) > 10:
+        raise ValueError(
+            "Daytona team-self-hosted execution supports up to 10 CIDR network allowlist entries."
+        )
+    invalid: list[str] = []
+    for entry in allowlist:
+        if "/" not in entry:
+            invalid.append(entry)
+            continue
+        try:
+            network = ipaddress.ip_network(entry, strict=False)
+        except ValueError:
+            invalid.append(entry)
+            continue
+        if network.version != 4 or network.prefixlen == 0:
+            invalid.append(entry)
+    if invalid:
+        raise ValueError(
+            "Daytona team-self-hosted execution only supports IPv4 CIDR network allowlists "
+            f"with prefix lengths greater than 0; unsupported entries: {', '.join(invalid)}"
+        )
+    return allowlist
+
+
 def _remote_shell_command(command: str, *, remote_cwd: str) -> str:
     payload = f"cd {shlex.quote(remote_cwd)} && {command}"
     return f"sh -lc {shlex.quote(payload)}"
@@ -489,39 +535,93 @@ def _run_daytona_command(
 ) -> CommandResult:
     """Run one evaluator-style command inside an ephemeral Daytona sandbox."""
     started = started_at
-    host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
-    allowlist = [
-        str(item) for item in list(policy.network.get("allowlist") or []) if str(item).strip()
+    raw_allowlist = [
+        str(item).strip() for item in list(policy.network.get("allowlist") or []) if str(item).strip()
     ]
-    try:
-        relative_cwd = cwd.resolve().relative_to(host_worktree)
-    except ValueError:
-        relative_cwd = Path(".")
-    remote_cwd = str((Path(_REMOTE_WORKTREE) / relative_cwd).as_posix())
+    network_mode = policy.network.get("mode")
     sandbox_metadata: dict[str, object] = {
         "backend": policy.backend,
         "profile": policy.profile,
         "provenance": policy.provenance,
-        "network_mode": policy.network.get("mode"),
-        "network_allowlist": allowlist,
+        "network_mode": network_mode,
         "command": command,
-        "command_payload": {
-            "transport": "daytona-sdk",
-            "remote_cwd": remote_cwd,
-        },
+        "command_payload": {"transport": "daytona-sdk"},
         "shell": False,
         "cwd": str(cwd),
         "workspace_sync": "upload_only",
         "remote_worktree": _REMOTE_WORKTREE,
         "remote_artifacts": _REMOTE_ARTIFACTS,
     }
+    if raw_allowlist:
+        sandbox_metadata["raw_network_allowlist"] = raw_allowlist
+    try:
+        host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
+    except ValueError:
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr=(
+                "Remote sandbox execution requires read_write mounts for both the worktree and "
+                "artifacts directories."
+            ),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
+    if list(policy.mounts.get("read_only") or []):
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr="Daytona team-self-hosted execution does not yet project extra read-only mounts.",
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
+    allowlist: list[str] = []
+    if network_mode == "deny":
+        try:
+            allowlist = _validated_daytona_allowlist(policy)
+        except ValueError as exc:
+            return CommandResult(
+                command=command,
+                started_at=started,
+                finished_at=utc_now_iso(),
+                returncode=1,
+                stdout="",
+                stderr=str(exc),
+                timed_out=False,
+                sandbox=sandbox_metadata,
+            )
+        if allowlist:
+            sandbox_metadata["network_allowlist"] = allowlist
+    try:
+        relative_cwd = cwd.resolve().relative_to(host_worktree)
+    except ValueError:
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr=(
+                "Daytona team-self-hosted execution requires the command cwd to remain within "
+                "the mounted worktree."
+            ),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
+    remote_cwd = str((Path(_REMOTE_WORKTREE) / relative_cwd).as_posix())
+    sandbox_metadata["command_payload"] = {
+        "transport": "daytona-sdk",
+        "remote_cwd": remote_cwd,
+    }
     sandbox = None
     session_created = False
     try:
-        if list(policy.mounts.get("read_only") or []):
-            raise NotImplementedError(
-                "Daytona team-self-hosted execution does not yet project extra read-only mounts."
-            )
         (
             daytona_class,
             config_class,
@@ -552,8 +652,10 @@ def _run_daytona_command(
                 "hive_cwd": str(cwd),
             },
             "ephemeral": True,
-            "network_block_all": policy.network.get("mode") == "deny" and not allowlist,
-            "network_allow_list": ",".join(allowlist) if allowlist else None,
+            # Daytona treats a non-empty allow list as the network boundary, so we reject /0
+            # above and only disable block-all when a bounded IPv4 allow list is present.
+            "network_block_all": network_mode == "deny" and not allowlist,
+            "network_allow_list": ",".join(allowlist) if network_mode == "deny" and allowlist else None,
             "resources": _daytona_resources(policy, resources_class),
         }
         snapshot = os.environ.get("HIVE_DAYTONA_SNAPSHOT")
@@ -576,6 +678,7 @@ def _run_daytona_command(
         archive_bytes = _archive_mounts(host_worktree, host_artifacts)
         sandbox.fs.create_folder(_REMOTE_WORKTREE, "755")
         sandbox.fs.create_folder(_REMOTE_ARTIFACTS, "755")
+        # Daytona supports bytes -> remote_path uploads for in-memory artifacts.
         sandbox.fs.upload_file(archive_bytes, _REMOTE_ARCHIVE)
         sync_result = sandbox.process.exec(
             _remote_shell_command(
@@ -609,7 +712,7 @@ def _run_daytona_command(
             sandbox=sandbox_metadata,
         )
     except Exception as exc:  # pylint: disable=broad-except
-        if "Timeout" in exc.__class__.__name__:
+        if _is_daytona_timeout_exception(exc):
             return CommandResult(
                 command=command,
                 started_at=started,
@@ -622,7 +725,7 @@ def _run_daytona_command(
                 timed_out=True,
                 sandbox=sandbox_metadata,
             )
-        if getattr(exc, "exit_code", None) is not None:
+        if _is_daytona_command_exit_exception(exc):
             return CommandResult(
                 command=command,
                 started_at=started,

@@ -20,6 +20,7 @@ from src.hive.runs.engine import (
     eval_run,
     load_run,
     promote_run,
+    refresh_run_driver_state,
     reject_run,
     run_artifacts,
     start_run,
@@ -47,7 +48,7 @@ def dispatch(args, root: Path) -> int:
             if args.run_command == "show":
                 return emit({"ok": True, "run": load_run(root, args.run_id)}, args.json)
             if args.run_command == "status":
-                run = load_run(root, args.run_id)
+                run = refresh_run_driver_state(root, args.run_id)
                 driver_status = run.get("metadata_json", {}).get("driver_status", {})
                 pending = [
                     approval

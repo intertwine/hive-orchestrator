@@ -311,3 +311,65 @@ def test_run_status_surfaces_session_and_pending_approvals(capsys, temp_hive_dir
     assert payload["status"]["progress"]["phase"] == "implementing"
     assert payload["status"]["pending_approvals"][0]["title"] == "Approve git diff"
     assert payload["pending_approvals"][0]["payload"]["command"] == "git diff"
+
+
+def test_run_status_refresh_surfaces_live_codex_session_payload(temp_hive_dir, capsys, monkeypatch):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    driver = get_driver("codex")
+    calls = {"count": 0}
+
+    def fake_live_exec_enabled(self):
+        return True
+
+    def fake_launch_live_exec(self, request):
+        return RunHandle(
+            run_id=request.run_id,
+            driver="codex",
+            driver_handle=f"codex:exec:{request.run_id}",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="exec",
+            transport="subprocess",
+            session_id="pid-7000",
+            event_cursor="0",
+            metadata={"pid": 7000, "last_message_path": "/tmp/codex-last.txt"},
+        )
+
+    def fake_status(self, handle):
+        calls["count"] += 1
+        cursor = "2" if calls["count"] == 1 else "9"
+        return RunStatus(
+            run_id=handle.run_id,
+            state="running",
+            health="healthy",
+            driver="codex",
+            progress=RunProgress(
+                phase="implementing",
+                message="Codex live exec is active.",
+                percent=40,
+            ),
+            waiting_on=None,
+            last_event_at="2026-03-18T06:02:00Z",
+            event_cursor=cursor,
+            session={"launch_mode": "exec", "transport": "subprocess", "session_id": "pid-7000"},
+            artifacts={
+                "last_message_path": "/tmp/codex-last.txt",
+                "raw_output_path": "/tmp/codex.jsonl",
+            },
+        )
+
+    monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+    monkeypatch.setattr(type(driver), "_launch_live_exec", fake_launch_live_exec)
+    monkeypatch.setattr(type(driver), "status", fake_status)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="codex")
+    payload = _invoke_cli_json(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+    )
+
+    assert payload["status"]["session"]["launch_mode"] == "exec"
+    assert payload["status"]["session"]["session_id"] == "pid-7000"
+    assert payload["status"]["event_cursor"] == "9"
+    assert payload["status"]["artifacts"]["raw_output_path"] == "/tmp/codex.jsonl"

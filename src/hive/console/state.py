@@ -7,7 +7,7 @@ from pathlib import Path
 
 from src.hive.control import portfolio_status, recommend_next_task
 from src.hive.runtime import list_approvals
-from src.hive.runs.engine import load_run
+from src.hive.runs.engine import refresh_run_driver_state
 from src.hive.scheduler.query import dependency_summary
 from src.hive.store.campaigns import list_campaigns
 from src.hive.store.events import load_events
@@ -31,7 +31,7 @@ def list_runs(
     """Return normalized runs for the observe console."""
     runs: list[dict] = []
     for metadata_path in _run_metadata_paths(base_path):
-        run = load_run(base_path, metadata_path.parent.name)
+        run = refresh_run_driver_state(base_path, metadata_path.parent.name)
         if project_id and run.get("project_id") != project_id:
             continue
         if driver and run.get("driver") != driver:
@@ -252,7 +252,7 @@ def build_home_view(base_path: Path) -> dict:
 
 def load_run_detail(base_path: Path, run_id: str) -> dict:
     """Return the detail payload for a single run."""
-    run = load_run(base_path, run_id)
+    run = refresh_run_driver_state(base_path, run_id)
     run_root = base_path / ".hive" / "runs" / run_id
     timeline = load_run_timeline(base_path, run_id)
     context_manifest = _load_json(run.get("context_manifest_path")) or {}

@@ -55,6 +55,7 @@ from src.hive.runs.driver_state import (
     _build_reroute_launch_request as _build_reroute_launch_request_impl,
     _emit_context_compiled_events as _emit_context_compiled_events_impl,
     _load_driver_handles as _load_driver_handles_impl,
+    _refresh_live_driver_status as _refresh_live_driver_status_impl,
     _record_driver_status as _record_driver_status_impl,
     _record_steering_history as _record_steering_history_impl,
     _save_driver_handles as _save_driver_handles_impl,
@@ -175,6 +176,10 @@ def _active_driver_handle(metadata: dict):
 
 def _record_driver_status(metadata: dict, status: dict[str, object]) -> None:
     _record_driver_status_impl(metadata, status)
+
+
+def _refresh_live_driver_status(metadata: dict) -> dict[str, object] | None:
+    return _refresh_live_driver_status_impl(metadata)
 
 
 def _record_steering_history(
@@ -635,6 +640,63 @@ def start_run(
             project_id=project.id,
         )
     return run
+
+
+def refresh_run_driver_state(path: str | Path | None, run_id: str) -> dict:
+    """Refresh persisted status for live driver-backed runs."""
+    root = Path(path or Path.cwd()).resolve()
+    metadata = load_run(root, run_id)
+    refreshed = _refresh_live_driver_status(metadata)
+    if refreshed is None:
+        return metadata
+
+    current = refreshed["current"]
+    previous = refreshed["previous"]
+    metadata["status"] = current.get("state", metadata.get("status"))
+    metadata["health"] = current.get("health", metadata.get("health"))
+    if metadata["status"] in {"completed_candidate", "failed", "cancelled"}:
+        metadata["finished_at"] = metadata.get("finished_at") or utc_now_iso()
+    save_run(root, run_id, metadata)
+    task_status = None
+    if metadata.get("task_id"):
+        task_status = get_task(root, metadata["task_id"]).status
+    sync_runtime_status_artifacts(metadata, task_status=task_status)
+    if previous.get("state") != current.get("state") or previous.get("health") != current.get(
+        "health"
+    ):
+        emit_event(
+            root,
+            actor={"kind": "system", "id": f"driver:{metadata.get('driver', 'unknown')}"},
+            entity_type="run",
+            entity_id=run_id,
+            event_type="run.status.changed",
+            source="run.status",
+            payload={"state": metadata.get("status"), "health": metadata.get("health")},
+            run_id=run_id,
+            task_id=metadata.get("task_id"),
+            project_id=metadata.get("project_id"),
+            campaign_id=metadata.get("campaign_id"),
+        )
+        event_type = {
+            "completed_candidate": "run.completed_candidate",
+            "failed": "run.failed",
+            "cancelled": "run.cancelled",
+        }.get(str(current.get("state") or ""))
+        if event_type:
+            emit_event(
+                root,
+                actor={"kind": "system", "id": f"driver:{metadata.get('driver', 'unknown')}"},
+                entity_type="run",
+                entity_id=run_id,
+                event_type=event_type,
+                source="run.status",
+                payload={"driver_status": current},
+                run_id=run_id,
+                task_id=metadata.get("task_id"),
+                project_id=metadata.get("project_id"),
+                campaign_id=metadata.get("campaign_id"),
+            )
+    return metadata
 
 
 def eval_run(path: str | Path | None, run_id: str) -> dict:

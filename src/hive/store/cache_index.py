@@ -613,6 +613,8 @@ class CacheBuilder:
             return
         for eval_path in sorted(eval_dir.glob("*.json")):
             evaluation = json.loads(eval_path.read_text(encoding="utf-8"))
+            if "evaluator_id" not in evaluation:
+                continue
             self.connection.execute(
                 """
                 INSERT INTO evaluations

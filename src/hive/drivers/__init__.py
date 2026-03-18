@@ -14,10 +14,13 @@ from src.hive.drivers.types import (
     RunWorkspace,
     SteeringRequest,
 )
+from src.hive.runtime.capabilities import CapabilitySnapshot, CapabilitySurface
 
 __all__ = [
     "DriverCapabilities",
     "DriverInfo",
+    "CapabilitySnapshot",
+    "CapabilitySurface",
     "RunBudget",
     "RunBudgetUsage",
     "RunHandle",

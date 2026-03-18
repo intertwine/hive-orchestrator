@@ -12,6 +12,15 @@ from src.hive.constants import RUN_ACTIVE_STATUSES, RUN_TERMINAL_STATUSES
 from src.hive.drivers import RunBudget, RunLaunchRequest, RunWorkspace, SteeringRequest, get_driver
 from src.hive.ids import new_id
 from src.hive.models.run import RunRecord
+from src.hive.retrieval_trace import build_retrieval_artifacts
+from src.hive.runtime.approvals import pending_approvals, resolve_approval
+from src.hive.runtime.capabilities import CapabilitySnapshot
+from src.hive.runtime.runpack import (
+    runtime_manifest,
+    sync_runtime_status_artifacts,
+    write_runtime_scaffold,
+)
+from src.hive.sandbox import resolve_sandbox_policy
 from src.hive.runs.context import compile_run_context
 from src.hive.runs.evaluators import run_evaluator, validate_evaluator_command
 from src.hive.runs.executors import get_executor
@@ -46,6 +55,7 @@ from src.hive.runs.driver_state import (
     _build_reroute_launch_request as _build_reroute_launch_request_impl,
     _emit_context_compiled_events as _emit_context_compiled_events_impl,
     _load_driver_handles as _load_driver_handles_impl,
+    _refresh_live_driver_status as _refresh_live_driver_status_impl,
     _record_driver_status as _record_driver_status_impl,
     _record_steering_history as _record_steering_history_impl,
     _save_driver_handles as _save_driver_handles_impl,
@@ -168,6 +178,10 @@ def _record_driver_status(metadata: dict, status: dict[str, object]) -> None:
     _record_driver_status_impl(metadata, status)
 
 
+def _refresh_live_driver_status(metadata: dict) -> dict[str, object] | None:
+    return _refresh_live_driver_status_impl(Path.cwd(), metadata)
+
+
 def _record_steering_history(
     metadata: dict,
     *,
@@ -214,6 +228,94 @@ def _artifact_payload(metadata: dict) -> dict[str, object]:
     return _artifact_payload_impl(metadata)
 
 
+def _bridge_approval_resolution(
+    root: Path,
+    metadata: dict,
+    *,
+    approval: dict[str, object],
+    action: str,
+    actor: str | None,
+    request: SteeringRequest,
+) -> dict[str, object] | None:
+    driver_ack: dict[str, object] | None = None
+    try:
+        handle = _active_driver_handle(metadata)
+    except ValueError:
+        handle = None
+    if handle is not None:
+        driver = get_driver(str(metadata.get("driver", handle.driver)))
+        driver_ack = cast(
+            dict[str, object],
+            driver.submit_approval_resolution(
+                handle,
+                cast(dict[str, object], approval),
+            ),
+        )
+    metadata.setdefault("metadata_json", {}).setdefault("approval_resolutions", []).append(approval)
+    metadata.setdefault("metadata_json", {}).setdefault("approval_forwarding", []).append(
+        {
+            "approval_id": approval.get("approval_id"),
+            "resolution": approval.get("resolution"),
+            "driver_ack": driver_ack,
+        }
+    )
+    _record_steering_history(
+        metadata,
+        action=action,
+        actor=actor,
+        reason=request.reason,
+        note=request.note,
+        target=cast(dict[str, object] | None, request.target),
+        budget_delta=cast(dict[str, object] | None, request.budget_delta),
+        ack=driver_ack,
+    )
+    if driver_ack is not None:
+        resolution = str(approval.get("resolution") or action)
+        _append_transcript_entry(
+            Path(metadata["transcript_path"]),
+            {
+                "ts": utc_now_iso(),
+                "kind": "system",
+                "driver": metadata.get("driver"),
+                "message": (
+                    f"Approval {approval.get('approval_id')} was {resolution} and forwarded "
+                    "to the driver channel."
+                ),
+                "approval_id": approval.get("approval_id"),
+                "resolution": resolution,
+            },
+        )
+        emit_event(
+            root,
+            actor={"kind": "human", "id": actor or "operator"},
+            entity_type="run",
+            entity_id=str(metadata["id"]),
+            event_type="approval.forwarded",
+            source="runtime.approval",
+            payload={"approval": approval, "driver_ack": driver_ack},
+            run_id=str(metadata["id"]),
+            task_id=metadata.get("task_id"),
+            project_id=metadata.get("project_id"),
+            campaign_id=metadata.get("campaign_id"),
+        )
+    return driver_ack
+
+
+def _selected_pending_approval(
+    pending: list[dict[str, object]],
+    request: SteeringRequest,
+) -> dict[str, object] | None:
+    target_id = str((request.target or {}).get("approval_id") or "").strip()
+    if not pending:
+        return None
+    if not target_id:
+        return cast(dict[str, object], pending[-1])
+    for item in pending:
+        if str(item.get("approval_id") or "") == target_id:
+            return cast(dict[str, object], item)
+    raise FileNotFoundError(f"Pending approval not found: {target_id}")
+
+
 def start_run(
     path: str | Path | None,
     task_id: str,
@@ -222,6 +324,8 @@ def start_run(
     model: str | None = None,
     campaign_id: str | None = None,
     profile: str = "default",
+    scheduler_candidate_set: dict[str, object] | None = None,
+    scheduler_decision: dict[str, object] | None = None,
 ) -> RunRecord:
     root = Path(path or Path.cwd()).resolve()
     task = get_task(root, task_id)
@@ -238,10 +342,16 @@ def start_run(
     run_directory = _run_dir(root, run_id)
     branch_name = _branch_name(project.slug, task.id, run_id)
     base_branch = current_branch(root)
+    worktree_root = worktrees_dir(root) / run_id
+    sandbox_policy = resolve_sandbox_policy(
+        worktree_path=str(worktree_root),
+        artifacts_path=str(run_directory),
+        profile=profile,
+    )
     worktree_path = create_run_worktree(
         root,
         branch_name=branch_name,
-        worktree_path=worktrees_dir(root) / run_id,
+        worktree_path=worktree_root,
     )
     base_commit = current_head(root)
 
@@ -255,6 +365,75 @@ def start_run(
         run_directory=run_directory,
         driver=driver.name,
         profile=profile,
+    )
+    capability_snapshot = driver_info.capability_snapshot or CapabilitySnapshot(driver=driver.name)
+    manifest = runtime_manifest(
+        run_id=run_id,
+        task_id=task.id,
+        project_id=project.id,
+        campaign_id=campaign_id,
+        driver=driver.name,
+        driver_mode=capability_snapshot.effective.launch_mode,
+        sandbox_backend=sandbox_policy.backend,
+        sandbox_profile=sandbox_policy.profile,
+        repo_root=str(root),
+        worktree_path=str(worktree_path),
+        base_branch=base_branch,
+        compiled_context_manifest=str(context_bundle["manifest_path"]),
+        capability_snapshot_path=str(paths["capability_snapshot_path"]),
+        scheduler_decision_path=str(paths["scheduler_decision_path"]),
+        retrieval_trace_path=str(paths["retrieval_trace_path"]),
+    )
+    paths.update(
+        write_runtime_scaffold(
+            run_directory,
+            manifest=manifest,
+            capability_snapshot=capability_snapshot,
+            sandbox_policy=sandbox_policy,
+        )
+    )
+    retrieval_hits, retrieval_trace = build_retrieval_artifacts(
+        str(context_bundle.get("query_text") or ""),
+        selected_hits=list(context_bundle.get("search_hits") or []),
+        candidate_hits=list(context_bundle.get("retrieval_candidates") or []),
+    )
+    paths["retrieval_hits_path"].write_text(
+        json.dumps(retrieval_hits, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    paths["retrieval_trace_path"].write_text(
+        json.dumps(retrieval_trace, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    default_candidate_set = {
+        "candidates": [
+            {
+                "candidate_id": task.id,
+                "lane": "exploit",
+                "scores": {
+                    "campaign_alignment": 1.0 if campaign_id else 0.5,
+                    "readiness": 1.0,
+                },
+                "recommended_driver": driver.name,
+                "recommended_sandbox": sandbox_policy.backend,
+            }
+        ]
+    }
+    default_decision = {
+        "selected_candidate_id": task.id,
+        "reason": (
+            "run started from an explicit task launch"
+            if campaign_id is None
+            else "run launched under the current campaign task selection"
+        ),
+    }
+    paths["scheduler_candidate_set_path"].write_text(
+        json.dumps(scheduler_candidate_set or default_candidate_set, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    paths["scheduler_decision_path"].write_text(
+        json.dumps(scheduler_decision or default_decision, indent=2, sort_keys=True),
+        encoding="utf-8",
     )
 
     paths["plan_path"].write_text(
@@ -315,6 +494,7 @@ def start_run(
     paths["stdout_path"].write_text("", encoding="utf-8")
     paths["stderr_path"].write_text("", encoding="utf-8")
     paths["transcript_path"].write_text("", encoding="utf-8")
+    paths["approval_channel_path"].write_text("", encoding="utf-8")
 
     launch_request = RunLaunchRequest(
         run_id=run_id,
@@ -342,6 +522,10 @@ def start_run(
             "initiator": "human",
             "source": "hive run start",
             "task_title": task.title,
+            "approval_channel": str(paths["approval_channel_path"]),
+            "handoff_manifest_path": context_bundle["handoff_bundle"].get("manifest_path"),
+            "handoff_summary_path": context_bundle["handoff_bundle"].get("summary_path"),
+            "handoff_runs": list(context_bundle["handoff_bundle"].get("items") or []),
         },
     )
     handle = driver.launch(launch_request)
@@ -387,22 +571,36 @@ def start_run(
         worktree_path=str(worktree_path),
         program_path=str(project.program_path),
         program_sha256=_program_sha(project.program_path),
+        runtime_manifest_path=str(paths["manifest_path"]),
+        capability_snapshot_path=str(paths["capability_snapshot_path"]),
+        sandbox_policy_path=str(paths["sandbox_policy_path"]),
         launch_path=str(paths["launch_path"]),
         context_manifest_path=str(context_bundle["manifest_path"]),
         context_compiled_dir=str(context_bundle["compiled_dir"]),
         transcript_path=str(paths["transcript_path"]),
+        transcript_ndjson_path=str(paths["transcript_ndjson_path"]),
         transcript_raw_dir=str(paths["transcript_raw_dir"]),
         workspace_patch_path=str(paths["patch_path"]),
         workspace_changed_files_path=str(paths["changed_files_path"]),
         driver_metadata_path=str(paths["driver_metadata_path"]),
         driver_handles_path=str(paths["driver_handles_path"]),
+        approval_channel_path=str(paths["approval_channel_path"]),
         events_path=str(paths["events_path"]),
+        events_ndjson_path=str(paths["events_ndjson_path"]),
+        approvals_path=str(paths["approvals_path"]),
+        retrieval_trace_path=str(paths["retrieval_trace_path"]),
+        retrieval_hits_path=str(paths["retrieval_hits_path"]),
+        handoff_manifest_path=context_bundle["handoff_bundle"].get("manifest_path"),
+        scheduler_candidate_set_path=str(paths["scheduler_candidate_set_path"]),
+        scheduler_decision_path=str(paths["scheduler_decision_path"]),
+        eval_results_path=str(paths["eval_results_path"]),
         plan_path=str(paths["plan_path"]),
         summary_path=str(paths["summary_path"]),
         review_path=str(paths["review_path"]),
         patch_path=str(paths["patch_path"]),
         command_log_path=str(paths["command_log_path"]),
         logs_dir=str(paths["logs_dir"]),
+        final_path=str(paths["final_path"]),
         metadata={
             "task_title": task.title,
             "base_branch": base_branch,
@@ -412,12 +610,24 @@ def start_run(
             "command_count": 0,
             "driver_status": run_status.to_dict(),
             "context_manifest": context_bundle["manifest"],
+            "runtime_v2": {
+                "manifest": manifest,
+                "sandbox_policy": sandbox_policy.to_dict(),
+                "capability_snapshot": capability_snapshot.to_dict(),
+                "approval_channel": str(paths["approval_channel_path"]),
+                "handoff_manifest_path": context_bundle["handoff_bundle"].get("manifest_path"),
+                "handoff_summary_path": context_bundle["handoff_bundle"].get("summary_path"),
+                "handoff_runs": list(context_bundle["handoff_bundle"].get("items") or []),
+                "scheduler_candidate_set": scheduler_candidate_set or default_candidate_set,
+                "scheduler_decision": scheduler_decision or default_decision,
+            },
         },
     )
     run_file = _metadata_path(root, run_id)
     run_file.write_text(run_record_to_json(run), encoding="utf-8")
     task.status = "in_progress"
     save_task(root, task)
+    sync_runtime_status_artifacts(run.to_dict(), task_status=task.status)
     emit_event(
         root,
         actor={"kind": "system", "id": "hive"},
@@ -478,6 +688,19 @@ def start_run(
         task_id=task.id,
         project_id=project.id,
     )
+    emit_event(
+        root,
+        actor={"kind": "system", "id": "hive"},
+        entity_type="run",
+        entity_id=run.id,
+        event_type="sandbox.selected",
+        source="run.start",
+        payload=sandbox_policy.to_dict(),
+        run_id=run.id,
+        task_id=task.id,
+        project_id=project.id,
+        campaign_id=campaign_id,
+    )
     if run_status.state == "awaiting_input":
         emit_event(
             root,
@@ -494,10 +717,67 @@ def start_run(
     return run
 
 
+def refresh_run_driver_state(path: str | Path | None, run_id: str) -> dict:
+    """Refresh persisted status for live driver-backed runs."""
+    root = Path(path or Path.cwd()).resolve()
+    metadata = load_run(root, run_id)
+    refreshed = _refresh_live_driver_status_impl(root, metadata)
+    if refreshed is None:
+        return metadata
+
+    current = refreshed["current"]
+    previous = refreshed["previous"]
+    metadata["status"] = current.get("state", metadata.get("status"))
+    metadata["health"] = current.get("health", metadata.get("health"))
+    if metadata["status"] in {"completed_candidate", "failed", "cancelled"}:
+        metadata["finished_at"] = metadata.get("finished_at") or utc_now_iso()
+    save_run(root, run_id, metadata)
+    task_status = None
+    if metadata.get("task_id"):
+        task_status = get_task(root, metadata["task_id"]).status
+    sync_runtime_status_artifacts(metadata, task_status=task_status)
+    if previous.get("state") != current.get("state") or previous.get("health") != current.get(
+        "health"
+    ):
+        emit_event(
+            root,
+            actor={"kind": "system", "id": f"driver:{metadata.get('driver', 'unknown')}"},
+            entity_type="run",
+            entity_id=run_id,
+            event_type="run.status.changed",
+            source="run.status",
+            payload={"state": metadata.get("status"), "health": metadata.get("health")},
+            run_id=run_id,
+            task_id=metadata.get("task_id"),
+            project_id=metadata.get("project_id"),
+            campaign_id=metadata.get("campaign_id"),
+        )
+        event_type = {
+            "completed_candidate": "run.completed_candidate",
+            "failed": "run.failed",
+            "cancelled": "run.cancelled",
+        }.get(str(current.get("state") or ""))
+        if event_type:
+            emit_event(
+                root,
+                actor={"kind": "system", "id": f"driver:{metadata.get('driver', 'unknown')}"},
+                entity_type="run",
+                entity_id=run_id,
+                event_type=event_type,
+                source="run.status",
+                payload={"driver_status": current},
+                run_id=run_id,
+                task_id=metadata.get("task_id"),
+                project_id=metadata.get("project_id"),
+                campaign_id=metadata.get("campaign_id"),
+            )
+    return metadata
+
+
 def eval_run(path: str | Path | None, run_id: str) -> dict:
     root = Path(path or Path.cwd()).resolve()
 
-    metadata = load_run(root, run_id)
+    metadata = refresh_run_driver_state(root, run_id)
     if metadata.get("status") not in {"running", "awaiting_input", "completed_candidate"}:
         raise ValueError(f"Cannot evaluate run with status {metadata.get('status')!r}")
     program = _load_run_program(metadata)
@@ -507,7 +787,10 @@ def eval_run(path: str | Path | None, run_id: str) -> dict:
         1,
         int(float(program.metadata.get("budgets", {}).get("max_wall_clock_minutes", 30)) * 60),
     )
-    executor = get_executor(metadata.get("executor", program.metadata["default_executor"]))
+    executor = get_executor(
+        metadata.get("executor", program.metadata["default_executor"]),
+        sandbox_policy=metadata.get("sandbox_policy_path"),
+    )
     results = []
     seq = len(_read_command_log(command_log_path)) + 1
     commands_policy = program.metadata.get("commands", {})
@@ -546,6 +829,8 @@ def eval_run(path: str | Path | None, run_id: str) -> dict:
     metadata_json["promotion_decision"] = promotion
     _write_review_and_summary(metadata, promotion)
     save_run(root, run_id, metadata)
+    task = get_task(root, metadata["task_id"])
+    sync_runtime_status_artifacts(metadata, task_status=task.status)
     emit_event(
         root,
         actor={"kind": "system", "id": "hive"},
@@ -626,6 +911,7 @@ def accept_run(path: str | Path | None, run_id: str) -> dict:
     task.owner = None
     task.claimed_until = None
     save_task(root, task)
+    sync_runtime_status_artifacts(metadata, task_status=task.status)
     emit_event(
         root,
         actor={"kind": "system", "id": "hive"},
@@ -723,6 +1009,7 @@ def reject_run(path: str | Path | None, run_id: str, reason: str | None = None) 
     task.owner = None
     task.claimed_until = None
     save_task(root, task)
+    sync_runtime_status_artifacts(metadata, task_status=task.status)
     emit_event(
         root,
         actor={"kind": "system", "id": "hive"},
@@ -754,6 +1041,7 @@ def escalate_run(path: str | Path | None, run_id: str, reason: str | None = None
     task.owner = None
     task.claimed_until = None
     save_task(root, task)
+    sync_runtime_status_artifacts(metadata, task_status=task.status)
     emit_event(
         root,
         actor={"kind": "system", "id": "hive"},
@@ -797,6 +1085,33 @@ def steer_run(
         raise ValueError(f"Cannot steer terminal run with status {metadata.get('status')!r}")
 
     if action == "approve":
+        pending = pending_approvals(root, run_id)
+        selected = _selected_pending_approval(pending, request)
+        if selected is not None:
+            approval = resolve_approval(
+                root,
+                run_id,
+                str(selected["approval_id"]),
+                resolution="approved",
+                actor=actor or "operator",
+                note=request.note or request.reason,
+            )
+            driver_ack = _bridge_approval_resolution(
+                root,
+                metadata,
+                approval=cast(dict[str, object], approval),
+                action=action,
+                actor=actor,
+                request=request,
+            )
+            save_run(root, run_id, metadata)
+            return {
+                "run": load_run(root, run_id),
+                "action": action,
+                "request": request.to_dict(),
+                "approval": approval,
+                "driver_ack": driver_ack,
+            }
         emit_event(
             root,
             actor={"kind": "human", "id": actor or "operator"},
@@ -826,6 +1141,33 @@ def steer_run(
         save_run(root, run_id, accepted)
         return {"run": accepted, "action": action, "request": request.to_dict()}
     if action == "reject":
+        pending = pending_approvals(root, run_id)
+        selected = _selected_pending_approval(pending, request)
+        if selected is not None:
+            approval = resolve_approval(
+                root,
+                run_id,
+                str(selected["approval_id"]),
+                resolution="rejected",
+                actor=actor or "operator",
+                note=request.note or request.reason,
+            )
+            driver_ack = _bridge_approval_resolution(
+                root,
+                metadata,
+                approval=cast(dict[str, object], approval),
+                action=action,
+                actor=actor,
+                request=request,
+            )
+            save_run(root, run_id, metadata)
+            return {
+                "run": load_run(root, run_id),
+                "action": action,
+                "request": request.to_dict(),
+                "approval": approval,
+                "driver_ack": driver_ack,
+            }
         emit_event(
             root,
             actor={"kind": "human", "id": actor or "operator"},

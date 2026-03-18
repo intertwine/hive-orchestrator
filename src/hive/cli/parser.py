@@ -141,6 +141,16 @@ def _add_control_parsers(subparsers: argparse._SubParsersAction[argparse.Argumen
     drivers_probe = drivers_subparsers.add_parser("probe")
     drivers_probe.add_argument("driver", nargs="?")
 
+    driver_parser = subparsers.add_parser("driver")
+    driver_subparsers = driver_parser.add_subparsers(dest="driver_command")
+    driver_doctor = driver_subparsers.add_parser("doctor")
+    driver_doctor.add_argument("driver", nargs="?")
+
+    sandbox_parser = subparsers.add_parser("sandbox")
+    sandbox_subparsers = sandbox_parser.add_subparsers(dest="sandbox_command")
+    sandbox_doctor = sandbox_subparsers.add_parser("doctor")
+    sandbox_doctor.add_argument("backend", nargs="?")
+
 
 def _add_project_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     project_parser = subparsers.add_parser("project")
@@ -392,11 +402,21 @@ def _add_knowledge_parsers(subparsers: argparse._SubParsersAction[argparse.Argum
     campaign_create.add_argument("--title", required=True)
     campaign_create.add_argument("--goal", required=True)
     campaign_create.add_argument("--project-id", action="append", required=True)
+    campaign_create.add_argument(
+        "--type",
+        choices=["delivery", "research", "maintenance", "review"],
+        default="delivery",
+    )
     campaign_create.add_argument("--driver", default="local")
     campaign_create.add_argument("--model")
+    campaign_create.add_argument("--sandbox-profile")
     campaign_create.add_argument("--cadence", default="daily")
     campaign_create.add_argument("--brief-cadence", default="daily")
     campaign_create.add_argument("--max-active-runs", type=int, default=1)
+    campaign_create.add_argument("--lane-quota", action="append")
+    campaign_create.add_argument("--budget-cap-usd", type=float)
+    campaign_create.add_argument("--budget-cap-tokens", type=int)
+    campaign_create.add_argument("--escalation-mode")
     campaign_create.add_argument("--notes")
     campaign_show = campaign_subparsers.add_parser("status")
     campaign_show.add_argument("campaign_id")

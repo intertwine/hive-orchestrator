@@ -9,6 +9,7 @@ from typing import cast
 from src.hive.clock import utc_now_iso
 from src.hive.constants import RUN_TERMINAL_STATUSES
 from src.hive.drivers import SteeringRequest, get_driver
+from src.hive.runtime.runpack import sync_runtime_status_artifacts
 from src.hive.runs.driver_state import (
     _active_driver_handle,
     _append_transcript_entry,
@@ -110,6 +111,32 @@ def steer_run(
             driver_name=target_driver,
             model=str((request.target or {}).get("model") or "") or None,
         )
+        reroute_bundle_path = str(new_request.metadata.get("reroute_bundle_path") or "")
+        reroute_summary_path = str(new_request.metadata.get("reroute_summary_path") or "")
+        if reroute_bundle_path:
+            metadata["reroute_bundle_path"] = reroute_bundle_path
+        if reroute_summary_path:
+            metadata["reroute_summary_path"] = reroute_summary_path
+        metadata.setdefault("metadata_json", {}).setdefault("runtime_v2", {})["reroute_bundle"] = (
+            dict(new_request.metadata.get("reroute_bundle") or {})
+        )
+        emit_event(
+            root,
+            actor={"kind": "system", "id": "hive"},
+            entity_type="run",
+            entity_id=run_id,
+            event_type="handoff.materialized",
+            source="run.steer",
+            payload={
+                "target_driver": target_driver,
+                "bundle_path": reroute_bundle_path,
+                "summary_path": reroute_summary_path,
+            },
+            run_id=run_id,
+            task_id=metadata.get("task_id"),
+            project_id=metadata.get("project_id"),
+            campaign_id=metadata.get("campaign_id"),
+        )
         new_handle = new_driver.launch(new_request)
         new_status = new_driver.status(new_handle)
         handles = _load_driver_handles(metadata)
@@ -130,6 +157,30 @@ def steer_run(
             json.dumps(new_driver.probe().to_dict(), indent=2, sort_keys=True),
             encoding="utf-8",
         )
+        if metadata.get("capability_snapshot_path"):
+            new_probe = new_driver.probe()
+            if new_probe.capability_snapshot is not None:
+                Path(metadata["capability_snapshot_path"]).write_text(
+                    json.dumps(new_probe.capability_snapshot.to_dict(), indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
+                metadata.setdefault("metadata_json", {}).setdefault("runtime_v2", {})[
+                    "capability_snapshot"
+                ] = new_probe.capability_snapshot.to_dict()
+        if metadata.get("runtime_manifest_path"):
+            manifest_path = Path(str(metadata["runtime_manifest_path"]))
+            if manifest_path.exists():
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                manifest["driver"] = target_driver
+                manifest["driver_mode"] = (
+                    new_driver.probe().capability_snapshot.effective.launch_mode
+                    if new_driver.probe().capability_snapshot is not None
+                    else "staged"
+                )
+                manifest_path.write_text(
+                    json.dumps(manifest, indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
         metadata["driver"] = target_driver
         metadata["driver_handle"] = new_handle.driver_handle
         metadata["status"] = new_status.state
@@ -197,6 +248,10 @@ def steer_run(
             campaign_id=metadata.get("campaign_id"),
         )
     save_run(root, run_id, metadata)
+    task_status = None
+    if metadata.get("task_id"):
+        task_status = get_task(root, metadata["task_id"]).status
+    sync_runtime_status_artifacts(metadata, task_status=task_status)
     return {
         "run": metadata,
         "action": action,

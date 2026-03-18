@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from hashlib import sha256
+import json
 from pathlib import Path
 
 from src.hive.drivers import RunBudget, RunLaunchRequest, RunWorkspace
+from src.hive.runs.handoff import export_reroute_bundle
 from src.hive.models.program import ProgramRecord
 from src.hive.runs.worktree import current_branch, ensure_clean_repo
 from src.security import safe_load_agency_md
@@ -87,6 +89,12 @@ def _build_reroute_launch_request(
     model: str | None = None,
 ) -> RunLaunchRequest:
     program = _load_run_program(metadata)
+    reroute_bundle = export_reroute_bundle(
+        root,
+        metadata,
+        target_driver=driver_name,
+        target_model=model or metadata.get("model"),
+    )
     return RunLaunchRequest(
         run_id=str(metadata["id"]),
         task_id=str(metadata["task_id"]),
@@ -122,6 +130,9 @@ def _build_reroute_launch_request(
             "task_title": (
                 (metadata.get("metadata_json") or {}).get("task_title") or metadata["task_id"]
             ),
+            "reroute_bundle_path": reroute_bundle["bundle_path"],
+            "reroute_summary_path": reroute_bundle["summary_path"],
+            "reroute_bundle": json.loads(json.dumps(reroute_bundle["bundle"])),
         },
     )
 

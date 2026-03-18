@@ -12,6 +12,7 @@ from src.hive.drivers.types import (
     RunProgress,
     RunStatus,
 )
+from src.hive.runtime.capabilities import CapabilitySnapshot, capability_surface
 
 
 class LocalDriver(Driver):
@@ -20,6 +21,41 @@ class LocalDriver(Driver):
     name = "local"
 
     def probe(self) -> DriverInfo:
+        snapshot = CapabilitySnapshot(
+            driver=self.name,
+            declared=capability_surface(
+                launch_mode="local",
+                session_persistence="session",
+                event_stream="status",
+                approvals=[],
+                skills="file_projection",
+                worktrees="host_managed",
+                subagents="none",
+                native_sandbox="none",
+                outer_sandbox_required=False,
+                artifacts=["runpack", "transcript", "patch", "review"],
+                reroute_export="transcript",
+            ),
+            probed={"workspace_available": True},
+            effective=capability_surface(
+                launch_mode="local",
+                session_persistence="session",
+                event_stream="status",
+                approvals=[],
+                skills="file_projection",
+                worktrees="host_managed",
+                subagents="none",
+                native_sandbox="none",
+                outer_sandbox_required=False,
+                artifacts=["runpack", "transcript", "patch", "review"],
+                reroute_export="transcript",
+            ),
+            confidence={"launch_mode": "verified", "effective": "verified"},
+            evidence={
+                "launch_mode": "Local driver manages a Hive worktree-backed run directly.",
+                "effective": "No external harness integration is involved for the local driver.",
+            },
+        )
         return DriverInfo(
             driver=self.name,
             capabilities=DriverCapabilities(
@@ -34,8 +70,9 @@ class LocalDriver(Driver):
                 context_files=["AGENTS.md"],
                 skills=True,
                 interrupt=["pause", "cancel"],
-                reroute_export="metadata-only",
+                reroute_export="transcript",
             ),
+            capability_snapshot=snapshot,
         )
 
     def launch(self, request: RunLaunchRequest) -> RunHandle:
@@ -45,6 +82,13 @@ class LocalDriver(Driver):
             driver_handle=f"local:{request.run_id}",
             status="running",
             launched_at=utc_now_iso(),
+            launch_mode="local",
+            transport="process",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
+            metadata={
+                "worktree_path": request.workspace.worktree_path,
+                "artifacts_path": request.artifacts_path,
+            },
         )
 
     def status(self, handle: RunHandle) -> RunStatus:
@@ -60,4 +104,5 @@ class LocalDriver(Driver):
             ),
             waiting_on=None,
             last_event_at=utc_now_iso(),
+            session={"launch_mode": "local", "transport": "process"},
         )

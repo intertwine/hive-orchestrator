@@ -14,12 +14,33 @@ def dispatch(args, root: Path) -> int:
     """Route the parsed CLI args to the appropriate command family."""
     if args.command in {"quickstart", "init", "onboard", "adopt", "doctor"}:
         return bootstrap.dispatch(args, root)
-    if args.command in {"next", "work", "finish", "dashboard", "console", "search", "execute", "cache", "drivers"}:
+    if args.command in {
+        "next",
+        "work",
+        "finish",
+        "dashboard",
+        "console",
+        "search",
+        "execute",
+        "cache",
+        "drivers",
+        "driver",
+        "sandbox",
+    }:
         return control.dispatch(args, root)
     if args.command in {"project", "workspace", "task"}:
         return project.dispatch(args, root)
     if args.command in {"run", "steer", "program"}:
         return run.dispatch(args, root)
-    if args.command in {"memory", "context", "sync", "migrate", "deps", "portfolio", "campaign", "brief"}:
+    if args.command in {
+        "memory",
+        "context",
+        "sync",
+        "migrate",
+        "deps",
+        "portfolio",
+        "campaign",
+        "brief",
+    }:
         return knowledge.dispatch(args, root)
     return 0

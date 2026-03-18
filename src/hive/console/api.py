@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from importlib.resources import files
+import json
 import os
 from pathlib import Path
+import time
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 
 from src.hive import __version__
@@ -17,9 +19,11 @@ from src.hive.control import campaign_status
 from src.hive.context_bundle import build_context_bundle
 from src.hive.drivers import SteeringRequest
 from src.hive.program.doctor import doctor_program
+from src.hive.runtime.approvals import list_approvals
 from src.hive.search import search_workspace
 from src.hive.store.campaigns import list_campaigns
 from src.hive.runs.engine import steer_run
+from src.hive.store.events import load_events
 from src.hive.store.projects import discover_projects, get_project
 from src.hive.workspace import sync_workspace
 
@@ -61,6 +65,13 @@ class SteeringInput(BaseModel):
     actor: str | None = None
 
 
+class ApprovalResolutionInput(BaseModel):
+    """Resolution body for a pending approval."""
+
+    actor: str | None = None
+    note: str | None = None
+
+
 def _workspace_root(path: str | None = None) -> Path:
     configured = path or os.getenv("HIVE_BASE_PATH") or os.getcwd()
     return Path(configured).resolve()
@@ -76,6 +87,11 @@ def _console_asset_root() -> Path | None:
     if candidate.exists():
         return candidate
     return None
+
+
+def _encode_sse(event: str, payload: dict) -> str:
+    """Render one SSE record."""
+    return f"event: {event}\ndata: {json.dumps(payload, sort_keys=True)}\n\n"
 
 
 @app.get("/")
@@ -145,6 +161,44 @@ def status(path: str | None = Query(default=None)) -> dict:
     }
 
 
+@app.get("/events/stream")
+def events_stream(
+    path: str | None = Query(default=None),
+    run_id: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=200),
+    once: bool = Query(default=False),
+):
+    """Stream lightweight event snapshots for the console."""
+    root = _workspace_root(path)
+    sync_workspace(root)
+
+    def generate():
+        last_marker: str | None = None
+        while True:
+            events = load_events(root)
+            if run_id:
+                events = [event for event in events if event.get("run_id") == run_id]
+            selected = events[-limit:]
+            marker = str(selected[-1]["event_id"]) if selected else f"empty:{run_id or 'workspace'}"
+            if marker != last_marker:
+                last_marker = marker
+                yield _encode_sse(
+                    "snapshot",
+                    {
+                        "workspace": str(root),
+                        "run_id": run_id,
+                        "events": selected,
+                        "count": len(events),
+                    },
+                )
+            if once:
+                break
+            time.sleep(1.0)
+        yield _encode_sse("end", {"ok": True})
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
 @app.get("/home")
 def home(path: str | None = Query(default=None)) -> dict:
     """Return the main observe-console home payload."""
@@ -194,6 +248,76 @@ def run_detail(run_id: str, path: str | None = Query(default=None)) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"ok": True, "detail": detail}
+
+
+@app.get("/runs/{run_id}/approvals")
+def run_approvals(run_id: str, path: str | None = Query(default=None)) -> dict:
+    """Return approval requests for a run."""
+    root = _workspace_root(path)
+    sync_workspace(root)
+    try:
+        approvals = list_approvals(root, run_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"ok": True, "approvals": approvals}
+
+
+@app.post("/runs/{run_id}/approvals/{approval_id}/approve")
+def approve_run_approval(
+    run_id: str,
+    approval_id: str,
+    request: ApprovalResolutionInput,
+    path: str | None = Query(default=None),
+) -> dict:
+    """Approve one pending run approval request."""
+    root = _workspace_root(path)
+    sync_workspace(root)
+    try:
+        payload = steer_run(
+            root,
+            run_id,
+            SteeringRequest(
+                action="approve",
+                target={"approval_id": approval_id},
+                note=request.note,
+            ),
+            actor=request.actor or "operator",
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    sync_workspace(root)
+    return {"ok": True, **payload}
+
+
+@app.post("/runs/{run_id}/approvals/{approval_id}/reject")
+def reject_run_approval(
+    run_id: str,
+    approval_id: str,
+    request: ApprovalResolutionInput,
+    path: str | None = Query(default=None),
+) -> dict:
+    """Reject one pending run approval request."""
+    root = _workspace_root(path)
+    sync_workspace(root)
+    try:
+        payload = steer_run(
+            root,
+            run_id,
+            SteeringRequest(
+                action="reject",
+                target={"approval_id": approval_id},
+                note=request.note,
+            ),
+            actor=request.actor or "operator",
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    sync_workspace(root)
+    return {"ok": True, **payload}
 
 
 @app.post("/runs/{run_id}/steer")
@@ -259,11 +383,14 @@ def campaigns(path: str | None = Query(default=None)) -> dict:
                 "goal": campaign.goal,
                 "project_ids": campaign.project_ids,
                 "status": campaign.status,
+                "type": campaign.campaign_type,
                 "driver": campaign.driver,
                 "model": campaign.model,
+                "sandbox_profile": campaign.sandbox_profile or "default",
                 "cadence": campaign.cadence,
                 "brief_cadence": campaign.brief_cadence,
                 "max_active_runs": campaign.max_active_runs,
+                "lane_quotas": dict(campaign.lane_quotas),
             }
             for campaign in list_campaigns(root)
         ],

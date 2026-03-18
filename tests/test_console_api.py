@@ -84,6 +84,8 @@ class TestObserveConsoleApi:
         assert "artifact_preview" in detail.json()["detail"]
         assert "inspector" in detail.json()["detail"]
         assert "context_entries" in detail.json()["detail"]
+        assert "handoff_manifest" in detail.json()["detail"]["inspector"]
+        assert "reroute_bundle" in detail.json()["detail"]["inspector"]
 
     def test_run_steer_endpoint_records_typed_steering_history(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)
@@ -199,8 +201,11 @@ class TestObserveConsoleApi:
         assert context.json()["project"]["id"] == "demo"
         assert campaigns.status_code == 200
         assert campaigns.json()["campaigns"]
+        assert campaigns.json()["campaigns"][0]["type"] == "delivery"
         assert campaign.status_code == 200
         assert campaign.json()["campaign"]["id"] == campaign_id
+        assert "decision_preview" in campaign.json()
+        assert "lane_quotas" in campaign.json()["campaign"]
         assert search.status_code == 200
         assert search.json()["results"]
         assert console.status_code == 200

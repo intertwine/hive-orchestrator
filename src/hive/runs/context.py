@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from src.hive.clock import utc_now_iso
+from src.hive.retrieval_trace import classify_retrieval_intent, retrieval_provenance
+from src.hive.runs.handoff import compile_context_handoffs
 from src.hive.search import search_workspace
 
 
@@ -70,6 +72,26 @@ def _selected_skills(root: Path, query: str, limit: int = 4) -> list[dict[str, s
         }
         for _, candidate in scored[:limit]
     ]
+
+
+def _selected_search_hits(
+    candidates: list[dict[str, object]],
+    *,
+    query: str,
+    limit: int = 4,
+) -> list[dict[str, object]]:
+    selected = list(candidates[:limit])
+    if classify_retrieval_intent(query) != "policy":
+        return selected
+    if any(retrieval_provenance(hit) == "program_policy" for hit in selected):
+        return selected
+    for candidate in candidates:
+        if retrieval_provenance(candidate) != "program_policy":
+            continue
+        if not selected:
+            return [candidate]
+        return [candidate, *selected[: max(0, limit - 1)]]
+    return selected
 
 
 def _manifest_entry(
@@ -164,14 +186,15 @@ def compile_run_context(
 
     query_text = _context_query(project, task)
     selected_skills = _selected_skills(root, query_text)
-    search_hits = search_workspace(
+    retrieval_candidates = search_workspace(
         root,
         query_text,
-        scopes=["api", "examples", "project"],
-        limit=4,
+        scopes=["workspace", "api", "examples", "project"],
+        limit=8,
         project_id=project.id,
         task_id=task.id,
     )
+    search_hits = _selected_search_hits(retrieval_candidates, query=query_text, limit=4)
 
     skills_manifest_path.write_text(
         json.dumps(
@@ -202,6 +225,16 @@ def compile_run_context(
         encoding="utf-8",
     )
     outputs.append(search_hits_path.name)
+    handoff_bundle = compile_context_handoffs(
+        root,
+        project_id=project.id,
+        task=task,
+        run_directory=run_directory,
+    )
+    if handoff_bundle.get("manifest_path"):
+        outputs.append(Path(str(handoff_bundle["manifest_path"])).name)
+    if handoff_bundle.get("summary_path"):
+        outputs.append(Path(str(handoff_bundle["summary_path"])).name)
 
     entries = [
         _manifest_entry(
@@ -277,6 +310,16 @@ def compile_run_context(
             )
         )
 
+    if handoff_bundle.get("summary_path"):
+        entries.append(
+            _manifest_entry(
+                source_path=Path(str(handoff_bundle["summary_path"])).resolve(),
+                source_type="handoff",
+                required=False,
+                reason="accepted dependency run handoff",
+            )
+        )
+
     manifest = {
         "run_id": run_id,
         "generated_at": utc_now_iso(),
@@ -290,6 +333,8 @@ def compile_run_context(
         },
         "search_hits_path": str(search_hits_path),
         "skills_manifest_path": str(skills_manifest_path),
+        "handoff_manifest_path": handoff_bundle.get("manifest_path"),
+        "handoff_summary_path": handoff_bundle.get("summary_path"),
     }
     manifest_path = context_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
@@ -300,4 +345,8 @@ def compile_run_context(
         "compiled_dir": compiled_dir,
         "run_brief_path": run_brief_path,
         "skills_manifest_path": skills_manifest_path,
+        "query_text": query_text,
+        "search_hits": search_hits,
+        "retrieval_candidates": retrieval_candidates,
+        "handoff_bundle": handoff_bundle,
     }

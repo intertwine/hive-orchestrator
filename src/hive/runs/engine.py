@@ -14,6 +14,7 @@ from src.hive.runs.lifecycle import (
     eval_run as _eval_run_impl,
     promote_run as _promote_run_impl,
     reject_run as _reject_run_impl,
+    refresh_run_driver_state as _refresh_run_driver_state_impl,
     run_artifacts as _run_artifacts_impl,
     start_run as _start_run_impl,
     steer_run as _steer_run_impl,
@@ -129,6 +130,11 @@ def start_run(*args, **kwargs):
 def load_run(path: str | Path | None, run_id: str) -> dict:
     """Load run metadata."""
     return _load_run_impl(path, run_id)
+
+
+def refresh_run_driver_state(path: str | Path | None, run_id: str) -> dict:
+    """Refresh persisted status for live driver-backed runs."""
+    return _refresh_run_driver_state_impl(path, run_id)
 
 
 def _save_run(path: str | Path | None, run_id: str, metadata: dict) -> dict:

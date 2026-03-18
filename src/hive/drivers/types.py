@@ -1,9 +1,11 @@
-"""Typed driver contracts for Hive 2.2."""
+"""Typed driver contracts for Hive 2.3-compatible driver probing."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
+
+from src.hive.runtime.capabilities import CapabilitySnapshot
 
 SandboxLevel = Literal["low", "medium", "high"]
 
@@ -38,17 +40,27 @@ class DriverInfo:
     version: str = "0.0.0"
     available: bool = True
     capabilities: DriverCapabilities = field(default_factory=DriverCapabilities)
+    capability_snapshot: CapabilitySnapshot | None = None
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize probe data for JSON output."""
-        return {
+        payload = {
             "driver": self.driver,
             "version": self.version,
             "available": self.available,
             "capabilities": self.capabilities.to_dict(),
             "notes": list(self.notes),
         }
+        if self.capability_snapshot is not None:
+            snapshot = self.capability_snapshot.to_dict()
+            payload["capability_snapshot"] = snapshot
+            payload["declared"] = snapshot["declared"]
+            payload["probed"] = snapshot["probed"]
+            payload["effective"] = snapshot["effective"]
+            payload["confidence"] = snapshot["confidence"]
+            payload["evidence"] = snapshot["evidence"]
+        return payload
 
 
 @dataclass
@@ -123,10 +135,32 @@ class RunHandle:
     driver_handle: str
     status: str
     launched_at: str
+    launch_mode: str | None = None
+    transport: str | None = None
+    session_id: str | None = None
+    thread_id: str | None = None
+    resume_token: str | None = None
+    event_cursor: str | None = None
+    approval_channel: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize handle metadata."""
-        return asdict(self)
+        return {
+            "run_id": self.run_id,
+            "driver": self.driver,
+            "driver_handle": self.driver_handle,
+            "status": self.status,
+            "launched_at": self.launched_at,
+            "launch_mode": self.launch_mode,
+            "transport": self.transport,
+            "session_id": self.session_id,
+            "thread_id": self.thread_id,
+            "resume_token": self.resume_token,
+            "event_cursor": self.event_cursor,
+            "approval_channel": self.approval_channel,
+            "metadata": dict(self.metadata),
+        }
 
 
 @dataclass
@@ -179,6 +213,10 @@ class RunStatus:
     last_event_at: str | None
     budget: RunBudgetUsage = field(default_factory=RunBudgetUsage)
     links: RunLinks = field(default_factory=RunLinks)
+    pending_approvals: list[dict[str, Any]] = field(default_factory=list)
+    event_cursor: str | None = None
+    session: dict[str, Any] = field(default_factory=dict)
+    artifacts: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize a driver status."""
@@ -192,6 +230,10 @@ class RunStatus:
             "last_event_at": self.last_event_at,
             "budget": self.budget.to_dict(),
             "links": self.links.to_dict(),
+            "pending_approvals": list(self.pending_approvals),
+            "event_cursor": self.event_cursor,
+            "session": dict(self.session),
+            "artifacts": dict(self.artifacts),
         }
 
 

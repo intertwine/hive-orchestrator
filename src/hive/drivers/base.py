@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import json
 from pathlib import Path
 import shutil
+import subprocess
 from typing import Any, Iterator
 
 from src.hive.clock import utc_now_iso
@@ -17,6 +19,7 @@ from src.hive.drivers.types import (
     RunStatus,
     SteeringRequest,
 )
+from src.hive.runtime.capabilities import CapabilitySnapshot, capability_surface
 
 
 class Driver(ABC):
@@ -60,6 +63,46 @@ class Driver(ABC):
             "message": f"Recorded steering action {request.action!r} for {self.name}.",
         }
 
+    def submit_approval_resolution(
+        self,
+        handle: RunHandle,
+        approval: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Forward a resolved approval onto the driver-owned channel when one exists."""
+        channel_path = str(handle.approval_channel or handle.metadata.get("approval_channel") or "")
+        if not channel_path.strip():
+            return {
+                "ok": False,
+                "driver": self.name,
+                "run_id": handle.run_id,
+                "approval_id": approval.get("approval_id"),
+                "message": f"Driver {self.name} does not expose an approval channel.",
+            }
+        record = {
+            "ts": utc_now_iso(),
+            "kind": "approval_resolution",
+            "driver": self.name,
+            "run_id": handle.run_id,
+            "driver_handle": handle.driver_handle,
+            "approval_id": approval.get("approval_id"),
+            "resolution": approval.get("resolution"),
+            "resolved_by": approval.get("resolved_by"),
+            "resolution_note": approval.get("resolution_note"),
+            "payload": dict(approval.get("payload") or {}),
+        }
+        target = Path(channel_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, "a", encoding="utf-8") as handle_out:
+            handle_out.write(json.dumps(record, sort_keys=True) + "\n")
+        return {
+            "ok": True,
+            "driver": self.name,
+            "run_id": handle.run_id,
+            "approval_id": approval.get("approval_id"),
+            "channel": str(target),
+            "message": "Forwarded approval resolution to the driver channel.",
+        }
+
     def collect_artifacts(self, handle: RunHandle) -> dict[str, Any]:
         """Return additional driver-owned artifacts."""
         return {"driver": self.name, "run_id": handle.run_id, "artifacts": []}
@@ -77,6 +120,60 @@ class HarnessDriver(Driver):
     binary_names: tuple[str, ...] = ()
     display_name: str
     cli_label: str
+    declared_launch_mode: str = "staged"
+    declared_session_persistence: str = "none"
+    declared_event_stream: str = "none"
+    declared_approvals: tuple[str, ...] = ()
+    declared_skills: str = "file_projection"
+    declared_subagents: str = "none"
+    declared_native_sandbox: str = "none"
+    declared_artifacts: tuple[str, ...] = ("runpack",)
+    declared_reroute_export: str = "none"
+
+    def _detected_binary_details(self) -> tuple[str | None, str | None]:
+        for candidate in self.binary_names:
+            binary = shutil.which(candidate)
+            if binary:
+                return candidate, str(Path(binary).resolve())
+        return None, None
+
+    def _detected_binary(self) -> str | None:
+        """Return the resolved binary path when one of the declared names exists."""
+        return self._detected_binary_details()[1]
+
+    def _command_output(self, *args: str) -> str | None:
+        binary_name, binary_path = self._detected_binary_details()
+        del binary_name
+        if not binary_path:
+            return None
+        try:
+            result = subprocess.run(
+                [binary_path, *args],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        output = result.stdout.strip() or result.stderr.strip()
+        return output or None
+
+    def _version_text(self) -> str | None:
+        for args in (("--version",), ("version",)):
+            output = self._command_output(*args)
+            if output:
+                return output.splitlines()[0].strip()
+        return None
+
+    def _probe_details(
+        self,
+        *,
+        binary_name: str | None,
+        binary_path: str | None,
+    ) -> tuple[dict[str, Any], list[str], dict[str, str]]:
+        del binary_name, binary_path
+        return {}, [], {}
 
     def _notes(self) -> list[str]:
         notes = [
@@ -85,11 +182,9 @@ class HarnessDriver(Driver):
             f"{self.display_name} is not auto-launched from Hive yet; attach the run from the "
             "prepared worktree.",
         ]
-        for candidate in self.binary_names:
-            binary = shutil.which(candidate)
-            if binary:
-                notes.append(f"Detected {self.cli_label} at {Path(binary).resolve()}.")
-                break
+        binary = self._detected_binary()
+        if binary:
+            notes.append(f"Detected {self.cli_label} at {binary}.")
         else:
             notes.append(
                 f"{self.cli_label} was not detected on PATH; "
@@ -97,24 +192,93 @@ class HarnessDriver(Driver):
             )
         return notes
 
+    def _declared_snapshot(
+        self, *, binary_present: bool, binary_path: str | None
+    ) -> CapabilitySnapshot:
+        evidence = {
+            "launch_mode": (
+                f"{self.display_name} family intends to integrate via {self.declared_launch_mode}."
+            ),
+            "effective": (
+                f"{self.display_name} is still staged in the current implementation; "
+                "interactive control stays disabled until a deep adapter lands."
+            ),
+        }
+        if binary_path:
+            evidence["binary"] = binary_path
+        return CapabilitySnapshot(
+            driver=self.name,
+            declared=capability_surface(
+                launch_mode=self.declared_launch_mode,
+                session_persistence=self.declared_session_persistence,
+                event_stream=self.declared_event_stream,
+                approvals=list(self.declared_approvals),
+                skills=self.declared_skills,
+                worktrees="host_managed",
+                subagents=self.declared_subagents,
+                native_sandbox=self.declared_native_sandbox,
+                outer_sandbox_required=True,
+                artifacts=list(self.declared_artifacts),
+                reroute_export=self.declared_reroute_export,
+            ),
+            probed={
+                "binary_present": binary_present,
+                "binary_path": binary_path,
+            },
+            effective=capability_surface(
+                launch_mode="staged",
+                session_persistence="none",
+                event_stream="none",
+                approvals=[],
+                skills="file_projection",
+                worktrees="host_managed",
+                subagents="none",
+                native_sandbox="none",
+                outer_sandbox_required=True,
+                artifacts=["runpack"],
+                reroute_export="none",
+            ),
+            confidence={
+                "launch_mode": "planned",
+                "event_stream": "planned",
+                "subagents": "planned",
+                "effective": "verified",
+            },
+            evidence=evidence,
+        )
+
     def probe(self) -> DriverInfo:
+        binary_name, binary_path = self._detected_binary_details()
+        snapshot = self._declared_snapshot(
+            binary_present=bool(binary_path),
+            binary_path=binary_path,
+        )
+        extra_probed, extra_notes, extra_evidence = self._probe_details(
+            binary_name=binary_name,
+            binary_path=binary_path,
+        )
+        snapshot.probed.update(extra_probed)
+        snapshot.evidence.update(extra_evidence)
+        version_text = self._version_text()
         return DriverInfo(
             driver=self.name,
+            version=version_text or "0.0.0",
             capabilities=DriverCapabilities(
                 worktrees=True,
-                resume=True,
-                streaming=True,
-                subagents=True,
-                scheduled=True,
+                resume=False,
+                streaming=False,
+                subagents=False,
+                scheduled=False,
                 remote_execution=False,
                 diff_preview=True,
-                sandbox="medium",
+                sandbox="low",
                 context_files=["AGENTS.md"],
-                skills=True,
-                interrupt=["pause", "cancel"],
-                reroute_export="transcript-aware",
+                skills=False,
+                interrupt=[],
+                reroute_export="none",
             ),
-            notes=self._notes(),
+            capability_snapshot=snapshot,
+            notes=[*self._notes(), *extra_notes],
         )
 
     def launch(self, request: RunLaunchRequest) -> RunHandle:
@@ -124,6 +288,14 @@ class HarnessDriver(Driver):
             driver_handle=f"{self.name}:{request.run_id}",
             status="awaiting_input",
             launched_at=utc_now_iso(),
+            launch_mode="staged",
+            transport="manual",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
+            metadata={
+                "declared_launch_mode": self.declared_launch_mode,
+                "compiled_context_path": request.compiled_context_path,
+                "artifacts_path": request.artifacts_path,
+            },
         )
 
     def status(self, handle: RunHandle) -> RunStatus:
@@ -142,4 +314,8 @@ class HarnessDriver(Driver):
             ),
             waiting_on=self.name,
             last_event_at=utc_now_iso(),
+            session={
+                "launch_mode": "staged",
+                "transport": "manual",
+            },
         )

@@ -110,6 +110,7 @@ only-packages = true
 "docs/hive-v2.2-rfc/HIVE_V2_2_RFC.md" = "src/hive/resources/docs/hive-v2.2-rfc/HIVE_V2_2_RFC.md"
 "docs/hive-v2.2-rfc/HIVE_V2_2_DRIVER_SPEC.md" = "src/hive/resources/docs/hive-v2.2-rfc/HIVE_V2_2_DRIVER_SPEC.md"
 "docs/hive-v2.2-rfc/HIVE_V2_2_ACCEPTANCE_TESTS.md" = "src/hive/resources/docs/hive-v2.2-rfc/HIVE_V2_2_ACCEPTANCE_TESTS.md"
+"docs/hive-v2.3-rfc" = "src/hive/resources/docs/hive-v2.3-rfc"
 "docs/recipes" = "src/hive/resources/docs/recipes"
 "src/hive/resources/console" = "src/hive/resources/console"
 
@@ -128,6 +129,7 @@ only-include = [
     "docs/MIGRATING_TO_V2_2.md",
     "docs/hive-v2-spec",
     "docs/hive-v2.2-rfc",
+    "docs/hive-v2.3-rfc",
     "docs/recipes",
     "frontend/console",
     "src",

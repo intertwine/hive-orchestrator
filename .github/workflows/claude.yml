@@ -57,6 +57,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           trigger_phrase: "@claude"
+          use_sticky_comment: true
           prompt: |
             REPO: ${{ github.repository }}
             EVENT NAME: ${{ github.event_name }}
@@ -72,7 +73,8 @@ jobs:
             --allowedTools "Bash(*),Read,Write,Edit,Glob,Grep,TodoWrite"
 
   claude-review:
-    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    # Review both draft and ready PRs so long-running implementation branches get early signal.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
 

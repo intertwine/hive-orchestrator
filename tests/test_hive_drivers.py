@@ -351,9 +351,18 @@ def _handle_metadata_preview(
         handles = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         return f"<error reading {path}: {exc}>"
-    if not isinstance(handles, list):
+    handle_records: list[dict] = []
+    if isinstance(handles, dict):
+        active = handles.get("active")
+        history = list(handles.get("history") or [])
+        if isinstance(active, dict):
+            handle_records.append(active)
+        handle_records.extend(record for record in history if isinstance(record, dict))
+    elif isinstance(handles, list):
+        handle_records.extend(record for record in handles if isinstance(record, dict))
+    else:
         return f"<unexpected handles payload:{type(handles).__name__}>"
-    for handle in reversed(handles):
+    for handle in reversed(handle_records):
         if not isinstance(handle, dict):
             continue
         metadata = handle.get("metadata")
@@ -362,6 +371,35 @@ def _handle_metadata_preview(
         value = str(metadata.get(metadata_key) or "").strip()
         if value:
             return _read_preview(value, max_chars=max_chars)
+    return None
+
+
+def _handle_metadata_value(path_value: str | None, metadata_key: str) -> str | None:
+    if not path_value:
+        return None
+    path = Path(path_value)
+    if not path.exists():
+        return None
+    try:
+        handles = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    handle_records: list[dict] = []
+    if isinstance(handles, dict):
+        active = handles.get("active")
+        history = list(handles.get("history") or [])
+        if isinstance(active, dict):
+            handle_records.append(active)
+        handle_records.extend(record for record in history if isinstance(record, dict))
+    elif isinstance(handles, list):
+        handle_records.extend(record for record in handles if isinstance(record, dict))
+    for handle in reversed(handle_records):
+        metadata = handle.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        value = str(metadata.get(metadata_key) or "").strip()
+        if value:
+            return value
     return None
 
 
@@ -397,6 +435,7 @@ def _timeout_diagnostics(payload: dict) -> dict[str, object]:
         "state": _read_preview(str(artifacts.get("state_path") or "")),
         "exit_code": _read_preview(str(artifacts.get("exit_code_path") or "")),
         "last_message": _read_preview(str(artifacts.get("last_message_path") or "")),
+        "worker_stderr": _read_preview(str(artifacts.get("worker_stderr_path") or "")),
         "stderr": _read_preview(str(Path(logs_dir) / "stderr.txt") if logs_dir else None),
         "stdout": _read_preview(str(Path(logs_dir) / "stdout.txt") if logs_dir else None),
         "driver_handles": _read_preview(
@@ -412,6 +451,14 @@ def _timeout_diagnostics(payload: dict) -> dict[str, object]:
         "prompt": _handle_metadata_preview(
             str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
             "prompt_path",
+        ),
+        "binary": _handle_metadata_preview(
+            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
+            "binary_path",
+        ),
+        "launch_error": _handle_metadata_value(
+            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
+            "launch_error",
         ),
     }
     diagnostics["previews"] = previews

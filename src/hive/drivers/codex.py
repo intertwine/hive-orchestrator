@@ -202,6 +202,7 @@ class CodexDriver(HarnessDriver):
         worker_path = Path(__file__).with_name("codex_app_server_worker.py")
         command = [
             sys.executable,
+            "-u",
             str(worker_path),
             "--binary",
             binary_path,

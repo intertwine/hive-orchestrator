@@ -128,6 +128,7 @@ def _write_asrt_settings_file(policy: SandboxPolicy, cwd: Path) -> Path:
     # runtime-level cleanup cannot safely delete the directory immediately. We
     # keep per-process cleanup plus stale-dir pruning for orphaned leftovers.
     _, host_artifacts = _read_write_mounts(policy, cwd)
+    host_artifacts.mkdir(parents=True, exist_ok=True)
     settings_root = host_artifacts.parent
     settings_root.mkdir(parents=True, exist_ok=True)
     _prune_stale_asrt_settings_dirs(settings_root)
@@ -265,7 +266,7 @@ def sandboxed_command(
     if policy.backend == "asrt":
         settings_path = _write_asrt_settings_file(policy, cwd)
         return [
-            _resolved_backend_binary("asrt"),
+            _resolved_backend_binary(policy.backend),
             "--settings",
             str(settings_path),
             "sh",

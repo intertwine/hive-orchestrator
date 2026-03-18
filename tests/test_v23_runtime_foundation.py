@@ -54,6 +54,11 @@ def _bootstrap_workspace(temp_hive_dir: str, capsys) -> None:
     )
 
 
+def _reset_asrt_runtime_state(monkeypatch) -> None:
+    monkeypatch.setattr(sandbox_runtime, "_RESOLVED_BACKEND_BINARIES", {})
+    monkeypatch.setattr(sandbox_runtime, "_ASRT_SETTINGS_CLEANUP_DIRS", set())
+
+
 def test_driver_doctor_reports_truthful_staged_capabilities(capsys, temp_hive_dir):
     payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "driver", "doctor"])
     drivers = {driver["driver"]: driver for driver in payload["drivers"]}
@@ -666,7 +671,6 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
     worktree = tmp_path / "worktree"
     artifacts = tmp_path / "artifacts"
     worktree.mkdir()
-    artifacts.mkdir()
     asrt = get_backend("asrt")
 
     def fake_asrt_probe(self):
@@ -694,7 +698,7 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
 
     monkeypatch.setattr(type(asrt), "probe", fake_asrt_probe)
     monkeypatch.setattr("src.hive.runs.executors.subprocess.run", fake_run)
-    monkeypatch.setattr(sandbox_runtime, "_RESOLVED_BACKEND_BINARIES", {})
+    _reset_asrt_runtime_state(monkeypatch)
     policy = resolve_sandbox_policy(
         worktree_path=str(worktree),
         artifacts_path=str(artifacts),
@@ -721,6 +725,7 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
     assert result.sandbox["network_mode"] == "deny"
     assert calls[0]["kwargs"]["shell"] is False
     assert argv[:4] == ["/tmp/asandbox", "--settings", str(settings_path), "sh"]
+    assert artifacts.is_dir()
     assert settings["filesystem"]["allowWrite"][:2] == [str(worktree), str(artifacts)]
     assert settings["network"]["allowedDomains"] == []
     assert settings_path.parent != artifacts
@@ -1207,7 +1212,7 @@ def test_execute_local_fast_wraps_python_runner_with_asrt(monkeypatch, tmp_path)
     monkeypatch.setattr(type(asrt), "probe", fake_asrt_probe)
     monkeypatch.setattr(type(asrt), "_find_binary", lambda self: "/tmp/anthropic-sandbox")
     monkeypatch.setattr("src.hive.codemode.execute.subprocess.run", fake_run)
-    monkeypatch.setattr(sandbox_runtime, "_RESOLVED_BACKEND_BINARIES", {})
+    _reset_asrt_runtime_state(monkeypatch)
 
     payload = execute_code(
         workspace,
@@ -1253,7 +1258,7 @@ def test_local_executor_rejects_asrt_when_no_binary_can_be_resolved(monkeypatch,
 
     monkeypatch.setattr(type(asrt), "probe", fake_asrt_probe)
     monkeypatch.setattr(type(asrt), "_find_binary", lambda self: None)
-    monkeypatch.setattr(sandbox_runtime, "_RESOLVED_BACKEND_BINARIES", {})
+    _reset_asrt_runtime_state(monkeypatch)
     policy = SandboxPolicy(
         backend="asrt",
         isolation_class="process-wrapper",

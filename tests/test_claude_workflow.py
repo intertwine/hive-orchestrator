@@ -50,7 +50,7 @@ def test_claude_workflow_reviews_draft_prs_and_uses_sticky_comments():
     assert "!github.event.pull_request.draft" not in review_if
     assert "github.event_name == 'pull_request'" in review_if
     assert "ready_for_review" not in review_types
-    assert "id-token" not in review_permissions
+    assert review_permissions["id-token"] == "write"
 
 
 def test_claude_review_workflow_only_advertises_supported_comment_tools():

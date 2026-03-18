@@ -37,6 +37,7 @@ jobs:
       contents: write       # Required to push code changes
       pull-requests: write  # Required to create/update PRs and comment
       issues: write         # Required to comment on issues
+      id-token: write       # Required by anthropics/claude-code-action to mint its GitHub token
 
     steps:
       - name: Checkout repository
@@ -81,6 +82,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write       # Required by anthropics/claude-code-action to mint its GitHub token
 
     steps:
       - name: Checkout repository

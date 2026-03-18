@@ -159,16 +159,22 @@ def _normalize_codex_event(record: dict[str, Any]) -> tuple[str | None, dict[str
 
 
 def _record_driver_usage(metadata: dict, status_payload: dict[str, object], usage: dict[str, Any]) -> None:
+    input_tokens = int(
+        usage.get("input_tokens", 0)
+        + usage.get("cached_input_tokens", 0)
+        + usage.get("cache_creation_input_tokens", 0)
+        + usage.get("cache_read_input_tokens", 0)
+    )
+    output_tokens = int(usage.get("output_tokens", 0) + usage.get("reasoning_output_tokens", 0))
     spent_tokens = int(
         usage.get("total_tokens")
-        or usage.get("input_tokens", 0)
-        + usage.get("cached_input_tokens", 0)
-        + usage.get("output_tokens", 0)
-        + usage.get("reasoning_output_tokens", 0)
+        or input_tokens
+        + output_tokens
     )
+    spent_cost_usd = float(usage.get("cost_usd") or 0.0)
     budget = {
         "spent_tokens": spent_tokens,
-        "spent_cost_usd": float(usage.get("cost_usd") or 0.0),
+        "spent_cost_usd": spent_cost_usd,
         "wall_minutes": int(
             metadata.get("metadata_json", {}).get("driver_status", {}).get("budget", {}).get(
                 "wall_minutes", 0
@@ -177,8 +183,70 @@ def _record_driver_usage(metadata: dict, status_payload: dict[str, object], usag
             or 0
         ),
     }
-    metadata.setdefault("metadata_json", {})["driver_usage"] = budget
+    metadata.setdefault("metadata_json", {})["driver_usage"] = {
+        **budget,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+    }
+    _sync_run_budget_rollup(
+        metadata,
+        spent_tokens=spent_tokens,
+        spent_cost_usd=spent_cost_usd,
+        wall_minutes=budget["wall_minutes"],
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
     status_payload["budget"] = budget
+
+
+def _sync_run_budget_rollup(
+    metadata: dict,
+    *,
+    spent_tokens: int,
+    spent_cost_usd: float,
+    wall_minutes: int,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+) -> None:
+    normalized_input = int(input_tokens or 0)
+    normalized_output = (
+        int(output_tokens)
+        if output_tokens is not None
+        else max(0, int(spent_tokens) - normalized_input)
+    )
+    metadata["tokens_in"] = normalized_input
+    metadata["tokens_out"] = normalized_output
+    metadata["cost_usd"] = float(spent_cost_usd)
+    metadata.setdefault("metadata_json", {})["budget_rollup"] = {
+        "spent_tokens": int(spent_tokens),
+        "spent_cost_usd": float(spent_cost_usd),
+        "wall_minutes": int(wall_minutes),
+        "input_tokens": normalized_input,
+        "output_tokens": normalized_output,
+    }
+
+
+def _sync_run_budget_from_status(metadata: dict, status_payload: dict[str, object]) -> None:
+    budget = status_payload.get("budget")
+    if not isinstance(budget, dict):
+        return
+    spent_tokens = int(budget.get("spent_tokens") or 0)
+    spent_cost_usd = float(budget.get("spent_cost_usd") or 0.0)
+    wall_minutes = int(budget.get("wall_minutes") or 0)
+    usage = metadata.get("metadata_json", {}).get("driver_usage")
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    if isinstance(usage, dict) and int(usage.get("spent_tokens") or 0) == spent_tokens:
+        input_tokens = int(usage.get("input_tokens") or 0)
+        output_tokens = int(usage.get("output_tokens") or 0)
+    _sync_run_budget_rollup(
+        metadata,
+        spent_tokens=spent_tokens,
+        spent_cost_usd=spent_cost_usd,
+        wall_minutes=wall_minutes,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
 
 
 def _request_codex_approval(
@@ -432,6 +500,7 @@ def _refresh_live_driver_status(root: Path, metadata: dict) -> dict[str, object]
     status = driver.status(handle)
     status_payload = status.to_dict()
     _ingest_codex_exec_events(root, metadata, handle, status_payload)
+    _sync_run_budget_from_status(metadata, status_payload)
     _record_driver_status(metadata, status_payload)
     _update_active_handle_from_status(metadata, status_payload)
     _import_driver_last_message(metadata, status_payload)

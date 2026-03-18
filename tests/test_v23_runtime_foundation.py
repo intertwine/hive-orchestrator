@@ -701,6 +701,7 @@ def test_run_status_refresh_surfaces_live_claude_session_payload(temp_hive_dir, 
             waiting_on=None,
             last_event_at="2026-03-18T06:02:00Z",
             event_cursor=cursor,
+            budget=RunBudgetUsage(spent_tokens=123, spent_cost_usd=0.45, wall_minutes=3),
             session={
                 "launch_mode": "exec",
                 "transport": "subprocess",
@@ -722,11 +723,14 @@ def test_run_status_refresh_surfaces_live_claude_session_payload(temp_hive_dir, 
         capsys,
         ["--path", temp_hive_dir, "--json", "run", "status", run.id],
     )
+    metadata = load_run(temp_hive_dir, run.id)
 
     assert payload["status"]["session"]["launch_mode"] == "exec"
     assert payload["status"]["session"]["session_id"] == "sess-7000"
     assert payload["status"]["event_cursor"] == "8"
     assert payload["status"]["artifacts"]["raw_output_path"] == "/tmp/claude.json"
+    assert metadata["tokens_out"] == 123
+    assert metadata["cost_usd"] == 0.45
 
 
 def test_run_status_imports_live_codex_events_into_runtime_artifacts(
@@ -850,6 +854,11 @@ def test_run_status_imports_live_codex_events_into_runtime_artifacts(
     ]
     assert payload["status"]["budget"]["spent_tokens"] == 15
     assert metadata["metadata_json"]["driver_usage"]["spent_tokens"] == 15
+    assert metadata["metadata_json"]["budget_rollup"]["input_tokens"] == 10
+    assert metadata["metadata_json"]["budget_rollup"]["output_tokens"] == 5
+    assert metadata["tokens_in"] == 10
+    assert metadata["tokens_out"] == 5
+    assert metadata["cost_usd"] == 0.0
     assert "Working through the requested patch." in transcript
     assert "driver.output.delta" in event_types
     assert "driver.status" in event_types

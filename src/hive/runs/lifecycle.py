@@ -252,10 +252,16 @@ def start_run(
     run_directory = _run_dir(root, run_id)
     branch_name = _branch_name(project.slug, task.id, run_id)
     base_branch = current_branch(root)
+    worktree_root = worktrees_dir(root) / run_id
+    sandbox_policy = resolve_sandbox_policy(
+        worktree_path=str(worktree_root),
+        artifacts_path=str(run_directory),
+        profile=profile,
+    )
     worktree_path = create_run_worktree(
         root,
         branch_name=branch_name,
-        worktree_path=worktrees_dir(root) / run_id,
+        worktree_path=worktree_root,
     )
     base_commit = current_head(root)
 
@@ -271,11 +277,6 @@ def start_run(
         profile=profile,
     )
     capability_snapshot = driver_info.capability_snapshot or CapabilitySnapshot(driver=driver.name)
-    sandbox_policy = resolve_sandbox_policy(
-        worktree_path=str(worktree_path),
-        artifacts_path=str(run_directory),
-        profile=profile,
-    )
     manifest = runtime_manifest(
         run_id=run_id,
         task_id=task.id,

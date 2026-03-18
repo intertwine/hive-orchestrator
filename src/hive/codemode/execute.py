@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+from src.hive.sandbox import (
+    container_path_for_host,
+    resolve_sandbox_policy,
+    sandboxed_command,
+)
 
 MAX_EXECUTE_BYTES = 256 * 1024
 
@@ -72,29 +79,94 @@ def execute_code(
     with tempfile.TemporaryDirectory(prefix="hive-execute-") as temp_dir:
         payload_path = Path(temp_dir) / "payload.json"
         result_path = Path(temp_dir) / "result.json"
+        try:
+            sandbox_policy = resolve_sandbox_policy(
+                worktree_path=str(root),
+                artifacts_path=temp_dir,
+                profile=profile,
+            )
+        except ValueError as exc:
+            return {
+                "ok": False,
+                "error": str(exc),
+                "stdout": "",
+                "stderr": "",
+                "language": language,
+                "profile": profile,
+                "timed_out": False,
+            }
+        payload_root = str(root)
+        payload_result_path = str(result_path)
+        if sandbox_policy.backend != "legacy-host":
+            payload_root = container_path_for_host(sandbox_policy, root)
+            payload_result_path = container_path_for_host(sandbox_policy, result_path)
         payload_path.write_text(
             json.dumps(
                 {
-                    "root": str(root),
+                    "root": payload_root,
                     "code": code,
                     "profile": profile,
-                    "result_path": str(result_path),
+                    "result_path": payload_result_path,
                 },
                 indent=2,
                 sort_keys=True,
             ),
             encoding="utf-8",
         )
+        env: dict[str, str] | None
+        runner_command: list[str] | str
+        use_shell = False
+        if sandbox_policy.backend == "legacy-host":
+            runner_command = [
+                sys.executable,
+                "-m",
+                "src.hive.codemode.python_runner",
+                str(payload_path),
+            ]
+            env = _scrubbed_env(root)
+        else:
+            container_payload_path = container_path_for_host(sandbox_policy, payload_path)
+            try:
+                runner_command, use_shell = sandboxed_command(
+                    sandbox_policy,
+                    command=(
+                        "python -m src.hive.codemode.python_runner "
+                        f"{shlex.quote(container_payload_path)}"
+                    ),
+                    cwd=root,
+                )
+            except (NotImplementedError, OSError, ValueError) as exc:
+                return {
+                    "ok": False,
+                    "error": str(exc),
+                    "stdout": "",
+                    "stderr": "",
+                    "language": language,
+                    "profile": profile,
+                    "timed_out": False,
+                }
+            env = None
         try:
             completed = subprocess.run(
-                [sys.executable, "-m", "src.hive.codemode.python_runner", str(payload_path)],
+                runner_command,
                 cwd=root,
-                env=_scrubbed_env(root),
+                env=env,
+                shell=use_shell,
                 text=True,
                 capture_output=True,
                 timeout=timeout_seconds,
                 check=False,
             )
+        except OSError as exc:
+            return {
+                "ok": False,
+                "error": str(exc),
+                "stdout": "",
+                "stderr": "",
+                "language": language,
+                "profile": profile,
+                "timed_out": False,
+            }
         except subprocess.TimeoutExpired as exc:
             return {
                 "ok": False,

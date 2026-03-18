@@ -63,6 +63,16 @@ class LocalExecutor:
                 stderr=completed.stderr,
                 timed_out=False,
             )
+        except (NotImplementedError, OSError, ValueError) as exc:
+            return CommandResult(
+                command=command,
+                started_at=started_at,
+                finished_at=utc_now_iso(),
+                returncode=1,
+                stdout="",
+                stderr=str(exc),
+                timed_out=False,
+            )
         except subprocess.TimeoutExpired as exc:
             stdout = (
                 exc.stdout.decode("utf-8", errors="replace")

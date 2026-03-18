@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from src.hive.flags import feature_flags
-from src.hive.runtime.runpack import SandboxPolicy, default_sandbox_policy
 from src.hive.sandbox.registry import iter_backend_probes
+
+if TYPE_CHECKING:
+    from src.hive.runtime.runpack import SandboxPolicy
 
 _PROFILE_BACKENDS = {
     "local-safe": ("podman", "docker-rootless"),
@@ -18,11 +21,37 @@ _PROFILE_BACKENDS = {
 }
 
 
+def _sandbox_profile_unavailable(profile: str, backend_names: tuple[str, ...]) -> ValueError:
+    supported = ", ".join(backend_names)
+    return ValueError(
+        f"Sandbox profile {profile!r} requires one of [{supported}], but none were detected."
+    )
+
+
 def _read_write_mounts(policy: SandboxPolicy, cwd: Path) -> tuple[Path, Path]:
     mounts = list(policy.mounts.get("read_write") or [])
     host_worktree = Path(str(mounts[0] if mounts else cwd)).resolve()
     host_artifacts = Path(str(mounts[1] if len(mounts) > 1 else cwd)).resolve()
     return host_worktree, host_artifacts
+
+
+def container_path_for_host(policy: SandboxPolicy, host_path: str | Path) -> str:
+    """Translate a host path into the configured container path when possible."""
+    host = Path(host_path).resolve()
+    if policy.backend == "legacy-host":
+        return str(host)
+    host_worktree, host_artifacts = _read_write_mounts(policy, host.parent)
+    mappings = (
+        (host_worktree, Path(str(policy.mounts.get("container_worktree") or "/workspace"))),
+        (host_artifacts, Path(str(policy.mounts.get("container_artifacts") or "/artifacts"))),
+    )
+    for host_root, container_root in mappings:
+        try:
+            relative = host.relative_to(host_root)
+        except ValueError:
+            continue
+        return str((container_root / relative).as_posix())
+    return str(host)
 
 
 def resolve_sandbox_policy(
@@ -32,6 +61,11 @@ def resolve_sandbox_policy(
     profile: str = "default",
 ) -> SandboxPolicy:
     """Resolve the effective sandbox policy for a run profile."""
+    from src.hive.runtime.runpack import (  # pylint: disable=import-outside-toplevel
+        SandboxPolicy,
+        default_sandbox_policy,
+    )
+
     normalized = profile.strip().lower() or "default"
     if not feature_flags().get("hive.sandbox_v2", True):
         return default_sandbox_policy(
@@ -73,13 +107,7 @@ def resolve_sandbox_policy(
             profile=normalized,
             provenance=f"sandbox_v2_backend:{backend_name}",
         )
-    fallback = default_sandbox_policy(
-        worktree_path=worktree_path,
-        artifacts_path=artifacts_path,
-        profile=normalized,
-    )
-    fallback.provenance = f"sandbox_v2_fallback:{normalized}"
-    return fallback
+    raise _sandbox_profile_unavailable(normalized, backend_names)
 
 
 def sandboxed_command(
@@ -127,4 +155,4 @@ def sandboxed_command(
     return base, False
 
 
-__all__ = ["resolve_sandbox_policy", "sandboxed_command"]
+__all__ = ["container_path_for_host", "resolve_sandbox_policy", "sandboxed_command"]

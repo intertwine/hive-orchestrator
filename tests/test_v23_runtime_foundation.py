@@ -9,8 +9,10 @@ from pathlib import Path
 import subprocess
 
 from fastapi.testclient import TestClient
+import pytest
 
 from hive.cli.main import main as hive_main
+from src.hive.codemode.execute import execute_code
 from src.hive.console.api import app
 from src.hive.drivers import RunBudgetUsage, RunHandle, RunLinks, RunProgress, RunStatus, get_driver
 from src.hive.drivers import SteeringRequest
@@ -282,6 +284,34 @@ def test_start_run_selects_local_safe_sandbox_backend_when_available(
     assert manifest["sandbox_profile"] == "local-safe"
 
 
+def test_start_run_rejects_local_safe_when_no_backend_is_available(
+    temp_hive_dir, capsys, monkeypatch
+):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    podman = get_backend("podman")
+    docker = get_backend("docker-rootless")
+
+    def fake_unavailable_probe(self):
+        return SandboxProbe(
+            backend=self.name,
+            available=False,
+            isolation_class="container",
+            supported_profiles=["local-safe"],
+            notes=["Unavailable."],
+            evidence={},
+        )
+
+    monkeypatch.setattr(type(podman), "probe", fake_unavailable_probe)
+    monkeypatch.setattr(type(docker), "probe", fake_unavailable_probe)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    with pytest.raises(ValueError, match="local-safe"):
+        start_run(temp_hive_dir, task_id, driver_name="local", profile="local-safe")
+
+    runs_root = Path(temp_hive_dir) / ".hive" / "runs"
+    assert list(runs_root.iterdir()) == []
+
+
 def test_local_executor_wraps_commands_for_container_sandbox(monkeypatch, tmp_path):
     calls: list[dict[str, object]] = []
     worktree = tmp_path / "worktree"
@@ -329,6 +359,127 @@ def test_local_executor_wraps_commands_for_container_sandbox(monkeypatch, tmp_pa
     assert "--network" in argv
     assert "none" in argv
     assert "/workspace" in " ".join(argv)
+
+
+def test_local_executor_reports_unwired_backend_as_failed_command(tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": ["LANG"], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("python -c \"print('ok')\"", cwd=worktree, timeout_seconds=30)
+
+    assert result.returncode == 1
+    assert result.timed_out is False
+    assert "not wired into the local executor yet" in result.stderr
+
+
+def test_execute_local_safe_wraps_python_runner_in_container(monkeypatch, tmp_path):
+    calls: list[dict[str, object]] = []
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    podman = get_backend("podman")
+    docker = get_backend("docker-rootless")
+
+    def fake_podman_probe(self):
+        return SandboxProbe(
+            backend="podman",
+            available=True,
+            isolation_class="container",
+            supported_profiles=["local-safe"],
+            notes=["Detected rootless Podman."],
+            evidence={"binary": "/tmp/podman"},
+        )
+
+    def fake_docker_probe(self):
+        return SandboxProbe(
+            backend="docker-rootless",
+            available=False,
+            isolation_class="container",
+            supported_profiles=["local-safe"],
+            notes=["Docker unavailable."],
+            evidence={},
+        )
+
+    def fake_run(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+
+        class Result:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(type(podman), "probe", fake_podman_probe)
+    monkeypatch.setattr(type(docker), "probe", fake_docker_probe)
+    monkeypatch.setattr("src.hive.codemode.execute.subprocess.run", fake_run)
+
+    payload = execute_code(
+        workspace,
+        language="python",
+        code="result = {'ok': True}",
+        profile="local-safe",
+        timeout_seconds=10,
+    )
+
+    argv = list(calls[0]["args"][0])
+    assert payload["ok"] is True
+    assert calls[0]["kwargs"]["shell"] is False
+    assert calls[0]["kwargs"]["env"] is None
+    assert argv[0] == "podman"
+    assert "python -m src.hive.codemode.python_runner" in argv[-1]
+    assert "/artifacts/payload.json" in argv[-1]
+
+
+def test_execute_local_safe_returns_error_when_backend_is_unavailable(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    podman = get_backend("podman")
+    docker = get_backend("docker-rootless")
+
+    def fake_unavailable_probe(self):
+        return SandboxProbe(
+            backend=self.name,
+            available=False,
+            isolation_class="container",
+            supported_profiles=["local-safe"],
+            notes=["Unavailable."],
+            evidence={},
+        )
+
+    monkeypatch.setattr(type(podman), "probe", fake_unavailable_probe)
+    monkeypatch.setattr(type(docker), "probe", fake_unavailable_probe)
+
+    payload = execute_code(
+        workspace,
+        language="python",
+        code="result = {'ok': True}",
+        profile="local-safe",
+        timeout_seconds=10,
+    )
+
+    assert payload["ok"] is False
+    assert "Sandbox profile 'local-safe' requires one of" in payload["error"]
 
 
 def test_runtime_artifacts_track_eval_accept_and_cancel(temp_hive_dir, capsys):

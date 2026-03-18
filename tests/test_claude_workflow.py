@@ -7,6 +7,10 @@ from pathlib import Path
 import yaml
 
 
+def _workflow_triggers(workflow: dict) -> dict:
+    return workflow.get("on", workflow.get(True, {}))
+
+
 def test_claude_workflows_discourage_raw_log_dump_comments():
     """Both Claude workflows should summarize logs instead of pasting them into comments."""
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "claude.yml"
@@ -29,7 +33,10 @@ def test_claude_workflow_reviews_draft_prs_and_uses_sticky_comments():
 
     response_with = workflow["jobs"]["claude-response"]["steps"][-1]["with"]
     review_if = workflow["jobs"]["claude-review"]["if"]
+    ignored_paths = _workflow_triggers(workflow)["pull_request"]["paths-ignore"]
 
     assert response_with["use_sticky_comment"] is True
     assert "!github.event.pull_request.draft" not in review_if
     assert "github.event_name == 'pull_request'" in review_if
+    assert ".github/workflows/claude.yml" in ignored_paths
+    assert "tests/test_claude_workflow.py" in ignored_paths

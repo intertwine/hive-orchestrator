@@ -586,29 +586,29 @@ def _ingest_claude_exec_output(
     source = "driver.claude.exec"
     result_text = str(payload.get("result") or "").strip()
     driver_event_type = "claude.print_result" if result_text else "claude.print_metadata"
-        if result_text:
-            if transcript_path_value:
-                _append_transcript_entry(
-                    Path(transcript_path_value),
-                    {
+    if result_text:
+        if transcript_path_value:
+            _append_transcript_entry(
+                Path(transcript_path_value),
+                {
                     "ts": utc_now_iso(),
                     "kind": "assistant",
                     "driver": metadata.get("driver"),
                     "message": result_text,
                     "driver_event_type": "claude.print_result",
-                        "state": status_payload.get("state"),
-                    },
-                )
-                # Only mark the assistant text as imported when it was appended to
-                # the transcript; without a transcript file, the legacy last-message
-                # import still needs to backfill the final assistant turn.
-                imports["last_message_sha256"] = hashlib.sha256(
-                    result_text.encode("utf-8")
-                ).hexdigest()
-            _emit_runtime_driver_event(
-                root,
-                metadata,
-                event_type="driver.output.delta",
+                    "state": status_payload.get("state"),
+                },
+            )
+            # Only mark the assistant text as imported when it was appended to
+            # the transcript; without a transcript file, the legacy last-message
+            # import still needs to backfill the final assistant turn.
+            imports["last_message_sha256"] = hashlib.sha256(
+                result_text.encode("utf-8")
+            ).hexdigest()
+        _emit_runtime_driver_event(
+            root,
+            metadata,
+            event_type="driver.output.delta",
             source=source,
             payload={"driver_event_type": "claude.print_result", "message": result_text},
         )

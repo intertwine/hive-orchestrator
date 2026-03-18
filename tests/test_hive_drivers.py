@@ -12,8 +12,8 @@ import subprocess
 
 from tests.conftest import init_git_repo, write_safe_program
 from hive.cli.main import main as hive_main
+from src.hive.runs.program import _build_reroute_launch_request
 from src.hive.runs.engine import (
-    _build_reroute_launch_request,
     _refresh_workspace_state,
     load_run,
     start_run,

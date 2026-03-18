@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from src.hive.drivers import RunHandle, RunLaunchRequest
 from src.hive.models.program import ProgramRecord
 from src.hive.runs.lifecycle import (
     accept_run as _accept_run_impl,
@@ -20,17 +19,6 @@ from src.hive.runs.lifecycle import (
     steer_run as _steer_run_impl,
 )
 from src.hive.runs.metadata import load_run as _load_run_impl, save_run as _save_run_impl
-from src.hive.runs.driver_state import (
-    _active_driver_handle as _active_driver_handle_impl,
-    _append_transcript_entry as _append_transcript_entry_impl,
-    _build_reroute_launch_request as _build_reroute_launch_request_impl,
-    _emit_context_compiled_events as _emit_context_compiled_events_impl,
-    _load_driver_handles as _load_driver_handles_impl,
-    _record_driver_status as _record_driver_status_impl,
-    _record_steering_history as _record_steering_history_impl,
-    _save_driver_handles as _save_driver_handles_impl,
-    _steering_event_type as _steering_event_type_impl,
-)
 from src.hive.runs.paths import (
     artifact_payload as _artifact_payload_impl,
     branch_name as _branch_name_impl,
@@ -127,66 +115,6 @@ def _run_paths(run_directory: Path) -> dict[str, Path]:
 
 def _run_program_policy(program: ProgramRecord) -> dict[str, object]:
     return _run_program_policy_impl(program)
-
-
-def _emit_context_compiled_events(
-    root: Path,
-    *,
-    run_id: str,
-    task_id: str,
-    project_id: str,
-    manifest_path: str,
-) -> None:
-    _emit_context_compiled_events_impl(
-        root,
-        run_id=run_id,
-        task_id=task_id,
-        project_id=project_id,
-        manifest_path=manifest_path,
-    )
-
-
-def _append_transcript_entry(path: Path, record: dict[str, object]) -> None:
-    _append_transcript_entry_impl(path, record)
-
-
-def _load_driver_handles(metadata: dict) -> dict[str, object]:
-    return _load_driver_handles_impl(metadata)
-
-
-def _save_driver_handles(metadata: dict, handles: dict[str, object]) -> None:
-    _save_driver_handles_impl(metadata, handles)
-
-
-def _active_driver_handle(metadata: dict) -> RunHandle:
-    return _active_driver_handle_impl(metadata)
-
-
-def _record_driver_status(metadata: dict, status: dict[str, object]) -> None:
-    _record_driver_status_impl(metadata, status)
-
-
-def _record_steering_history(*args, **kwargs) -> dict[str, object]:
-    return _record_steering_history_impl(*args, **kwargs)
-
-
-def _steering_event_type(action: str) -> str:
-    return _steering_event_type_impl(action)
-
-
-def _build_reroute_launch_request(
-    root: Path,
-    metadata: dict,
-    *,
-    driver_name: str,
-    model: str | None = None,
-) -> RunLaunchRequest:
-    return _build_reroute_launch_request_impl(
-        root,
-        metadata,
-        driver_name=driver_name,
-        model=model,
-    )
 
 
 def _artifact_payload(metadata: dict) -> dict[str, object]:

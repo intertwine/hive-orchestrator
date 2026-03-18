@@ -15,7 +15,7 @@ from src.hive.console.api import app
 from src.hive.drivers import RunBudgetUsage, RunHandle, RunLinks, RunProgress, RunStatus, get_driver
 from src.hive.drivers import SteeringRequest
 from src.hive.runtime import request_approval
-from src.hive.runs.engine import accept_run, eval_run, run_artifacts, start_run, steer_run
+from src.hive.runs.engine import accept_run, eval_run, load_run, run_artifacts, start_run, steer_run
 from src.hive.scheduler.query import ready_tasks
 from src.hive.store.task_files import create_task
 from tests.conftest import init_git_repo, write_safe_program
@@ -373,6 +373,135 @@ def test_run_status_refresh_surfaces_live_codex_session_payload(temp_hive_dir, c
     assert payload["status"]["session"]["session_id"] == "pid-7000"
     assert payload["status"]["event_cursor"] == "9"
     assert payload["status"]["artifacts"]["raw_output_path"] == "/tmp/codex.jsonl"
+
+
+def test_run_status_imports_live_codex_events_into_runtime_artifacts(
+    temp_hive_dir, capsys, monkeypatch
+):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    driver = get_driver("codex")
+
+    def fake_live_exec_enabled(self):
+        return True
+
+    def fake_launch_live_exec(self, request):
+        raw_output_path = (
+            Path(request.artifacts_path) / "transcript" / "raw" / "codex-exec-events.jsonl"
+        )
+        raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_output_path.write_text(
+            "\n".join(
+                [
+                    json.dumps({"type": "thread.started", "thread_id": "thread_123"}),
+                    json.dumps(
+                        {
+                            "id": "evt_1",
+                            "msg": {
+                                "type": "agent_message_delta",
+                                "text": "Working through the requested patch.",
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "item.completed",
+                            "item": {"type": "todo_list", "items": ["inspect", "patch"]},
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "item.completed",
+                            "item": {"type": "file_change", "path": "README.md"},
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "id": "evt_2",
+                            "msg": {
+                                "type": "exec_approval_request",
+                                "call_id": "call_123",
+                                "command": ["bash", "-lc", "git status"],
+                                "cwd": request.workspace.worktree_path,
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "turn.completed",
+                            "usage": {"input_tokens": 10, "output_tokens": 5},
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return RunHandle(
+            run_id=request.run_id,
+            driver="codex",
+            driver_handle=f"codex:exec:{request.run_id}",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="exec",
+            transport="subprocess",
+            session_id="pid-7200",
+            event_cursor="0",
+            metadata={"pid": 7200, "raw_output_path": str(raw_output_path)},
+        )
+
+    def fake_status(self, handle):
+        raw_output_path = str(handle.metadata["raw_output_path"])
+        return RunStatus(
+            run_id=handle.run_id,
+            state="running",
+            health="healthy",
+            driver="codex",
+            progress=RunProgress(
+                phase="implementing",
+                message="Codex live exec is active.",
+                percent=45,
+            ),
+            waiting_on=None,
+            last_event_at="2026-03-18T06:04:00Z",
+            event_cursor="6",
+            session={"launch_mode": "exec", "transport": "subprocess", "session_id": "pid-7200"},
+            artifacts={"raw_output_path": raw_output_path},
+        )
+
+    monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
+    monkeypatch.setattr(type(driver), "_launch_live_exec", fake_launch_live_exec)
+    monkeypatch.setattr(type(driver), "status", fake_status)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="codex")
+    payload = _invoke_cli_json(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+    )
+    metadata = load_run(temp_hive_dir, run.id)
+    run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
+    transcript = (run_root / "transcript.ndjson").read_text(encoding="utf-8")
+    event_types = [
+        json.loads(line)["type"]
+        for line in (run_root / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert payload["status"]["health"] == "blocked"
+    assert payload["status"]["waiting_on"] == "approval"
+    assert payload["status"]["pending_approvals"][0]["payload"]["command"] == [
+        "bash",
+        "-lc",
+        "git status",
+    ]
+    assert payload["status"]["budget"]["spent_tokens"] == 15
+    assert metadata["metadata_json"]["driver_usage"]["spent_tokens"] == 15
+    assert "Working through the requested patch." in transcript
+    assert "driver.output.delta" in event_types
+    assert "driver.status" in event_types
+    assert "plan.updated" in event_types
+    assert "diff.updated" in event_types
+    assert "approval.requested" in event_types
 
 
 def test_eval_run_refreshes_live_codex_state_before_review(temp_hive_dir, capsys, monkeypatch):

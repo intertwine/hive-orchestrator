@@ -179,7 +179,7 @@ def _record_driver_status(metadata: dict, status: dict[str, object]) -> None:
 
 
 def _refresh_live_driver_status(metadata: dict) -> dict[str, object] | None:
-    return _refresh_live_driver_status_impl(metadata)
+    return _refresh_live_driver_status_impl(Path.cwd(), metadata)
 
 
 def _record_steering_history(
@@ -646,7 +646,7 @@ def refresh_run_driver_state(path: str | Path | None, run_id: str) -> dict:
     """Refresh persisted status for live driver-backed runs."""
     root = Path(path or Path.cwd()).resolve()
     metadata = load_run(root, run_id)
-    refreshed = _refresh_live_driver_status(metadata)
+    refreshed = _refresh_live_driver_status_impl(root, metadata)
     if refreshed is None:
         return metadata
 

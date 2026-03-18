@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 import shlex
 import signal
 import subprocess
+import sys
 from typing import Any
 
 from src.hive.drivers.base import HarnessDriver
-from src.hive.drivers.types import DriverInfo, RunHandle, RunLaunchRequest, RunProgress, RunStatus
+from src.hive.drivers.types import (
+    DriverInfo,
+    RunBudgetUsage,
+    RunHandle,
+    RunLaunchRequest,
+    RunProgress,
+    RunStatus,
+)
 from src.hive.runtime.capabilities import capability_surface
 from src.hive.clock import utc_now_iso
 
@@ -39,6 +48,12 @@ class CodexDriver(HarnessDriver):
             return False
         return raw.strip().lower() in {"1", "true", "yes", "on"}
 
+    def _live_app_server_enabled(self) -> bool:
+        raw = os.environ.get("HIVE_CODEX_LIVE_APP_SERVER")
+        if raw is None:
+            return False
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
     @staticmethod
     def _pid_is_running(pid: int) -> bool:
         try:
@@ -60,6 +75,19 @@ class CodexDriver(HarnessDriver):
             return None
 
     @staticmethod
+    def _load_state(path_value: str | None) -> dict[str, Any]:
+        if not path_value:
+            return {}
+        path = Path(path_value)
+        if not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    @staticmethod
     def _event_cursor(path_value: str | None) -> str | None:
         if not path_value:
             return None
@@ -78,6 +106,20 @@ class CodexDriver(HarnessDriver):
         latest = max(candidate.stat().st_mtime for candidate in candidates)
         return datetime.fromtimestamp(latest, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
+    @staticmethod
+    def _budget_usage_from_state(state: dict[str, Any]) -> RunBudgetUsage:
+        token_usage = state.get("token_usage")
+        if not isinstance(token_usage, dict):
+            return RunBudgetUsage()
+        total = token_usage.get("total")
+        if not isinstance(total, dict):
+            return RunBudgetUsage()
+        return RunBudgetUsage(
+            spent_tokens=int(total.get("totalTokens") or 0),
+            spent_cost_usd=0.0,
+            wall_minutes=0,
+        )
+
     def _build_exec_prompt(self, request: RunLaunchRequest) -> str:
         run_brief_path = Path(request.artifacts_path) / "context" / "compiled" / "run-brief.md"
         run_brief = run_brief_path.read_text(encoding="utf-8")
@@ -89,6 +131,111 @@ class CodexDriver(HarnessDriver):
                 "summary of what changed and any remaining risks.",
                 run_brief.strip(),
             ]
+        )
+
+    def _launch_live_app_server(self, request: RunLaunchRequest) -> RunHandle | None:
+        binary_name, binary_path = self._detected_binary_details()
+        if not self._live_app_server_enabled() or not binary_path:
+            return None
+
+        help_text = self._command_output("--help") or ""
+        app_server_help = self._command_output("app-server", "--help") or ""
+        if "app-server" not in help_text or "--listen" not in app_server_help:
+            return None
+
+        run_root = Path(request.artifacts_path)
+        raw_output_path = run_root / "transcript" / "raw" / "codex-app-server-events.jsonl"
+        last_message_path = run_root / "transcript" / "raw" / "codex-app-server-last-message.txt"
+        exit_code_path = run_root / "driver" / "codex-app-server-exit.txt"
+        state_path = run_root / "driver" / "codex-app-server-state.json"
+        prompt_path = run_root / "driver" / "codex-app-server-prompt.txt"
+        command_path = run_root / "driver" / "codex-app-server-command.txt"
+        stderr_path = run_root / "logs" / "stderr.txt"
+        raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            prompt = self._build_exec_prompt(request)
+        except OSError as exc:
+            return RunHandle(
+                run_id=request.run_id,
+                driver=self.name,
+                driver_handle=f"{self.name}:app-server:{request.run_id}",
+                status="failed",
+                launched_at=utc_now_iso(),
+                launch_mode="app_server",
+                transport="stdio-jsonrpc",
+                metadata={"launch_error": str(exc)},
+            )
+
+        prompt_path.write_text(prompt, encoding="utf-8")
+        worker_path = Path(__file__).with_name("codex_app_server_worker.py")
+        command = [
+            sys.executable,
+            str(worker_path),
+            "--binary",
+            binary_path,
+            "--worktree",
+            request.workspace.worktree_path,
+            "--prompt",
+            str(prompt_path),
+            "--raw-output",
+            str(raw_output_path),
+            "--last-message",
+            str(last_message_path),
+            "--exit-code",
+            str(exit_code_path),
+            "--stderr",
+            str(stderr_path),
+            "--approval-channel",
+            str(request.metadata.get("approval_channel") or ""),
+            "--state",
+            str(state_path),
+        ]
+        if request.model:
+            command.extend(["--model", request.model])
+        command_path.write_text(" ".join(shlex.quote(part) for part in command), encoding="utf-8")
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=request.workspace.worktree_path,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                start_new_session=True,
+            )
+        except OSError as exc:
+            return RunHandle(
+                run_id=request.run_id,
+                driver=self.name,
+                driver_handle=f"{self.name}:app-server:{request.run_id}",
+                status="failed",
+                launched_at=utc_now_iso(),
+                launch_mode="app_server",
+                transport="stdio-jsonrpc",
+                metadata={"launch_error": str(exc)},
+            )
+        return RunHandle(
+            run_id=request.run_id,
+            driver=self.name,
+            driver_handle=f"{self.name}:app-server:{process.pid}",
+            status="running",
+            launched_at=utc_now_iso(),
+            launch_mode="app_server",
+            transport="stdio-jsonrpc",
+            session_id=str(process.pid),
+            event_cursor="0",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
+            metadata={
+                "binary_name": binary_name,
+                "binary_path": binary_path,
+                "pid": process.pid,
+                "raw_output_path": str(raw_output_path),
+                "last_message_path": str(last_message_path),
+                "exit_code_path": str(exit_code_path),
+                "state_path": str(state_path),
+                "prompt_path": str(prompt_path),
+                "command_path": str(command_path),
+            },
         )
 
     @staticmethod
@@ -276,7 +423,32 @@ class CodexDriver(HarnessDriver):
         snapshot = info.capability_snapshot
         if snapshot is None:
             return info
-        if self._live_exec_enabled() and snapshot.probed.get("exec_available"):
+        if self._live_app_server_enabled() and snapshot.probed.get("app_server_available"):
+            snapshot.effective = capability_surface(
+                launch_mode="app_server",
+                session_persistence="thread",
+                event_stream="structured_deltas",
+                approvals=["command", "file"],
+                skills="file_projection",
+                worktrees="host_managed",
+                subagents="none",
+                native_sandbox="policy",
+                outer_sandbox_required=True,
+                artifacts=["runpack", "transcript", "plan", "diff"],
+                reroute_export="transcript",
+            )
+            snapshot.confidence["effective"] = "verified"
+            snapshot.evidence["effective"] = (
+                "Codex app-server mode is enabled, so Hive can launch a real interactive "
+                "Codex session over stdio JSON-RPC."
+            )
+            info.capabilities.resume = False
+            info.capabilities.interrupt = ["cancel"]
+            info.capabilities.reroute_export = "transcript"
+            info.notes.append(
+                "Codex app-server mode is enabled; Hive can launch a live interactive Codex run."
+            )
+        elif self._live_exec_enabled() and snapshot.probed.get("exec_available"):
             snapshot.effective = capability_surface(
                 launch_mode="exec",
                 session_persistence="ephemeral",
@@ -304,12 +476,150 @@ class CodexDriver(HarnessDriver):
         return info
 
     def launch(self, request: RunLaunchRequest) -> RunHandle:
+        app_server_handle = self._launch_live_app_server(request)
+        if app_server_handle is not None:
+            return app_server_handle
         live_handle = self._launch_live_exec(request)
         if live_handle is not None:
             return live_handle
         return super().launch(request)
 
     def status(self, handle: RunHandle) -> RunStatus:
+        if handle.launch_mode == "app_server":
+            raw_output_path = str(handle.metadata.get("raw_output_path") or "")
+            last_message_path = str(handle.metadata.get("last_message_path") or "")
+            exit_code_path = str(handle.metadata.get("exit_code_path") or "")
+            state_path = str(handle.metadata.get("state_path") or "")
+            pid = int(handle.metadata.get("pid") or 0)
+            exit_code = self._read_exit_code(exit_code_path)
+            state = self._load_state(state_path)
+            budget = self._budget_usage_from_state(state)
+            cursor = self._event_cursor(raw_output_path) or handle.event_cursor
+            last_event_at = self._last_event_timestamp(
+                raw_output_path,
+                last_message_path,
+                state_path,
+                exit_code_path,
+            )
+            turn_status = str(state.get("turn_status") or "")
+            thread_status = str(state.get("thread_status") or "")
+            session = {
+                "launch_mode": "app_server",
+                "transport": "stdio-jsonrpc",
+                "session_id": handle.session_id,
+                "thread_id": state.get("thread_id"),
+                "turn_id": state.get("turn_id"),
+                "pid": pid or None,
+            }
+            artifacts = {
+                "raw_output_path": raw_output_path or None,
+                "last_message_path": last_message_path or None,
+                "exit_code_path": exit_code_path or None,
+                "state_path": state_path or None,
+            }
+            if exit_code is None:
+                if pid and self._pid_is_running(pid):
+                    message = "Codex app-server is actively working in the Hive run worktree."
+                    phase = "implementing"
+                    percent = 20
+                    if thread_status == "idle" and turn_status == "inProgress":
+                        message = "Codex app-server is wrapping up the current turn."
+                    elif turn_status == "completed":
+                        message = (
+                            "Codex app-server finished the turn and is draining final events "
+                            "before Hive marks the run complete."
+                        )
+                        phase = "finalizing"
+                        percent = 95
+                    elif turn_status in {"cancelled", "interrupted"}:
+                        message = (
+                            "Codex app-server acknowledged the interrupt and is finalizing "
+                            "shutdown artifacts."
+                        )
+                        phase = "cancelling"
+                        percent = 95
+                    return RunStatus(
+                        run_id=handle.run_id,
+                        state="running",
+                        health="healthy",
+                        driver=self.name,
+                        progress=RunProgress(
+                            phase=phase,
+                            message=message,
+                            percent=percent,
+                        ),
+                        waiting_on=None,
+                        last_event_at=last_event_at or handle.launched_at,
+                        budget=budget,
+                        event_cursor=cursor,
+                        session=session,
+                        artifacts=artifacts,
+                    )
+                return RunStatus(
+                    run_id=handle.run_id,
+                    state="failed",
+                    health="failed",
+                    driver=self.name,
+                    progress=RunProgress(
+                        phase="failed",
+                        message="Codex app-server stopped without writing an exit marker.",
+                        percent=100,
+                    ),
+                    waiting_on="operator",
+                    last_event_at=last_event_at or handle.launched_at,
+                    budget=budget,
+                    event_cursor=cursor,
+                    session=session,
+                    artifacts=artifacts,
+                )
+            if exit_code == 0:
+                state_name = "completed_candidate"
+                health = "healthy"
+                waiting_on = "review"
+                progress = RunProgress(
+                    phase="completed",
+                    message="Codex app-server finished and produced a candidate result for review.",
+                    percent=100,
+                )
+                if turn_status in {"cancelled", "interrupted"}:
+                    state_name = "cancelled"
+                    health = "needs_attention"
+                    waiting_on = "operator"
+                    progress = RunProgress(
+                        phase="cancelled",
+                        message="Codex app-server turn was interrupted by Hive.",
+                        percent=100,
+                    )
+                return RunStatus(
+                    run_id=handle.run_id,
+                    state=state_name,
+                    health=health,
+                    driver=self.name,
+                    progress=progress,
+                    waiting_on=waiting_on,
+                    last_event_at=last_event_at or handle.launched_at,
+                    budget=budget,
+                    event_cursor=cursor,
+                    session=session,
+                    artifacts=artifacts,
+                )
+            return RunStatus(
+                run_id=handle.run_id,
+                state="failed",
+                health="failed",
+                driver=self.name,
+                progress=RunProgress(
+                    phase="failed",
+                    message=f"Codex app-server bridge exited with status {exit_code}.",
+                    percent=100,
+                ),
+                waiting_on="operator",
+                last_event_at=last_event_at or handle.launched_at,
+                budget=budget,
+                event_cursor=cursor,
+                session=session,
+                artifacts=artifacts,
+            )
         if handle.launch_mode != "exec":
             return super().status(handle)
 
@@ -404,6 +714,38 @@ class CodexDriver(HarnessDriver):
         )
 
     def interrupt(self, handle: RunHandle, mode: str) -> dict[str, Any]:
+        if handle.launch_mode == "app_server":
+            if mode != "cancel":
+                return super().interrupt(handle, mode)
+            channel_path = str(handle.approval_channel or handle.metadata.get("approval_channel") or "")
+            if not channel_path.strip():
+                return {
+                    "ok": False,
+                    "driver": self.name,
+                    "run_id": handle.run_id,
+                    "mode": mode,
+                    "message": "Codex app-server handle does not expose a control channel.",
+                }
+            target = Path(channel_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            record = {
+                "ts": utc_now_iso(),
+                "kind": "interrupt_request",
+                "driver": self.name,
+                "run_id": handle.run_id,
+                "driver_handle": handle.driver_handle,
+                "mode": mode,
+            }
+            with open(target, "a", encoding="utf-8") as handle_out:
+                handle_out.write(json.dumps(record, sort_keys=True) + "\n")
+            return {
+                "ok": True,
+                "driver": self.name,
+                "run_id": handle.run_id,
+                "mode": mode,
+                "channel": str(target),
+                "message": "Queued a Codex app-server interrupt request.",
+            }
         if handle.launch_mode != "exec":
             return super().interrupt(handle, mode)
         pid = int(handle.metadata.get("pid") or 0)
@@ -443,6 +785,17 @@ class CodexDriver(HarnessDriver):
         }
 
     def collect_artifacts(self, handle: RunHandle) -> dict[str, Any]:
+        if handle.launch_mode == "app_server":
+            return {
+                "driver": self.name,
+                "run_id": handle.run_id,
+                "artifacts": [
+                    handle.metadata.get("raw_output_path"),
+                    handle.metadata.get("last_message_path"),
+                    handle.metadata.get("exit_code_path"),
+                    handle.metadata.get("state_path"),
+                ],
+            }
         if handle.launch_mode != "exec":
             return super().collect_artifacts(handle)
         return {

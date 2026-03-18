@@ -286,6 +286,85 @@ def _request_codex_approval(
     return approval
 
 
+def _request_codex_app_server_command_approval(
+    root: Path,
+    metadata: dict,
+    *,
+    request_id: object,
+    payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    imports = _driver_imports(metadata)
+    seen_ids = imports.setdefault("app_server_command_approval_ids", [])
+    approval_key = str(payload.get("approvalId") or payload.get("itemId") or request_id or "")
+    if approval_key and approval_key in seen_ids:
+        return None
+    command_text = str(payload.get("command") or payload.get("itemId") or "command")
+    approval = request_approval(
+        root,
+        str(metadata["id"]),
+        kind="command",
+        title=f"Approve Codex command: {command_text}",
+        summary=f"Codex requested approval to execute `{command_text}` through app-server.",
+        requested_by="driver:codex",
+        payload={
+            "server_request_id": str(request_id),
+            "approval_id": payload.get("approvalId"),
+            "item_id": payload.get("itemId"),
+            "thread_id": payload.get("threadId"),
+            "turn_id": payload.get("turnId"),
+            "command": payload.get("command"),
+            "cwd": payload.get("cwd"),
+            "reason": payload.get("reason"),
+            "command_actions": payload.get("commandActions"),
+        },
+    )
+    metadata.setdefault("metadata_json", {}).setdefault("approvals", []).append(approval)
+    if approval_key:
+        seen_ids.append(approval_key)
+    return approval
+
+
+def _request_codex_app_server_file_approval(
+    root: Path,
+    metadata: dict,
+    *,
+    request_id: object,
+    payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    imports = _driver_imports(metadata)
+    seen_ids = imports.setdefault("app_server_file_approval_ids", [])
+    approval_key = str(payload.get("itemId") or payload.get("callId") or request_id or "")
+    if approval_key and approval_key in seen_ids:
+        return None
+    grant_root = str(payload.get("grantRoot") or "").strip()
+    reason = str(payload.get("reason") or "").strip()
+    title = "Approve Codex file change"
+    if grant_root:
+        title = f"Approve Codex write access: {grant_root}"
+    approval = request_approval(
+        root,
+        str(metadata["id"]),
+        kind="file",
+        title=title,
+        summary=reason or "Codex requested permission to apply file changes.",
+        requested_by="driver:codex",
+        payload={
+            "server_request_id": str(request_id),
+            "item_id": payload.get("itemId"),
+            "call_id": payload.get("callId"),
+            "thread_id": payload.get("threadId") or payload.get("conversationId"),
+            "turn_id": payload.get("turnId"),
+            "grant_root": payload.get("grantRoot"),
+            "reason": payload.get("reason"),
+            "file_changes": payload.get("fileChanges"),
+        },
+    )
+    metadata.setdefault("metadata_json", {}).setdefault("approvals", []).append(approval)
+    if approval_key:
+        seen_ids.append(approval_key)
+    return approval
+
+
 def _emit_runtime_driver_event(
     root: Path,
     metadata: dict,
@@ -432,6 +511,158 @@ def _ingest_codex_exec_events(
         status_payload["progress"] = progress
 
 
+def _thread_token_usage_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
+    token_usage = payload.get("tokenUsage")
+    if not isinstance(token_usage, dict):
+        return None
+    total = token_usage.get("total")
+    if not isinstance(total, dict):
+        return None
+    return {
+        "total_tokens": total.get("totalTokens"),
+        "input_tokens": total.get("inputTokens"),
+        "cached_input_tokens": total.get("cachedInputTokens"),
+        "output_tokens": total.get("outputTokens"),
+        "reasoning_output_tokens": total.get("reasoningOutputTokens"),
+    }
+
+
+def _ingest_codex_app_server_events(
+    root: Path,
+    metadata: dict,
+    handle: RunHandle,
+    status_payload: dict[str, object],
+) -> None:
+    if str(metadata.get("driver")) != "codex" or handle.launch_mode != "app_server":
+        return
+    artifacts = status_payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        return
+    raw_output_path = artifacts.get("raw_output_path") or handle.metadata.get("raw_output_path")
+    if not isinstance(raw_output_path, str) or not raw_output_path.strip():
+        return
+    raw_path = Path(raw_output_path)
+    if not raw_path.exists():
+        return
+
+    imports = _driver_imports(metadata)
+    previous_cursor = _coerce_line_cursor(
+        handle.event_cursor or imports.get("codex_app_server_event_cursor") or 0
+    )
+    current_cursor = _coerce_line_cursor(status_payload.get("event_cursor"))
+    raw_lines = [line for line in raw_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if current_cursor <= 0:
+        current_cursor = len(raw_lines)
+    new_records = raw_lines[previous_cursor:current_cursor]
+
+    for raw_line in new_records:
+        try:
+            record = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        method = str(record.get("method") or "")
+        payload = dict(record.get("params") or {})
+        if not method:
+            continue
+        source = "driver.codex.app_server"
+        if method == "item/agentMessage/delta":
+            text = str(payload.get("delta") or "").strip()
+            if text:
+                _append_transcript_entry(
+                    Path(metadata["transcript_path"]),
+                    {
+                        "ts": utc_now_iso(),
+                        "kind": "assistant",
+                        "driver": metadata.get("driver"),
+                        "message": text,
+                        "driver_event_type": method,
+                    },
+                )
+                _emit_runtime_driver_event(
+                    root,
+                    metadata,
+                    event_type="driver.output.delta",
+                    source=source,
+                    payload={"driver_event_type": method, "message": text},
+                )
+            continue
+        if method in {"item/reasoning/textDelta", "item/reasoning/summaryTextDelta"}:
+            text = str(payload.get("delta") or "").strip()
+            if text:
+                _append_transcript_entry(
+                    Path(metadata["transcript_path"]),
+                    {
+                        "ts": utc_now_iso(),
+                        "kind": "thinking",
+                        "driver": metadata.get("driver"),
+                        "message": text,
+                        "driver_event_type": method,
+                    },
+                )
+            continue
+        if method == "item/commandExecution/requestApproval":
+            _request_codex_app_server_command_approval(
+                root,
+                metadata,
+                request_id=record.get("id"),
+                payload=payload,
+            )
+            continue
+        if method in {"item/fileChange/requestApproval", "applyPatchApproval"}:
+            _request_codex_app_server_file_approval(
+                root,
+                metadata,
+                request_id=record.get("id"),
+                payload=payload,
+            )
+            continue
+        if method == "turn/plan/updated":
+            _emit_runtime_driver_event(
+                root,
+                metadata,
+                event_type="plan.updated",
+                source=source,
+                payload={"driver_event_type": method, "payload": payload},
+            )
+            continue
+        if method == "turn/diff/updated":
+            _emit_runtime_driver_event(
+                root,
+                metadata,
+                event_type="diff.updated",
+                source=source,
+                payload={"driver_event_type": method, "payload": payload},
+            )
+            continue
+        usage = _thread_token_usage_payload(payload)
+        if usage is not None:
+            _record_driver_usage(metadata, status_payload, usage)
+        _emit_runtime_driver_event(
+            root,
+            metadata,
+            event_type="driver.status",
+            source=source,
+            payload={"driver_event_type": method, "payload": payload},
+        )
+
+    imports["codex_app_server_event_cursor"] = current_cursor
+    imports["codex_app_server_raw_output_path"] = str(raw_path)
+    pending = pending_approvals(root, str(metadata["id"]))
+    status_payload["pending_approvals"] = pending
+    if pending and status_payload.get("state") == "running":
+        status_payload["health"] = "blocked"
+        status_payload["waiting_on"] = "approval"
+        progress = dict(status_payload.get("progress") or {})
+        if not progress:
+            progress = {"phase": "waiting", "message": "Awaiting driver approval.", "percent": 0}
+        else:
+            progress["phase"] = "waiting"
+            progress["message"] = "Codex is blocked on a pending approval request."
+        status_payload["progress"] = progress
+
+
 def _update_active_handle_from_status(metadata: dict, status_payload: dict[str, object]) -> None:
     handles = _load_driver_handles(metadata)
     active = handles.get("active")
@@ -500,6 +731,7 @@ def _refresh_live_driver_status(root: Path, metadata: dict) -> dict[str, object]
     status = driver.status(handle)
     status_payload = status.to_dict()
     _ingest_codex_exec_events(root, metadata, handle, status_payload)
+    _ingest_codex_app_server_events(root, metadata, handle, status_payload)
     _sync_run_budget_from_status(metadata, status_payload)
     _record_driver_status(metadata, status_payload)
     _update_active_handle_from_status(metadata, status_payload)

@@ -20,3 +20,16 @@ def test_claude_workflows_discourage_raw_log_dump_comments():
         assert "Summarize command results in prose" in prompt
         assert "workflow or job URL for full logs" in prompt
     assert "Only publish the final GitHub comment or PR update" in response_prompt
+
+
+def test_claude_workflow_reviews_draft_prs_and_uses_sticky_comments():
+    """Draft PR review should stay enabled and mention replies should stay contained."""
+    workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "claude.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+
+    response_with = workflow["jobs"]["claude-response"]["steps"][-1]["with"]
+    review_if = workflow["jobs"]["claude-review"]["if"]
+
+    assert response_with["use_sticky_comment"] is True
+    assert "!github.event.pull_request.draft" not in review_if
+    assert "github.event_name == 'pull_request'" in review_if

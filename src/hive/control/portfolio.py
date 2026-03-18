@@ -292,6 +292,8 @@ def work_on_task(
     model: str | None = None,
     campaign_id: str | None = None,
     profile: str = "default",
+    scheduler_candidate_set: dict[str, Any] | None = None,
+    scheduler_decision: dict[str, Any] | None = None,
     output_path: str | Path | None = None,
     checkpoint: bool = True,
     checkpoint_message: str | None = None,
@@ -334,6 +336,8 @@ def work_on_task(
         model=model,
         campaign_id=campaign_id,
         profile=profile,
+        scheduler_candidate_set=scheduler_candidate_set,
+        scheduler_decision=scheduler_decision,
     )
     sync_workspace(root)
     bundle = build_context_bundle(

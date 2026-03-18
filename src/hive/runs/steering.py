@@ -9,7 +9,7 @@ from typing import cast
 from src.hive.clock import utc_now_iso
 from src.hive.constants import RUN_TERMINAL_STATUSES
 from src.hive.drivers import SteeringRequest, get_driver
-from src.hive.runtime import sync_runtime_status_artifacts
+from src.hive.runtime.runpack import sync_runtime_status_artifacts
 from src.hive.runs.driver_state import (
     _active_driver_handle,
     _append_transcript_entry,

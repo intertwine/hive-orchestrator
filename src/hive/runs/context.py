@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from src.hive.clock import utc_now_iso
+from src.hive.retrieval_trace import classify_retrieval_intent, retrieval_provenance
 from src.hive.search import search_workspace
 
 
@@ -70,6 +71,26 @@ def _selected_skills(root: Path, query: str, limit: int = 4) -> list[dict[str, s
         }
         for _, candidate in scored[:limit]
     ]
+
+
+def _selected_search_hits(
+    candidates: list[dict[str, object]],
+    *,
+    query: str,
+    limit: int = 4,
+) -> list[dict[str, object]]:
+    selected = list(candidates[:limit])
+    if classify_retrieval_intent(query) != "policy":
+        return selected
+    if any(retrieval_provenance(hit) == "program_policy" for hit in selected):
+        return selected
+    for candidate in candidates:
+        if retrieval_provenance(candidate) != "program_policy":
+            continue
+        if not selected:
+            return [candidate]
+        return [candidate, *selected[: max(0, limit - 1)]]
+    return selected
 
 
 def _manifest_entry(
@@ -164,14 +185,15 @@ def compile_run_context(
 
     query_text = _context_query(project, task)
     selected_skills = _selected_skills(root, query_text)
-    search_hits = search_workspace(
+    retrieval_candidates = search_workspace(
         root,
         query_text,
-        scopes=["api", "examples", "project"],
-        limit=4,
+        scopes=["workspace", "api", "examples", "project"],
+        limit=8,
         project_id=project.id,
         task_id=task.id,
     )
+    search_hits = _selected_search_hits(retrieval_candidates, query=query_text, limit=4)
 
     skills_manifest_path.write_text(
         json.dumps(
@@ -302,4 +324,5 @@ def compile_run_context(
         "skills_manifest_path": skills_manifest_path,
         "query_text": query_text,
         "search_hits": search_hits,
+        "retrieval_candidates": retrieval_candidates,
     }

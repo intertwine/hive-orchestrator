@@ -14,7 +14,7 @@ from src.hive.drivers.types import (
     RunWorkspace,
     SteeringRequest,
 )
-from src.hive.runtime import CapabilitySnapshot, CapabilitySurface
+from src.hive.runtime.capabilities import CapabilitySnapshot, CapabilitySurface
 
 __all__ = [
     "DriverCapabilities",

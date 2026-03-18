@@ -12,10 +12,10 @@ from src.hive.constants import RUN_ACTIVE_STATUSES, RUN_TERMINAL_STATUSES
 from src.hive.drivers import RunBudget, RunLaunchRequest, RunWorkspace, SteeringRequest, get_driver
 from src.hive.ids import new_id
 from src.hive.models.run import RunRecord
-from src.hive.runtime import (
-    CapabilitySnapshot,
-    pending_approvals,
-    resolve_approval,
+from src.hive.retrieval_trace import build_retrieval_artifacts
+from src.hive.runtime.approvals import pending_approvals, resolve_approval
+from src.hive.runtime.capabilities import CapabilitySnapshot
+from src.hive.runtime.runpack import (
     runtime_manifest,
     sync_runtime_status_artifacts,
     write_runtime_scaffold,
@@ -309,6 +309,8 @@ def start_run(
     model: str | None = None,
     campaign_id: str | None = None,
     profile: str = "default",
+    scheduler_candidate_set: dict[str, object] | None = None,
+    scheduler_decision: dict[str, object] | None = None,
 ) -> RunRecord:
     root = Path(path or Path.cwd()).resolve()
     task = get_task(root, task_id)
@@ -375,89 +377,47 @@ def start_run(
             sandbox_policy=sandbox_policy,
         )
     )
+    retrieval_hits, retrieval_trace = build_retrieval_artifacts(
+        str(context_bundle.get("query_text") or ""),
+        selected_hits=list(context_bundle.get("search_hits") or []),
+        candidate_hits=list(context_bundle.get("retrieval_candidates") or []),
+    )
     paths["retrieval_hits_path"].write_text(
-        json.dumps(
-            {
-                "query": context_bundle.get("query_text"),
-                "results": list(context_bundle.get("search_hits") or []),
-            },
-            indent=2,
-            sort_keys=True,
-        ),
+        json.dumps(retrieval_hits, indent=2, sort_keys=True),
         encoding="utf-8",
     )
-    search_hits = list(context_bundle.get("search_hits") or [])
     paths["retrieval_trace_path"].write_text(
-        json.dumps(
-            {
-                "query": context_bundle.get("query_text"),
-                "intent": "mixed",
-                "candidate_counts": {
-                    "lexical": len(search_hits),
-                    "dense": 0,
-                    "graph": 0,
-                },
-                "fused": [
-                    {
-                        "chunk_id": str(hit.get("path") or hit.get("title") or index),
-                        "sources": ["lexical"],
-                        "pre_rerank_rank": index + 1,
-                    }
-                    for index, hit in enumerate(search_hits)
-                ],
-                "reranked": [
-                    {
-                        "chunk_id": str(hit.get("path") or hit.get("title") or index),
-                        "rank": index + 1,
-                        "score": float(hit.get("score") or 0.0),
-                    }
-                    for index, hit in enumerate(search_hits)
-                ],
-                "selected_context": [
-                    str(hit.get("path") or hit.get("title") or index)
-                    for index, hit in enumerate(search_hits)
-                ],
-                "dropped": [],
-            },
-            indent=2,
-            sort_keys=True,
-        ),
+        json.dumps(retrieval_trace, indent=2, sort_keys=True),
         encoding="utf-8",
     )
-    paths["scheduler_candidate_set_path"].write_text(
-        json.dumps(
+    default_candidate_set = {
+        "candidates": [
             {
-                "candidates": [
-                    {
-                        "candidate_id": task.id,
-                        "lane": "exploit",
-                        "scores": {
-                            "campaign_alignment": 1.0 if campaign_id else 0.5,
-                            "readiness": 1.0,
-                        },
-                        "recommended_driver": driver.name,
-                        "recommended_sandbox": sandbox_policy.backend,
-                    }
-                ]
-            },
-            indent=2,
-            sort_keys=True,
+                "candidate_id": task.id,
+                "lane": "exploit",
+                "scores": {
+                    "campaign_alignment": 1.0 if campaign_id else 0.5,
+                    "readiness": 1.0,
+                },
+                "recommended_driver": driver.name,
+                "recommended_sandbox": sandbox_policy.backend,
+            }
+        ]
+    }
+    default_decision = {
+        "selected_candidate_id": task.id,
+        "reason": (
+            "run started from an explicit task launch"
+            if campaign_id is None
+            else "run launched under the current campaign task selection"
         ),
+    }
+    paths["scheduler_candidate_set_path"].write_text(
+        json.dumps(scheduler_candidate_set or default_candidate_set, indent=2, sort_keys=True),
         encoding="utf-8",
     )
     paths["scheduler_decision_path"].write_text(
-        json.dumps(
-            {
-                "selected_candidate_id": task.id,
-                "reason": (
-                    "run started from an explicit task launch"
-                    if campaign_id is None
-                    else "run launched under the current campaign task selection"
-                ),
-            },
-            indent=2,
-            sort_keys=True,
-        ),
+        json.dumps(scheduler_decision or default_decision, indent=2, sort_keys=True),
         encoding="utf-8",
     )
 
@@ -636,6 +596,8 @@ def start_run(
                 "sandbox_policy": sandbox_policy.to_dict(),
                 "capability_snapshot": capability_snapshot.to_dict(),
                 "approval_channel": str(paths["approval_channel_path"]),
+                "scheduler_candidate_set": scheduler_candidate_set or default_candidate_set,
+                "scheduler_decision": scheduler_decision or default_decision,
             },
         },
     )

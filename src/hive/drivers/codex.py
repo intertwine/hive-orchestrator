@@ -12,7 +12,7 @@ from typing import Any
 
 from src.hive.drivers.base import HarnessDriver
 from src.hive.drivers.types import DriverInfo, RunHandle, RunLaunchRequest, RunProgress, RunStatus
-from src.hive.runtime import capability_surface
+from src.hive.runtime.capabilities import capability_surface
 from src.hive.clock import utc_now_iso
 
 

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from src.hive.control import portfolio_status, recommend_next_task
-from src.hive.runtime import list_approvals
+from src.hive.runtime.approvals import list_approvals
 from src.hive.runs.engine import refresh_run_driver_state
 from src.hive.scheduler.query import dependency_summary
 from src.hive.store.campaigns import list_campaigns
@@ -241,8 +241,11 @@ def build_home_view(base_path: Path) -> dict:
                 "title": campaign.title,
                 "goal": campaign.goal,
                 "status": campaign.status,
+                "type": campaign.campaign_type,
                 "driver": campaign.driver,
+                "sandbox_profile": campaign.sandbox_profile or "default",
                 "brief_cadence": campaign.brief_cadence,
+                "lane_quotas": dict(campaign.lane_quotas),
                 "project_ids": campaign.project_ids,
             }
             for campaign in list_campaigns(base_path)

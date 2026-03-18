@@ -11,6 +11,7 @@ from typing import Iterable
 
 from src.hive.scheduler.query import dependency_summary, project_summary
 from src.hive.store.cache import rebuild_cache
+from src.hive.retrieval_trace import classify_retrieval_intent, retrieval_explanation
 
 # "doc" keeps explicit doc-only searches aligned with the broader "workspace" umbrella.
 # The greenfield brief-search miss was caused by cache indexing, not scope expansion here.
@@ -297,6 +298,7 @@ def _cache_result(
     metadata: dict[str, object],
     fts_rank: float,
     query: str,
+    intent: str,
 ) -> dict[str, object]:
     terms = _query_terms(query)
     title_hits = _count_term_hits(title, terms)
@@ -304,6 +306,14 @@ def _cache_result(
     phrase_bonus = 12 if query.casefold() in body.casefold() else 0
     score = DOC_TYPE_BOOST.get(doc_type, 6) + (title_hits * 14) + (body_hits * 3) + phrase_bonus
     score += max(0.0, 12.0 - min(abs(fts_rank), 12.0))
+    if intent == "policy" and doc_type == "program":
+        score += 18
+    elif intent == "history" and doc_type == "run_summary":
+        score += 18
+    elif intent == "memory" and doc_type == "memory":
+        score += 12
+    elif intent == "task" and doc_type == "task":
+        score += 12
     reasons = _match_reasons(
         doc_type=doc_type,
         title=title,
@@ -311,6 +321,10 @@ def _cache_result(
         query=query,
         metadata=metadata,
     )
+    if intent == "policy" and doc_type == "program":
+        reasons.append("policy intent boosted PROGRAM.md over general docs")
+    elif intent == "history" and doc_type == "run_summary":
+        reasons.append("history intent boosted accepted run summaries")
     scope = str(metadata.get("scope") or ("project" if doc_type in {"task", "run_summary"} else ""))
     return {
         "kind": doc_type,
@@ -320,6 +334,7 @@ def _cache_result(
         "snippet": _snippet(body, query),
         "why": reasons,
         "matches": reasons,
+        "explanation": retrieval_explanation({"kind": doc_type, "why": reasons}),
         "metadata": metadata,
         **({"scope": scope} if scope else {}),
     }
@@ -375,6 +390,7 @@ def search_cache_documents(
     fts_query = _fts_query(query)
     if not fts_query:
         return []
+    intent = classify_retrieval_intent(query)
 
     where_clause = f"d.doc_type IN ({','.join('?' for _ in sorted(doc_types))})"
     params: list[object] = [fts_query, *sorted(doc_types)]
@@ -425,6 +441,7 @@ def search_cache_documents(
                 metadata=metadata,
                 fts_rank=float(fts_rank),
                 query=query,
+                intent=intent,
             )
         )
 
@@ -461,6 +478,7 @@ def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str,
                 "example": command["example"],
                 "why": ["command reference", "matched command docs"],
                 "matches": ["command reference", "matched command docs"],
+                "explanation": "command reference; matched command docs",
             }
         )
 
@@ -483,6 +501,7 @@ def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str,
                 "snippet": _snippet(body, query),
                 "why": [f"matched {kind} docs"],
                 "matches": [f"matched {kind} docs"],
+                "explanation": f"matched {kind} docs",
             }
         )
 
@@ -510,6 +529,7 @@ def _search_examples(query: str, scopes: set[str], limit: int) -> list[dict[str,
                     "snippet": _snippet(body, query),
                     "why": [reason],
                     "matches": [reason],
+                    "explanation": reason,
                 }
             )
     return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[:limit]
@@ -537,6 +557,7 @@ def _search_project_summary(
                 "snippet": _snippet(graph_text, query),
                 "why": ["matched project graph summary"],
                 "matches": ["matched project graph summary"],
+                "explanation": "matched project graph summary",
             }
         )
 
@@ -554,6 +575,7 @@ def _search_project_summary(
                 "metadata": project,
                 "why": ["matched project summary"],
                 "matches": ["matched project summary"],
+                "explanation": "matched project summary",
             }
         )
 

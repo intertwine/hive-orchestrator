@@ -30,6 +30,19 @@ from src.hive.store.events import emit_event
 from src.hive.workspace import WorkspaceBusyError, resolve_workspace_path, sync_workspace
 
 
+def _lane_quota_map(values: list[str] | None) -> dict[str, int] | None:
+    quotas: dict[str, int] = {}
+    for value in values or []:
+        lane, separator, amount = value.partition("=")
+        if not separator:
+            raise ValueError(f"Lane quota must look like lane=percent, got {value!r}")
+        normalized_lane = lane.strip().lower()
+        if normalized_lane not in {"exploit", "explore", "review", "maintenance"}:
+            raise ValueError(f"Unsupported lane quota {normalized_lane!r}")
+        quotas[normalized_lane] = max(0, int(amount.strip()))
+    return quotas or None
+
+
 def dispatch(args, root: Path) -> int:
     """Dispatch knowledge and portfolio commands."""
     try:
@@ -257,11 +270,28 @@ def dispatch(args, root: Path) -> int:
                     title=args.title,
                     goal=args.goal,
                     project_ids=clean_string_list(args.project_id),
+                    campaign_type=args.type,
                     driver=args.driver,
                     model=args.model,
+                    sandbox_profile=(args.sandbox_profile or "").strip() or None,
                     cadence=args.cadence,
                     brief_cadence=args.brief_cadence,
                     max_active_runs=args.max_active_runs,
+                    lane_quotas=_lane_quota_map(args.lane_quota),
+                    budget_policy={
+                        key: value
+                        for key, value in {
+                            "max_cost_usd": args.budget_cap_usd,
+                            "max_tokens": args.budget_cap_tokens,
+                        }.items()
+                        if value is not None
+                    }
+                    or None,
+                    escalation_policy=(
+                        {"default_mode": str(args.escalation_mode).strip()}
+                        if args.escalation_mode
+                        else None
+                    ),
                     notes_md=(args.notes or "").strip(),
                 )
                 sync_workspace(root)

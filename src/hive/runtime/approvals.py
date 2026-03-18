@@ -9,7 +9,6 @@ from typing import Any
 
 from src.hive.clock import utc_now_iso
 from src.hive.ids import new_id
-from src.hive.runs.metadata import load_run, save_run
 from src.hive.store.events import emit_event
 
 
@@ -65,6 +64,8 @@ def _write_approvals(metadata: dict[str, Any], approvals: list[dict[str, Any]]) 
 
 def list_approvals(path: str | Path | None, run_id: str) -> list[dict[str, Any]]:
     """Return all approval requests for a run."""
+    from src.hive.runs.metadata import load_run
+
     metadata = load_run(path, run_id)
     return _read_approvals(metadata)
 
@@ -85,6 +86,8 @@ def request_approval(
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Append one approval request to a run and emit the matching event."""
+    from src.hive.runs.metadata import load_run, save_run
+
     metadata = load_run(path, run_id)
     approval = ApprovalRequest(
         approval_id=new_id("approval"),
@@ -130,6 +133,8 @@ def resolve_approval(
     note: str | None = None,
 ) -> dict[str, Any]:
     """Resolve a pending approval request and emit the matching event."""
+    from src.hive.runs.metadata import load_run, save_run
+
     if resolution not in {"approved", "rejected"}:
         raise ValueError(f"Unsupported approval resolution: {resolution}")
     metadata = load_run(path, run_id)

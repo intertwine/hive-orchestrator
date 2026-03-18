@@ -9,7 +9,7 @@ from typing import Any
 
 from src.hive.clock import utc_now_iso
 from src.hive.drivers import RunHandle, RunLaunchRequest, get_driver
-from src.hive.runtime import pending_approvals, request_approval
+from src.hive.runtime.approvals import pending_approvals, request_approval
 from src.hive.runs.program import _build_reroute_launch_request, _run_program_policy
 from src.hive.store.events import emit_event
 

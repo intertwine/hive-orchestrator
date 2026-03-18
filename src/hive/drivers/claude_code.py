@@ -22,7 +22,7 @@ from src.hive.drivers.types import (
     RunProgress,
     RunStatus,
 )
-from src.hive.runtime import capability_surface
+from src.hive.runtime.capabilities import capability_surface
 
 
 class ClaudeCodeDriver(HarnessDriver):

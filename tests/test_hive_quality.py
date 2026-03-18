@@ -62,6 +62,21 @@ class TestHiveSearchQuality:
         assert "workspace document" in results[0]["matches"]
         assert all(Path(str(item["path"])).name != "SESSION_CONTEXT.md" for item in results)
 
+    def test_search_workspace_prefers_program_on_policy_queries(self, temp_hive_dir, temp_project):
+        migrate_v1_to_v2(temp_hive_dir)
+        rebuild_cache(temp_hive_dir)
+
+        results = search_workspace(
+            temp_hive_dir,
+            "sandbox evaluator budget policy",
+            scopes=["workspace"],
+            limit=6,
+        )
+
+        assert results
+        assert results[0]["kind"] == "program"
+        assert any("policy intent boosted PROGRAM.md" in reason for reason in results[0]["matches"])
+
 
 class TestHiveMemoryQuality:
     """Tests for project-scoped synthesized memory."""

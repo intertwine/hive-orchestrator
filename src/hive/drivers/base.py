@@ -19,7 +19,7 @@ from src.hive.drivers.types import (
     RunStatus,
     SteeringRequest,
 )
-from src.hive.runtime import CapabilitySnapshot, capability_surface
+from src.hive.runtime.capabilities import CapabilitySnapshot, capability_surface
 
 
 class Driver(ABC):

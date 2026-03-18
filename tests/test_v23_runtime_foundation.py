@@ -217,6 +217,14 @@ def test_sandbox_doctor_lists_scaffolded_backends(capsys, temp_hive_dir):
 
 def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):
     _bootstrap_workspace(temp_hive_dir, capsys)
+    create_task(
+        temp_hive_dir,
+        "demo",
+        "Sandbox policy evaluator guardrails",
+        status="ready",
+        priority=1,
+        summary_md="Update PROGRAM budget and sandbox approval rules.",
+    )
     task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
     run = start_run(temp_hive_dir, task_id, driver_name="codex")
     run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
@@ -224,6 +232,8 @@ def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):
     manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
     snapshot = json.loads((run_root / "capability-snapshot.json").read_text(encoding="utf-8"))
     sandbox = json.loads((run_root / "sandbox-policy.json").read_text(encoding="utf-8"))
+    retrieval_trace = json.loads((run_root / "retrieval" / "trace.json").read_text(encoding="utf-8"))
+    retrieval_hits = json.loads((run_root / "retrieval" / "hits.json").read_text(encoding="utf-8"))
     eval_results = json.loads((run_root / "eval" / "results.json").read_text(encoding="utf-8"))
     final_state = json.loads((run_root / "final.json").read_text(encoding="utf-8"))
 
@@ -237,6 +247,11 @@ def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):
     assert manifest["driver"] == "codex"
     assert snapshot["effective"]["launch_mode"] == "staged"
     assert sandbox["backend"] == "legacy-host"
+    assert retrieval_trace["intent"] == "policy"
+    assert retrieval_trace["selected_context"]
+    assert all(item["provenance"] for item in retrieval_trace["selected_context"])
+    assert all(item["explanation"] for item in retrieval_trace["selected_context"])
+    assert retrieval_hits["candidate_count"] >= retrieval_hits["selected_count"]
     assert eval_results["status"] == "awaiting_input"
     assert final_state["run_id"] == run.id
     assert final_state["status"] == "awaiting_input"

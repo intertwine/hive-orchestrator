@@ -11,7 +11,7 @@ from pathlib import Path
 from src.hive.cli.common import emit, emit_error
 from src.hive.drivers import SteeringRequest
 from src.hive.program import add_evaluator_template, doctor_program
-from src.hive.runtime import list_approvals
+from src.hive.runtime.approvals import list_approvals
 from src.hive.runs.engine import (
     accept_run,
     cleanup_run,

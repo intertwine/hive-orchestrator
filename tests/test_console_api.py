@@ -199,8 +199,11 @@ class TestObserveConsoleApi:
         assert context.json()["project"]["id"] == "demo"
         assert campaigns.status_code == 200
         assert campaigns.json()["campaigns"]
+        assert campaigns.json()["campaigns"][0]["type"] == "delivery"
         assert campaign.status_code == 200
         assert campaign.json()["campaign"]["id"] == campaign_id
+        assert "decision_preview" in campaign.json()
+        assert "lane_quotas" in campaign.json()["campaign"]
         assert search.status_code == 200
         assert search.json()["results"]
         assert console.status_code == 200

@@ -19,7 +19,7 @@ from src.hive.control import campaign_status
 from src.hive.context_bundle import build_context_bundle
 from src.hive.drivers import SteeringRequest
 from src.hive.program.doctor import doctor_program
-from src.hive.runtime import list_approvals, resolve_approval
+from src.hive.runtime.approvals import list_approvals, resolve_approval
 from src.hive.search import search_workspace
 from src.hive.store.campaigns import list_campaigns
 from src.hive.runs.engine import steer_run
@@ -379,11 +379,14 @@ def campaigns(path: str | None = Query(default=None)) -> dict:
                 "goal": campaign.goal,
                 "project_ids": campaign.project_ids,
                 "status": campaign.status,
+                "type": campaign.campaign_type,
                 "driver": campaign.driver,
                 "model": campaign.model,
+                "sandbox_profile": campaign.sandbox_profile or "default",
                 "cadence": campaign.cadence,
                 "brief_cadence": campaign.brief_cadence,
                 "max_active_runs": campaign.max_active_runs,
+                "lane_quotas": dict(campaign.lane_quotas),
             }
             for campaign in list_campaigns(root)
         ],

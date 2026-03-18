@@ -242,7 +242,84 @@ def test_sandbox_doctor_lists_scaffolded_backends(capsys, temp_hive_dir):
 
     assert backends == ["podman", "docker-rootless", "asrt", "e2b", "daytona", "cloudflare"]
     assert payload["backends"][0]["supported_profiles"] == ["local-safe"]
+    assert "configured" in payload["backends"][0]
     assert payload["backends"][-1]["experimental"] is True
+
+
+def test_e2b_probe_reports_auth_unverified_without_env(monkeypatch):
+    backend = get_backend("e2b")
+
+    def fake_find_binary(self):
+        return "/tmp/e2b"
+
+    def fake_command_output(self, *args):
+        if args == ("--version",):
+            return "e2b 0.1.0"
+        return None
+
+    monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
+    monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+    monkeypatch.delenv("E2B_API_KEY", raising=False)
+    monkeypatch.delenv("E2B_ACCESS_TOKEN", raising=False)
+
+    probe = backend.probe()
+
+    assert probe.available is True
+    assert probe.configured is False
+    assert probe.warnings
+    assert probe.evidence["env"]["E2B_API_KEY"] is False
+    assert probe.evidence["env"]["E2B_ACCESS_TOKEN"] is False
+
+
+def test_daytona_probe_requires_api_url_for_self_hosted(monkeypatch):
+    backend = get_backend("daytona")
+
+    def fake_find_binary(self):
+        return "/tmp/daytona"
+
+    def fake_command_output(self, *args):
+        if args == ("--version",):
+            return "daytona 0.1.0"
+        return None
+
+    monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
+    monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.delenv("DAYTONA_API_URL", raising=False)
+    monkeypatch.delenv("DAYTONA_JWT_TOKEN", raising=False)
+    monkeypatch.delenv("DAYTONA_ORGANIZATION_ID", raising=False)
+
+    probe = backend.probe()
+
+    assert probe.available is True
+    assert probe.configured is False
+    assert "DAYTONA_API_KEY" in probe.evidence["auth_source"]
+    assert any("DAYTONA_API_URL" in blocker for blocker in probe.blockers)
+
+
+def test_cloudflare_probe_detects_api_token_configuration(monkeypatch):
+    backend = get_backend("cloudflare")
+
+    def fake_find_binary(self):
+        return "/tmp/wrangler"
+
+    def fake_command_output(self, *args):
+        if args == ("--version",):
+            return "wrangler 0.1.0"
+        return None
+
+    monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
+    monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "token")
+    monkeypatch.delenv("CLOUDFLARE_API_KEY", raising=False)
+    monkeypatch.delenv("CLOUDFLARE_EMAIL", raising=False)
+
+    probe = backend.probe()
+
+    assert probe.available is True
+    assert probe.configured is True
+    assert probe.experimental is True
+    assert probe.evidence["auth_source"] == ["CLOUDFLARE_API_TOKEN"]
 
 
 def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):

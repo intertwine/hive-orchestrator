@@ -13,8 +13,11 @@ class SandboxProbe:
     backend: str
     available: bool
     isolation_class: str
+    configured: bool | None = None
     supported_profiles: list[str] = field(default_factory=list)
     experimental: bool = False
+    blockers: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     evidence: dict[str, Any] = field(default_factory=dict)
 

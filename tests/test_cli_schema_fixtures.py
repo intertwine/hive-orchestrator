@@ -203,7 +203,10 @@ def _build_cli_payloads(temp_hive_dir: str, capsys) -> dict[str, dict[str, Any]]
         ["--path", temp_hive_dir, "--json", "brief", "daily"],
     )
 
-    _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "onboard", "app", "--title", "App"])
+    _invoke_cli_json(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "project", "create", "app", "--title", "App"],
+    )
     (root / "pyproject.toml").write_text(
         "[project]\nname = 'app'\nversion = '0.1.0'\n",
         encoding="utf-8",

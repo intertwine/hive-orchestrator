@@ -25,6 +25,22 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
 class TestCampaignsAndOnboarding:
     """Campaigns, briefs, and guided flows should feel product-level."""
 
+    def test_onboard_blank_workspace_applies_generic_starter_evaluator(
+        self, temp_hive_dir, capsys
+    ):
+        init_git_repo(temp_hive_dir)
+
+        onboard = _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "onboard", "demo", "--title", "Demo"],
+        )
+
+        assert onboard["project"]["status"] == "active"
+        assert onboard["project"]["priority"] == 2
+        assert onboard["program"]["blocked_autonomous_promotion"] is False
+        assert onboard["program"]["applied_template"]["id"] == "local-smoke"
+        assert "hive work --project-id demo --owner <your-name>" in onboard["next_steps"]
+
     def test_onboard_and_adopt_seed_safe_projects(self, temp_hive_dir, capsys):
         (Path(temp_hive_dir) / "pyproject.toml").write_text(
             "[project]\nname = 'demo'\nversion = '0.1.0'\n",

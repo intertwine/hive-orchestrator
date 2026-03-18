@@ -258,7 +258,19 @@ def evaluator_templates(root: Path, project_dir: Path) -> list[dict[str, Any]]:
             continue
         seen_ids.add(candidate["id"])
         unique.append(candidate)
-    return unique
+    if unique:
+        return unique
+    return [
+        _template(
+            "local-smoke",
+            "python -c \"print('local smoke ok')\"",
+            label="Local smoke check",
+            reason=(
+                "No repo-specific test or lint entrypoint was detected, so Hive can seed "
+                "a minimal starter evaluator for the first governed run."
+            ),
+        )
+    ]
 
 
 def _issue(spec: IssueSpec) -> dict[str, Any]:

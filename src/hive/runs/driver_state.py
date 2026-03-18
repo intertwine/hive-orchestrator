@@ -599,6 +599,9 @@ def _ingest_claude_exec_output(
                     "state": status_payload.get("state"),
                 },
             )
+            imports["last_message_sha256"] = hashlib.sha256(
+                result_text.encode("utf-8")
+            ).hexdigest()
         _emit_runtime_driver_event(
             root,
             metadata,
@@ -606,9 +609,6 @@ def _ingest_claude_exec_output(
             source=source,
             payload={"driver_event_type": "claude.print_result", "message": result_text},
         )
-        imports["last_message_sha256"] = hashlib.sha256(
-            result_text.encode("utf-8")
-        ).hexdigest()
 
     _emit_runtime_driver_event(
         root,

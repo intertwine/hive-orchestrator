@@ -1948,6 +1948,7 @@ def test_claude_exec_ingest_tolerates_missing_transcript_path(tmp_path):
     assert metadata["metadata_json"]["driver_imports"]["claude_exec_raw_output_path"].endswith(
         "claude-print-result.json"
     )
+    assert "last_message_sha256" not in metadata["metadata_json"]["driver_imports"]
     assert metadata["metadata_json"]["driver_usage"]["spent_tokens"] == 11
     assert status_payload["budget"]["spent_tokens"] == 11
     assert event_types.count("driver.output.delta") == 1

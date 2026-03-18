@@ -40,6 +40,11 @@ class TestCampaignsAndOnboarding:
         assert onboard["program"]["blocked_autonomous_promotion"] is False
         assert onboard["program"]["applied_template"]["id"] == "local-smoke"
         assert "hive work --project-id demo --owner <your-name>" in onboard["next_steps"]
+        assert any("projects/demo/PROGRAM.md" in step for step in onboard["next_steps"])
+        assert any(
+            "hive program add-evaluator demo <real-evaluator-id>" in step
+            for step in onboard["next_steps"]
+        )
 
     def test_onboard_and_adopt_seed_safe_projects(self, temp_hive_dir, capsys):
         (Path(temp_hive_dir) / "pyproject.toml").write_text(

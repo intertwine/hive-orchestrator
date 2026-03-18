@@ -45,8 +45,9 @@ def _guided_next_steps(payload: dict[str, object]) -> list[str]:
     applied_template = dict(diagnosis.get("applied_template", {}))
     if applied_template.get("id") == "local-smoke" and project_id:
         next_steps.append(
-            "Later, replace the starter `local-smoke` evaluator with a real repo check via "
-            f"`hive program doctor {project_id}`."
+            "Later, replace the starter `local-smoke` evaluator by editing "
+            f"`projects/{project_id}/PROGRAM.md` and running "
+            f"`hive program add-evaluator {project_id} <real-evaluator-id>`."
         )
     return next_steps
 

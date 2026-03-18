@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import ipaddress
 import io
 import json
 import os
@@ -48,23 +49,23 @@ class LocalExecutor:
 
     def run_command(self, command: str, *, cwd: Path, timeout_seconds: int) -> CommandResult:
         started_at = utc_now_iso()
-        if self.sandbox_policy is not None and self.sandbox_policy.backend == "e2b":
-            return _run_e2b_command(
-                self.sandbox_policy,
-                command=command,
-                cwd=cwd,
-                timeout_seconds=timeout_seconds,
-                started_at=started_at,
-            )
-        if self.sandbox_policy is not None and self.sandbox_policy.backend == "daytona":
-            return _run_daytona_command(
-                self.sandbox_policy,
-                command=command,
-                cwd=cwd,
-                timeout_seconds=timeout_seconds,
-                started_at=started_at,
-            )
         try:
+            if self.sandbox_policy is not None and self.sandbox_policy.backend == "e2b":
+                return _run_e2b_command(
+                    self.sandbox_policy,
+                    command=command,
+                    cwd=cwd,
+                    timeout_seconds=timeout_seconds,
+                    started_at=started_at,
+                )
+            if self.sandbox_policy is not None and self.sandbox_policy.backend == "daytona":
+                return _run_daytona_command(
+                    self.sandbox_policy,
+                    command=command,
+                    cwd=cwd,
+                    timeout_seconds=timeout_seconds,
+                    started_at=started_at,
+                )
             argv, use_shell = self._command_payload(command, cwd=cwd)
             sandbox = self._sandbox_metadata(command, argv=argv, use_shell=use_shell, cwd=cwd)
             completed = subprocess.run(
@@ -474,6 +475,33 @@ def _daytona_resources(policy: SandboxPolicy, resources_class):
     )
 
 
+def _validated_daytona_allowlist(policy: SandboxPolicy) -> list[str]:
+    allowlist = [
+        str(item).strip() for item in list(policy.network.get("allowlist") or []) if str(item).strip()
+    ]
+    if not allowlist:
+        return []
+    if len(allowlist) > 10:
+        raise NotImplementedError(
+            "Daytona team-self-hosted execution supports up to 10 CIDR network allowlist entries."
+        )
+    invalid: list[str] = []
+    for entry in allowlist:
+        if "/" not in entry:
+            invalid.append(entry)
+            continue
+        try:
+            ipaddress.ip_network(entry, strict=False)
+        except ValueError:
+            invalid.append(entry)
+    if invalid:
+        raise NotImplementedError(
+            "Daytona team-self-hosted execution only supports network allowlists as CIDR "
+            f"blocks; unsupported entries: {', '.join(invalid)}"
+        )
+    return allowlist
+
+
 def _remote_shell_command(command: str, *, remote_cwd: str) -> str:
     payload = f"cd {shlex.quote(remote_cwd)} && {command}"
     return f"sh -lc {shlex.quote(payload)}"
@@ -490,9 +518,11 @@ def _run_daytona_command(
     """Run one evaluator-style command inside an ephemeral Daytona sandbox."""
     started = started_at
     host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
-    allowlist = [
-        str(item) for item in list(policy.network.get("allowlist") or []) if str(item).strip()
-    ]
+    if list(policy.mounts.get("read_only") or []):
+        raise NotImplementedError(
+            "Daytona team-self-hosted execution does not yet project extra read-only mounts."
+        )
+    allowlist = _validated_daytona_allowlist(policy)
     try:
         relative_cwd = cwd.resolve().relative_to(host_worktree)
     except ValueError:
@@ -518,10 +548,6 @@ def _run_daytona_command(
     sandbox = None
     session_created = False
     try:
-        if list(policy.mounts.get("read_only") or []):
-            raise NotImplementedError(
-                "Daytona team-self-hosted execution does not yet project extra read-only mounts."
-            )
         (
             daytona_class,
             config_class,
@@ -576,6 +602,7 @@ def _run_daytona_command(
         archive_bytes = _archive_mounts(host_worktree, host_artifacts)
         sandbox.fs.create_folder(_REMOTE_WORKTREE, "755")
         sandbox.fs.create_folder(_REMOTE_ARTIFACTS, "755")
+        # Daytona supports bytes -> remote_path uploads for in-memory artifacts.
         sandbox.fs.upload_file(archive_bytes, _REMOTE_ARCHIVE)
         sync_result = sandbox.process.exec(
             _remote_shell_command(

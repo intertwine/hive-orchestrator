@@ -298,13 +298,21 @@ def _wait_for_run_status(
     sleep_seconds: float = 0.1,
 ) -> dict:
     payload: dict = {}
+    matching_payload: dict = {}
+    matching_streak = 0
     for _ in range(attempts):
         payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "run", "status", run_id])
         status = payload.get("status")
         if isinstance(status, dict) and predicate(status):
-            return payload
+            matching_payload = payload
+            matching_streak += 1
+            if matching_streak >= 2:
+                return payload
+        else:
+            matching_streak = 0
+            matching_payload = {}
         time.sleep(sleep_seconds)
-    return payload
+    return matching_payload or payload
 
 
 class TestHiveDrivers:

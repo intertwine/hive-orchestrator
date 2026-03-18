@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import atexit
 import json
 import os
 from pathlib import Path
+import shutil
+import tempfile
+import time
 from typing import TYPE_CHECKING
 
 from src.hive.flags import feature_flags
-from src.hive.sandbox.registry import iter_backend_probes
+from src.hive.sandbox.registry import get_backend, iter_backend_probes
 
 if TYPE_CHECKING:
     from src.hive.runtime.runpack import SandboxPolicy
@@ -21,6 +25,11 @@ _PROFILE_BACKENDS = {
     "experimental": ("cloudflare",),
 }
 _WIRED_BACKENDS = {"podman", "docker-rootless", "asrt", "e2b", "daytona"}
+_ASRT_SETTINGS_DIR_PREFIX = "asrt-settings-"
+_ASRT_SETTINGS_FILE_NAME = "settings.json"
+_ASRT_SETTINGS_MAX_AGE_SECONDS = 24 * 60 * 60
+_ASRT_SETTINGS_CLEANUP_DIRS: set[Path] = set()
+_RESOLVED_BACKEND_BINARIES: dict[str, str] = {}
 
 
 def _backend_readiness_reason(backend_name: str, probe) -> str:
@@ -59,9 +68,83 @@ def _read_write_mounts(policy: SandboxPolicy, cwd: Path) -> tuple[Path, Path]:
     return host_worktree, host_artifacts
 
 
-def _asrt_settings_path(policy: SandboxPolicy, cwd: Path) -> Path:
+def _discover_backend_binary(backend_name: str, *, probe=None) -> str:
+    """Resolve a backend binary once from probe evidence or backend lookup.
+
+    Probe-backed policies normally populate the cache at selection time. The
+    `_find_binary()` fallback remains for compatibility paths that bypass
+    `resolve_sandbox_policy()` entirely, such as manually constructed policies or
+    deserialized policies whose backend probe omitted `evidence["binary"]`.
+    """
+    backend = get_backend(backend_name)
+    probe = probe or backend.probe()
+    binary = str((probe.evidence or {}).get("binary") or "").strip()
+    if binary:
+        return binary
+    finder = getattr(backend, "_find_binary", None)
+    if callable(finder):
+        resolved = finder()
+        if resolved:
+            return str(resolved)
+    raise ValueError(
+        f"Sandbox backend {backend_name!r} was selected, but Hive could not resolve its binary path."
+    )
+
+
+def _resolved_backend_binary(backend_name: str) -> str:
+    cached = _RESOLVED_BACKEND_BINARIES.get(backend_name)
+    if cached:
+        return cached
+    resolved = _discover_backend_binary(backend_name)
+    _RESOLVED_BACKEND_BINARIES[backend_name] = resolved
+    return resolved
+
+
+def _register_asrt_settings_cleanup(directory: Path) -> None:
+    _ASRT_SETTINGS_CLEANUP_DIRS.add(directory)
+
+
+@atexit.register
+def _cleanup_asrt_settings_dirs() -> None:
+    for directory in list(_ASRT_SETTINGS_CLEANUP_DIRS):
+        shutil.rmtree(directory, ignore_errors=True)
+        _ASRT_SETTINGS_CLEANUP_DIRS.discard(directory)
+
+
+def _prune_stale_asrt_settings_dirs(parent: Path) -> None:
+    cutoff = time.time() - _ASRT_SETTINGS_MAX_AGE_SECONDS
+    for candidate in parent.glob(f"{_ASRT_SETTINGS_DIR_PREFIX}*"):
+        if not candidate.is_dir():
+            continue
+        try:
+            if candidate.stat().st_mtime < cutoff:
+                shutil.rmtree(candidate, ignore_errors=True)
+        except OSError:
+            continue
+
+
+def _write_asrt_settings_file(policy: SandboxPolicy, cwd: Path) -> Path:
+    # The local executor consumes the returned path after this helper returns, so
+    # runtime-level cleanup cannot safely delete the directory immediately. We
+    # keep per-process cleanup plus stale-dir pruning for orphaned leftovers.
     _, host_artifacts = _read_write_mounts(policy, cwd)
-    return host_artifacts / "asrt-settings.json"
+    host_artifacts.mkdir(parents=True, exist_ok=True)
+    settings_root = host_artifacts.parent
+    settings_root.mkdir(parents=True, exist_ok=True)
+    _prune_stale_asrt_settings_dirs(settings_root)
+    settings_dir = Path(
+        tempfile.mkdtemp(
+            prefix=_ASRT_SETTINGS_DIR_PREFIX,
+            dir=settings_root,
+        )
+    )
+    _register_asrt_settings_cleanup(settings_dir)
+    settings_path = settings_dir / _ASRT_SETTINGS_FILE_NAME
+    settings_path.write_text(
+        json.dumps(_asrt_settings_payload(policy, cwd), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return settings_path
 
 
 def _asrt_settings_payload(policy: SandboxPolicy, cwd: Path) -> dict[str, object]:
@@ -137,6 +220,14 @@ def resolve_sandbox_policy(
         if probe.configured is False or backend_name not in _WIRED_BACKENDS:
             readiness_failures.append(_backend_readiness_reason(backend_name, probe))
             continue
+        try:
+            _RESOLVED_BACKEND_BINARIES[backend_name] = _discover_backend_binary(
+                backend_name,
+                probe=probe,
+            )
+        except ValueError as exc:
+            readiness_failures.append(str(exc))
+            continue
         return SandboxPolicy(
             backend=backend_name,
             isolation_class=probe.isolation_class,
@@ -173,14 +264,9 @@ def sandboxed_command(
         return command, True
 
     if policy.backend == "asrt":
-        settings_path = _asrt_settings_path(policy, cwd)
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-        settings_path.write_text(
-            json.dumps(_asrt_settings_payload(policy, cwd), indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
+        settings_path = _write_asrt_settings_file(policy, cwd)
         return [
-            "srt",
+            _resolved_backend_binary(policy.backend),
             "--settings",
             str(settings_path),
             "sh",

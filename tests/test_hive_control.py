@@ -36,6 +36,218 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
 class TestHiveControlPlane:
     """Tests for agent-manager style portfolio commands."""
 
+    def test_cli_work_human_output_defaults_to_summary_view(self, temp_hive_dir, capsys):
+        """Human-facing work output should stay compact unless the operator asks for context."""
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+
+        exit_code = hive_main(
+            [
+                "--path",
+                temp_hive_dir,
+                "work",
+                "--project-id",
+                "demo",
+                "--owner",
+                "manager",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "Started governed work on" in captured.out
+        assert "Run:" in captured.out
+        assert "# AGENTS" not in captured.out
+
+    def test_cli_work_human_output_can_print_context_on_demand(self, temp_hive_dir, capsys):
+        """`--print-context` should preserve the old full-bundle behavior when requested."""
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+
+        exit_code = hive_main(
+            [
+                "--path",
+                temp_hive_dir,
+                "work",
+                "--project-id",
+                "demo",
+                "--owner",
+                "manager",
+                "--print-context",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "# AGENTS" in captured.out
+        assert "Next steps:" not in captured.out
+
+    def test_cli_finish_human_output_includes_reject_reason(self, tmp_path, capsys):
+        """Human-facing finish output should explain why a run was rejected."""
+        workspace = tmp_path / "finish-human"
+        workspace.mkdir(parents=True, exist_ok=True)
+        init_git_repo(workspace)
+
+        onboard = _invoke_cli_json(
+            capsys,
+            ["--path", str(workspace), "--json", "onboard", "demo", "--title", "Demo"],
+        )
+        assert onboard["program"]["applied_template"]["id"] == "local-smoke"
+        run = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "work",
+                "--project-id",
+                "demo",
+                "--owner",
+                "manager",
+            ],
+        )["run"]
+
+        exit_code = hive_main(["--path", str(workspace), "finish", run["id"], "--owner", "manager"])
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "Promotion decision: reject" in captured.out
+        assert "Run did not produce workspace changes" in captured.out
+
+    def test_cli_work_next_steps_preserve_requested_profile(self, temp_hive_dir, capsys):
+        """Suggested context rebuild commands should keep the work profile the operator chose."""
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+
+        payload = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "work",
+                "--project-id",
+                "demo",
+                "--owner",
+                "manager",
+                "--profile",
+                "light",
+            ],
+        )
+
+        assert "--profile light" in payload["next_steps"][0]
+
+    def test_cli_finish_json_next_steps_preserve_manual_promotion_path(self, tmp_path, capsys):
+        """`--no-promote` should guide the operator to promote accepted work explicitly."""
+        workspace = tmp_path / "finish-no-promote"
+        workspace.mkdir(parents=True, exist_ok=True)
+        init_git_repo(workspace)
+        _invoke_cli_json(
+            capsys,
+            ["--path", str(workspace), "--json", "onboard", "demo", "--title", "Demo"],
+        )
+        write_safe_program(workspace, "demo")
+        run = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "work",
+                "--project-id",
+                "demo",
+                "--owner",
+                "manager",
+            ],
+        )["run"]
+        promoted_path = Path(run["worktree_path"]) / "docs" / "manual-promote.md"
+        promoted_path.parent.mkdir(parents=True, exist_ok=True)
+        promoted_path.write_text("manual promote\n", encoding="utf-8")
+        subprocess.run(["git", "add", "docs/manual-promote.md"], cwd=run["worktree_path"], check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "manual promote change"],
+            cwd=run["worktree_path"],
+            check=True,
+        )
+
+        payload = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "finish",
+                run["id"],
+                "--owner",
+                "manager",
+                "--no-promote",
+            ],
+        )
+
+        assert payload["action"] == "accept"
+        assert payload["next_steps"] == [f"hive run promote {run['id']}"]
+
+    def test_cli_finish_json_next_steps_return_to_queue_after_promotion(self, tmp_path, capsys):
+        """Default finish flow should send the operator back to the queue after promotion."""
+        workspace = tmp_path / "finish-promote"
+        workspace.mkdir(parents=True, exist_ok=True)
+        init_git_repo(workspace)
+        _invoke_cli_json(
+            capsys,
+            ["--path", str(workspace), "--json", "onboard", "demo", "--title", "Demo"],
+        )
+        write_safe_program(workspace, "demo")
+        run = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "work",
+                "--project-id",
+                "demo",
+                "--owner",
+                "manager",
+            ],
+        )["run"]
+        promoted_path = Path(run["worktree_path"]) / "docs" / "promoted.md"
+        promoted_path.parent.mkdir(parents=True, exist_ok=True)
+        promoted_path.write_text("promoted\n", encoding="utf-8")
+        subprocess.run(["git", "add", "docs/promoted.md"], cwd=run["worktree_path"], check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "promoted change"],
+            cwd=run["worktree_path"],
+            check=True,
+        )
+
+        payload = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "finish",
+                run["id"],
+                "--owner",
+                "manager",
+            ],
+        )
+
+        assert payload["action"] == "promote"
+        assert payload["next_steps"] == ["hive next"]
+
     def test_recommend_next_skips_paused_projects(self, temp_hive_dir, capsys):
         """Paused projects should drop out of manager recommendations."""
         init_git_repo(temp_hive_dir)

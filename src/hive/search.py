@@ -28,13 +28,18 @@ API_DOC_FILES = (
 )
 COMMAND_DOCS = (
     {
+        "title": "hive onboard",
+        "summary": "Recommended fresh-workspace bootstrap with a starter project and task chain.",
+        "example": 'hive onboard demo --title "Demo project"',
+    },
+    {
         "title": "hive quickstart",
-        "summary": "Bootstrap a workspace, create a starter project, and seed a first task chain.",
+        "summary": "Compatibility alias for the older fresh-workspace bootstrap path.",
         "example": 'hive quickstart demo --title "Demo project"',
     },
     {
         "title": "hive init",
-        "summary": "Initialize the .hive substrate layout for a workspace.",
+        "summary": "Initialize only the .hive substrate layout without creating a starter project.",
         "example": "hive init",
     },
     {

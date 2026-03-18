@@ -12,12 +12,18 @@ from src.hive import __version__
 
 
 def _add_bootstrap_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    quickstart_parser = subparsers.add_parser("quickstart")
+    quickstart_parser = subparsers.add_parser(
+        "quickstart",
+        help="Compatibility alias for the older fresh-workspace bootstrap path.",
+    )
     quickstart_parser.add_argument("slug", nargs="?", default="demo")
     quickstart_parser.add_argument("--title")
     quickstart_parser.add_argument("--objective")
 
-    onboard_parser = subparsers.add_parser("onboard")
+    onboard_parser = subparsers.add_parser(
+        "onboard",
+        help="Recommended fresh-workspace bootstrap with a starter project and task chain.",
+    )
     onboard_parser.add_argument("slug", nargs="?", default="demo")
     onboard_parser.add_argument("--title")
     onboard_parser.add_argument("--objective")
@@ -27,7 +33,10 @@ def _add_bootstrap_parsers(subparsers: argparse._SubParsersAction[argparse.Argum
     adopt_parser.add_argument("--title")
     adopt_parser.add_argument("--objective")
 
-    subparsers.add_parser("init")
+    subparsers.add_parser(
+        "init",
+        help="Bootstrap only the base Hive layout without creating a starter project.",
+    )
 
     doctor_parser = subparsers.add_parser("doctor")
     doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command")
@@ -50,6 +59,11 @@ def _add_control_parsers(subparsers: argparse._SubParsersAction[argparse.Argumen
     work_parser.add_argument("--campaign-id")
     work_parser.add_argument("--profile", default="default")
     work_parser.add_argument("--output")
+    work_parser.add_argument(
+        "--print-context",
+        action="store_true",
+        help="Print the startup context bundle to stdout instead of the summary view.",
+    )
     work_parser.add_argument(
         "--no-checkpoint",
         action="store_true",

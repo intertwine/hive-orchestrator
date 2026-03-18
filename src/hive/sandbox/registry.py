@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -183,7 +184,9 @@ class DockerRootlessBackend(BinarySandboxBackend):
             return probe
         probe.available = False
         probe.configured = False
-        probe.notes.append("Docker CLI is present, but the daemon is not advertising rootless mode.")
+        probe.notes.append(
+            "Docker CLI is present, but the daemon is not advertising rootless mode."
+        )
         return probe
 
 
@@ -205,6 +208,57 @@ class E2BBackend(CredentialAwareSandboxBackend):
         "E2B CLI is present, but Hive did not detect `E2B_API_KEY` or `E2B_ACCESS_TOKEN`; "
         "interactive `e2b auth login` may still work, but automation readiness is unverified."
     )
+
+    @staticmethod
+    def _sdk_available() -> bool:
+        return importlib.util.find_spec("e2b") is not None
+
+    def probe(self) -> SandboxProbe:
+        probe = super().probe()
+        has_sdk = self._sdk_available()
+        probe.evidence["python_sdk"] = has_sdk
+        env_names = {
+            name
+            for group in self.auth_env_groups
+            for name in group
+        }
+        matched_group = next(
+            (
+                group
+                for group in self.auth_env_groups
+                if group and all(os.getenv(name) for name in group)
+            ),
+            None,
+        )
+        if env_names:
+            probe.evidence["env"] = {name: bool(os.getenv(name)) for name in sorted(env_names)}
+        if has_sdk:
+            probe.notes.append("Detected Python E2B SDK for hosted-managed execution.")
+            if not probe.available:
+                probe.available = True
+                probe.notes.append("Python E2B SDK is available even though the CLI is missing.")
+                probe.blockers = [
+                    blocker for blocker in probe.blockers if blocker != self.note_when_missing
+                ]
+            if matched_group:
+                probe.evidence["auth_source"] = list(matched_group)
+                if not any(
+                    "Detected non-interactive configuration via" in note for note in probe.notes
+                ):
+                    probe.notes.append(
+                        "Detected non-interactive configuration via "
+                        + ", ".join(matched_group)
+                        + "."
+                    )
+            elif self.auth_env_groups and self.auth_warning not in probe.warnings:
+                probe.warnings.append(self.auth_warning)
+        else:
+            probe.blockers.append(
+                "Install `mellona-hive[sandbox-e2b]` or `pip install e2b` "
+                "for hosted-managed execution."
+            )
+        probe.configured = bool(matched_group and has_sdk)
+        return probe
 
 
 class DaytonaBackend(CredentialAwareSandboxBackend):

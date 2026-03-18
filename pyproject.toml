@@ -35,6 +35,9 @@ dashboard = [
     "fastapi>=0.115.0,<1.0.0",
     "uvicorn>=0.32.0,<1.0.0",
 ]
+sandbox-e2b = [
+    "e2b>=2.2.5,<3.0.0",
+]
 console = [
     "fastapi>=0.115.0,<1.0.0",
     "uvicorn>=0.32.0,<1.0.0",

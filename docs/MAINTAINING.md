@@ -2,7 +2,8 @@
 
 This guide is for people working on Hive itself.
 
-If you just want to use Hive in your own workspace, stop here and use the install and quickstart path in [README.md](../README.md) instead.
+If you just want to use Hive in your own workspace, stop here and use [START_HERE.md](./START_HERE.md) and
+[QUICKSTART.md](./QUICKSTART.md) instead.
 
 ## Local Setup
 

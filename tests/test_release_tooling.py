@@ -194,6 +194,25 @@ def test_wheel_force_include_does_not_duplicate_recipe_files():
     assert "docs/recipes/driver-handoffs.md" not in force_include
 
 
+def test_wheel_force_include_uses_repo_docs_as_the_only_markdown_source():
+    """Packaged docs should come from repo docs at build time, not checked-in mirrors."""
+    repo_root = Path(__file__).resolve().parents[1]
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    docs_dir = repo_root / "src" / "hive" / "resources" / "docs"
+    mirror_files = sorted(
+        str(path.relative_to(repo_root))
+        for path in (docs_dir.rglob("*") if docs_dir.exists() else [])
+        if path.is_file()
+    )
+
+    assert force_include["README.md"] == "src/hive/resources/docs/README.md"
+    assert force_include["docs/START_HERE.md"] == "src/hive/resources/docs/START_HERE.md"
+    assert force_include["docs/QUICKSTART.md"] == "src/hive/resources/docs/QUICKSTART.md"
+    assert force_include["docs/ADOPT_EXISTING_REPO.md"] == "src/hive/resources/docs/ADOPT_EXISTING_REPO.md"
+    assert mirror_files == []
+
+
 def test_opencode_mcp_command_requests_optional_extra():
     """The OpenCode MCP config should bootstrap the optional runtime dependency."""
     config_path = Path(__file__).resolve().parents[1] / ".opencode" / "opencode.json"

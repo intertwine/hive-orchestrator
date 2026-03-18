@@ -7,24 +7,12 @@ If you are bringing Hive into an existing repository, use [docs/ADOPT_EXISTING_R
 If you are maintaining Hive itself, publishing releases, or updating Homebrew and PyPI automation, use the
 maintainer docs instead. This page is about getting from install to first useful task quickly.
 
-## Install
+## Before You Start
 
-Pick the install path you already trust:
+Install the base CLI first. Use [docs/START_HERE.md](./START_HERE.md) for the canonical install matrix, optional
+extras, and git-install fallback.
 
-```bash
-uv tool install mellona-hive
-```
-
-```bash
-pipx install mellona-hive
-```
-
-```bash
-brew tap intertwine/tap
-brew install intertwine/tap/mellona-hive
-```
-
-Then verify:
+Then verify the CLI you installed:
 
 ```bash
 hive --version
@@ -51,7 +39,7 @@ That command:
 - scaffolds `projects/demo/AGENCY.md`
 - scaffolds `projects/demo/PROGRAM.md`
 - creates a small starter task chain
-- runs Program Doctor and suggests a safe evaluator when it can do so cleanly
+- runs Program Doctor and applies a safe starter evaluator when there is one obvious choice
 - syncs projections and cache
 
 You do not need to hand-write any of that to begin.
@@ -71,14 +59,17 @@ initial commit.
 Use the manager loop, not raw Markdown edits:
 
 ```bash
-hive console serve   # in a separate terminal
 hive next --project-id demo
 hive work <task-id> --owner <your-name> --output SESSION_CONTEXT.md
 ```
 
 That one command claims the task, checkpoints the repo when needed, starts the governed run, and assembles fresh
 startup context. If you pass `--output`, Hive writes a reusable bundle for Codex, Claude Code, or another agent
-session.
+session. Without `--output`, the plain-text path stays summary-first. Use `--print-context` if you want the full
+bundle echoed to stdout.
+
+If you want the live observe-and-steer board, install `mellona-hive[console]` first and run `hive console serve` in a
+separate terminal.
 
 If you want to see or save the bundle yourself, use the lower-level commands:
 
@@ -136,8 +127,9 @@ those fields cleanly.
 ## Governed Runs
 
 When a task should run through the governed worktree flow, make sure `projects/*/PROGRAM.md` has at least one
-required evaluator and lists it under `promotion.requires_all`. The default stub is intentionally safe and will block
-autonomous acceptance until you make that decision. If you want help, run:
+required evaluator and lists it under `promotion.requires_all`. Freshly onboarded blank workspaces may already carry
+the fallback `local-smoke` evaluator so the happy path works immediately. Replace that with repo-specific evaluators
+once you know the real checks. If a project is still blocked, run:
 
 ```bash
 hive program doctor demo

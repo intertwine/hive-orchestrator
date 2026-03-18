@@ -68,11 +68,11 @@ mkdir my-hive
 cd my-hive
 git init
 hive onboard demo --title "Demo project" --objective "Ship one governed slice."
-hive console serve
 ```
 
-That path is covered in the full [Quickstart](./QUICKSTART.md). `hive onboard` bootstraps the workspace, detects the
-local driver situation, creates a starter project, runs Program Doctor, and leaves you with a safe first task chain.
+That path is covered in the full [Quickstart](./QUICKSTART.md). `hive onboard` is the recommended fresh-workspace
+bootstrap. `hive init` only creates the substrate layout. `hive onboard` bootstraps the workspace, detects the local
+driver situation, creates a starter project, runs Program Doctor, and leaves you with a safe first task chain.
 
 Once the workspace exists, the shortest manager-style loop is:
 
@@ -82,7 +82,11 @@ hive work --owner <your-name>
 hive finish <run-id>
 ```
 
-Install `mellona-hive[console]` when you want the observe-and-steer console on top of that loop.
+Install `mellona-hive[console]` first when you want the observe-and-steer console on top of that loop:
+
+```bash
+hive console serve
+```
 
 ## Existing Repo
 
@@ -93,13 +97,14 @@ cd your-repo
 hive adopt app --title "App"
 ```
 
-After that, start the observe console and run the manager loop:
+After that, run the manager loop:
 
 ```bash
-hive console serve
 hive next
 hive work --owner <your-name>
 ```
+
+Install `mellona-hive[console]` first if you want `hive console serve`.
 
 The full guide lives in [Adopt Hive In An Existing Repo](./ADOPT_EXISTING_REPO.md).
 

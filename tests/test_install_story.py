@@ -46,6 +46,21 @@ def test_public_readmes_surface_three_clear_entry_points():
     assert "Mellona" in pypi_readme
 
 
+def test_public_docs_call_out_console_extra_before_console_serve():
+    """Console docs should make the optional extra explicit before teaching the command."""
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    start_here = (REPO_ROOT / "docs" / "START_HERE.md").read_text(encoding="utf-8")
+    quickstart = (REPO_ROOT / "docs" / "QUICKSTART.md").read_text(encoding="utf-8")
+    adopt = (REPO_ROOT / "docs" / "ADOPT_EXISTING_REPO.md").read_text(encoding="utf-8")
+    pypi_readme = (REPO_ROOT / "docs" / "PYPI_README.md").read_text(encoding="utf-8")
+
+    assert "install `mellona-hive[console]` first" in readme.lower()
+    assert "install `mellona-hive[console]` first" in start_here.lower()
+    assert "install `mellona-hive[console]` first" in quickstart.lower()
+    assert "install `mellona-hive[console]` first" in adopt.lower()
+    assert "install `mellona-hive[console]` first" in pypi_readme.lower()
+
+
 def test_start_here_install_matrix_covers_common_installers_and_homebrew_limit():
     """Everyday users should see the real install choices and the Homebrew boundary."""
     start_here = (REPO_ROOT / "docs" / "START_HERE.md").read_text(encoding="utf-8")
@@ -101,4 +116,4 @@ def test_release_guide_uses_throwaway_dirs_for_public_install_verification():
     assert "workspace_dir=$(mktemp -d)" in release_doc
     assert "./pip-verify/bin/hive --version" in release_doc
     assert "./pip-verify/bin/hive doctor --json" in release_doc
-    assert "hive quickstart demo --title \"Demo project\"" in release_doc
+    assert "hive onboard demo --title \"Demo project\"" in release_doc

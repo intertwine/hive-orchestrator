@@ -138,7 +138,7 @@ Also check a real first-run flow in a clean workspace:
 workspace_dir=$(mktemp -d)
 cd "$workspace_dir"
 
-hive quickstart demo --title "Demo project"
+hive onboard demo --title "Demo project"
 hive doctor --json
 hive task ready --project-id demo --json
 ```

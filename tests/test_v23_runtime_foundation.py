@@ -287,3 +287,27 @@ def test_approval_request_surfaces_in_inbox_and_can_be_resolved(temp_hive_dir, c
     assert approvals.json()["approvals"][0]["status"] == "pending"
     assert resolution.status_code == 200
     assert resolution.json()["approval"]["status"] == "approved"
+
+
+def test_run_status_surfaces_session_and_pending_approvals(capsys, temp_hive_dir):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="local")
+    request_approval(
+        temp_hive_dir,
+        run.id,
+        kind="command",
+        title="Approve git diff",
+        summary="Driver wants to inspect the current diff.",
+        requested_by="driver:local",
+        payload={"command": "git diff"},
+    )
+
+    payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "run", "status", run.id])
+
+    assert payload["status"]["health"] == "healthy"
+    assert payload["status"]["session"]["launch_mode"] == "local"
+    assert payload["status"]["session"]["transport"] == "process"
+    assert payload["status"]["progress"]["phase"] == "implementing"
+    assert payload["status"]["pending_approvals"][0]["title"] == "Approve git diff"
+    assert payload["pending_approvals"][0]["payload"]["command"] == "git diff"

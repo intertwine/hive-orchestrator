@@ -11,6 +11,7 @@ from pathlib import Path
 from src.hive.cli.common import emit, emit_error
 from src.hive.drivers import SteeringRequest
 from src.hive.program import add_evaluator_template, doctor_program
+from src.hive.runtime import list_approvals
 from src.hive.runs.engine import (
     accept_run,
     cleanup_run,
@@ -48,11 +49,23 @@ def dispatch(args, root: Path) -> int:
             if args.run_command == "status":
                 run = load_run(root, args.run_id)
                 driver_status = run.get("metadata_json", {}).get("driver_status", {})
+                pending = [
+                    approval
+                    for approval in list_approvals(root, args.run_id)
+                    if approval.get("status") == "pending"
+                ]
                 status_payload = {
                     "state": run["status"],
                     "driver": run.get("driver"),
                     "started_at": run.get("started_at"),
                     "finished_at": run.get("finished_at") or run.get("started_at"),
+                    "health": run.get("health", "healthy"),
+                    "progress": driver_status.get("progress", {}),
+                    "waiting_on": driver_status.get("waiting_on"),
+                    "session": driver_status.get("session", {}),
+                    "event_cursor": driver_status.get("event_cursor"),
+                    "artifacts": driver_status.get("artifacts", {}),
+                    "pending_approvals": pending,
                     "budget": driver_status.get(
                         "budget", {"spent_tokens": 0, "spent_cost_usd": 0.0, "wall_minutes": 0}
                     ),
@@ -64,6 +77,7 @@ def dispatch(args, root: Path) -> int:
                         "run": run,
                         "health": run.get("health", "healthy"),
                         "driver_status": driver_status,
+                        "pending_approvals": pending,
                         "status": status_payload,
                         "summary": {"id": run["id"], **status_payload},
                     },

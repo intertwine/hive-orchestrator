@@ -1560,6 +1560,12 @@ def test_cancel_run_rejects_pending_approvals(capsys, temp_hive_dir):
     assert all(item["resolution"] == "rejected" for item in channel_records)
     assert "approval.forwarded" in event_types
     assert metadata["metadata_json"]["approval_forwarding"][-1]["driver_ack"]["ok"] is True
+    cancel_history = [
+        item for item in metadata["metadata_json"]["steering_history"] if item["action"] == "cancel"
+    ]
+    assert len(cancel_history) == 3
+    assert any(item.get("driver_ack", {}).get("mode") == "cancel" for item in cancel_history)
+    assert sum(1 for item in cancel_history if "channel" in item.get("driver_ack", {})) == 2
 
 
 def test_run_status_refresh_surfaces_live_codex_session_payload(temp_hive_dir, capsys, monkeypatch):

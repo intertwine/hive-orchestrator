@@ -221,7 +221,7 @@ def resolve_pending_approvals(
 
 
 def bridge_approval_resolution(
-    path: str | Path | None,
+    path: str | Path,
     metadata: dict[str, Any],
     *,
     approval: dict[str, Any],

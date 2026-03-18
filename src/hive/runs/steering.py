@@ -88,8 +88,11 @@ def steer_run(
             )
             if resolved:
                 metadata = load_run(root, run_id)
+                metadata.setdefault("metadata_json", {}).setdefault("steering_history", []).append(
+                    timeline_entry
+                )
                 for approval in resolved:
-                    bridge_approval_resolution(
+                    approval_ack = bridge_approval_resolution(
                         root,
                         metadata,
                         approval=approval,
@@ -97,6 +100,20 @@ def steer_run(
                         actor=actor,
                         request=request,
                     )
+                    _record_steering_history(
+                        metadata,
+                        action=action,
+                        actor=actor,
+                        reason=request.reason,
+                        note=request.note,
+                        target=cast(dict[str, object] | None, request.target),
+                        budget_delta=cast(dict[str, object] | None, request.budget_delta),
+                        ack=approval_ack,
+                    )
+            else:
+                metadata.setdefault("metadata_json", {}).setdefault("steering_history", []).append(
+                    timeline_entry
+                )
             metadata["status"] = "cancelled"
             metadata["health"] = "cancelled"
             metadata["finished_at"] = utc_now_iso()

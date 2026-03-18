@@ -133,9 +133,9 @@ class DockerRootlessBackend(BinarySandboxBackend):
 class AsrtBackend(BinarySandboxBackend):
     name = "asrt"
     isolation_class = "process-wrapper"
-    binaries = ("asandbox", "anthropic-sandbox")
+    binaries = ("srt", "asandbox", "anthropic-sandbox")
     supported_profiles = ("local-fast",)
-    note_when_missing = "Anthropic sandbox runtime was not detected on PATH."
+    note_when_missing = "Anthropic Sandbox Runtime (`srt`) was not detected on PATH."
 
 
 class E2BBackend(BinarySandboxBackend):

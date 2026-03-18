@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import atexit
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
+import time
 from typing import TYPE_CHECKING
 
 from src.hive.flags import feature_flags
@@ -22,6 +25,10 @@ _PROFILE_BACKENDS = {
     "experimental": ("cloudflare",),
 }
 _WIRED_BACKENDS = {"podman", "docker-rootless", "asrt", "e2b", "daytona"}
+_ASRT_SETTINGS_DIR_PREFIX = "asrt-settings-"
+_ASRT_SETTINGS_FILE_NAME = "settings.json"
+_ASRT_SETTINGS_MAX_AGE_SECONDS = 24 * 60 * 60
+_ASRT_SETTINGS_CLEANUP_DIRS: set[Path] = set()
 
 
 def _backend_readiness_reason(backend_name: str, probe) -> str:
@@ -76,20 +83,47 @@ def _resolved_backend_binary(backend_name: str) -> str:
     )
 
 
+def _register_asrt_settings_cleanup(directory: Path) -> None:
+    _ASRT_SETTINGS_CLEANUP_DIRS.add(directory)
+
+
+@atexit.register
+def _cleanup_asrt_settings_dirs() -> None:
+    for directory in list(_ASRT_SETTINGS_CLEANUP_DIRS):
+        shutil.rmtree(directory, ignore_errors=True)
+        _ASRT_SETTINGS_CLEANUP_DIRS.discard(directory)
+
+
+def _prune_stale_asrt_settings_dirs(parent: Path) -> None:
+    cutoff = time.time() - _ASRT_SETTINGS_MAX_AGE_SECONDS
+    for candidate in parent.glob(f"{_ASRT_SETTINGS_DIR_PREFIX}*"):
+        if not candidate.is_dir():
+            continue
+        try:
+            if candidate.stat().st_mtime < cutoff:
+                shutil.rmtree(candidate, ignore_errors=True)
+        except OSError:
+            continue
+
+
 def _write_asrt_settings_file(policy: SandboxPolicy, cwd: Path) -> Path:
     _, host_artifacts = _read_write_mounts(policy, cwd)
-    host_artifacts.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        mode="w",
+    settings_root = host_artifacts.parent
+    settings_root.mkdir(parents=True, exist_ok=True)
+    _prune_stale_asrt_settings_dirs(settings_root)
+    settings_dir = Path(
+        tempfile.mkdtemp(
+            prefix=_ASRT_SETTINGS_DIR_PREFIX,
+            dir=settings_root,
+        )
+    )
+    _register_asrt_settings_cleanup(settings_dir)
+    settings_path = settings_dir / _ASRT_SETTINGS_FILE_NAME
+    settings_path.write_text(
+        json.dumps(_asrt_settings_payload(policy, cwd), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
-        dir=host_artifacts,
-        prefix="asrt-settings-",
-        suffix=".json",
-        delete=False,
-    ) as handle:
-        json.dump(_asrt_settings_payload(policy, cwd), handle, indent=2, sort_keys=True)
-        handle.write("\n")
-        return Path(handle.name)
+    )
+    return settings_path
 
 
 def _asrt_settings_payload(policy: SandboxPolicy, cwd: Path) -> dict[str, object]:

@@ -718,6 +718,7 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
     second_argv = list(calls[1]["args"][0])
     second_settings_path = Path(second_argv[2])
+    second_settings = json.loads(second_settings_path.read_text(encoding="utf-8"))
 
     assert result.returncode == 0
     assert second.returncode == 0
@@ -728,11 +729,13 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
     assert argv[:4] == ["/tmp/asandbox", "--settings", str(settings_path), "sh"]
     assert settings["filesystem"]["allowWrite"][:2] == [str(worktree), str(artifacts)]
     assert settings["network"]["allowedDomains"] == []
-    assert settings_path.parent == artifacts
-    assert settings_path.name.startswith("asrt-settings-")
-    assert settings_path.name != "asrt-settings.json"
-    assert second_settings_path.parent == artifacts
-    assert second_settings_path != settings_path
+    assert settings_path.parent != artifacts
+    assert settings_path.parent.parent == artifacts.parent
+    assert settings_path.parent.name.startswith("asrt-settings-")
+    assert settings_path.name == "settings.json"
+    assert second_settings_path.parent.parent == artifacts.parent
+    assert second_settings_path.parent != settings_path.parent
+    assert second_settings["filesystem"]["allowWrite"][:2] == [str(worktree), str(artifacts)]
 
 
 def test_local_executor_runs_commands_via_daytona_sdk(monkeypatch, tmp_path):
@@ -1187,7 +1190,7 @@ def test_execute_local_fast_wraps_python_runner_with_asrt(monkeypatch, tmp_path)
             isolation_class="process-wrapper",
             supported_profiles=["local-fast"],
             notes=["Detected Anthropic Sandbox Runtime."],
-            evidence={"binary": "/tmp/anthropic-sandbox"},
+            evidence={},
         )
 
     def fake_run(*args, **kwargs):
@@ -1204,6 +1207,7 @@ def test_execute_local_fast_wraps_python_runner_with_asrt(monkeypatch, tmp_path)
         return Result()
 
     monkeypatch.setattr(type(asrt), "probe", fake_asrt_probe)
+    monkeypatch.setattr(type(asrt), "_find_binary", lambda self: "/tmp/anthropic-sandbox")
     monkeypatch.setattr("src.hive.codemode.execute.subprocess.run", fake_run)
 
     payload = execute_code(
@@ -1225,8 +1229,8 @@ def test_execute_local_fast_wraps_python_runner_with_asrt(monkeypatch, tmp_path)
     assert argv[:4] == ["/tmp/anthropic-sandbox", "--settings", argv[2], "sh"]
     assert "python -m src.hive.codemode.python_runner" in argv[-1]
     assert settings_payload["filesystem"]["allowRead"][0] == str(workspace)
-    assert Path(argv[2]).name.startswith("asrt-settings-")
-    assert Path(argv[2]).name != "asrt-settings.json"
+    assert Path(argv[2]).parent.name.startswith("asrt-settings-")
+    assert Path(argv[2]).name == "settings.json"
 
 
 def test_execute_local_safe_returns_error_when_backend_is_unavailable(monkeypatch, tmp_path):

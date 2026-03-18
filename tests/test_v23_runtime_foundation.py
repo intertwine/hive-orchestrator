@@ -1100,6 +1100,49 @@ def test_local_executor_rejects_non_cidr_daytona_allowlist(monkeypatch, tmp_path
     assert result.sandbox["backend"] == "daytona"
 
 
+def test_local_executor_rejects_daytona_allowlists_longer_than_ten_entries(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_daytona_sdk",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("SDK should not be loaded when the allowlist cap is exceeded")
+        ),
+    )
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+    allowlist = [f"10.{index}.0.0/16" for index in range(11)]
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="daytona",
+            isolation_class="remote-sandbox",
+            network={"mode": "deny", "allowlist": allowlist},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="team-self-hosted",
+            provenance="sandbox_v2_backend:daytona",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert "supports up to 10 CIDR network allowlist entries" in result.stderr
+    assert result.sandbox is not None
+    assert result.sandbox["backend"] == "daytona"
+
+
 def test_resolve_hosted_managed_requires_configured_backend(monkeypatch, tmp_path):
     backend = get_backend("e2b")
     worktree = tmp_path / "worktree"

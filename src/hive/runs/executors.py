@@ -482,7 +482,7 @@ def _validated_daytona_allowlist(policy: SandboxPolicy) -> list[str]:
     if not allowlist:
         return []
     if len(allowlist) > 10:
-        raise NotImplementedError(
+        raise ValueError(
             "Daytona team-self-hosted execution supports up to 10 CIDR network allowlist entries."
         )
     invalid: list[str] = []
@@ -495,7 +495,7 @@ def _validated_daytona_allowlist(policy: SandboxPolicy) -> list[str]:
         except ValueError:
             invalid.append(entry)
     if invalid:
-        raise NotImplementedError(
+        raise ValueError(
             "Daytona team-self-hosted execution only supports network allowlists as CIDR "
             f"blocks; unsupported entries: {', '.join(invalid)}"
         )
@@ -578,6 +578,7 @@ def _run_daytona_command(
                 "hive_cwd": str(cwd),
             },
             "ephemeral": True,
+            # Daytona applies the allow list as the network boundary when entries are present.
             "network_block_all": policy.network.get("mode") == "deny" and not allowlist,
             "network_allow_list": ",".join(allowlist) if allowlist else None,
             "resources": _daytona_resources(policy, resources_class),

@@ -17,6 +17,7 @@ from src.hive.drivers.types import (
     RunStatus,
     SteeringRequest,
 )
+from src.hive.runtime import CapabilitySnapshot, capability_surface
 
 
 class Driver(ABC):
@@ -77,6 +78,22 @@ class HarnessDriver(Driver):
     binary_names: tuple[str, ...] = ()
     display_name: str
     cli_label: str
+    declared_launch_mode: str = "staged"
+    declared_session_persistence: str = "none"
+    declared_event_stream: str = "none"
+    declared_approvals: tuple[str, ...] = ()
+    declared_skills: str = "file_projection"
+    declared_subagents: str = "none"
+    declared_native_sandbox: str = "none"
+    declared_artifacts: tuple[str, ...] = ("runpack",)
+    declared_reroute_export: str = "none"
+
+    def _detected_binary(self) -> str | None:
+        for candidate in self.binary_names:
+            binary = shutil.which(candidate)
+            if binary:
+                return str(Path(binary).resolve())
+        return None
 
     def _notes(self) -> list[str]:
         notes = [
@@ -85,11 +102,9 @@ class HarnessDriver(Driver):
             f"{self.display_name} is not auto-launched from Hive yet; attach the run from the "
             "prepared worktree.",
         ]
-        for candidate in self.binary_names:
-            binary = shutil.which(candidate)
-            if binary:
-                notes.append(f"Detected {self.cli_label} at {Path(binary).resolve()}.")
-                break
+        binary = self._detected_binary()
+        if binary:
+            notes.append(f"Detected {self.cli_label} at {binary}.")
         else:
             notes.append(
                 f"{self.cli_label} was not detected on PATH; "
@@ -97,23 +112,84 @@ class HarnessDriver(Driver):
             )
         return notes
 
+    def _declared_snapshot(
+        self, *, binary_present: bool, binary_path: str | None
+    ) -> CapabilitySnapshot:
+        evidence = {
+            "launch_mode": (
+                f"{self.display_name} family intends to integrate via {self.declared_launch_mode}."
+            ),
+            "effective": (
+                f"{self.display_name} is still staged in the current implementation; "
+                "interactive control stays disabled until a deep adapter lands."
+            ),
+        }
+        if binary_path:
+            evidence["binary"] = binary_path
+        return CapabilitySnapshot(
+            driver=self.name,
+            declared=capability_surface(
+                launch_mode=self.declared_launch_mode,
+                session_persistence=self.declared_session_persistence,
+                event_stream=self.declared_event_stream,
+                approvals=list(self.declared_approvals),
+                skills=self.declared_skills,
+                worktrees="host_managed",
+                subagents=self.declared_subagents,
+                native_sandbox=self.declared_native_sandbox,
+                outer_sandbox_required=True,
+                artifacts=list(self.declared_artifacts),
+                reroute_export=self.declared_reroute_export,
+            ),
+            probed={
+                "binary_present": binary_present,
+                "binary_path": binary_path,
+            },
+            effective=capability_surface(
+                launch_mode="staged",
+                session_persistence="none",
+                event_stream="none",
+                approvals=[],
+                skills="file_projection",
+                worktrees="host_managed",
+                subagents="none",
+                native_sandbox="none",
+                outer_sandbox_required=True,
+                artifacts=["runpack"],
+                reroute_export="none",
+            ),
+            confidence={
+                "launch_mode": "planned",
+                "event_stream": "planned",
+                "subagents": "planned",
+                "effective": "verified",
+            },
+            evidence=evidence,
+        )
+
     def probe(self) -> DriverInfo:
+        binary_path = self._detected_binary()
+        snapshot = self._declared_snapshot(
+            binary_present=bool(binary_path),
+            binary_path=binary_path,
+        )
         return DriverInfo(
             driver=self.name,
             capabilities=DriverCapabilities(
                 worktrees=True,
-                resume=True,
-                streaming=True,
-                subagents=True,
-                scheduled=True,
+                resume=False,
+                streaming=False,
+                subagents=False,
+                scheduled=False,
                 remote_execution=False,
                 diff_preview=True,
-                sandbox="medium",
+                sandbox="low",
                 context_files=["AGENTS.md"],
-                skills=True,
-                interrupt=["pause", "cancel"],
-                reroute_export="transcript-aware",
+                skills=False,
+                interrupt=[],
+                reroute_export="none",
             ),
+            capability_snapshot=snapshot,
             notes=self._notes(),
         )
 

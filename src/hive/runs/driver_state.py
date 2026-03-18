@@ -50,6 +50,9 @@ def _emit_context_compiled_events(
 def _append_transcript_entry(path: Path, record: dict[str, object]) -> None:
     with open(path, "a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
+    ndjson_path = path.parent.parent / "transcript.ndjson"
+    with open(ndjson_path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
 def _load_driver_handles(metadata: dict) -> dict[str, object]:

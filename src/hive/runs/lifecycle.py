@@ -12,6 +12,14 @@ from src.hive.constants import RUN_ACTIVE_STATUSES, RUN_TERMINAL_STATUSES
 from src.hive.drivers import RunBudget, RunLaunchRequest, RunWorkspace, SteeringRequest, get_driver
 from src.hive.ids import new_id
 from src.hive.models.run import RunRecord
+from src.hive.runtime import (
+    CapabilitySnapshot,
+    default_sandbox_policy,
+    pending_approvals,
+    resolve_approval,
+    runtime_manifest,
+    write_runtime_scaffold,
+)
 from src.hive.runs.context import compile_run_context
 from src.hive.runs.evaluators import run_evaluator, validate_evaluator_command
 from src.hive.runs.executors import get_executor
@@ -256,6 +264,122 @@ def start_run(
         driver=driver.name,
         profile=profile,
     )
+    capability_snapshot = driver_info.capability_snapshot or CapabilitySnapshot(driver=driver.name)
+    sandbox_policy = default_sandbox_policy(
+        worktree_path=str(worktree_path),
+        artifacts_path=str(run_directory),
+        profile=profile,
+    )
+    manifest = runtime_manifest(
+        run_id=run_id,
+        task_id=task.id,
+        project_id=project.id,
+        campaign_id=campaign_id,
+        driver=driver.name,
+        driver_mode=capability_snapshot.effective.launch_mode,
+        sandbox_backend=sandbox_policy.backend,
+        sandbox_profile=sandbox_policy.profile,
+        repo_root=str(root),
+        worktree_path=str(worktree_path),
+        base_branch=base_branch,
+        compiled_context_manifest=str(context_bundle["manifest_path"]),
+        capability_snapshot_path=str(paths["capability_snapshot_path"]),
+        scheduler_decision_path=str(paths["scheduler_decision_path"]),
+        retrieval_trace_path=str(paths["retrieval_trace_path"]),
+    )
+    paths.update(
+        write_runtime_scaffold(
+            run_directory,
+            manifest=manifest,
+            capability_snapshot=capability_snapshot,
+            sandbox_policy=sandbox_policy,
+        )
+    )
+    paths["retrieval_hits_path"].write_text(
+        json.dumps(
+            {
+                "query": context_bundle.get("query_text"),
+                "results": list(context_bundle.get("search_hits") or []),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    search_hits = list(context_bundle.get("search_hits") or [])
+    paths["retrieval_trace_path"].write_text(
+        json.dumps(
+            {
+                "query": context_bundle.get("query_text"),
+                "intent": "mixed",
+                "candidate_counts": {
+                    "lexical": len(search_hits),
+                    "dense": 0,
+                    "graph": 0,
+                },
+                "fused": [
+                    {
+                        "chunk_id": str(hit.get("path") or hit.get("title") or index),
+                        "sources": ["lexical"],
+                        "pre_rerank_rank": index + 1,
+                    }
+                    for index, hit in enumerate(search_hits)
+                ],
+                "reranked": [
+                    {
+                        "chunk_id": str(hit.get("path") or hit.get("title") or index),
+                        "rank": index + 1,
+                        "score": float(hit.get("score") or 0.0),
+                    }
+                    for index, hit in enumerate(search_hits)
+                ],
+                "selected_context": [
+                    str(hit.get("path") or hit.get("title") or index)
+                    for index, hit in enumerate(search_hits)
+                ],
+                "dropped": [],
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    paths["scheduler_candidate_set_path"].write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "candidate_id": task.id,
+                        "lane": "exploit",
+                        "scores": {
+                            "campaign_alignment": 1.0 if campaign_id else 0.5,
+                            "readiness": 1.0,
+                        },
+                        "recommended_driver": driver.name,
+                        "recommended_sandbox": sandbox_policy.backend,
+                    }
+                ]
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    paths["scheduler_decision_path"].write_text(
+        json.dumps(
+            {
+                "selected_candidate_id": task.id,
+                "reason": (
+                    "run started from an explicit task launch"
+                    if campaign_id is None
+                    else "run launched under the current campaign task selection"
+                ),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
 
     paths["plan_path"].write_text(
         "\n".join(
@@ -387,22 +511,33 @@ def start_run(
         worktree_path=str(worktree_path),
         program_path=str(project.program_path),
         program_sha256=_program_sha(project.program_path),
+        runtime_manifest_path=str(paths["manifest_path"]),
+        capability_snapshot_path=str(paths["capability_snapshot_path"]),
+        sandbox_policy_path=str(paths["sandbox_policy_path"]),
         launch_path=str(paths["launch_path"]),
         context_manifest_path=str(context_bundle["manifest_path"]),
         context_compiled_dir=str(context_bundle["compiled_dir"]),
         transcript_path=str(paths["transcript_path"]),
+        transcript_ndjson_path=str(paths["transcript_ndjson_path"]),
         transcript_raw_dir=str(paths["transcript_raw_dir"]),
         workspace_patch_path=str(paths["patch_path"]),
         workspace_changed_files_path=str(paths["changed_files_path"]),
         driver_metadata_path=str(paths["driver_metadata_path"]),
         driver_handles_path=str(paths["driver_handles_path"]),
         events_path=str(paths["events_path"]),
+        events_ndjson_path=str(paths["events_ndjson_path"]),
+        approvals_path=str(paths["approvals_path"]),
+        retrieval_trace_path=str(paths["retrieval_trace_path"]),
+        retrieval_hits_path=str(paths["retrieval_hits_path"]),
+        scheduler_candidate_set_path=str(paths["scheduler_candidate_set_path"]),
+        scheduler_decision_path=str(paths["scheduler_decision_path"]),
         plan_path=str(paths["plan_path"]),
         summary_path=str(paths["summary_path"]),
         review_path=str(paths["review_path"]),
         patch_path=str(paths["patch_path"]),
         command_log_path=str(paths["command_log_path"]),
         logs_dir=str(paths["logs_dir"]),
+        final_path=str(paths["final_path"]),
         metadata={
             "task_title": task.title,
             "base_branch": base_branch,
@@ -412,6 +547,11 @@ def start_run(
             "command_count": 0,
             "driver_status": run_status.to_dict(),
             "context_manifest": context_bundle["manifest"],
+            "runtime_v2": {
+                "manifest": manifest,
+                "sandbox_policy": sandbox_policy.to_dict(),
+                "capability_snapshot": capability_snapshot.to_dict(),
+            },
         },
     )
     run_file = _metadata_path(root, run_id)
@@ -797,6 +937,26 @@ def steer_run(
         raise ValueError(f"Cannot steer terminal run with status {metadata.get('status')!r}")
 
     if action == "approve":
+        pending = pending_approvals(root, run_id)
+        if pending:
+            approval = resolve_approval(
+                root,
+                run_id,
+                str(pending[-1]["approval_id"]),
+                resolution="approved",
+                actor=actor or "operator",
+                note=request.note or request.reason,
+            )
+            metadata.setdefault("metadata_json", {}).setdefault("approval_resolutions", []).append(
+                approval
+            )
+            save_run(root, run_id, metadata)
+            return {
+                "run": load_run(root, run_id),
+                "action": action,
+                "request": request.to_dict(),
+                "approval": approval,
+            }
         emit_event(
             root,
             actor={"kind": "human", "id": actor or "operator"},
@@ -826,6 +986,26 @@ def steer_run(
         save_run(root, run_id, accepted)
         return {"run": accepted, "action": action, "request": request.to_dict()}
     if action == "reject":
+        pending = pending_approvals(root, run_id)
+        if pending:
+            approval = resolve_approval(
+                root,
+                run_id,
+                str(pending[-1]["approval_id"]),
+                resolution="rejected",
+                actor=actor or "operator",
+                note=request.note or request.reason,
+            )
+            metadata.setdefault("metadata_json", {}).setdefault("approval_resolutions", []).append(
+                approval
+            )
+            save_run(root, run_id, metadata)
+            return {
+                "run": load_run(root, run_id),
+                "action": action,
+                "request": request.to_dict(),
+                "approval": approval,
+            }
         emit_event(
             root,
             actor={"kind": "human", "id": actor or "operator"},

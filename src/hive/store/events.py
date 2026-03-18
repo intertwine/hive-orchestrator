@@ -34,6 +34,11 @@ def run_event_file(path: str | Path | None, run_id: str) -> Path:
     return Path(path or Path.cwd()).resolve() / ".hive" / "runs" / run_id / "events.jsonl"
 
 
+def run_event_ndjson_file(path: str | Path | None, run_id: str) -> Path:
+    """Return the v2.3 per-run timeline path."""
+    return Path(path or Path.cwd()).resolve() / ".hive" / "runs" / run_id / "events.ndjson"
+
+
 def emit_event(
     path: str | Path | None,
     *,
@@ -81,6 +86,10 @@ def emit_event(
         run_target = run_event_file(path, run_id)
         run_target.parent.mkdir(parents=True, exist_ok=True)
         with open(run_target, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+        run_target_ndjson = run_event_ndjson_file(path, run_id)
+        run_target_ndjson.parent.mkdir(parents=True, exist_ok=True)
+        with open(run_target_ndjson, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
     return record
 

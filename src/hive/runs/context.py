@@ -300,4 +300,6 @@ def compile_run_context(
         "compiled_dir": compiled_dir,
         "run_brief_path": run_brief_path,
         "skills_manifest_path": skills_manifest_path,
+        "query_text": query_text,
+        "search_hits": search_hits,
     }

@@ -140,6 +140,16 @@ def _add_control_parsers(subparsers: argparse._SubParsersAction[argparse.Argumen
     drivers_probe = drivers_subparsers.add_parser("probe")
     drivers_probe.add_argument("driver", nargs="?")
 
+    driver_parser = subparsers.add_parser("driver")
+    driver_subparsers = driver_parser.add_subparsers(dest="driver_command")
+    driver_doctor = driver_subparsers.add_parser("doctor")
+    driver_doctor.add_argument("driver", nargs="?")
+
+    sandbox_parser = subparsers.add_parser("sandbox")
+    sandbox_subparsers = sandbox_parser.add_subparsers(dest="sandbox_command")
+    sandbox_doctor = sandbox_subparsers.add_parser("doctor")
+    sandbox_doctor.add_argument("backend", nargs="?")
+
 
 def _add_project_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     project_parser = subparsers.add_parser("project")

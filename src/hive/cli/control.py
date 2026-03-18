@@ -20,6 +20,7 @@ from src.hive.cli.common import (
 from src.hive.console import build_home_view, build_inbox, list_runs, load_run_detail
 from src.hive.drivers import get_driver, list_drivers
 from src.hive.codemode.execute import execute_code
+from src.hive.sandbox import sandbox_doctor
 from src.hive.search import search_workspace
 from src.hive.store.cache import CacheBusyError, rebuild_cache
 from src.hive.workspace import WorkspaceBusyError, sync_workspace
@@ -146,7 +147,9 @@ def dispatch(args, root: Path) -> int:
             if args.console_command in {"api", "serve"}:
                 return launch_console_api(root, args.host, args.port, args.json)
             if args.console_command == "open":
-                return open_console(root, args.host, args.port, args.json, no_browser=args.no_browser)
+                return open_console(
+                    root, args.host, args.port, args.json, no_browser=args.no_browser
+                )
             if args.console_command == "home":
                 sync_workspace(root)
                 return emit({"ok": True, "home": build_home_view(root)}, args.json)
@@ -175,7 +178,9 @@ def dispatch(args, root: Path) -> int:
                 {
                     "ok": True,
                     "message": f"Found search results for {args.query!r}",
-                    "results": search_workspace(root, args.query, scopes=args.scope, limit=args.limit),
+                    "results": search_workspace(
+                        root, args.query, scopes=args.scope, limit=args.limit
+                    ),
                 },
                 args.json,
             )
@@ -204,13 +209,42 @@ def dispatch(args, root: Path) -> int:
             )
         if args.command == "drivers":
             if args.drivers_command == "list":
-                return emit({"ok": True, "drivers": [driver.probe().to_dict() for driver in list_drivers()]}, args.json)
+                return emit(
+                    {
+                        "ok": True,
+                        "drivers": [driver.probe().to_dict() for driver in list_drivers()],
+                    },
+                    args.json,
+                )
             if args.drivers_command == "probe":
                 if args.driver:
                     drivers = [get_driver(args.driver).probe().to_dict()]
                 else:
                     drivers = [driver.probe().to_dict() for driver in list_drivers()]
                 return emit({"ok": True, "drivers": drivers}, args.json)
-    except (CacheBusyError, WorkspaceBusyError, FileNotFoundError, ValueError, sqlite3.Error) as exc:
+        if args.command == "driver" and args.driver_command == "doctor":
+            if args.driver:
+                drivers = [get_driver(args.driver).probe().to_dict()]
+            else:
+                drivers = [driver.probe().to_dict() for driver in list_drivers()]
+            return emit(
+                {
+                    "ok": True,
+                    "message": "Driver doctor inspected the current runtime integration surface.",
+                    "drivers": drivers,
+                },
+                args.json,
+            )
+        if args.command == "sandbox" and args.sandbox_command == "doctor":
+            payload = sandbox_doctor(args.backend)
+            payload["message"] = "Sandbox doctor inspected the configured backends."
+            return emit(payload, args.json)
+    except (
+        CacheBusyError,
+        WorkspaceBusyError,
+        FileNotFoundError,
+        ValueError,
+        sqlite3.Error,
+    ) as exc:
         return emit_error(exc, args.json)
     return 0

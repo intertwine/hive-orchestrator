@@ -12,6 +12,7 @@ from src.hive.drivers.types import (
     RunProgress,
     RunStatus,
 )
+from src.hive.runtime import CapabilitySnapshot, capability_surface
 
 
 class ManualDriver(Driver):
@@ -20,6 +21,41 @@ class ManualDriver(Driver):
     name = "manual"
 
     def probe(self) -> DriverInfo:
+        snapshot = CapabilitySnapshot(
+            driver=self.name,
+            declared=capability_surface(
+                launch_mode="staged",
+                session_persistence="none",
+                event_stream="none",
+                approvals=[],
+                skills="file_projection",
+                worktrees="host_managed",
+                subagents="none",
+                native_sandbox="none",
+                outer_sandbox_required=True,
+                artifacts=["runpack"],
+                reroute_export="none",
+            ),
+            probed={"manual_handoff": True},
+            effective=capability_surface(
+                launch_mode="staged",
+                session_persistence="none",
+                event_stream="none",
+                approvals=[],
+                skills="file_projection",
+                worktrees="host_managed",
+                subagents="none",
+                native_sandbox="none",
+                outer_sandbox_required=True,
+                artifacts=["runpack"],
+                reroute_export="none",
+            ),
+            confidence={"launch_mode": "verified", "effective": "verified"},
+            evidence={
+                "launch_mode": "Manual driver only prepares the runpack.",
+                "effective": "A human or unsupported harness must attach outside Hive.",
+            },
+        )
         return DriverInfo(
             driver=self.name,
             capabilities=DriverCapabilities(
@@ -27,15 +63,16 @@ class ManualDriver(Driver):
                 resume=False,
                 streaming=False,
                 subagents=False,
-                scheduled=True,
+                scheduled=False,
                 remote_execution=False,
                 diff_preview=True,
                 sandbox="none",
                 context_files=["AGENTS.md"],
-                skills=True,
-                interrupt=["cancel"],
-                reroute_export="metadata-only",
+                skills=False,
+                interrupt=[],
+                reroute_export="none",
             ),
+            capability_snapshot=snapshot,
             notes=[
                 "Stages a governed run pack for manual execution.",
                 "Use this when a human or unsupported harness should drive the worktree.",

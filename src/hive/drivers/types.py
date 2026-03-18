@@ -1,9 +1,11 @@
-"""Typed driver contracts for Hive 2.2."""
+"""Typed driver contracts for Hive 2.3-compatible driver probing."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
+
+from src.hive.runtime.capabilities import CapabilitySnapshot
 
 SandboxLevel = Literal["low", "medium", "high"]
 
@@ -38,17 +40,27 @@ class DriverInfo:
     version: str = "0.0.0"
     available: bool = True
     capabilities: DriverCapabilities = field(default_factory=DriverCapabilities)
+    capability_snapshot: CapabilitySnapshot | None = None
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize probe data for JSON output."""
-        return {
+        payload = {
             "driver": self.driver,
             "version": self.version,
             "available": self.available,
             "capabilities": self.capabilities.to_dict(),
             "notes": list(self.notes),
         }
+        if self.capability_snapshot is not None:
+            snapshot = self.capability_snapshot.to_dict()
+            payload["capability_snapshot"] = snapshot
+            payload["declared"] = snapshot["declared"]
+            payload["probed"] = snapshot["probed"]
+            payload["effective"] = snapshot["effective"]
+            payload["confidence"] = snapshot["confidence"]
+            payload["evidence"] = snapshot["evidence"]
+        return payload
 
 
 @dataclass

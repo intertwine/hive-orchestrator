@@ -24,6 +24,27 @@ API_DOC_FILES = (
     ("api", "HIVE_V2_SPEC", "docs/hive-v2-spec/HIVE_V2_SPEC.md"),
     ("api", "HIVE_V2_2_RFC", "docs/hive-v2.2-rfc/HIVE_V2_2_RFC.md"),
     ("api", "HIVE_V2_2_DRIVER_SPEC", "docs/hive-v2.2-rfc/HIVE_V2_2_DRIVER_SPEC.md"),
+    ("api", "HIVE_V2_3_RFC", "docs/hive-v2.3-rfc/HIVE_V2_3_RFC.md"),
+    (
+        "api",
+        "HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC",
+        "docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md",
+    ),
+    (
+        "api",
+        "HIVE_V2_3_RETRIEVAL_AND_CAMPAIGNS_SPEC",
+        "docs/hive-v2.3-rfc/HIVE_V2_3_RETRIEVAL_AND_CAMPAIGNS_SPEC.md",
+    ),
+    (
+        "api",
+        "HIVE_V2_3_IMPLEMENTATION_PLAN",
+        "docs/hive-v2.3-rfc/HIVE_V2_3_IMPLEMENTATION_PLAN.md",
+    ),
+    (
+        "api",
+        "HIVE_V2_3_ACCEPTANCE_TESTS",
+        "docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md",
+    ),
     ("schema", "SCHEMA", "docs/hive-v2-spec/SCHEMA.sql"),
 )
 COMMAND_DOCS = (
@@ -252,8 +273,7 @@ def _match_reasons(
         for term in terms
         if term
         in " ".join(
-            str(metadata.get(key, ""))
-            for key in ("summary", "notes", "history")
+            str(metadata.get(key, "")) for key in ("summary", "notes", "history")
         ).casefold()
     ]
     if note_hits and not body_hits:
@@ -265,6 +285,7 @@ def _match_reasons(
     if metadata.get("project_id"):
         reasons.append(f"project: {metadata['project_id']}")
     return reasons or ["matched indexed workspace content"]
+
 
 # pylint: disable-next=too-many-arguments
 def _cache_result(
@@ -318,6 +339,7 @@ def _matches_task_filter(metadata: dict[str, object], task_id: str | None) -> bo
     if not task_id:
         return True
     return metadata.get("task_id") == task_id or metadata.get("entity_id") == task_id
+
 
 # pylint: disable-next=too-many-arguments,too-many-locals
 def search_cache_documents(
@@ -537,6 +559,7 @@ def _search_project_summary(
 
     return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[:limit]
 
+
 # pylint: disable-next=too-many-arguments
 def search_workspace(
     path: str | Path | None,
@@ -580,6 +603,7 @@ def search_workspace(
         seen.add(key)
         deduped.append(item)
     return deduped[:limit]
+
 
 # pylint: disable-next=too-many-arguments
 def search_workspace_corpus(

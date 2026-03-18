@@ -130,6 +130,30 @@ def steer_run(
             json.dumps(new_driver.probe().to_dict(), indent=2, sort_keys=True),
             encoding="utf-8",
         )
+        if metadata.get("capability_snapshot_path"):
+            new_probe = new_driver.probe()
+            if new_probe.capability_snapshot is not None:
+                Path(metadata["capability_snapshot_path"]).write_text(
+                    json.dumps(new_probe.capability_snapshot.to_dict(), indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
+                metadata.setdefault("metadata_json", {}).setdefault("runtime_v2", {})[
+                    "capability_snapshot"
+                ] = new_probe.capability_snapshot.to_dict()
+        if metadata.get("runtime_manifest_path"):
+            manifest_path = Path(str(metadata["runtime_manifest_path"]))
+            if manifest_path.exists():
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                manifest["driver"] = target_driver
+                manifest["driver_mode"] = (
+                    new_driver.probe().capability_snapshot.effective.launch_mode
+                    if new_driver.probe().capability_snapshot is not None
+                    else "staged"
+                )
+                manifest_path.write_text(
+                    json.dumps(manifest, indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
         metadata["driver"] = target_driver
         metadata["driver_handle"] = new_handle.driver_handle
         metadata["status"] = new_status.state

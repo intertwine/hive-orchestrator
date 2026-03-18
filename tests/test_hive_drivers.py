@@ -281,7 +281,7 @@ if __name__ == "__main__":
     target = temp_dir / "fake-codex"
     target.write_text(
         "#!/bin/sh\n"
-        f"exec {shlex.quote(sys.executable)} {shlex.quote(str(impl_path))} \"$@\"\n",
+        f"exec {shlex.quote(sys.executable)} -u {shlex.quote(str(impl_path))} \"$@\"\n",
         encoding="utf-8",
     )
     target.chmod(0o755)

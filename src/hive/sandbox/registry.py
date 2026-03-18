@@ -277,6 +277,58 @@ class DaytonaBackend(CredentialAwareSandboxBackend):
         "control plane target."
     )
 
+    @staticmethod
+    def _sdk_available() -> bool:
+        return importlib.util.find_spec("daytona") is not None
+
+    def probe(self) -> SandboxProbe:
+        probe = super().probe()
+        has_sdk = self._sdk_available()
+        probe.evidence["python_sdk"] = has_sdk
+        env_names = {
+            name
+            for group in self.auth_env_groups
+            for name in group
+        } | set(self.required_env)
+        matched_group = next(
+            (
+                group
+                for group in self.auth_env_groups
+                if group and all(os.getenv(name) for name in group)
+            ),
+            None,
+        )
+        if env_names:
+            probe.evidence["env"] = {name: bool(os.getenv(name)) for name in sorted(env_names)}
+        if has_sdk:
+            probe.notes.append("Detected Python Daytona SDK for team-self-hosted execution.")
+            if not probe.available:
+                probe.available = True
+                probe.notes.append("Python Daytona SDK is available even though the CLI is missing.")
+                probe.blockers = [
+                    blocker for blocker in probe.blockers if blocker != self.note_when_missing
+                ]
+            if matched_group:
+                probe.evidence["auth_source"] = list(matched_group)
+                if not any(
+                    "Detected non-interactive configuration via" in note for note in probe.notes
+                ):
+                    probe.notes.append(
+                        "Detected non-interactive configuration via "
+                        + ", ".join(matched_group)
+                        + "."
+                    )
+            elif self.auth_env_groups and self.auth_warning not in probe.warnings:
+                probe.warnings.append(self.auth_warning)
+        else:
+            probe.blockers.append(
+                "Install `mellona-hive[sandbox-daytona]` or `pip install daytona` "
+                "for team-self-hosted execution."
+            )
+        missing_required = [name for name in self.required_env if not os.getenv(name)]
+        probe.configured = bool(matched_group and has_sdk and not missing_required)
+        return probe
+
 
 class CloudflareBackend(CredentialAwareSandboxBackend):
     name = "cloudflare"

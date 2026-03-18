@@ -311,6 +311,7 @@ def test_daytona_probe_requires_api_url_for_self_hosted(monkeypatch):
 
     monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
     monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+    monkeypatch.setattr(type(backend), "_sdk_available", staticmethod(lambda: True))
     monkeypatch.setenv("DAYTONA_API_KEY", "token")
     monkeypatch.delenv("DAYTONA_API_URL", raising=False)
     monkeypatch.delenv("DAYTONA_JWT_TOKEN", raising=False)
@@ -322,6 +323,33 @@ def test_daytona_probe_requires_api_url_for_self_hosted(monkeypatch):
     assert probe.configured is False
     assert "DAYTONA_API_KEY" in probe.evidence["auth_source"]
     assert any("DAYTONA_API_URL" in blocker for blocker in probe.blockers)
+
+
+def test_daytona_probe_requires_python_sdk_for_self_hosted(monkeypatch):
+    backend = get_backend("daytona")
+
+    def fake_find_binary(self):
+        return "/tmp/daytona"
+
+    def fake_command_output(self, *args):
+        if args == ("--version",):
+            return "daytona 0.1.0"
+        return None
+
+    monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
+    monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+    monkeypatch.setattr(type(backend), "_sdk_available", staticmethod(lambda: False))
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+    monkeypatch.delenv("DAYTONA_JWT_TOKEN", raising=False)
+    monkeypatch.delenv("DAYTONA_ORGANIZATION_ID", raising=False)
+
+    probe = backend.probe()
+
+    assert probe.available is True
+    assert probe.configured is False
+    assert probe.evidence["python_sdk"] is False
+    assert any("sandbox-daytona" in blocker for blocker in probe.blockers)
 
 
 def test_cloudflare_probe_detects_api_token_configuration(monkeypatch):
@@ -466,6 +494,42 @@ def test_start_run_selects_local_fast_asrt_backend_when_available(
     assert sandbox["profile"] == "local-fast"
     assert manifest["sandbox_backend"] == "asrt"
     assert manifest["sandbox_profile"] == "local-fast"
+
+
+def test_start_run_selects_team_self_hosted_daytona_backend_when_available(
+    temp_hive_dir, capsys, monkeypatch
+):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    daytona = get_backend("daytona")
+
+    def fake_daytona_probe(self):
+        return SandboxProbe(
+            backend="daytona",
+            available=True,
+            configured=True,
+            isolation_class="remote-sandbox",
+            supported_profiles=["team-self-hosted"],
+            notes=["Detected Daytona SDK and control plane configuration."],
+            evidence={
+                "binary": "/tmp/daytona",
+                "python_sdk": True,
+                "auth_source": ["DAYTONA_API_KEY"],
+            },
+        )
+
+    monkeypatch.setattr(type(daytona), "probe", fake_daytona_probe)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="local", profile="team-self-hosted")
+    run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
+    sandbox = json.loads((run_root / "sandbox-policy.json").read_text(encoding="utf-8"))
+    manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
+
+    assert sandbox["backend"] == "daytona"
+    assert sandbox["isolation_class"] == "remote-sandbox"
+    assert sandbox["profile"] == "team-self-hosted"
+    assert manifest["sandbox_backend"] == "daytona"
+    assert manifest["sandbox_profile"] == "team-self-hosted"
 
 
 def test_start_run_emits_sandbox_selected_event(temp_hive_dir, capsys, monkeypatch):
@@ -649,11 +713,112 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
     assert settings["network"]["allowedDomains"] == []
 
 
-def test_local_executor_reports_unwired_daytona_backend_as_failed_command(tmp_path):
+def test_local_executor_runs_commands_via_daytona_sdk(monkeypatch, tmp_path):
     worktree = tmp_path / "worktree"
     artifacts = tmp_path / "artifacts"
     worktree.mkdir()
     artifacts.mkdir()
+    (worktree / "README.md").write_text("hello\n", encoding="utf-8")
+    calls: dict[str, object] = {}
+
+    class FakeDaytonaConfig:
+        def __init__(self, **kwargs):
+            calls["config"] = kwargs
+
+    class FakeCreateSandboxFromImageParams:
+        def __init__(self, **kwargs):
+            calls["create_params"] = kwargs
+            self.kwargs = kwargs
+
+    class FakeCreateSandboxFromSnapshotParams:
+        def __init__(self, **kwargs):
+            calls["create_params"] = kwargs
+            self.kwargs = kwargs
+
+    class FakeResources:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeSessionExecuteRequest:
+        def __init__(self, command):
+            self.command = command
+
+    class FakeSyncResult:
+        exit_code = 0
+        result = ""
+
+    class FakeSessionResult:
+        exit_code = 0
+        stdout = "ok\n"
+        stderr = ""
+        output = "ok\n"
+
+    class FakeProcess:
+        def exec(self, command, **kwargs):
+            calls.setdefault("process_exec", []).append({"command": command, "kwargs": kwargs})
+            return FakeSyncResult()
+
+        def create_session(self, session_id):
+            calls["session_id"] = session_id
+            return None
+
+        def execute_session_command(self, session_id, req, **kwargs):
+            calls["session_exec"] = {
+                "session_id": session_id,
+                "command": req.command,
+                "kwargs": kwargs,
+            }
+            return FakeSessionResult()
+
+        def delete_session(self, session_id):
+            calls["deleted_session"] = session_id
+            return None
+
+    class FakeFileSystem:
+        def create_folder(self, path, mode):
+            calls.setdefault("folders", []).append({"path": path, "mode": mode})
+            return None
+
+        def upload_file(self, src, dst, timeout=1800):
+            calls["upload"] = {"dst": dst, "timeout": timeout, "size": len(src)}
+            return None
+
+    class FakeSandbox:
+        id = "daytona_123"
+
+        def __init__(self):
+            self.fs = FakeFileSystem()
+            self.process = FakeProcess()
+
+        def delete(self, timeout=60):
+            calls["deleted"] = timeout
+            return None
+
+    class FakeDaytona:
+        def __init__(self, config):
+            calls["client"] = config
+
+        def create(self, params, timeout=60):
+            calls["create_timeout"] = timeout
+            calls["created_with"] = params
+            return FakeSandbox()
+
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_daytona_sdk",
+        lambda: (
+            FakeDaytona,
+            FakeDaytonaConfig,
+            FakeCreateSandboxFromImageParams,
+            FakeCreateSandboxFromSnapshotParams,
+            FakeResources,
+            FakeSessionExecuteRequest,
+        ),
+    )
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+    monkeypatch.delenv("DAYTONA_JWT_TOKEN", raising=False)
+    monkeypatch.delenv("DAYTONA_ORGANIZATION_ID", raising=False)
+    monkeypatch.delenv("HIVE_DAYTONA_SNAPSHOT", raising=False)
     executor = LocalExecutor(
         SandboxPolicy(
             backend="daytona",
@@ -674,11 +839,25 @@ def test_local_executor_reports_unwired_daytona_backend_as_failed_command(tmp_pa
         )
     )
 
-    result = executor.run_command("python -c \"print('ok')\"", cwd=worktree, timeout_seconds=30)
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
 
-    assert result.returncode == 1
-    assert result.timed_out is False
-    assert "not wired into the local executor yet" in result.stderr
+    assert result.returncode == 0
+    assert result.stdout == "ok\n"
+    assert result.stderr == ""
+    assert result.sandbox is not None
+    assert result.sandbox["backend"] == "daytona"
+    assert result.sandbox["workspace_sync"] == "upload_only"
+    assert result.sandbox["remote_sandbox_id"] == "daytona_123"
+    assert result.sandbox["image"] == "python:3.11-slim"
+    assert calls["config"]["api_url"] == "https://daytona.example.invalid"
+    assert calls["create_params"]["network_block_all"] is True
+    assert calls["upload"]["dst"] == "/tmp/hive-mounts.tar.gz"
+    assert calls["process_exec"][0]["command"].startswith("sh -lc ")
+    assert calls["session_id"] == "hive-exec"
+    assert "cd /workspace" in calls["session_exec"]["command"]
+    assert calls["session_exec"]["kwargs"]["timeout"] == 45
+    assert calls["deleted_session"] == "hive-exec"
+    assert calls["deleted"] == 60
 
 
 def test_resolve_hosted_managed_requires_configured_backend(monkeypatch, tmp_path):
@@ -712,6 +891,39 @@ def test_resolve_hosted_managed_requires_configured_backend(monkeypatch, tmp_pat
 
     assert "e2b:" in str(excinfo.value)
     assert "Missing E2B_API_KEY" in str(excinfo.value)
+
+
+def test_resolve_team_self_hosted_requires_configured_backend(monkeypatch, tmp_path):
+    backend = get_backend("daytona")
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    def fake_probe(self):
+        return SandboxProbe(
+            backend="daytona",
+            available=True,
+            configured=False,
+            isolation_class="remote-sandbox",
+            supported_profiles=["team-self-hosted"],
+            blockers=["Missing DAYTONA_API_URL"],
+            warnings=["CLI login is not enough for automation"],
+            notes=[],
+            evidence={},
+        )
+
+    monkeypatch.setattr(type(backend), "probe", fake_probe)
+
+    with pytest.raises(ValueError) as excinfo:
+        resolve_sandbox_policy(
+            worktree_path=str(worktree),
+            artifacts_path=str(artifacts),
+            profile="team-self-hosted",
+        )
+
+    assert "daytona:" in str(excinfo.value)
+    assert "Missing DAYTONA_API_URL" in str(excinfo.value)
 
 
 def test_local_executor_runs_commands_via_e2b_sdk(monkeypatch, tmp_path):
@@ -833,6 +1045,48 @@ def test_local_executor_reports_missing_e2b_sdk(monkeypatch, tmp_path):
     assert "sandbox-e2b" in result.stderr
     assert result.sandbox is not None
     assert result.sandbox["backend"] == "e2b"
+
+
+def test_local_executor_reports_missing_daytona_sdk(monkeypatch, tmp_path):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_daytona_sdk",
+        lambda: (_ for _ in ()).throw(ImportError("sandbox-daytona missing")),
+    )
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+    monkeypatch.delenv("DAYTONA_JWT_TOKEN", raising=False)
+    monkeypatch.delenv("DAYTONA_ORGANIZATION_ID", raising=False)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="daytona",
+            isolation_class="remote-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="team-self-hosted",
+            provenance="sandbox_v2_backend:daytona",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 1
+    assert "sandbox-daytona" in result.stderr
+    assert result.sandbox is not None
+    assert result.sandbox["backend"] == "daytona"
 
 
 def test_execute_local_safe_wraps_python_runner_in_container(monkeypatch, tmp_path):

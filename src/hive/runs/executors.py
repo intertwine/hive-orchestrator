@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import tarfile
 from typing import Protocol
@@ -49,6 +50,14 @@ class LocalExecutor:
         started_at = utc_now_iso()
         if self.sandbox_policy is not None and self.sandbox_policy.backend == "e2b":
             return _run_e2b_command(
+                self.sandbox_policy,
+                command=command,
+                cwd=cwd,
+                timeout_seconds=timeout_seconds,
+                started_at=started_at,
+            )
+        if self.sandbox_policy is not None and self.sandbox_policy.backend == "daytona":
+            return _run_daytona_command(
                 self.sandbox_policy,
                 command=command,
                 cwd=cwd,
@@ -143,13 +152,13 @@ class LocalExecutor:
         }
 
 
-_E2B_REMOTE_WORKTREE = "/workspace"
-_E2B_REMOTE_ARTIFACTS = "/artifacts"
-_E2B_REMOTE_ARCHIVE = "/tmp/hive-mounts.tar.gz"
-_E2B_DENY_ALL = "0.0.0.0/0"
+_REMOTE_WORKTREE = "/workspace"
+_REMOTE_ARTIFACTS = "/artifacts"
+_REMOTE_ARCHIVE = "/tmp/hive-mounts.tar.gz"
+_DAYTONA_SESSION_ID = "hive-exec"
 
 
-def _e2b_mount_roots(policy: SandboxPolicy, cwd: Path) -> tuple[Path, Path]:
+def _policy_mount_roots(policy: SandboxPolicy, cwd: Path) -> tuple[Path, Path]:
     mounts = list(policy.mounts.get("read_write") or [])
     host_worktree = Path(str(mounts[0] if mounts else cwd)).resolve()
     host_artifacts = Path(str(mounts[1] if len(mounts) > 1 else cwd)).resolve()
@@ -177,7 +186,33 @@ def _load_e2b_sdk():
     return Sandbox
 
 
-def _e2b_env(policy: SandboxPolicy) -> dict[str, str]:
+def _load_daytona_sdk():
+    """Import the optional Daytona SDK only when the self-hosted executor is selected."""
+    try:
+        from daytona import (  # type: ignore[import-not-found]
+            CreateSandboxFromImageParams,
+            CreateSandboxFromSnapshotParams,
+            Daytona,
+            DaytonaConfig,
+            Resources,
+            SessionExecuteRequest,
+        )
+    except ImportError as exc:  # pragma: no cover - exercised through monkeypatching
+        raise ImportError(
+            "Daytona SDK is not installed. Install `mellona-hive[sandbox-daytona]` "
+            "or `pip install daytona` to use the team-self-hosted executor."
+        ) from exc
+    return (
+        Daytona,
+        DaytonaConfig,
+        CreateSandboxFromImageParams,
+        CreateSandboxFromSnapshotParams,
+        Resources,
+        SessionExecuteRequest,
+    )
+
+
+def _filtered_env(policy: SandboxPolicy) -> dict[str, str]:
     env: dict[str, str] = {}
     if bool(policy.env.get("inherit")):
         return dict(os.environ)
@@ -219,7 +254,7 @@ def _run_e2b_command(
 ) -> CommandResult:
     """Run one evaluator-style command inside an ephemeral E2B sandbox."""
     started = started_at
-    host_worktree, host_artifacts = _e2b_mount_roots(policy, cwd)
+    host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
     allowlist = [
         str(item) for item in list(policy.network.get("allowlist") or []) if str(item).strip()
     ]
@@ -252,7 +287,7 @@ def _run_e2b_command(
         relative_cwd = cwd.resolve().relative_to(host_worktree)
     except ValueError:
         relative_cwd = Path(".")
-    remote_cwd = str((Path(_E2B_REMOTE_WORKTREE) / relative_cwd).as_posix())
+    remote_cwd = str((Path(_REMOTE_WORKTREE) / relative_cwd).as_posix())
     sandbox_metadata: dict[str, object] = {
         "backend": policy.backend,
         "profile": policy.profile,
@@ -267,8 +302,8 @@ def _run_e2b_command(
         "shell": False,
         "cwd": str(cwd),
         "workspace_sync": "upload_only",
-        "remote_worktree": _E2B_REMOTE_WORKTREE,
-        "remote_artifacts": _E2B_REMOTE_ARTIFACTS,
+        "remote_worktree": _REMOTE_WORKTREE,
+        "remote_artifacts": _REMOTE_ARTIFACTS,
     }
     sandbox = None
     try:
@@ -296,13 +331,13 @@ def _run_e2b_command(
         sandbox = sandbox_class.create(**create_kwargs)
         sandbox_metadata["remote_sandbox_id"] = getattr(sandbox, "sandbox_id", None)
         archive_bytes = _archive_mounts(host_worktree, host_artifacts)
-        sandbox.files.make_dir(_E2B_REMOTE_WORKTREE)
-        sandbox.files.make_dir(_E2B_REMOTE_ARTIFACTS)
-        sandbox.files.write(_E2B_REMOTE_ARCHIVE, archive_bytes)
+        sandbox.files.make_dir(_REMOTE_WORKTREE)
+        sandbox.files.make_dir(_REMOTE_ARTIFACTS)
+        sandbox.files.write(_REMOTE_ARCHIVE, archive_bytes)
         sandbox.commands.run(
             (
-                f"mkdir -p {_E2B_REMOTE_WORKTREE} {_E2B_REMOTE_ARTIFACTS} && "
-                f"tar -xzf {_E2B_REMOTE_ARCHIVE} -C / && rm -f {_E2B_REMOTE_ARCHIVE}"
+                f"mkdir -p {_REMOTE_WORKTREE} {_REMOTE_ARTIFACTS} && "
+                f"tar -xzf {_REMOTE_ARCHIVE} -C / && rm -f {_REMOTE_ARCHIVE}"
             ),
             cwd="/",
             timeout=max(timeout_seconds, 60),
@@ -310,7 +345,7 @@ def _run_e2b_command(
         result = sandbox.commands.run(
             command,
             cwd=remote_cwd,
-            envs=_e2b_env(policy) or None,
+            envs=_filtered_env(policy) or None,
             timeout=timeout_seconds,
         )
         return CommandResult(
@@ -362,6 +397,215 @@ def _run_e2b_command(
         if sandbox is not None:
             try:
                 sandbox.kill()
+            except Exception:  # pragma: no cover - defensive cleanup
+                pass
+
+
+def _daytona_config_kwargs() -> dict[str, str]:
+    config: dict[str, str] = {}
+    for env_name, field_name in (
+        ("DAYTONA_API_KEY", "api_key"),
+        ("DAYTONA_API_URL", "api_url"),
+        ("DAYTONA_TARGET", "target"),
+        ("DAYTONA_JWT_TOKEN", "jwt_token"),
+        ("DAYTONA_ORGANIZATION_ID", "organization_id"),
+    ):
+        value = os.environ.get(env_name)
+        if value:
+            config[field_name] = value
+    return config
+
+
+def _daytona_resources(policy: SandboxPolicy, resources_class):
+    if all(policy.resources.get(key) is None for key in ("cpu", "memory_mb", "disk_mb")):
+        return None
+    return resources_class(
+        cpu=policy.resources.get("cpu"),
+        memory=policy.resources.get("memory_mb"),
+        disk=policy.resources.get("disk_mb"),
+    )
+
+
+def _remote_shell_command(command: str, *, remote_cwd: str) -> str:
+    payload = f"cd {shlex.quote(remote_cwd)} && {command}"
+    return f"sh -lc {shlex.quote(payload)}"
+
+
+def _run_daytona_command(
+    policy: SandboxPolicy,
+    *,
+    command: str,
+    cwd: Path,
+    timeout_seconds: int,
+    started_at: str,
+) -> CommandResult:
+    """Run one evaluator-style command inside an ephemeral Daytona sandbox."""
+    started = started_at
+    host_worktree, host_artifacts = _policy_mount_roots(policy, cwd)
+    allowlist = [
+        str(item) for item in list(policy.network.get("allowlist") or []) if str(item).strip()
+    ]
+    try:
+        relative_cwd = cwd.resolve().relative_to(host_worktree)
+    except ValueError:
+        relative_cwd = Path(".")
+    remote_cwd = str((Path(_REMOTE_WORKTREE) / relative_cwd).as_posix())
+    sandbox_metadata: dict[str, object] = {
+        "backend": policy.backend,
+        "profile": policy.profile,
+        "provenance": policy.provenance,
+        "network_mode": policy.network.get("mode"),
+        "network_allowlist": allowlist,
+        "command": command,
+        "command_payload": {
+            "transport": "daytona-sdk",
+            "remote_cwd": remote_cwd,
+        },
+        "shell": False,
+        "cwd": str(cwd),
+        "workspace_sync": "upload_only",
+        "remote_worktree": _REMOTE_WORKTREE,
+        "remote_artifacts": _REMOTE_ARTIFACTS,
+    }
+    sandbox = None
+    session_created = False
+    try:
+        if list(policy.mounts.get("read_only") or []):
+            raise NotImplementedError(
+                "Daytona team-self-hosted execution does not yet project extra read-only mounts."
+            )
+        (
+            daytona_class,
+            config_class,
+            create_image_params_class,
+            create_snapshot_params_class,
+            resources_class,
+            session_request_class,
+        ) = _load_daytona_sdk()
+        config_kwargs = _daytona_config_kwargs()
+        if not config_kwargs.get("api_url"):
+            raise ValueError("DAYTONA_API_URL is required for team-self-hosted execution.")
+        if not (
+            config_kwargs.get("api_key")
+            or (
+                config_kwargs.get("jwt_token")
+                and config_kwargs.get("organization_id")
+            )
+        ):
+            raise ValueError(
+                "Daytona execution requires DAYTONA_API_KEY or "
+                "DAYTONA_JWT_TOKEN with DAYTONA_ORGANIZATION_ID."
+            )
+        create_kwargs: dict[str, object] = {
+            "env_vars": _filtered_env(policy) or None,
+            "labels": {
+                "hive_backend": policy.backend,
+                "hive_profile": policy.profile,
+                "hive_cwd": str(cwd),
+            },
+            "ephemeral": True,
+            "network_block_all": policy.network.get("mode") == "deny" and not allowlist,
+            "network_allow_list": ",".join(allowlist) if allowlist else None,
+            "resources": _daytona_resources(policy, resources_class),
+        }
+        snapshot = os.environ.get("HIVE_DAYTONA_SNAPSHOT")
+        if snapshot:
+            create_params = create_snapshot_params_class(snapshot=snapshot, **create_kwargs)
+            sandbox_metadata["snapshot"] = snapshot
+        else:
+            image = os.environ.get("HIVE_DAYTONA_IMAGE") or os.environ.get(
+                "HIVE_SANDBOX_IMAGE", "python:3.11-slim"
+            )
+            create_params = create_image_params_class(image=image, **create_kwargs)
+            sandbox_metadata["image"] = image
+        daytona = daytona_class(config_class(**config_kwargs))
+        sandbox = daytona.create(create_params, timeout=max(timeout_seconds + 60, 300))
+        sandbox_metadata["remote_sandbox_id"] = getattr(
+            sandbox,
+            "id",
+            getattr(sandbox, "sandbox_id", None),
+        )
+        archive_bytes = _archive_mounts(host_worktree, host_artifacts)
+        sandbox.fs.create_folder(_REMOTE_WORKTREE, "755")
+        sandbox.fs.create_folder(_REMOTE_ARTIFACTS, "755")
+        sandbox.fs.upload_file(archive_bytes, _REMOTE_ARCHIVE)
+        sync_result = sandbox.process.exec(
+            _remote_shell_command(
+                (
+                    f"mkdir -p {_REMOTE_WORKTREE} {_REMOTE_ARTIFACTS} && "
+                    f"tar -xzf {_REMOTE_ARCHIVE} -C / && rm -f {_REMOTE_ARCHIVE}"
+                ),
+                remote_cwd="/",
+            ),
+            timeout=max(timeout_seconds, 60),
+        )
+        if _coerce_remote_returncode(sync_result) != 0:
+            raise RuntimeError(_stringify_output(getattr(sync_result, "result", "mount sync failed")))
+        sandbox.process.create_session(_DAYTONA_SESSION_ID)
+        session_created = True
+        result = sandbox.process.execute_session_command(
+            _DAYTONA_SESSION_ID,
+            session_request_class(command=_remote_shell_command(command, remote_cwd=remote_cwd)),
+            timeout=timeout_seconds,
+        )
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=_coerce_remote_returncode(result),
+            stdout=_stringify_output(
+                getattr(result, "stdout", getattr(result, "output", getattr(result, "result", "")))
+            ),
+            stderr=_stringify_output(getattr(result, "stderr", "")),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        if "Timeout" in exc.__class__.__name__:
+            return CommandResult(
+                command=command,
+                started_at=started,
+                finished_at=utc_now_iso(),
+                returncode=None,
+                stdout=_stringify_output(
+                    getattr(exc, "stdout", getattr(exc, "output", getattr(exc, "result", "")))
+                ),
+                stderr=_stringify_output(getattr(exc, "stderr", str(exc))),
+                timed_out=True,
+                sandbox=sandbox_metadata,
+            )
+        if getattr(exc, "exit_code", None) is not None:
+            return CommandResult(
+                command=command,
+                started_at=started,
+                finished_at=utc_now_iso(),
+                returncode=int(getattr(exc, "exit_code", 1) or 1),
+                stdout=_stringify_output(
+                    getattr(exc, "stdout", getattr(exc, "output", getattr(exc, "result", "")))
+                ),
+                stderr=_stringify_output(getattr(exc, "stderr", str(exc))),
+                timed_out=False,
+                sandbox=sandbox_metadata,
+            )
+        return CommandResult(
+            command=command,
+            started_at=started,
+            finished_at=utc_now_iso(),
+            returncode=1,
+            stdout="",
+            stderr=str(exc),
+            timed_out=False,
+            sandbox=sandbox_metadata,
+        )
+    finally:
+        if sandbox is not None:
+            if session_created:
+                try:
+                    sandbox.process.delete_session(_DAYTONA_SESSION_ID)
+                except Exception:  # pragma: no cover - defensive cleanup
+                    pass
+            try:
+                sandbox.delete(timeout=max(timeout_seconds, 60))
             except Exception:  # pragma: no cover - defensive cleanup
                 pass
 

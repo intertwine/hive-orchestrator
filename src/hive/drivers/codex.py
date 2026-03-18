@@ -10,6 +10,7 @@ import shlex
 import signal
 import subprocess
 import sys
+import time
 from typing import Any
 
 from src.hive.drivers.base import HarnessDriver
@@ -107,6 +108,34 @@ class CodexDriver(HarnessDriver):
         return datetime.fromtimestamp(latest, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
     @staticmethod
+    def _wait_for_startup_artifact(
+        path: Path,
+        *,
+        process: subprocess.Popen[str],
+        timeout_seconds: float = 1.0,
+        poll_seconds: float = 0.05,
+    ) -> bool:
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            if path.exists():
+                return True
+            if process.poll() is not None:
+                return False
+            time.sleep(poll_seconds)
+        return path.exists()
+
+    @staticmethod
+    def _terminate_process(process: subprocess.Popen[str]) -> None:
+        if process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=2)
+
+    @staticmethod
     def _budget_usage_from_state(state: dict[str, Any]) -> RunBudgetUsage:
         token_usage = state.get("token_usage")
         if not isinstance(token_usage, dict):
@@ -151,7 +180,9 @@ class CodexDriver(HarnessDriver):
         prompt_path = run_root / "driver" / "codex-app-server-prompt.txt"
         command_path = run_root / "driver" / "codex-app-server-command.txt"
         stderr_path = run_root / "logs" / "stderr.txt"
+        worker_stderr_path = run_root / "logs" / "codex-app-server-worker-stderr.txt"
         raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+        worker_stderr_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
             prompt = self._build_exec_prompt(request)
@@ -195,14 +226,15 @@ class CodexDriver(HarnessDriver):
             command.extend(["--model", request.model])
         command_path.write_text(" ".join(shlex.quote(part) for part in command), encoding="utf-8")
         try:
-            process = subprocess.Popen(
-                command,
-                cwd=request.workspace.worktree_path,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                text=True,
-                start_new_session=True,
-            )
+            with open(worker_stderr_path, "a", encoding="utf-8") as worker_stderr_handle:
+                process = subprocess.Popen(
+                    command,
+                    cwd=request.workspace.worktree_path,
+                    stdout=subprocess.DEVNULL,
+                    stderr=worker_stderr_handle,
+                    text=True,
+                    start_new_session=True,
+                )
         except OSError as exc:
             return RunHandle(
                 run_id=request.run_id,
@@ -213,6 +245,35 @@ class CodexDriver(HarnessDriver):
                 launch_mode="app_server",
                 transport="stdio-jsonrpc",
                 metadata={"launch_error": str(exc)},
+            )
+        if not self._wait_for_startup_artifact(state_path, process=process):
+            launch_error = "Codex app-server broker did not initialize its state file."
+            if process.poll() is not None:
+                launch_error = (
+                    "Codex app-server broker exited before initializing its state file."
+                )
+            self._terminate_process(process)
+            return RunHandle(
+                run_id=request.run_id,
+                driver=self.name,
+                driver_handle=f"{self.name}:app-server:{request.run_id}",
+                status="failed",
+                launched_at=utc_now_iso(),
+                launch_mode="app_server",
+                transport="stdio-jsonrpc",
+                metadata={
+                    "launch_error": launch_error,
+                    "binary_name": binary_name,
+                    "binary_path": binary_path,
+                    "worker_stderr_path": str(worker_stderr_path),
+                    "stderr_path": str(stderr_path),
+                    "raw_output_path": str(raw_output_path),
+                    "last_message_path": str(last_message_path),
+                    "exit_code_path": str(exit_code_path),
+                    "state_path": str(state_path),
+                    "prompt_path": str(prompt_path),
+                    "command_path": str(command_path),
+                },
             )
         return RunHandle(
             run_id=request.run_id,
@@ -229,6 +290,8 @@ class CodexDriver(HarnessDriver):
                 "binary_name": binary_name,
                 "binary_path": binary_path,
                 "pid": process.pid,
+                "worker_stderr_path": str(worker_stderr_path),
+                "stderr_path": str(stderr_path),
                 "raw_output_path": str(raw_output_path),
                 "last_message_path": str(last_message_path),
                 "exit_code_path": str(exit_code_path),
@@ -490,6 +553,8 @@ class CodexDriver(HarnessDriver):
             last_message_path = str(handle.metadata.get("last_message_path") or "")
             exit_code_path = str(handle.metadata.get("exit_code_path") or "")
             state_path = str(handle.metadata.get("state_path") or "")
+            stderr_path = str(handle.metadata.get("stderr_path") or "")
+            worker_stderr_path = str(handle.metadata.get("worker_stderr_path") or "")
             pid = int(handle.metadata.get("pid") or 0)
             exit_code = self._read_exit_code(exit_code_path)
             state = self._load_state(state_path)
@@ -500,6 +565,8 @@ class CodexDriver(HarnessDriver):
                 last_message_path,
                 state_path,
                 exit_code_path,
+                stderr_path,
+                worker_stderr_path,
             )
             turn_status = str(state.get("turn_status") or "")
             thread_status = str(state.get("thread_status") or "")
@@ -516,7 +583,30 @@ class CodexDriver(HarnessDriver):
                 "last_message_path": last_message_path or None,
                 "exit_code_path": exit_code_path or None,
                 "state_path": state_path or None,
+                "stderr_path": stderr_path or None,
+                "worker_stderr_path": worker_stderr_path or None,
             }
+            if state_path and not Path(state_path).exists():
+                return RunStatus(
+                    run_id=handle.run_id,
+                    state="failed",
+                    health="failed",
+                    driver=self.name,
+                    progress=RunProgress(
+                        phase="failed",
+                        message=(
+                            "Codex app-server broker never initialized its startup state; "
+                            "check the captured worker stderr."
+                        ),
+                        percent=100,
+                    ),
+                    waiting_on="operator",
+                    last_event_at=last_event_at or handle.launched_at,
+                    budget=budget,
+                    event_cursor=cursor,
+                    session=session,
+                    artifacts=artifacts,
+                )
             if exit_code is None:
                 if pid and self._pid_is_running(pid):
                     message = "Codex app-server is actively working in the Hive run worktree."

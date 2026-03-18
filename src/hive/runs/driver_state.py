@@ -813,8 +813,11 @@ def _import_driver_last_message(metadata: dict, status_payload: dict[str, object
     imports = metadata.setdefault("metadata_json", {}).setdefault("driver_imports", {})
     if imports.get("last_message_sha256") == digest:
         return
+    transcript_path_value = metadata.get("transcript_path")
+    if not isinstance(transcript_path_value, str) or not transcript_path_value.strip():
+        return
     _append_transcript_entry(
-        Path(metadata["transcript_path"]),
+        Path(transcript_path_value),
         {
             "ts": utc_now_iso(),
             "kind": "assistant",

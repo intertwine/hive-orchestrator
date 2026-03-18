@@ -1615,6 +1615,44 @@ class TestHiveDrivers:
         assert status.waiting_on == "review"
         assert status.budget.spent_tokens == 12
 
+    def test_codex_app_server_reports_failed_when_broker_never_initializes_state(self, tmp_path, monkeypatch):
+        driver = get_driver("codex")
+        raw_output_path = tmp_path / "codex-events.jsonl"
+        stderr_path = tmp_path / "stderr.txt"
+        worker_stderr_path = tmp_path / "worker-stderr.txt"
+        stderr_path.write_text("", encoding="utf-8")
+        worker_stderr_path.write_text("worker bootstrap stalled\n", encoding="utf-8")
+
+        monkeypatch.setattr(type(driver), "_pid_is_running", staticmethod(lambda pid: True))
+
+        status = driver.status(
+            RunHandle(
+                run_id="run_1",
+                driver="codex",
+                driver_handle="codex:app-server:7000",
+                status="running",
+                launched_at="2026-03-18T06:00:00Z",
+                launch_mode="app_server",
+                transport="stdio-jsonrpc",
+                session_id="7000",
+                event_cursor="0",
+                metadata={
+                    "pid": 7000,
+                    "raw_output_path": str(raw_output_path),
+                    "state_path": str(tmp_path / "missing-state.json"),
+                    "exit_code_path": str(tmp_path / "missing-exit.txt"),
+                    "stderr_path": str(stderr_path),
+                    "worker_stderr_path": str(worker_stderr_path),
+                },
+            )
+        )
+
+        assert status.state == "failed"
+        assert status.health == "failed"
+        assert status.waiting_on == "operator"
+        assert "never initialized its startup state" in status.progress.message
+        assert status.artifacts["worker_stderr_path"] == str(worker_stderr_path)
+
     def test_claude_live_exec_recovers_result_without_exit_marker(self, tmp_path, monkeypatch):
         driver = get_driver("claude-code")
         raw_output_path = tmp_path / "claude-print-result.json"

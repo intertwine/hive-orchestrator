@@ -1955,6 +1955,90 @@ def test_claude_exec_ingest_tolerates_missing_transcript_path(tmp_path):
     assert event_types.count("driver.status") == 1
 
 
+def test_claude_terminal_refresh_tolerates_missing_transcript_path(tmp_path, monkeypatch):
+    raw_output_path = tmp_path / "claude-print-result.json"
+    last_message_path = tmp_path / "claude-last-message.txt"
+    raw_output_path.write_text(
+        json.dumps(
+            {
+                "session_id": "sess-7200",
+                "result": "Delivered the requested implementation.",
+                "duration_ms": 4200,
+                "total_cost_usd": 0.45,
+                "usage": {
+                    "input_tokens": 10,
+                    "output_tokens": 1,
+                    "total_tokens": 11,
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    last_message_path.write_text("Delivered the requested implementation.\n", encoding="utf-8")
+    handle = RunHandle(
+        run_id="run_missing_terminal_transcript",
+        driver="claude-code",
+        driver_handle="claude-code:exec:run_missing_terminal_transcript",
+        status="running",
+        launched_at="2026-03-18T06:00:00Z",
+        launch_mode="exec",
+        transport="subprocess",
+        session_id="sess-7200",
+        event_cursor="0",
+        metadata={
+            "raw_output_path": str(raw_output_path),
+            "last_message_path": str(last_message_path),
+            "exit_code_path": str(tmp_path / "missing-exit.txt"),
+        },
+    )
+    handles_path = tmp_path / "handles.json"
+    handles_path.write_text(
+        json.dumps({"active": handle.to_dict(), "history": [handle.to_dict()]}),
+        encoding="utf-8",
+    )
+    metadata = {
+        "id": "run_missing_terminal_transcript",
+        "driver": "claude-code",
+        "driver_handles_path": str(handles_path),
+        "metadata_json": {},
+    }
+
+    class FakeClaudeDriver:
+        def status(self, handle):
+            return RunStatus(
+                run_id=handle.run_id,
+                state="completed_candidate",
+                health="healthy",
+                driver="claude-code",
+                progress=RunProgress(
+                    phase="completed",
+                    message="Claude exec finished and produced a candidate result for review.",
+                    percent=100,
+                ),
+                waiting_on="review",
+                last_event_at="2026-03-18T06:01:00Z",
+                budget=RunBudgetUsage(spent_tokens=11, spent_cost_usd=0.45, wall_minutes=0),
+                event_cursor="1",
+                session={"launch_mode": "exec", "transport": "subprocess", "session_id": "sess-7200"},
+                artifacts={
+                    "raw_output_path": str(raw_output_path),
+                    "last_message_path": str(last_message_path),
+                    "exit_code_path": str(tmp_path / "missing-exit.txt"),
+                },
+            )
+
+    monkeypatch.setattr(driver_state_module, "get_driver", lambda name: FakeClaudeDriver())
+
+    result = driver_state_module._refresh_live_driver_status(tmp_path, metadata)
+
+    assert result is not None
+    assert result["current"]["state"] == "completed_candidate"
+    assert metadata["metadata_json"]["driver_usage"]["spent_tokens"] == 11
+    assert "last_message_sha256" not in metadata["metadata_json"]["driver_imports"]
+    assert not (tmp_path / "transcript.ndjson").exists()
+
+
 def test_claude_exec_ingest_uses_last_valid_json_record(tmp_path):
     raw_output_path = tmp_path / "claude-print-result.json"
     raw_output_path.write_text(

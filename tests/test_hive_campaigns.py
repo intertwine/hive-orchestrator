@@ -45,6 +45,10 @@ class TestCampaignsAndOnboarding:
             "hive program add-evaluator demo <real-evaluator-id>" in step
             for step in onboard["next_steps"]
         )
+        assert any(
+            "starter stub" in step and "does not validate real project behavior" in step
+            for step in onboard["next_steps"]
+        )
 
     def test_onboard_and_adopt_seed_safe_projects(self, temp_hive_dir, capsys):
         (Path(temp_hive_dir) / "pyproject.toml").write_text(

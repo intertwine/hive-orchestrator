@@ -14,7 +14,8 @@ from src.hive import __version__
 def _add_bootstrap_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     quickstart_parser = subparsers.add_parser(
         "quickstart",
-        help="Compatibility alias for the older fresh-workspace bootstrap path.",
+        help="Legacy compatibility alias for `hive onboard`.",
+        description="Legacy compatibility alias for `hive onboard`. Prefer `hive onboard`.",
     )
     quickstart_parser.add_argument("slug", nargs="?", default="demo")
     quickstart_parser.add_argument("--title")
@@ -416,7 +417,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(
+        dest="command",
+        metavar=(
+            "{onboard,adopt,init,doctor,next,work,finish,search,dashboard,console,"
+            "execute,cache,drivers,project,workspace,task,run,steer,program,memory,"
+            "context,sync,portfolio,migrate,deps,campaign,brief}"
+        ),
+    )
     _add_bootstrap_parsers(subparsers)
     _add_control_parsers(subparsers)
     _add_project_parsers(subparsers)

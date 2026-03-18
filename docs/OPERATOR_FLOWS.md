@@ -2,6 +2,8 @@
 
 Hive 2.2 assumes the operator mostly supervises and occasionally intervenes.
 
+Install `mellona-hive[console]` first anywhere you use `hive console serve` below.
+
 ## Normal manager loop
 
 ```bash
@@ -56,6 +58,8 @@ hive program add-evaluator <project-id> <template-id>
 ```
 
 Use this before blaming the run engine. Most blocked promotions are a policy problem, not a run problem.
+If Program Doctor suggested `local-smoke`, remember that it is only a bootstrap placeholder until you replace it with
+a real evaluator for the repo.
 
 ## Campaign loop
 

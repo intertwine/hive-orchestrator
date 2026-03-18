@@ -128,8 +128,9 @@ those fields cleanly.
 
 When a task should run through the governed worktree flow, make sure `projects/*/PROGRAM.md` has at least one
 required evaluator and lists it under `promotion.requires_all`. Freshly onboarded blank workspaces may already carry
-the fallback `local-smoke` evaluator so the happy path works immediately. Replace that with repo-specific evaluators
-once you know the real checks. If a project is still blocked, run:
+the fallback `local-smoke` evaluator so the happy path works immediately. That starter stub proves the loop is wired
+up, but it does not validate project behavior. Replace it with repo-specific evaluators once you know the real
+checks. If a project is still blocked, run:
 
 ```bash
 hive program doctor demo

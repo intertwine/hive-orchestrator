@@ -6,6 +6,10 @@
 
 The safest default is one evaluator that proves the main slice is healthy.
 
+If Program Doctor suggests `local-smoke`, treat it as a bootstrap placeholder. It proves the governed loop is wired
+up, but it does not validate your actual project behavior. Replace it with a repo-specific evaluator as soon as you
+know the real check you trust.
+
 Examples:
 
 - Python library: `pytest -q`

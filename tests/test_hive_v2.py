@@ -1674,6 +1674,17 @@ class TestHiveV2Cli:
         assert excinfo.value.code == 0
         assert captured.out.strip().startswith("hive ")
 
+    def test_cli_help_promotes_onboard_without_listing_quickstart(self, capsys):
+        """Top-level help should present onboard as the canonical bootstrap command."""
+        with pytest.raises(SystemExit) as excinfo:
+            hive_main(["--help"])
+        captured = capsys.readouterr()
+
+        assert excinfo.value.code == 0
+        assert "onboard" in captured.out
+        assert "quickstart" in captured.out
+        assert "Legacy compatibility alias for `hive onboard`." in captured.out
+
     def test_cli_init_bootstraps_workspace_files(self, tmp_path, capsys):
         """Init should create a usable workspace, projections, and cache."""
         workspace = tmp_path / "fresh-hive"

@@ -34,6 +34,7 @@ def load_run(path: str | Path | None, run_id: str) -> dict:
         "scheduler_candidate_set_path", str(run_root / "scheduler" / "candidate-set.json")
     )
     metadata.setdefault("scheduler_decision_path", str(run_root / "scheduler" / "decision.json"))
+    metadata.setdefault("eval_results_path", str(run_root / "eval" / "results.json"))
     metadata.setdefault("final_path", str(run_root / "final.json"))
     metadata.setdefault("metadata_json", {})
     metadata.setdefault("campaign_id", None)

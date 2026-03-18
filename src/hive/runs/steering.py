@@ -9,6 +9,7 @@ from typing import cast
 from src.hive.clock import utc_now_iso
 from src.hive.constants import RUN_TERMINAL_STATUSES
 from src.hive.drivers import SteeringRequest, get_driver
+from src.hive.runtime import sync_runtime_status_artifacts
 from src.hive.runs.driver_state import (
     _active_driver_handle,
     _append_transcript_entry,
@@ -221,6 +222,10 @@ def steer_run(
             campaign_id=metadata.get("campaign_id"),
         )
     save_run(root, run_id, metadata)
+    task_status = None
+    if metadata.get("task_id"):
+        task_status = get_task(root, metadata["task_id"]).status
+    sync_runtime_status_artifacts(metadata, task_status=task_status)
     return {
         "run": metadata,
         "action": action,

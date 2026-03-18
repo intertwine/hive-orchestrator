@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from src.hive.flags import feature_flags
 from src.hive.runtime.capabilities import CapabilitySnapshot
@@ -174,9 +174,68 @@ def write_runtime_scaffold(
     return paths
 
 
+def _artifact_status_payload(
+    metadata: Mapping[str, Any],
+    *,
+    task_status: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    metadata_json = dict(metadata.get("metadata_json") or {})
+    evaluations = list(metadata_json.get("evaluations") or [])
+    promotion_decision = metadata_json.get("promotion_decision")
+    eval_payload = {
+        "run_id": metadata.get("id"),
+        "task_id": metadata.get("task_id"),
+        "project_id": metadata.get("project_id"),
+        "status": metadata.get("status"),
+        "results": evaluations,
+        "promotion_decision": promotion_decision,
+    }
+    final_payload = {
+        "run_id": metadata.get("id"),
+        "task_id": metadata.get("task_id"),
+        "project_id": metadata.get("project_id"),
+        "driver": metadata.get("driver"),
+        "status": metadata.get("status"),
+        "health": metadata.get("health"),
+        "task_status": task_status,
+        "finished_at": metadata.get("finished_at"),
+        "exit_reason": metadata.get("exit_reason"),
+        "promotion_decision": promotion_decision,
+        "evaluations": evaluations,
+        "tokens_in": metadata.get("tokens_in"),
+        "tokens_out": metadata.get("tokens_out"),
+        "cost_usd": metadata.get("cost_usd"),
+    }
+    return eval_payload, final_payload
+
+
+def sync_runtime_status_artifacts(
+    metadata: Mapping[str, Any],
+    *,
+    task_status: str | None = None,
+) -> None:
+    """Keep the v2.3 status artifacts aligned with the current run metadata."""
+    eval_payload, final_payload = _artifact_status_payload(metadata, task_status=task_status)
+
+    eval_results_path = metadata.get("eval_results_path")
+    if eval_results_path:
+        Path(str(eval_results_path)).write_text(
+            json.dumps(eval_payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+
+    final_path = metadata.get("final_path")
+    if final_path:
+        Path(str(final_path)).write_text(
+            json.dumps(final_payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+
+
 __all__ = [
     "SandboxPolicy",
     "default_sandbox_policy",
     "runtime_manifest",
+    "sync_runtime_status_artifacts",
     "write_runtime_scaffold",
 ]

@@ -13,6 +13,7 @@ from src.hive.runtime.runpack import (
     SandboxPolicy,
     default_sandbox_policy,
     runtime_manifest,
+    sync_runtime_status_artifacts,
     write_runtime_scaffold,
 )
 
@@ -29,5 +30,6 @@ __all__ = [
     "request_approval",
     "resolve_approval",
     "runtime_manifest",
+    "sync_runtime_status_artifacts",
     "write_runtime_scaffold",
 ]

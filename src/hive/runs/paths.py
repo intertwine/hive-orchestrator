@@ -119,6 +119,7 @@ def artifact_payload(metadata: dict) -> dict[str, object]:
         "retrieval_hits": metadata.get("retrieval_hits_path"),
         "scheduler_candidate_set": metadata.get("scheduler_candidate_set_path"),
         "scheduler_decision": metadata.get("scheduler_decision_path"),
+        "eval_results": metadata.get("eval_results_path"),
         "final": metadata.get("final_path"),
         "logs": metadata.get("logs_dir"),
     }

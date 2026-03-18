@@ -50,6 +50,7 @@ class RunRecord:
     retrieval_hits_path: str | None = None
     scheduler_candidate_set_path: str | None = None
     scheduler_decision_path: str | None = None
+    eval_results_path: str | None = None
     plan_path: str | None = None
     summary_path: str | None = None
     review_path: str | None = None
@@ -102,6 +103,7 @@ class RunRecord:
             "retrieval_hits_path": self.retrieval_hits_path,
             "scheduler_candidate_set_path": self.scheduler_candidate_set_path,
             "scheduler_decision_path": self.scheduler_decision_path,
+            "eval_results_path": self.eval_results_path,
             "plan_path": self.plan_path,
             "summary_path": self.summary_path,
             "review_path": self.review_path,

@@ -122,6 +122,7 @@ def _artifact_paths(run_root: Path, run: dict) -> dict[str, str | None]:
         "retrieval_hits": run.get("retrieval_hits_path"),
         "scheduler_candidate_set": run.get("scheduler_candidate_set_path"),
         "scheduler_decision": run.get("scheduler_decision_path"),
+        "eval_results": run.get("eval_results_path"),
         "final": run.get("final_path"),
         "logs": run.get("logs_dir"),
         "run_brief": str(run_root / "context" / "compiled" / "run-brief.md"),
@@ -262,6 +263,8 @@ def load_run_detail(base_path: Path, run_id: str) -> dict:
     runtime_manifest = _load_json(run.get("runtime_manifest_path")) or {}
     retrieval_trace = _load_json(run.get("retrieval_trace_path")) or {}
     scheduler_decision = _load_json(run.get("scheduler_decision_path")) or {}
+    eval_results = _load_json(run.get("eval_results_path")) or {}
+    final_state = _load_json(run.get("final_path")) or {}
     context_details = _compiled_context_details(run_root, context_manifest)
     artifacts = _artifact_paths(run_root, run)
     steering_history = [
@@ -300,6 +303,8 @@ def load_run_detail(base_path: Path, run_id: str) -> dict:
         "runtime_manifest": runtime_manifest,
         "retrieval_trace": retrieval_trace,
         "scheduler_decision": scheduler_decision,
+        "eval_results": eval_results,
+        "final_state": final_state,
         "promotion_decision": promotion_decision,
         "artifact_preview": _artifact_preview(artifacts, run),
         "evaluations": run.get("metadata_json", {}).get("evaluations", []),

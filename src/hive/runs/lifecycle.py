@@ -18,6 +18,7 @@ from src.hive.runtime import (
     pending_approvals,
     resolve_approval,
     runtime_manifest,
+    sync_runtime_status_artifacts,
     write_runtime_scaffold,
 )
 from src.hive.runs.context import compile_run_context
@@ -531,6 +532,7 @@ def start_run(
         retrieval_hits_path=str(paths["retrieval_hits_path"]),
         scheduler_candidate_set_path=str(paths["scheduler_candidate_set_path"]),
         scheduler_decision_path=str(paths["scheduler_decision_path"]),
+        eval_results_path=str(paths["eval_results_path"]),
         plan_path=str(paths["plan_path"]),
         summary_path=str(paths["summary_path"]),
         review_path=str(paths["review_path"]),
@@ -558,6 +560,7 @@ def start_run(
     run_file.write_text(run_record_to_json(run), encoding="utf-8")
     task.status = "in_progress"
     save_task(root, task)
+    sync_runtime_status_artifacts(run.to_dict(), task_status=task.status)
     emit_event(
         root,
         actor={"kind": "system", "id": "hive"},
@@ -686,6 +689,8 @@ def eval_run(path: str | Path | None, run_id: str) -> dict:
     metadata_json["promotion_decision"] = promotion
     _write_review_and_summary(metadata, promotion)
     save_run(root, run_id, metadata)
+    task = get_task(root, metadata["task_id"])
+    sync_runtime_status_artifacts(metadata, task_status=task.status)
     emit_event(
         root,
         actor={"kind": "system", "id": "hive"},
@@ -766,6 +771,7 @@ def accept_run(path: str | Path | None, run_id: str) -> dict:
     task.owner = None
     task.claimed_until = None
     save_task(root, task)
+    sync_runtime_status_artifacts(metadata, task_status=task.status)
     emit_event(
         root,
         actor={"kind": "system", "id": "hive"},
@@ -863,6 +869,7 @@ def reject_run(path: str | Path | None, run_id: str, reason: str | None = None) 
     task.owner = None
     task.claimed_until = None
     save_task(root, task)
+    sync_runtime_status_artifacts(metadata, task_status=task.status)
     emit_event(
         root,
         actor={"kind": "system", "id": "hive"},
@@ -894,6 +901,7 @@ def escalate_run(path: str | Path | None, run_id: str, reason: str | None = None
     task.owner = None
     task.claimed_until = None
     save_task(root, task)
+    sync_runtime_status_artifacts(metadata, task_status=task.status)
     emit_event(
         root,
         actor={"kind": "system", "id": "hive"},

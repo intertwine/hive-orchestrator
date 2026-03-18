@@ -417,17 +417,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
-    subparsers = parser.add_subparsers(
-        dest="command",
-        metavar=(
-            "{onboard,adopt,init,doctor,next,work,finish,search,dashboard,console,"
-            "execute,cache,drivers,project,workspace,task,run,steer,program,memory,"
-            "context,sync,portfolio,migrate,deps,campaign,brief}"
-        ),
-    )
+    subparsers = parser.add_subparsers(dest="command")
     _add_bootstrap_parsers(subparsers)
     _add_control_parsers(subparsers)
     _add_project_parsers(subparsers)
     _add_run_parsers(subparsers)
     _add_knowledge_parsers(subparsers)
+    visible_commands = [name for name in subparsers.choices if name != "quickstart"]
+    subparsers.metavar = "{" + ",".join(visible_commands) + "}"
     return parser

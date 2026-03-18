@@ -4,12 +4,22 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 from src.hive.clock import utc_now_iso
 from src.hive.ids import new_id
 from src.hive.models.campaign import CampaignRecord
 from src.hive.store.layout import briefs_dir, campaigns_dir
 from src.security import safe_dump_agency_md, safe_load_agency_md
+
+_CAMPAIGN_OPTION_KEYS = {
+    "driver",
+    "model",
+    "cadence",
+    "brief_cadence",
+    "max_active_runs",
+    "notes_md",
+}
 
 
 def _campaign_body(goal: str, notes_md: str = "") -> str:
@@ -112,31 +122,50 @@ def save_campaign(path: str | Path | None, campaign: CampaignRecord) -> Campaign
     return campaign
 
 
+def _campaign_request(
+    title: str,
+    goal: str,
+    project_ids: list[str],
+    options: dict[str, Any],
+) -> dict[str, Any]:
+    unexpected = sorted(set(options) - _CAMPAIGN_OPTION_KEYS)
+    if unexpected:
+        unexpected_list = ", ".join(unexpected)
+        raise TypeError(f"Unsupported campaign option(s): {unexpected_list}")
+    return {
+        "title": title.strip(),
+        "goal": goal.strip(),
+        "project_ids": list(project_ids),
+        "driver": str(options.get("driver", "local")),
+        "model": options.get("model"),
+        "cadence": str(options.get("cadence", "daily")),
+        "brief_cadence": str(options.get("brief_cadence", "daily")),
+        "max_active_runs": int(options.get("max_active_runs", 1)),
+        "notes_md": str(options.get("notes_md", "")),
+    }
+
+
 def create_campaign(
     path: str | Path | None,
     *,
     title: str,
     goal: str,
     project_ids: list[str],
-    driver: str = "local",
-    model: str | None = None,
-    cadence: str = "daily",
-    brief_cadence: str = "daily",
-    max_active_runs: int = 1,
-    notes_md: str = "",
+    **options: Any,
 ) -> CampaignRecord:
-    """Create and persist a new campaign."""
+    """Create and persist a new campaign from the stable keyword API."""
+    request = _campaign_request(title, goal, project_ids, options)
     campaign = CampaignRecord(
         id=new_id("camp"),
-        title=title.strip(),
-        goal=goal.strip(),
-        project_ids=list(project_ids),
-        driver=driver,
-        model=model,
-        cadence=cadence,
-        brief_cadence=brief_cadence,
-        max_active_runs=max_active_runs,
-        notes_md=notes_md,
+        title=str(request["title"]),
+        goal=str(request["goal"]),
+        project_ids=list(request["project_ids"]),
+        driver=str(request["driver"]),
+        model=request["model"],
+        cadence=str(request["cadence"]),
+        brief_cadence=str(request["brief_cadence"]),
+        max_active_runs=int(request["max_active_runs"]),
+        notes_md=str(request["notes_md"]),
     )
     return save_campaign(path, campaign)
 

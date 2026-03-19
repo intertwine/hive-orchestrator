@@ -2,8 +2,13 @@
 
 This is optional.
 
-Hive works fine with the CLI alone. Install the Claude Code GitHub App only if you want GitHub issues and `@claude`
-mentions to become part of your workflow.
+Hive works fine with the CLI alone. Install the Claude Code GitHub App if you want Anthropic-managed PR reviews or
+you plan to add your own Claude GitHub automation on top of the app.
+
+For pull request review, Anthropic's current best-practice path is the managed Code Review app flow, not a repo-local
+custom GitHub Actions workflow. This repository no longer ships a `claude.yml` Actions workflow for review automation.
+If Anthropic Code Review is enabled for the repo, use a top-level `@claude review` comment or the configured automatic
+review mode in Anthropic admin settings.
 
 If you are brand new to Hive, start with [docs/START_HERE.md](./START_HERE.md) first. Get one local project working
 through the CLI, then add the GitHub App if issue-driven dispatch actually helps your workflow.
@@ -12,9 +17,8 @@ through the CLI, then add the GitHub App if issue-driven dispatch actually helps
 
 Install the app if you want any of these:
 
-- issue-driven assignment instead of direct local CLI work
-- `@claude` responses on issues or PR comments
-- PRs opened by Claude after a GitHub-triggered work loop
+- managed Anthropic PR reviews via `@claude review` or repo-level review settings
+- a foundation for custom Claude GitHub automation that you maintain yourself
 
 If you mostly work locally with `hive task ready`, `hive context startup`, and normal Git branches, you can skip this guide.
 
@@ -28,13 +32,17 @@ If you mostly work locally with `hive task ready`, `hive context startup`, and n
 
 ## Quick check
 
-Open an issue and mention `@claude` in the body. A simple test is enough:
+For managed Code Review, open a non-draft PR and leave a top-level comment:
 
 ```markdown
-@claude Please confirm that you can read this issue.
+@claude review
 ```
 
-If the app is installed correctly, Claude should reply within a few minutes.
+If Anthropic Code Review is enabled correctly for the repository, a review/check should appear within a few minutes.
+
+If you want generic `@claude` issue or PR automation beyond review, Anthropic recommends GitHub Actions for that. This
+repository does not ship that automation workflow anymore; add your own from Anthropic's examples if you intentionally
+want Claude to implement code or open PRs from GitHub comments.
 
 ## How it fits into Hive
 
@@ -44,7 +52,8 @@ The normal Hive flow stays the same:
 2. `hive task claim <task-id> --owner <your-name> --ttl-minutes 60` leases one task.
 3. `hive context startup --project <project-id> --task <task-id>` builds task-specific context.
 4. Optional dispatch tools can turn that work into a GitHub issue.
-5. Claude can pick up the issue when it sees `@claude`.
+5. If you add your own Claude automation workflow, Claude can pick up the issue from GitHub. Managed Code Review alone
+   is review-focused and does not replace Hive's local CLI loop.
 
 The app is a convenience layer. It is not the core orchestration engine.
 
@@ -53,7 +62,7 @@ The app is a convenience layer. It is not the core orchestration engine.
 Make sure these are enabled:
 
 - GitHub Issues
-- GitHub Actions
+- GitHub Actions if you use the optional dispatcher or other repo-owned automations
 
 If you use the optional dispatcher, the workflow or token that opens issues also needs `issues: write`.
 
@@ -62,8 +71,17 @@ If you use the optional dispatcher, the workflow or token that opens issues also
 ### Claude does not respond
 
 - Check that the app is installed on the repository you are testing.
-- Check that the issue or PR comment includes `@claude`.
+- Check that you are testing the flow you actually enabled:
+  - managed review: top-level PR comment `@claude review`
+  - custom automation: your own GitHub Actions workflow
 - Give it a few minutes before assuming it failed.
+
+### `@claude review` does not start a PR review
+
+- Check Anthropic admin settings and confirm Code Review is enabled for this repository.
+- Post `@claude review` as a top-level PR comment, not an inline diff comment.
+- Make sure the PR is open and not a draft.
+- If the repository is in manual review mode, the first `@claude review` opts that PR into review.
 
 ## Checkout-only dispatcher diagnostics
 

@@ -33,7 +33,7 @@ def test_pull_request_template_enforces_slice_and_review_discipline():
     assert "## Why This Slice Is Mergeable" in template
     assert "## Validation" in template
     assert "## Review Discipline" in template
-    assert "@Claude review" in template
+    assert "@claude review" in template
 
 
 def test_makefile_exposes_workspace_status_helper():
@@ -53,13 +53,15 @@ def test_ci_workflow_cancels_superseded_runs():
     assert "github.event.pull_request.number || github.ref" in workflow["concurrency"]["group"]
 
 
-def test_claude_review_workflow_cancels_superseded_pr_reviews():
-    """Claude PR review should track the latest push, not every outdated head."""
-    workflow = _load_yaml(".github/workflows/claude.yml")
-    review = workflow["jobs"]["claude-review"]
+def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
+    """Claude review should come from Anthropic's managed app, not a repo-local workflow."""
+    install_doc = (REPO_ROOT / "docs" / "INSTALL_CLAUDE_APP.md").read_text(encoding="utf-8")
+    maintaining_doc = (REPO_ROOT / "docs" / "MAINTAINING.md").read_text(encoding="utf-8")
 
-    assert review["concurrency"]["cancel-in-progress"] is True
-    assert "github.event.pull_request.number || github.ref" in review["concurrency"]["group"]
+    assert not (REPO_ROOT / ".github" / "workflows" / "claude.yml").exists()
+    assert "managed Code Review" in install_doc
+    assert "@claude review" in install_doc
+    assert "does not ship a custom Claude GitHub Actions review workflow" in maintaining_doc
 
 
 def test_scheduled_uv_installers_use_setup_action():

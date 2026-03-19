@@ -30,7 +30,7 @@ The following items are explicitly deferred from blocking the v2.3 release:
 | Runtime contract, truthful capabilities, and standardized run artifacts | Complete | `#118`, `#119`, `#122`, `#123`, `src/hive/runtime/*`, `src/hive/runs/paths.py` | Keep compatibility and docs aligned as the remaining gates land |
 | Deep Codex live driver with approval bridging | Complete | `#116`, `#120`, `#123`, `tests/test_hive_drivers.py` | Final release/demo validation only |
 | Deep Claude live driver with SDK adapter and approval bridging | Complete | `#122`, `#127`, `#130`, `#136`, `src/hive/drivers/claude_sdk.py` | Final release/demo validation only |
-| One real local sandbox path | Partial | `#117`, `#128`, `src/hive/sandbox/runtime.py`, `src/hive/sandbox/registry.py`, `docs/recipes/sandbox-doctor.md` | Need one real CI-backed Podman acceptance proof after the truthfulness/docs pass |
+| One real local sandbox path | Complete | `#117`, `#128`, `src/hive/sandbox/runtime.py`, `src/hive/sandbox/registry.py`, `docs/recipes/sandbox-doctor.md`, `.github/workflows/ci.yml`, `tests/test_local_safe_acceptance.py` | Final release/demo validation only |
 | One real hosted sandbox path | Partial | `#124`, `#132`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md` | E2B execution is real for ephemeral upload-only runs, but pause/resume mapping is still missing |
 | One real self-hosted sandbox path | Partial | `#125`, `#127`, `#133`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md` | Needs final real-environment release validation after the docs/truthfulness pass |
 | Explainable retrieval, packaged corpus, and traces | Partial | `retrieval/trace.json`, `retrieval/hits.json`, `src/hive/runs/paths.py`, `src/hive/console/state.py`, `tests/test_install_story.py` | Final installed-package usefulness check and docs/demo alignment |
@@ -51,10 +51,10 @@ What is real now:
 - Pi no longer blocks the v2.3 release; the current staged driver remains available and honest
 - the release retrieval bar is now explainability, provenance, packaged corpus coverage, and trace persistence rather than the full hybrid backend stack
 - sandbox doctor and install docs now describe the real backend shapes and optional extras instead of leaving them buried in the RFC
+- the local-safe sandbox path now has a real Podman-backed CI proof instead of only mocked contract coverage
 
 What is still holding back a clean release call:
 
-- one real CI-backed `local-safe` proof
 - E2B pause/resume mapping or an explicit release-grade narrowing of that hosted acceptance bar
 - final real-environment validation for Daytona
 - installed-package retrieval usefulness and final operator-grade retrieval/docs validation
@@ -64,7 +64,7 @@ What is still holding back a clean release call:
 
 Close the remaining acceptance-driven train against the scope-locked release:
 
-1. finish the sandbox matrix with one real `local-safe` proof and an explicit decision on E2B pause/resume mapping
+1. finish the hosted and self-hosted sandbox story with an explicit E2B pause/resume decision and final Daytona release validation
 2. align public docs and demo collateral with the real v2.3 operator story
 3. finish the installed-package retrieval usefulness and release-demo validation pass
 

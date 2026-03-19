@@ -31,8 +31,8 @@ The following items are explicitly deferred from blocking the v2.3 release:
 | Deep Codex live driver with approval bridging | Complete | `#116`, `#120`, `#123`, `tests/test_hive_drivers.py` | Final release/demo validation only |
 | Deep Claude live driver with SDK adapter and approval bridging | Complete | `#122`, `#127`, `#130`, `#136`, `src/hive/drivers/claude_sdk.py` | Final release/demo validation only |
 | One real local sandbox path | Complete | `#117`, `#128`, `src/hive/sandbox/runtime.py`, `src/hive/sandbox/registry.py`, `docs/recipes/sandbox-doctor.md`, `.github/workflows/ci.yml`, `tests/test_local_safe_acceptance.py` | Final release/demo validation only |
-| One real hosted sandbox path | Partial | `#124`, `#132`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md` | E2B execution is real for ephemeral upload-only runs, but pause/resume mapping is still missing |
-| One real self-hosted sandbox path | Partial | `#125`, `#127`, `#133`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md` | Needs final real-environment release validation after the docs/truthfulness pass |
+| One real hosted sandbox path | Complete | `#124`, `#132`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md`, `docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md`, `tests/test_remote_sandbox_acceptance.py` | Final release/demo validation only |
+| One real self-hosted sandbox path | Partial | `#125`, `#127`, `#133`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md`, `tests/test_remote_sandbox_acceptance.py` | Run the opt-in Daytona acceptance proof in a credentialed environment and fold the result into the release call |
 | Explainable retrieval, packaged corpus, and traces | Partial | `retrieval/trace.json`, `retrieval/hits.json`, `src/hive/runs/paths.py`, `src/hive/console/state.py`, `tests/test_install_story.py` | Final installed-package usefulness check and docs/demo alignment |
 | Campaign candidate and decision artifacts | Complete | `candidate-set.json`, `decision.json`, `src/hive/control/campaigns.py`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Observe-and-steer console at RFC depth | Complete | `frontend/console/src/routes/RunDetailPage.tsx`, `frontend/console/src/routes/InboxPage.tsx`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `tests/test_console_frontend_story.py`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
@@ -55,8 +55,7 @@ What is real now:
 
 What is still holding back a clean release call:
 
-- E2B pause/resume mapping or an explicit release-grade narrowing of that hosted acceptance bar
-- final real-environment validation for Daytona
+- final real-environment validation for Daytona through the new opt-in acceptance proof
 - installed-package retrieval usefulness and final operator-grade retrieval/docs validation
 - docs, console, and demo alignment so the shipped story matches the implementation
 
@@ -64,7 +63,7 @@ What is still holding back a clean release call:
 
 Close the remaining acceptance-driven train against the scope-locked release:
 
-1. finish the hosted and self-hosted sandbox story with an explicit E2B pause/resume decision and final Daytona release validation
+1. run the Daytona self-hosted acceptance proof in a credentialed environment and record the result in the release call
 2. align public docs and demo collateral with the real v2.3 operator story
 3. finish the installed-package retrieval usefulness and release-demo validation pass
 

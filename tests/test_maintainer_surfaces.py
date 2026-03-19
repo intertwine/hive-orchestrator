@@ -24,8 +24,22 @@ def test_v23_status_doc_tracks_release_gates_and_next_blocker():
     assert "## Next Blocker" in status_doc
     assert "Deep Claude live driver with SDK adapter and approval bridging" in status_doc
     assert "One real hosted sandbox path" in status_doc
+    assert "One real hosted sandbox path | Complete" in status_doc
     assert "Pi driver at acceptance bar | Deferred" in status_doc
     assert "full hybrid retrieval stack" in status_doc
+    assert "run the Daytona self-hosted acceptance proof in a credentialed environment" in status_doc
+
+
+def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():
+    """The v2.3 acceptance doc should narrow remote sandbox expectations to shipped truth."""
+    acceptance_doc = (
+        REPO_ROOT / "docs" / "hive-v2.3-rfc" / "HIVE_V2_3_ACCEPTANCE_TESTS.md"
+    ).read_text(encoding="utf-8")
+
+    assert "Scope-locked v2.3 note:" in acceptance_doc
+    assert "E2B is release-accepted as an ephemeral upload-only hosted path." in acceptance_doc
+    assert "E2B pause/resume and downloaded artifact sync are deferred" in acceptance_doc
+    assert "Daytona truthfully documents upload-only sync and the current mount/network limits" in acceptance_doc
 
 
 def test_pull_request_template_enforces_slice_and_review_discipline():

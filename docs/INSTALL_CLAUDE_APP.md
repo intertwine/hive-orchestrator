@@ -41,8 +41,9 @@ For managed Code Review, open a non-draft PR and leave a top-level comment:
 If Anthropic Code Review is enabled correctly for the repository, a review/check should appear within a few minutes.
 
 For maintainer-critical PRs, local Claude review is also a valid primary or fallback path when you want a
-deterministic completion loop. If you use local review instead of the GitHub app, paste the findings and resolutions
-into the PR thread so the final review state is visible to other maintainers.
+deterministic completion loop. The built-in `claude -p "/review <pr-number>"` flow works well for this. If you use
+local review instead of the GitHub app, paste the findings and resolutions into the PR thread so the final review
+state is visible to other maintainers.
 
 If you want generic `@claude` issue or PR automation beyond review, Anthropic recommends GitHub Actions for that. This
 repository does not ship that automation workflow anymore; add your own from Anthropic's examples if you intentionally

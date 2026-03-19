@@ -68,11 +68,14 @@ def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
     assert not (REPO_ROOT / ".github" / "workflows" / "claude.yml").exists()
     assert "managed Code Review" in install_doc
     assert "@claude review" in install_doc
+    assert 'claude -p "/review <pr-number>"' in install_doc
     assert "does not ship a custom Claude GitHub Actions review workflow" in maintaining_doc
     assert "An `eyes` reaction alone is not completion." in install_doc
     assert "local Claude review is an acceptable primary or fallback path" in maintaining_doc
+    assert 'claude -p "/review <pr-number>"' in maintaining_doc
     assert "An `eyes` reaction alone does not count as completion." in agents_doc
     assert "An `eyes` reaction alone does not count as completion." in claude_doc
+    assert 'claude -p "/review <pr-number>"' in skill_doc
     assert "an `eyes` reaction or acknowledgement on the request comment is not completion" in skill_doc
 
 

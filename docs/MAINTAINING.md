@@ -106,8 +106,8 @@ managed Code Review GitHub App flow. Use manual `@claude review` requests or the
 behavior in Anthropic admin settings. Keep GitHub Actions for repository-owned CI and scheduled maintenance only.
 
 For maintainer-critical PRs, local Claude review is an acceptable primary or fallback path when GitHub-managed review
-is delayed or ambiguous. If you use that route, summarize the findings and resolutions in the PR thread so the review
-state stays visible.
+is delayed or ambiguous. The built-in `claude -p "/review <pr-number>"` path works well for this. If you use local
+review, summarize the findings and resolutions in the PR thread so the review state stays visible.
 
 When you do request `@claude review`, treat the review as pending until GitHub shows a new Claude comment or review
 artifact on the latest PR head. An `eyes` reaction or acknowledgement on the request comment is not completion.

@@ -124,6 +124,7 @@ Rules:
 - do not merge while a requested Claude re-review is still pending unless the user explicitly waives it
 
 If the review workflow itself is broken, land the smallest bootstrap fix first, then rerun review on the real PR.
+For a deterministic local fallback, `claude -p "/review <pr-number>"` works well when the CLI is installed.
 
 ## PR Sizing And Merge Discipline
 

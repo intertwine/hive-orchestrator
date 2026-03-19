@@ -19,10 +19,13 @@ def test_v23_status_doc_tracks_release_gates_and_next_blocker():
     status_doc = (REPO_ROOT / "docs" / "V2_3_STATUS.md").read_text(encoding="utf-8")
 
     assert "# Hive v2.3 Status" in status_doc
+    assert "## Scope Lock" in status_doc
     assert "## Release Gate Ledger" in status_doc
     assert "## Next Blocker" in status_doc
     assert "Deep Claude live driver with SDK adapter and approval bridging" in status_doc
     assert "One real hosted sandbox path" in status_doc
+    assert "Pi driver at acceptance bar | Deferred" in status_doc
+    assert "full hybrid retrieval stack" in status_doc
 
 
 def test_pull_request_template_enforces_slice_and_review_discipline():
@@ -73,6 +76,7 @@ def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
     assert "An `eyes` reaction alone is not completion." in install_doc
     assert "local Claude review is an acceptable primary or fallback path" in maintaining_doc
     assert 'claude -p "/review <pr-number>"' in maintaining_doc
+    assert "Use the explicit scope-lock notes there as the current release truth" in maintaining_doc
     assert "An `eyes` reaction alone does not count as completion." in agents_doc
     assert "An `eyes` reaction alone does not count as completion." in claude_doc
     assert 'claude -p "/review <pr-number>"' in skill_doc

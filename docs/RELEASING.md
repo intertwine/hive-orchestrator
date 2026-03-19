@@ -49,6 +49,12 @@ That does five things:
 
 If `make release-check` fails, fix that before you tag anything.
 
+For the scoped v2.3 release line, do not call the release ready until these additional truthfulness
+checks are closed:
+
+1. README, demo walkthrough, compare-harness, and operator docs match the shipped observe-and-steer story.
+2. Installed-package `hive search` is proven useful from a throwaway install, not only from a source checkout.
+
 ## Cut A Release
 
 Bump the version:
@@ -145,6 +151,18 @@ hive onboard demo --title "Demo project"
 hive doctor --json
 hive task ready --project-id demo --json
 ```
+
+For the scoped v2.3 release line, also prove installed-package retrieval usefulness from that clean
+environment. At minimum, run one API/RFC query and one packaged recipe query without a source
+checkout on the `PYTHONPATH`:
+
+```bash
+hive search "runtime contract" --scope api --limit 5 --json
+hive search "sandbox doctor" --scope examples --limit 5 --json
+```
+
+The result should show packaged docs or recipes, not empty results, and the returned hits should
+include non-empty explanations. Record that proof before you call the retrieval gate complete.
 
 ## Optional Remote Sandbox Release Proofs
 

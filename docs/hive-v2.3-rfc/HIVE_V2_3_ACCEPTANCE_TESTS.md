@@ -8,9 +8,13 @@ Date: 2026-03-17
 One operator supervises:
 - 3 projects
 - 10 concurrent runs
-- across Codex, Claude, Pi, and one deterministic local helper
+- across Codex, Claude, and one deterministic local helper
 - from one console and one CLI
 - with one unified inbox for approvals and escalations
+
+Scope-locked v2.3 note:
+- Pi remains available as an honest staged driver, but full Pi RPC depth is deferred from this
+  release line.
 
 The release passes only if the operator can:
 - see all runs on one board
@@ -27,6 +31,10 @@ The release passes only if the operator can:
 
 ## Gate A — Runtime depth
 
+Scope-locked v2.3 note:
+- Codex and Claude are the mandatory deep-driver gates for this release.
+- Pi remains non-blocking for the scoped v2.3 release as long as the staged driver stays truthful.
+
 ### Codex
 - [ ] `hive driver doctor` reports Codex `app_server` availability accurately
 - [ ] Hive can launch an interactive Codex run through app-server
@@ -42,15 +50,15 @@ The release passes only if the operator can:
 - [ ] Hive can interrupt a Claude run
 - [ ] session continuity is visible in run detail
 
-### Pi
+### Manual / staged
+- [ ] staged driver does not claim streaming/resume/subagents as effective
+- [ ] console hides controls that the staged driver cannot support
+
+### Pi (deferred from the v2.3 release bar)
 - [ ] `hive driver doctor` reports Pi RPC availability accurately
 - [ ] Hive can launch Pi in RPC mode
 - [ ] Hive can ingest normalized events from Pi
 - [ ] Hive can terminate a Pi run cleanly
-
-### Manual / staged
-- [ ] staged driver does not claim streaming/resume/subagents as effective
-- [ ] console hides controls that the staged driver cannot support
 
 ## Gate B — Capability truthfulness
 
@@ -173,7 +181,7 @@ These are pragmatic local-product targets, not hard real-time guarantees.
 - continue in same session or relaunch with preserved lineage
 - confirm run detail shows both steps clearly
 
-## Scenario 3 — Pi headless scripted run
+## Scenario 3 — Pi headless scripted run (deferred from the scoped v2.3 release bar)
 - launch a Pi run in RPC mode
 - capture transcript and event stream
 - inspect capability snapshot

@@ -1,4 +1,4 @@
-"""Workspace and API search surfaces for Hive 2.1."""
+"""Workspace and API search surfaces for the Hive v2 substrate."""
 
 from __future__ import annotations
 

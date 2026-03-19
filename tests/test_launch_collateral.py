@@ -1,4 +1,4 @@
-"""Checks for the v2.2 demo collateral and walkthrough assets."""
+"""Checks for the current release demo collateral and walkthrough assets."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ def test_demo_walkthrough_exists_and_points_to_real_commands():
     """The launch demo doc should tell a maintainer exactly how to build and capture the fixture."""
     demo = (REPO_ROOT / "docs" / "DEMO_WALKTHROUGH.md").read_text(encoding="utf-8")
 
+    assert "# Hive v2.3 Demo Walkthrough" in demo
+    assert "scope-locked v2.3 demo" in demo
     assert "scripts/build_v22_demo_workspace.py" in demo
     assert "frontend/console/scripts/captureDemoAssets.mjs" in demo
     assert "north_star_manifest.json" in demo
@@ -23,6 +25,8 @@ def test_demo_walkthrough_exists_and_points_to_real_commands():
     assert "observe-and-steer-demo.webm" in demo
     assert "console-home.png" in demo
     assert "console-run-detail.png" in demo
+    assert "capability truth" in demo
+    assert "retrieval inspector" in demo
 
 
 def test_readme_and_compare_docs_keep_the_control_plane_launch_story():
@@ -33,6 +37,7 @@ def test_readme_and_compare_docs_keep_the_control_plane_launch_story():
     assert "control plane" in readme.lower()
     assert "command center" in readme.lower()
     assert "docs/DEMO_WALKTHROUGH.md" in readme
+    assert "current release line focused on a truthful v2.3 operator surface" in readme
     assert "control plane above the worker harness" in compare.lower()
 
 

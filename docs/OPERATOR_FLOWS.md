@@ -1,6 +1,7 @@
 # Operator Flows
 
-Hive 2.2 assumes the operator mostly supervises and occasionally intervenes.
+Hive v2.3 assumes the operator mostly supervises, but it also gives explicit inspect-and-steer
+surfaces when a run or campaign needs intervention.
 
 Install `mellona-hive[console]` first anywhere you use `hive console serve` below.
 
@@ -45,7 +46,7 @@ CLI examples:
 
 ```bash
 hive steer pause <run-id> --reason "Waiting on a dependency" --json
-hive steer reroute <run-id> --driver claude-code --reason "Need broader repo search" --json
+hive steer reroute <run-id> --driver claude --reason "Need broader repo search" --json
 ```
 
 ## Program hardening loop
@@ -73,6 +74,9 @@ hive sandbox doctor daytona --json
 ```
 
 Use [docs/recipes/sandbox-doctor.md](./recipes/sandbox-doctor.md) for the profile map, optional extras, and current backend limitations.
+
+The current shipped operator story is: capability truth, sandbox truth, retrieval explanations,
+approval handling, and campaign reasoning from one console and one CLI.
 
 ## Campaign loop
 

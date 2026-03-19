@@ -7,7 +7,7 @@
 
 Agent Hive is a repo-native control plane for autonomous work. Keep your favorite worker harness, whether that is Codex, Claude Code, or a local/manual loop, and use Hive to supervise tasks, runs, memory, approvals, and campaigns from one place.
 
-The center of gravity in this repository is Hive 2.2:
+The center of gravity in this repository is the Hive v2 substrate, with the current release line focused on a truthful v2.3 operator surface:
 
 - `hive` is the primary interface.
 - `.hive/tasks/*.md` is the canonical task store.
@@ -182,7 +182,7 @@ The longer comparison lives in [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSE
 - [docs/START_HERE.md](docs/START_HERE.md) for the lane chooser and install matrix
 - [docs/QUICKSTART.md](docs/QUICKSTART.md) for the fresh-workspace walkthrough
 - [docs/ADOPT_EXISTING_REPO.md](docs/ADOPT_EXISTING_REPO.md) for existing repositories and legacy imports
-- [docs/DEMO_WALKTHROUGH.md](docs/DEMO_WALKTHROUGH.md) for the recorded v2.2 launch fixture, screenshots, and walkthrough flow
+- [docs/DEMO_WALKTHROUGH.md](docs/DEMO_WALKTHROUGH.md) for the current demo walkthrough, screenshots, and narration built on the multi-project launch fixture
 - [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSES.md) for Codex, Claude Code, and local/manual guidance
 - [docs/UI_INFORMATION_ARCHITECTURE.md](docs/UI_INFORMATION_ARCHITECTURE.md) for the console information architecture
 - [docs/OPERATOR_FLOWS.md](docs/OPERATOR_FLOWS.md) for the manager loop and steering flows
@@ -192,6 +192,6 @@ The longer comparison lives in [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSE
 
 ## Maintainers
 
-This repository runs on the same Hive 2.2 substrate it ships, but the source checkout is still a maintainer
+This repository runs on the same Hive v2 substrate it ships, but the source checkout is still a maintainer
 surface, not the normal installed-user path. If you are here to work on Hive itself, start with
 [docs/MAINTAINING.md](docs/MAINTAINING.md).

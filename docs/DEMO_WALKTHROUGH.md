@@ -1,14 +1,20 @@
-# Hive 2.2 Demo Walkthrough
+# Hive v2.3 Demo Walkthrough
 
-This is the shortest path to a real launch-quality demo of Hive 2.2.
+This is the shortest path to a truthful scope-locked v2.3 demo.
+
+It still builds on the existing multi-project launch fixture from the v2.2 line, so the builder
+and temp paths keep their `v22` names. The point of this walkthrough is to show the deeper v2.3
+operator surface on top of that stable fixture, not to replace the fixture itself.
 
 It builds the same north-star shape we use in acceptance:
 
 - three projects
-- ten runs across local, Codex, Claude Code, and manual flows
+- ten runs across local, Codex, Claude, and manual flows
 - a reroute with preserved lineage
 - a campaign-generated daily brief
 - accepted runs with evaluator evidence and context manifests
+- run detail with capability truth, sandbox policy, retrieval trace, and steering history
+- an inbox flow that shows approval handling without manual markdown edits
 
 ## 1. Build the demo workspace
 
@@ -76,8 +82,8 @@ without recreating the fixture first.
 
 1. Start on Home and show the recommendation, active runs, inbox, blockers, and campaign summary.
 2. Jump to Runs and point out that one operator can monitor the whole portfolio in one board.
-3. Open Inbox and show that approval and input requests land in one place without manual sync.
-4. Open the rerouted run detail and show the steering history, context inspector, evaluator evidence, and diff preview.
+3. Open Inbox and show that approval requests land in one place without manual sync.
+4. Open the rerouted run detail and show the capability snapshot, sandbox policy, retrieval inspector, steering history, evaluator evidence, and diff preview.
 5. Close on the idea that Hive is the control plane above the worker harness, not a replacement for it.
 
 ## 5. What this proves
@@ -86,6 +92,7 @@ This walkthrough is meant to make the release checklist concrete:
 
 - the operator can monitor multiple projects and runs in one console
 - steering is typed and visible in the audit trail
+- capability truth, sandbox truth, and retrieval explanations are visible without opening raw artifacts
 - accepted work can explain why it passed
 - campaigns and daily briefs are part of the same control surface
-- the same control plane can sit above Codex, Claude Code, local execution, and manual handoffs
+- the same control plane can sit above Codex, Claude, local execution, and manual handoffs

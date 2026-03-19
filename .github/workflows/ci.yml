@@ -57,6 +57,75 @@ jobs:
       - name: Run driver and console conformance fixtures
         run: uv run pytest tests/test_hive_drivers.py tests/test_console_api.py tests/test_event_schema.py -q
 
+  sandbox-local-safe-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Install Podman when missing
+        run: |
+          if command -v podman >/dev/null 2>&1; then
+            podman --version
+            exit 0
+          fi
+          sudo apt-get update
+          sudo apt-get install -y podman uidmap slirp4netns fuse-overlayfs
+          podman --version
+
+      - name: Verify rootless Podman availability
+        run: |
+          podman info --format json > podman-info.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("podman-info.json").read_text(encoding="utf-8"))
+          rootless = bool(((payload.get("host") or {}).get("security") or {}).get("rootless", False))
+          if not rootless:
+              raise SystemExit("Podman is available but not running rootless on this runner.")
+          print("Podman rootless mode is available.")
+          PY
+
+      - name: Verify Hive sees Podman as local-safe
+        run: |
+          uv run hive sandbox doctor podman --json > podman-doctor.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("podman-doctor.json").read_text(encoding="utf-8"))
+          backend = payload["backends"][0]
+          if backend.get("available") is not True:
+              raise SystemExit("Hive did not detect Podman on this runner.")
+          if backend.get("configured") is not True:
+              raise SystemExit("Hive detected Podman but did not consider it configured.")
+          if backend.get("evidence", {}).get("rootless") is not True:
+              raise SystemExit("Hive did not detect rootless Podman.")
+          if "local-safe" not in backend.get("supported_profiles", []):
+              raise SystemExit("Hive did not advertise Podman as local-safe.")
+          print("Hive sandbox doctor confirms Podman as local-safe.")
+          PY
+
+      - name: Run local-safe Podman acceptance proof
+        env:
+          HIVE_RUN_LOCAL_SAFE_ACCEPTANCE: "1"
+          HIVE_SANDBOX_IMAGE: "python:3.11-slim"
+        run: uv run pytest tests/test_local_safe_acceptance.py -q
+
   console-frontend-smoke:
     runs-on: ubuntu-latest
 

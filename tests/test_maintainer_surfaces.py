@@ -58,6 +58,22 @@ def test_ci_workflow_cancels_superseded_runs():
     assert "github.event.pull_request.number || github.ref" in workflow["concurrency"]["group"]
 
 
+def test_ci_workflow_proves_local_safe_podman_path():
+    """CI should carry one real Podman-backed proof for the local-safe sandbox gate."""
+    workflow = _load_yaml(".github/workflows/ci.yml")
+    job = workflow["jobs"]["sandbox-local-safe-proof"]
+    steps = job["steps"]
+
+    assert job["runs-on"] == "ubuntu-latest"
+    assert any(step.get("name") == "Verify rootless Podman availability" for step in steps)
+    assert any(step.get("name") == "Verify Hive sees Podman as local-safe" for step in steps)
+    assert any(
+        "tests/test_local_safe_acceptance.py" in step.get("run", "")
+        for step in steps
+        if isinstance(step.get("run"), str)
+    )
+
+
 def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
     """Claude review should come from Anthropic's managed app, not a repo-local workflow."""
     install_doc = (REPO_ROOT / "docs" / "INSTALL_CLAUDE_APP.md").read_text(encoding="utf-8")

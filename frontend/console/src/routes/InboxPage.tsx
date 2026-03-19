@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+
 import { createConsoleClient } from "../api/client";
 import { Panel } from "../components/Panel";
 import { StatusPill } from "../components/StatusPill";
@@ -7,11 +10,40 @@ import { useConsoleQuery } from "../hooks/useConsoleQuery";
 export function InboxPage() {
   const { apiBase, workspacePath } = useConsoleConfig();
   const client = createConsoleClient(apiBase, workspacePath);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const { data, loading, error } = useConsoleQuery(
-    `inbox:${apiBase}:${workspacePath}`,
+    `inbox:${apiBase}:${workspacePath}:${refreshNonce}`,
     () => client.getInbox(),
   );
   const items = Array.isArray(data?.items) ? data.items : [];
+
+  async function handleApproval(
+    runId: string,
+    approvalId: string,
+    resolution: "approve" | "reject",
+  ) {
+    setPendingAction(`${resolution}:${approvalId}`);
+    setActionMessage(null);
+    setActionError(null);
+    try {
+      if (resolution === "approve") {
+        await client.approveRunApproval(runId, approvalId, { actor: "console-operator" });
+      } else {
+        await client.rejectRunApproval(runId, approvalId, { actor: "console-operator" });
+      }
+      setActionMessage(`${resolution === "approve" ? "Approved" : "Rejected"} ${approvalId}.`);
+      setRefreshNonce((value) => value + 1);
+    } catch (caught) {
+      setActionError(
+        caught instanceof Error ? caught.message : `Unable to ${resolution} approval.`,
+      );
+    } finally {
+      setPendingAction(null);
+    }
+  }
 
   return (
     <Panel eyebrow="Operator attention" title="Inbox">
@@ -34,12 +66,51 @@ export function InboxPage() {
                   Project: {String(entry.project_id ?? "—")}
                   {entry.run_id ? ` • Run: ${String(entry.run_id)}` : ""}
                 </p>
+                {entry.run_id ? (
+                  <p className="list-card__meta">
+                    <Link to={`/runs/${String(entry.run_id)}`}>Open run</Link>
+                  </p>
+                ) : null}
+                {entry.kind === "approval-request" && entry.run_id && entry.approval_id ? (
+                  <div className="action-grid">
+                    <button
+                      className="primary-button"
+                      type="button"
+                      disabled={pendingAction !== null}
+                      onClick={() =>
+                        handleApproval(
+                          String(entry.run_id),
+                          String(entry.approval_id),
+                          "approve",
+                        )
+                      }
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      disabled={pendingAction !== null}
+                      onClick={() =>
+                        handleApproval(
+                          String(entry.run_id),
+                          String(entry.approval_id),
+                          "reject",
+                        )
+                      }
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : null}
               </article>
             );
           })
         ) : (
           <p>The inbox is clear.</p>
         )}
+        {actionMessage ? <p>{actionMessage}</p> : null}
+        {actionError ? <p className="error-copy">{actionError}</p> : null}
       </div>
     </Panel>
   );

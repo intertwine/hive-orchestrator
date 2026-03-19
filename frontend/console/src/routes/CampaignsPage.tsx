@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import { createConsoleClient } from "../api/client";
 import { Panel } from "../components/Panel";
 import { StatusPill } from "../components/StatusPill";
@@ -24,7 +26,11 @@ export function CampaignsPage() {
             return (
               <article className="list-card" key={String(campaign.id)}>
                 <div className="list-card__header">
-                  <h3>{String(campaign.title ?? campaign.id ?? "Campaign")}</h3>
+                  <h3>
+                    <Link to={`/campaigns/${String(campaign.id)}`}>
+                      {String(campaign.title ?? campaign.id ?? "Campaign")}
+                    </Link>
+                  </h3>
                   <StatusPill tone={String(campaign.status ?? "healthy")}>
                     {String(campaign.status ?? "unknown")}
                   </StatusPill>
@@ -34,6 +40,9 @@ export function CampaignsPage() {
                   Driver: {String(campaign.driver ?? "—")} • Cadence:{" "}
                   {String(campaign.cadence ?? "manual")} • Briefs:{" "}
                   {String(campaign.brief_cadence ?? "—")}
+                </p>
+                <p className="list-card__meta">
+                  Lane quotas: {JSON.stringify(campaign.lane_quotas ?? {})}
                 </p>
               </article>
             );

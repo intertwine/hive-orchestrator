@@ -43,7 +43,7 @@ def _console_allow_origin_regex() -> str:
 app = FastAPI(
     title="Hive Observe Console API",
     version=__version__,
-    description="Observe-and-steer backend for the Hive 2.2 console.",
+    description="Observe-and-steer backend for the Hive v2.3 console.",
 )
 app.add_middleware(
     CORSMiddleware,

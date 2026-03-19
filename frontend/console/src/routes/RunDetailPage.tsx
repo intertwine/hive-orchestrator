@@ -25,14 +25,32 @@ function PreviewBlock({
   );
 }
 
+function jsonPreview(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (Array.isArray(value)) {
+    return value.length ? JSON.stringify(value, null, 2) : "";
+  }
+  if (typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>).length
+      ? JSON.stringify(value, null, 2)
+      : "";
+  }
+  return String(value);
+}
+
 export function RunDetailPage() {
   const { runId = "" } = useParams();
   const { apiBase, workspacePath } = useConsoleConfig();
-  const client = useMemo(() => createConsoleClient(apiBase, workspacePath), [apiBase, workspacePath]);
+  const client = useMemo(
+    () => createConsoleClient(apiBase, workspacePath),
+    [apiBase, workspacePath],
+  );
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
-  const [rerouteDriver, setRerouteDriver] = useState("claude-code");
+  const [rerouteDriver, setRerouteDriver] = useState("claude");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -57,6 +75,33 @@ export function RunDetailPage() {
   const skillEntries = Array.isArray(inspector.skill_entries) ? inspector.skill_entries : [];
   const searchHits = Array.isArray(inspector.search_hits) ? inspector.search_hits : [];
   const outputs = Array.isArray(inspector.outputs) ? inspector.outputs : [];
+  const approvals = Array.isArray(detail.approvals) ? detail.approvals : [];
+  const pendingApprovals = approvals.filter((item) => {
+    return (item as Record<string, unknown>).status === "pending";
+  });
+  const capabilitySnapshot = (
+    detail.capability_snapshot ?? inspector.capability_snapshot ?? {}
+  ) as Record<string, unknown>;
+  const sandboxPolicy = (
+    detail.sandbox_policy ?? inspector.sandbox_policy ?? {}
+  ) as Record<string, unknown>;
+  const retrievalTrace = (
+    detail.retrieval_trace ?? inspector.retrieval_trace ?? {}
+  ) as Record<string, unknown>;
+  const effective = (capabilitySnapshot.effective ?? {}) as Record<string, unknown>;
+  const retrievalContext = Array.isArray(retrievalTrace.selected_context)
+    ? retrievalTrace.selected_context
+    : [];
+  const runStatus = String(run.status ?? "");
+  const runHealth = String(run.health ?? "");
+  const launchMode = String(effective.launch_mode ?? "");
+  const sessionPersistence = String(effective.session_persistence ?? "none");
+  const canLiveSteer = launchMode !== "" && launchMode !== "staged" && sessionPersistence !== "none";
+  const canPause = canLiveSteer && runHealth !== "paused";
+  const canResume = canLiveSteer && runHealth === "paused";
+  const canAnnotate = canLiveSteer;
+  const canCancel = !["accepted", "cancelled", "failed", "rejected"].includes(runStatus);
+  const canReroute = !["accepted", "cancelled", "failed"].includes(runStatus);
 
   async function handleAction(
     action: string,
@@ -84,6 +129,36 @@ export function RunDetailPage() {
     }
   }
 
+  async function handleApproval(approvalId: string, resolution: "approve" | "reject") {
+    setPendingAction(`${resolution}:${approvalId}`);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      if (resolution === "approve") {
+        await client.approveRunApproval(runId, approvalId, {
+          actor: "console-operator",
+          note: note.trim() || undefined,
+        });
+      } else {
+        await client.rejectRunApproval(runId, approvalId, {
+          actor: "console-operator",
+          note: note.trim() || undefined,
+        });
+      }
+      setActionMessage(
+        `${resolution === "approve" ? "Approved" : "Rejected"} ${approvalId} for ${runId}.`,
+      );
+      setNote("");
+      setRefreshNonce((value) => value + 1);
+    } catch (caught) {
+      setActionError(
+        caught instanceof Error ? caught.message : `Unable to ${resolution} approval.`,
+      );
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   async function handleReroute(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await handleAction("reroute", {
@@ -99,8 +174,16 @@ export function RunDetailPage() {
         {!loading && !error ? (
           <div className="stack">
             <div className="list-card__header">
-              <h3>{String((run.metadata_json as Record<string, unknown> | undefined)?.task_title ?? run.task_id ?? "Run")}</h3>
-              <StatusPill tone={String(run.status ?? "unknown")}>{String(run.status ?? "unknown")}</StatusPill>
+              <h3>
+                {String(
+                  (run.metadata_json as Record<string, unknown> | undefined)?.task_title ??
+                    run.task_id ??
+                    "Run",
+                )}
+              </h3>
+              <StatusPill tone={String(run.status ?? "unknown")}>
+                {String(run.status ?? "unknown")}
+              </StatusPill>
             </div>
             <KeyValueGrid
               values={[
@@ -125,7 +208,40 @@ export function RunDetailPage() {
         ) : null}
       </Panel>
 
-      <Panel eyebrow="Typed steering" title="Steer This Run">
+      <Panel eyebrow="Runtime truth" title="Driver and Sandbox">
+        <div className="stack">
+          <KeyValueGrid
+            values={[
+              { label: "Launch mode", value: String(effective.launch_mode ?? "—") },
+              {
+                label: "Session persistence",
+                value: String(effective.session_persistence ?? "—"),
+              },
+              { label: "Event stream", value: String(effective.event_stream ?? "—") },
+              {
+                label: "Approvals",
+                value: Array.isArray(effective.approvals)
+                  ? (effective.approvals as string[]).join(", ") || "none"
+                  : "none",
+              },
+              {
+                label: "Artifacts",
+                value: Array.isArray(effective.artifacts)
+                  ? (effective.artifacts as string[]).join(", ") || "none"
+                  : "none",
+              },
+              { label: "Sandbox backend", value: String(sandboxPolicy.backend ?? "—") },
+            ]}
+          />
+          <PreviewBlock
+            title="Capability snapshot"
+            content={jsonPreview(capabilitySnapshot)}
+          />
+          <PreviewBlock title="Sandbox policy" content={jsonPreview(sandboxPolicy)} />
+        </div>
+      </Panel>
+
+      <Panel eyebrow="Operator controls" title="Steer This Run">
         <div className="stack">
           <label className="console-field">
             <span>Reason</span>
@@ -144,40 +260,123 @@ export function RunDetailPage() {
             />
           </label>
           <div className="action-grid">
-            <button className="primary-button" type="button" disabled={pendingAction !== null} onClick={() => handleAction("pause")}>
-              Pause
-            </button>
-            <button className="secondary-button" type="button" disabled={pendingAction !== null} onClick={() => handleAction("resume")}>
-              Resume
-            </button>
-            <button className="secondary-button" type="button" disabled={pendingAction !== null} onClick={() => handleAction("approve")}>
-              Approve
-            </button>
-            <button className="secondary-button" type="button" disabled={pendingAction !== null} onClick={() => handleAction("reject")}>
-              Reject
-            </button>
-            <button className="danger-button" type="button" disabled={pendingAction !== null} onClick={() => handleAction("cancel")}>
-              Cancel
-            </button>
-          </div>
-          <form className="filters" onSubmit={handleReroute}>
-            <label className="console-field">
-              <span>Reroute to</span>
-              <select value={rerouteDriver} onChange={(event) => setRerouteDriver(event.target.value)}>
-                <option value="local">local</option>
-                <option value="manual">manual</option>
-                <option value="codex">codex</option>
-                <option value="claude-code">claude-code</option>
-              </select>
-            </label>
-            <div className="filters__actions">
-              <button className="primary-button" type="submit" disabled={pendingAction !== null}>
-                Reroute
+            {canPause ? (
+              <button
+                className="primary-button"
+                type="button"
+                disabled={pendingAction !== null}
+                onClick={() => handleAction("pause")}
+              >
+                Pause
               </button>
-            </div>
-          </form>
+            ) : null}
+            {canResume ? (
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={pendingAction !== null}
+                onClick={() => handleAction("resume")}
+              >
+                Resume
+              </button>
+            ) : null}
+            {canAnnotate ? (
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={pendingAction !== null}
+                onClick={() => handleAction("note")}
+              >
+                Add Note
+              </button>
+            ) : null}
+            {canCancel ? (
+              <button
+                className="danger-button"
+                type="button"
+                disabled={pendingAction !== null}
+                onClick={() => handleAction("cancel")}
+              >
+                Cancel
+              </button>
+            ) : null}
+          </div>
+          {canReroute ? (
+            <form className="filters" onSubmit={handleReroute}>
+              <label className="console-field">
+                <span>Reroute to</span>
+                <select
+                  value={rerouteDriver}
+                  onChange={(event) => setRerouteDriver(event.target.value)}
+                >
+                  <option value="local">local</option>
+                  <option value="manual">manual</option>
+                  <option value="codex">codex</option>
+                  <option value="claude">claude</option>
+                </select>
+              </label>
+              <div className="filters__actions">
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={pendingAction !== null}
+                >
+                  Reroute
+                </button>
+              </div>
+            </form>
+          ) : null}
+          {!canLiveSteer ? (
+            <p className="list-card__meta">
+              Live pause, resume, and note controls stay hidden because this run is currently
+              staged or otherwise not attached to a live driver session.
+            </p>
+          ) : null}
           {actionMessage ? <p>{actionMessage}</p> : null}
           {actionError ? <p className="error-copy">{actionError}</p> : null}
+        </div>
+      </Panel>
+
+      <Panel eyebrow="Approval broker" title="Pending Approvals">
+        <div className="stack">
+          {pendingApprovals.length ? (
+            pendingApprovals.map((item) => {
+              const approval = item as Record<string, unknown>;
+              const approvalId = String(approval.approval_id ?? "approval");
+              return (
+                <article className="list-card" key={approvalId}>
+                  <div className="list-card__header">
+                    <h3>{String(approval.title ?? approvalId)}</h3>
+                    <StatusPill tone={String(approval.kind ?? "approval")}>
+                      {String(approval.kind ?? "approval")}
+                    </StatusPill>
+                  </div>
+                  <p>{String(approval.summary ?? "Driver requested approval.")}</p>
+                  <pre className="inline-json">{jsonPreview(approval.payload)}</pre>
+                  <div className="action-grid">
+                    <button
+                      className="primary-button"
+                      type="button"
+                      disabled={pendingAction !== null}
+                      onClick={() => handleApproval(approvalId, "approve")}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      disabled={pendingAction !== null}
+                      onClick={() => handleApproval(approvalId, "reject")}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </article>
+              );
+            })
+          ) : (
+            <p>No pending approvals for this run.</p>
+          )}
         </div>
       </Panel>
 
@@ -200,7 +399,11 @@ export function RunDetailPage() {
               {memoryEntries.length ? (
                 memoryEntries.map((item) => {
                   const entry = item as Record<string, unknown>;
-                  return <li key={String(entry.id ?? entry.source_path)}>{String(entry.source_path ?? entry.id)}</li>;
+                  return (
+                    <li key={String(entry.id ?? entry.source_path)}>
+                      {String(entry.source_path ?? entry.id)}
+                    </li>
+                  );
                 })
               ) : (
                 <li>No project memory files were loaded.</li>
@@ -215,7 +418,11 @@ export function RunDetailPage() {
               {skillEntries.length ? (
                 skillEntries.map((item) => {
                   const entry = item as Record<string, unknown>;
-                  return <li key={String(entry.id ?? entry.source_path)}>{String(entry.source_path ?? entry.id)}</li>;
+                  return (
+                    <li key={String(entry.id ?? entry.source_path)}>
+                      {String(entry.source_path ?? entry.id)}
+                    </li>
+                  );
                 })
               ) : (
                 <li>No repo-local skills matched this run.</li>
@@ -249,12 +456,42 @@ export function RunDetailPage() {
               <h3>Compiled outputs</h3>
             </div>
             <ul className="reason-list">
-              {outputs.length ? outputs.map((item) => <li key={String(item)}>{String(item)}</li>) : <li>No compiled outputs recorded.</li>}
+              {outputs.length ? (
+                outputs.map((item) => <li key={String(item)}>{String(item)}</li>)
+              ) : (
+                <li>No compiled outputs recorded.</li>
+              )}
             </ul>
           </article>
           <p className="list-card__meta">
             Generated: {String(contextManifest.generated_at ?? "—")}
           </p>
+        </div>
+      </Panel>
+
+      <Panel eyebrow="Retrieval inspector" title="Why This Context">
+        <div className="stack">
+          <article className="list-card">
+            <div className="list-card__header">
+              <h3>Selected context</h3>
+            </div>
+            <ul className="reason-list">
+              {retrievalContext.length ? (
+                retrievalContext.map((item) => {
+                  const entry = item as Record<string, unknown>;
+                  return (
+                    <li key={String(entry.chunk_id ?? entry.path ?? entry.title)}>
+                      {String(entry.title ?? entry.path ?? entry.chunk_id ?? "context chunk")}
+                      {entry.explanation ? ` — ${String(entry.explanation)}` : ""}
+                    </li>
+                  );
+                })
+              ) : (
+                <li>No retrieval trace has been selected for this run yet.</li>
+              )}
+            </ul>
+          </article>
+          <PreviewBlock title="Retrieval trace" content={jsonPreview(retrievalTrace)} />
         </div>
       </Panel>
 
@@ -264,7 +501,10 @@ export function RunDetailPage() {
             evaluations.map((item) => {
               const evaluation = item as Record<string, unknown>;
               return (
-                <article className="list-card" key={String(evaluation.evaluator_id ?? evaluation.command)}>
+                <article
+                  className="list-card"
+                  key={String(evaluation.evaluator_id ?? evaluation.command)}
+                >
                   <div className="list-card__header">
                     <h3>{String(evaluation.evaluator_id ?? "evaluator")}</h3>
                     <StatusPill tone={String(evaluation.status ?? "unknown")}>

@@ -31,7 +31,7 @@ Key results:
 
 ## Review Discipline
 
-- [ ] I requested `@Claude review` when the repo workflow supports it
+- [ ] I requested `@claude review` when Anthropic Code Review is enabled for this repo
 - [ ] I resolved or disproved blocking review findings with current-branch evidence
 - [ ] I summarized the final validation and review resolution state in the PR thread
 

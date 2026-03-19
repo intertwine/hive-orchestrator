@@ -114,15 +114,18 @@ cd "$release_verify_dir"
 uv tool install --upgrade mellona-hive
 hive --version
 hive doctor
+hive --path "$release_verify_dir" sandbox doctor --json
 
 release_python="$(uv python find --no-project 3.11)"
 "$release_python" -m venv pip-verify
 ./pip-verify/bin/python -m pip install --upgrade mellona-hive
 ./pip-verify/bin/hive --version
 ./pip-verify/bin/hive doctor --json
+./pip-verify/bin/hive --path "$release_verify_dir" sandbox doctor --json
 
 pipx install --force mellona-hive
 pipx run --spec mellona-hive hive --version
+pipx run --spec mellona-hive hive --path "$release_verify_dir" sandbox doctor --json
 
 brew tap intertwine/tap
 brew install intertwine/tap/mellona-hive

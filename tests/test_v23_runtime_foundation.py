@@ -3059,6 +3059,53 @@ def test_asrt_probe_prefers_srt_binary(monkeypatch):
     assert probe.available is True
     assert probe.evidence["binary"] == "/tmp/srt"
     assert probe.evidence["version"] == "srt 0.1.0"
+    assert any("weaker than `local-safe`" in warning for warning in probe.warnings)
+
+
+def test_e2b_probe_describes_current_ephemeral_executor_shape(monkeypatch):
+    backend = get_backend("e2b")
+
+    def fake_find_binary(self):
+        return "/tmp/e2b"
+
+    def fake_command_output(self, *args):
+        if args == ("--version",):
+            return "e2b 0.1.0"
+        return None
+
+    monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
+    monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+    monkeypatch.setattr(type(backend), "_sdk_available", staticmethod(lambda: True))
+    monkeypatch.setenv("E2B_API_KEY", "token")
+    monkeypatch.delenv("E2B_ACCESS_TOKEN", raising=False)
+
+    probe = backend.probe()
+
+    assert any("ephemeral upload-only sandboxes" in note for note in probe.notes)
+
+
+def test_daytona_probe_describes_snapshot_or_image_executor_shape(monkeypatch):
+    backend = get_backend("daytona")
+
+    def fake_find_binary(self):
+        return "/tmp/daytona"
+
+    def fake_command_output(self, *args):
+        if args == ("--version",):
+            return "daytona 0.1.0"
+        return None
+
+    monkeypatch.setattr(type(backend), "_find_binary", fake_find_binary)
+    monkeypatch.setattr(type(backend), "_command_output", fake_command_output)
+    monkeypatch.setattr(type(backend), "_sdk_available", staticmethod(lambda: True))
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+    monkeypatch.delenv("DAYTONA_JWT_TOKEN", raising=False)
+    monkeypatch.delenv("DAYTONA_ORGANIZATION_ID", raising=False)
+
+    probe = backend.probe()
+
+    assert any("HIVE_DAYTONA_SNAPSHOT" in note for note in probe.notes)
 
 
 def test_run_evaluator_records_sandbox_metadata(monkeypatch, tmp_path):

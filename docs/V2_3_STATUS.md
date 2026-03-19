@@ -30,9 +30,9 @@ The following items are explicitly deferred from blocking the v2.3 release:
 | Runtime contract, truthful capabilities, and standardized run artifacts | Complete | `#118`, `#119`, `#122`, `#123`, `src/hive/runtime/*`, `src/hive/runs/paths.py` | Keep compatibility and docs aligned as the remaining gates land |
 | Deep Codex live driver with approval bridging | Complete | `#116`, `#120`, `#123`, `tests/test_hive_drivers.py` | Final release/demo validation only |
 | Deep Claude live driver with SDK adapter and approval bridging | Complete | `#122`, `#127`, `#130`, `#136`, `src/hive/drivers/claude_sdk.py` | Final release/demo validation only |
-| One real local sandbox path | Partial | `#117`, `#128`, `src/hive/sandbox/runtime.py`, `src/hive/sandbox/registry.py` | Final release-grade validation of `local-safe` versus `local-fast`, docs, and operator guidance |
-| One real hosted sandbox path | Partial | `#124`, `#132`, `src/hive/runs/executors.py` | Final acceptance validation for E2B behavior and docs |
-| One real self-hosted sandbox path | Partial | `#125`, `#127`, `#133`, `src/hive/runs/executors.py` | Final acceptance validation for Daytona behavior and docs |
+| One real local sandbox path | Partial | `#117`, `#128`, `src/hive/sandbox/runtime.py`, `src/hive/sandbox/registry.py`, `docs/recipes/sandbox-doctor.md` | Need one real CI-backed Podman acceptance proof after the truthfulness/docs pass |
+| One real hosted sandbox path | Partial | `#124`, `#132`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md` | E2B execution is real for ephemeral upload-only runs, but pause/resume mapping is still missing |
+| One real self-hosted sandbox path | Partial | `#125`, `#127`, `#133`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md` | Needs final real-environment release validation after the docs/truthfulness pass |
 | Explainable retrieval, packaged corpus, and traces | Partial | `retrieval/trace.json`, `retrieval/hits.json`, `src/hive/runs/paths.py`, `src/hive/console/state.py`, `tests/test_install_story.py` | Final installed-package usefulness check and docs/demo alignment |
 | Campaign candidate and decision artifacts | Complete | `candidate-set.json`, `decision.json`, `src/hive/control/campaigns.py`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Observe-and-steer console at RFC depth | Complete | `frontend/console/src/routes/RunDetailPage.tsx`, `frontend/console/src/routes/InboxPage.tsx`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `tests/test_console_frontend_story.py`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
@@ -50,10 +50,13 @@ What is real now:
 - the shipped operator console now surfaces capability truth, sandbox policy, retrieval traces, approval actions, and campaign decision reasoning
 - Pi no longer blocks the v2.3 release; the current staged driver remains available and honest
 - the release retrieval bar is now explainability, provenance, packaged corpus coverage, and trace persistence rather than the full hybrid backend stack
+- sandbox doctor and install docs now describe the real backend shapes and optional extras instead of leaving them buried in the RFC
 
 What is still holding back a clean release call:
 
-- final acceptance and operator-grade validation for the sandbox matrix
+- one real CI-backed `local-safe` proof
+- E2B pause/resume mapping or an explicit release-grade narrowing of that hosted acceptance bar
+- final real-environment validation for Daytona
 - installed-package retrieval usefulness and final operator-grade retrieval/docs validation
 - docs, console, and demo alignment so the shipped story matches the implementation
 
@@ -61,7 +64,7 @@ What is still holding back a clean release call:
 
 Close the remaining acceptance-driven train against the scope-locked release:
 
-1. land the sandbox acceptance-and-docs slice for `local-safe`, E2B, and Daytona
+1. finish the sandbox matrix with one real `local-safe` proof and an explicit decision on E2B pause/resume mapping
 2. align public docs and demo collateral with the real v2.3 operator story
 3. finish the installed-package retrieval usefulness and release-demo validation pass
 

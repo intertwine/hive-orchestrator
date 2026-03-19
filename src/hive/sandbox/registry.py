@@ -197,6 +197,14 @@ class AsrtBackend(BinarySandboxBackend):
     supported_profiles = ("local-fast",)
     note_when_missing = "Anthropic Sandbox Runtime (`srt`) was not detected on PATH."
 
+    def probe(self) -> SandboxProbe:
+        probe = super().probe()
+        probe.warnings.append(
+            "`local-fast` is intentionally weaker than `local-safe`: it wraps a host "
+            "subprocess instead of providing container isolation."
+        )
+        return probe
+
 
 class E2BBackend(CredentialAwareSandboxBackend):
     name = "e2b"
@@ -257,6 +265,10 @@ class E2BBackend(CredentialAwareSandboxBackend):
                 "Install `mellona-hive[sandbox-e2b]` or `pip install e2b` "
                 "for hosted-managed execution."
             )
+        probe.notes.append(
+            "Hosted-managed execution currently uses ephemeral upload-only sandboxes and "
+            "supports network modes `deny` and `inherit` only."
+        )
         probe.configured = bool(matched_group and has_sdk)
         return probe
 
@@ -326,6 +338,10 @@ class DaytonaBackend(CredentialAwareSandboxBackend):
                 "for team-self-hosted execution."
             )
         missing_required = [name for name in self.required_env if not os.getenv(name)]
+        probe.notes.append(
+            "Team-self-hosted execution currently uses ephemeral upload-only sandboxes and "
+            "can create from `HIVE_DAYTONA_SNAPSHOT` or a base image."
+        )
         probe.configured = bool(matched_group and has_sdk and not missing_required)
         return probe
 

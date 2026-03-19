@@ -50,6 +50,17 @@ hive doctor
 Add `mellona-hive[console]` when you want `hive console serve`, and add `mellona-hive[mcp]` when you want the thin
 `hive-mcp` adapter.
 
+If you plan to use hosted or self-hosted sandbox execution, add the backend extras you need:
+
+- `uv tool install --upgrade 'mellona-hive[sandbox-e2b]'`
+- `uv tool install --upgrade 'mellona-hive[sandbox-daytona]'`
+
+Then verify what this machine can really support:
+
+```bash
+hive sandbox doctor --json
+```
+
 ## Five-Minute First Run
 
 Start in an empty directory and let Hive onboard the workspace for you:
@@ -177,6 +188,7 @@ The longer comparison lives in [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSE
 - [docs/OPERATOR_FLOWS.md](docs/OPERATOR_FLOWS.md) for the manager loop and steering flows
 - [docs/MAINTAINING.md](docs/MAINTAINING.md) for source-checkout work
 - [docs/RELEASING.md](docs/RELEASING.md) for tagged releases, PyPI, and Homebrew
+- [docs/recipes/sandbox-doctor.md](docs/recipes/sandbox-doctor.md) for sandbox profiles, extras, and doctor output
 
 ## Maintainers
 

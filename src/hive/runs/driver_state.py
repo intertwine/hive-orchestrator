@@ -171,7 +171,9 @@ def _load_json_record(path: Path) -> dict[str, Any] | None:
     return None
 
 
-def _record_driver_usage(metadata: dict, status_payload: dict[str, object], usage: dict[str, Any]) -> None:
+def _record_driver_usage(
+    metadata: dict, status_payload: dict[str, object], usage: dict[str, Any]
+) -> None:
     input_tokens = int(
         usage.get("input_tokens", 0)
         + usage.get("cached_input_tokens", 0)
@@ -179,19 +181,16 @@ def _record_driver_usage(metadata: dict, status_payload: dict[str, object], usag
         + usage.get("cache_read_input_tokens", 0)
     )
     output_tokens = int(usage.get("output_tokens", 0) + usage.get("reasoning_output_tokens", 0))
-    spent_tokens = int(
-        usage.get("total_tokens")
-        or input_tokens
-        + output_tokens
-    )
+    spent_tokens = int(usage.get("total_tokens") or input_tokens + output_tokens)
     spent_cost_usd = float(usage.get("cost_usd") or 0.0)
     budget = {
         "spent_tokens": spent_tokens,
         "spent_cost_usd": spent_cost_usd,
         "wall_minutes": int(
-            metadata.get("metadata_json", {}).get("driver_status", {}).get("budget", {}).get(
-                "wall_minutes", 0
-            )
+            metadata.get("metadata_json", {})
+            .get("driver_status", {})
+            .get("budget", {})
+            .get("wall_minutes", 0)
             or status_payload.get("budget", {}).get("wall_minutes", 0)
             or 0
         ),
@@ -316,6 +315,7 @@ def _request_codex_app_server_command_approval(
     if approval_key and approval_key in seen_ids:
         return None
     command_text = str(payload.get("command") or payload.get("itemId") or "command")
+    request_id_value = str(request_id) if request_id is not None else None
     approval = request_approval(
         root,
         str(metadata["id"]),
@@ -324,7 +324,7 @@ def _request_codex_app_server_command_approval(
         summary=f"Codex requested approval to execute `{command_text}` through app-server.",
         requested_by="driver:codex",
         payload={
-            "server_request_id": str(request_id),
+            "server_request_id": request_id_value,
             "approval_id": payload.get("approvalId"),
             "item_id": payload.get("itemId"),
             "thread_id": payload.get("threadId"),
@@ -362,6 +362,7 @@ def _request_codex_app_server_file_approval(
     title = "Approve Codex file change"
     if grant_root:
         title = f"Approve Codex write access: {grant_root}"
+    request_id_value = str(request_id) if request_id is not None else None
     approval = request_approval(
         root,
         str(metadata["id"]),
@@ -370,7 +371,7 @@ def _request_codex_app_server_file_approval(
         summary=reason or "Codex requested permission to apply file changes.",
         requested_by="driver:codex",
         payload={
-            "server_request_id": str(request_id),
+            "server_request_id": request_id_value,
             "item_id": payload.get("itemId"),
             "call_id": payload.get("callId"),
             "thread_id": payload.get("threadId") or payload.get("conversationId"),
@@ -407,6 +408,45 @@ def _emit_runtime_driver_event(
         project_id=metadata.get("project_id"),
         campaign_id=metadata.get("campaign_id"),
     )
+
+
+def _request_claude_sdk_approval(
+    root: Path,
+    metadata: dict,
+    payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    imports = _driver_imports(metadata)
+    seen_ids = imports.setdefault("claude_sdk_approval_ids", [])
+    request_id = str(payload.get("request_id") or "").strip()
+    if request_id and request_id in seen_ids:
+        return None
+    approval_kind = str(payload.get("approval_kind") or "command")
+    tool_name = str(payload.get("tool_name") or "tool").strip() or "tool"
+    title = str(payload.get("title") or "").strip()
+    summary = str(payload.get("summary") or "").strip()
+    if not title:
+        title = f"Approve Claude {approval_kind}: {tool_name}"
+    if not summary:
+        summary = f"Claude requested permission to use {tool_name}."
+    approval = request_approval(
+        root,
+        str(metadata["id"]),
+        kind=approval_kind,
+        title=title,
+        summary=summary,
+        requested_by="driver:claude",
+        payload={
+            "server_request_id": request_id or None,
+            "approval_kind": approval_kind,
+            "tool_name": tool_name,
+            "input": dict(payload.get("input") or {}),
+            "suggestions": list(payload.get("suggestions") or []),
+        },
+    )
+    metadata.setdefault("metadata_json", {}).setdefault("approvals", []).append(approval)
+    if request_id:
+        seen_ids.append(request_id)
+    return approval
 
 
 def _ingest_codex_exec_events(
@@ -455,7 +495,9 @@ def _ingest_codex_exec_events(
                     Path(metadata["transcript_path"]),
                     {
                         "ts": ts,
-                        "kind": "assistant" if driver_event_type != "agent_reasoning" else "thinking",
+                        "kind": (
+                            "assistant" if driver_event_type != "agent_reasoning" else "thinking"
+                        ),
                         "driver": metadata.get("driver"),
                         "message": text,
                         "driver_event_type": driver_event_type,
@@ -554,7 +596,7 @@ def _ingest_claude_exec_output(
     handle: RunHandle,
     status_payload: dict[str, object],
 ) -> None:
-    if str(metadata.get("driver")) != "claude-code" or handle.launch_mode != "exec":
+    if str(metadata.get("driver")) not in {"claude", "claude-code"} or handle.launch_mode != "exec":
         return
     artifacts = status_payload.get("artifacts")
     if not isinstance(artifacts, dict):
@@ -576,9 +618,7 @@ def _ingest_claude_exec_output(
         usage["cost_usd"] = float(payload.get("total_cost_usd") or usage.get("cost_usd") or 0.0)
         _record_driver_usage(metadata, status_payload, usage)
 
-    payload_digest = hashlib.sha256(
-        json.dumps(payload, sort_keys=True).encode("utf-8")
-    ).hexdigest()
+    payload_digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
     if imports.get("claude_exec_result_sha256") == payload_digest:
         imports["claude_exec_raw_output_path"] = str(raw_path)
         return
@@ -602,9 +642,7 @@ def _ingest_claude_exec_output(
             # Only mark the assistant text as imported when it was appended to
             # the transcript; without a transcript file, the legacy last-message
             # import still needs to backfill the final assistant turn.
-            imports["last_message_sha256"] = hashlib.sha256(
-                result_text.encode("utf-8")
-            ).hexdigest()
+            imports["last_message_sha256"] = hashlib.sha256(result_text.encode("utf-8")).hexdigest()
         _emit_runtime_driver_event(
             root,
             metadata,
@@ -630,6 +668,148 @@ def _ingest_claude_exec_output(
     )
     imports["claude_exec_result_sha256"] = payload_digest
     imports["claude_exec_raw_output_path"] = str(raw_path)
+
+
+def _ingest_claude_sdk_events(
+    root: Path,
+    metadata: dict,
+    handle: RunHandle,
+    status_payload: dict[str, object],
+) -> None:
+    if str(metadata.get("driver")) not in {"claude", "claude-code"} or handle.launch_mode != "sdk":
+        return
+    artifacts = status_payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        return
+    raw_output_path = artifacts.get("raw_output_path") or handle.metadata.get("raw_output_path")
+    if not isinstance(raw_output_path, str) or not raw_output_path.strip():
+        return
+    raw_path = Path(raw_output_path)
+    if not raw_path.exists():
+        return
+
+    imports = _driver_imports(metadata)
+    previous_cursor = _coerce_line_cursor(
+        handle.event_cursor or imports.get("claude_sdk_event_cursor") or 0
+    )
+    current_cursor = _coerce_line_cursor(status_payload.get("event_cursor"))
+    raw_lines = [line for line in raw_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if current_cursor <= 0:
+        current_cursor = len(raw_lines)
+    new_records = raw_lines[previous_cursor:current_cursor]
+    transcript_path_value = str(metadata.get("transcript_path") or "").strip()
+
+    for raw_line in new_records:
+        try:
+            record = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        kind = str(record.get("kind") or "").strip()
+        payload = dict(record.get("payload") or {})
+        source = "driver.claude.sdk"
+        if kind == "assistant_text":
+            text = str(payload.get("text") or "").strip()
+            if text and transcript_path_value:
+                _append_transcript_entry(
+                    Path(transcript_path_value),
+                    {
+                        "ts": utc_now_iso(),
+                        "kind": "assistant",
+                        "driver": metadata.get("driver"),
+                        "message": text,
+                        "driver_event_type": kind,
+                    },
+                )
+            if text:
+                _emit_runtime_driver_event(
+                    root,
+                    metadata,
+                    event_type="driver.output.delta",
+                    source=source,
+                    payload={"driver_event_type": kind, "message": text},
+                )
+            continue
+        if kind == "assistant_thinking":
+            text = str(payload.get("text") or "").strip()
+            if text and transcript_path_value:
+                _append_transcript_entry(
+                    Path(transcript_path_value),
+                    {
+                        "ts": utc_now_iso(),
+                        "kind": "thinking",
+                        "driver": metadata.get("driver"),
+                        "message": text,
+                        "driver_event_type": kind,
+                    },
+                )
+            continue
+        if kind == "permission_request":
+            _request_claude_sdk_approval(root, metadata, payload)
+            continue
+        if kind == "permission_result":
+            _emit_runtime_driver_event(
+                root,
+                metadata,
+                event_type="driver.status",
+                source=source,
+                payload={"driver_event_type": kind, "payload": payload},
+            )
+            continue
+        if kind == "result":
+            usage = dict(payload.get("usage") or {})
+            if usage:
+                usage["cost_usd"] = float(
+                    payload.get("total_cost_usd") or usage.get("cost_usd") or 0.0
+                )
+                _record_driver_usage(metadata, status_payload, usage)
+            result_text = str(payload.get("result") or "").strip()
+            if result_text and transcript_path_value:
+                _append_transcript_entry(
+                    Path(transcript_path_value),
+                    {
+                        "ts": utc_now_iso(),
+                        "kind": "assistant",
+                        "driver": metadata.get("driver"),
+                        "message": result_text,
+                        "driver_event_type": kind,
+                        "state": status_payload.get("state"),
+                    },
+                )
+                imports["last_message_sha256"] = hashlib.sha256(
+                    result_text.encode("utf-8")
+                ).hexdigest()
+            _emit_runtime_driver_event(
+                root,
+                metadata,
+                event_type="driver.status",
+                source=source,
+                payload={"driver_event_type": kind, "payload": payload},
+            )
+            continue
+        _emit_runtime_driver_event(
+            root,
+            metadata,
+            event_type="driver.status",
+            source=source,
+            payload={"driver_event_type": kind or "status", "payload": payload or record},
+        )
+
+    imports["claude_sdk_event_cursor"] = current_cursor
+    imports["claude_sdk_raw_output_path"] = str(raw_path)
+    pending = pending_approvals(root, str(metadata["id"]))
+    status_payload["pending_approvals"] = pending
+    if pending and status_payload.get("state") == "running":
+        status_payload["health"] = "blocked"
+        status_payload["waiting_on"] = "approval"
+        progress = dict(status_payload.get("progress") or {})
+        if not progress:
+            progress = {"phase": "waiting", "message": "Awaiting driver approval.", "percent": 0}
+        else:
+            progress["phase"] = "waiting"
+            progress["message"] = "Claude is blocked on a pending approval request."
+        status_payload["progress"] = progress
 
 
 def _ingest_codex_app_server_events(
@@ -786,8 +966,10 @@ def _update_active_handle_from_status(metadata: dict, status_payload: dict[str, 
             active["thread_id"] = session.get("thread_id")
     handles["active"] = active
     history = list(handles.get("history") or [])
-    if history and isinstance(history[-1], dict) and history[-1].get("driver_handle") == active.get(
-        "driver_handle"
+    if (
+        history
+        and isinstance(history[-1], dict)
+        and history[-1].get("driver_handle") == active.get("driver_handle")
     ):
         # Keep one mutable latest-state record per live handle; events remain the audit log.
         history[-1] = dict(active)
@@ -840,6 +1022,7 @@ def _refresh_live_driver_status(root: Path, metadata: dict) -> dict[str, object]
     status_payload = status.to_dict()
     _ingest_codex_exec_events(root, metadata, handle, status_payload)
     _ingest_claude_exec_output(root, metadata, handle, status_payload)
+    _ingest_claude_sdk_events(root, metadata, handle, status_payload)
     _ingest_codex_app_server_events(root, metadata, handle, status_payload)
     _sync_run_budget_from_status(metadata, status_payload)
     _record_driver_status(metadata, status_payload)

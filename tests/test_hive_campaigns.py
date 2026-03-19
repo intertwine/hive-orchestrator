@@ -12,6 +12,7 @@ import subprocess
 from tests.conftest import init_git_repo
 from hive.cli.main import main as hive_main
 from src.hive.control import campaign_status
+from src.hive.control.campaigns import _cost_penalty, _harness_fit
 from src.hive.store.projects import discover_projects
 from src.hive.store.task_files import create_task, list_tasks, update_task
 
@@ -26,9 +27,7 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
 class TestCampaignsAndOnboarding:
     """Campaigns, briefs, and guided flows should feel product-level."""
 
-    def test_onboard_blank_workspace_applies_generic_starter_evaluator(
-        self, temp_hive_dir, capsys
-    ):
+    def test_onboard_blank_workspace_applies_generic_starter_evaluator(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)
 
         onboard = _invoke_cli_json(
@@ -241,3 +240,8 @@ class TestCampaignsAndOnboarding:
         )
         assert delivery_status["decision_preview"]["selected_lane"] == "exploit"
         assert research_status["decision_preview"]["selected_lane"] == "explore"
+
+    def test_claude_driver_alias_keeps_campaign_weights_canonical(self):
+        assert _harness_fit("claude", "review") == _harness_fit("claude-code", "review")
+        assert _harness_fit("claude", "review") == 0.95
+        assert _cost_penalty("claude") == _cost_penalty("claude-code")

@@ -132,6 +132,7 @@ def steer_run(
             campaign_id=metadata.get("campaign_id"),
         )
         new_driver = get_driver(target_driver)
+        target_driver = new_driver.name
         new_request = _build_reroute_launch_request(
             root,
             metadata,

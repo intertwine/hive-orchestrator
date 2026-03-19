@@ -146,6 +146,32 @@ hive doctor --json
 hive task ready --project-id demo --json
 ```
 
+## Optional Remote Sandbox Release Proofs
+
+When you have real hosted or self-hosted sandbox credentials available, run the opt-in remote
+acceptance proofs from a source checkout before you call the v2.3 sandbox story complete.
+`make release-check` and the default install smoke scripts do not prove these sandbox extras.
+
+Hosted-managed E2B proof:
+
+```bash
+uv run --extra sandbox-e2b pytest tests/test_remote_sandbox_acceptance.py -k e2b -q
+```
+
+Set `HIVE_RUN_E2B_ACCEPTANCE=1` and either `E2B_API_KEY` or `E2B_ACCESS_TOKEN` first.
+This proves the scope-locked v2.3 hosted path: ephemeral upload-only execution with truthful
+stdout/stderr/exit-status return, not pause/resume or downloaded artifact sync.
+
+Team-self-hosted Daytona proof:
+
+```bash
+uv run --extra sandbox-daytona pytest tests/test_remote_sandbox_acceptance.py -k daytona -q
+```
+
+Set `HIVE_RUN_DAYTONA_ACCEPTANCE=1`, `DAYTONA_API_URL`, and either `DAYTONA_API_KEY` or the
+`DAYTONA_JWT_TOKEN` + `DAYTONA_ORGANIZATION_ID` pair first. This proves the current v2.3 Daytona
+shape: ephemeral upload-only execution from a snapshot or image with truthful network/mount limits.
+
 ## Local Maintainer Commands
 
 Generate the Homebrew formula after a version is already on PyPI:

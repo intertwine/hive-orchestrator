@@ -216,6 +216,11 @@ def test_release_guide_and_smoke_script_cover_sandbox_doctor():
     assert '"$hive_bin" --path "$workspace" sandbox doctor --json >/dev/null' in smoke_script
     assert '"$pipx_bin/hive" --path "$workspace" sandbox doctor --json >/dev/null' in smoke_script
     assert '"$venv_dir/bin/hive" --path "$workspace" sandbox doctor --json >/dev/null' in smoke_script
+    assert "HIVE_RUN_E2B_ACCEPTANCE=1" in release_doc
+    assert "tests/test_remote_sandbox_acceptance.py -k e2b -q" in release_doc
+    assert "HIVE_RUN_DAYTONA_ACCEPTANCE=1" in release_doc
+    assert "tests/test_remote_sandbox_acceptance.py -k daytona -q" in release_doc
+    assert "do not prove these sandbox extras" in release_doc
 
 
 def test_wheel_force_include_does_not_duplicate_recipe_files():

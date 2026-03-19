@@ -79,8 +79,10 @@ Current v2.3 behavior is intentionally specific:
 
 - execution is ephemeral
 - workspace sync is upload-only for the worktree and artifacts directories
+- Hive returns stdout, stderr, and exit status, but it does not yet download remote artifact changes
 - it supports network modes `deny` and `inherit` only
 - allowlists are not wired yet
+- session pause/resume is not wired yet and is deferred from the scope-locked v2.3 release bar
 
 ## Self-Hosted Backends
 
@@ -102,9 +104,13 @@ Current v2.3 behavior is:
 
 - execution is ephemeral
 - workspace sync is upload-only for the worktree and artifacts directories
+- Hive returns stdout, stderr, and exit status, but it does not yet download remote artifact changes
 - sandboxes can be created from `HIVE_DAYTONA_SNAPSHOT` or from an image
 - deny-mode CIDR allowlists are supported
 - extra read-only mounts are not projected yet
+
+For release validation in a credentialed environment, run the opt-in remote acceptance proofs from
+[docs/RELEASING.md](../RELEASING.md).
 
 ## Operator Pattern
 

@@ -69,9 +69,15 @@ The release passes only if the operator can:
 - [ ] ASRT wrapper mode works for wrapped subprocess cases
 
 ### Hosted / self-hosted
-- [ ] E2B backend can create, connect, run, and collect artifacts
-- [ ] E2B pause/resume mapping works
-- [ ] Daytona backend can create a sandbox from a snapshot or base image and run code
+Scope-locked v2.3 note:
+- E2B is release-accepted as an ephemeral upload-only hosted path.
+- E2B pause/resume and downloaded artifact sync are deferred from this release line.
+- Daytona remains release-accepted as an ephemeral upload-only self-hosted path once the real-environment proof is run.
+
+- [ ] E2B backend can create an ephemeral sandbox, upload the worktree/artifacts directories, run a bounded command, and return stdout/stderr/exit status
+- [ ] E2B truthfully documents that session pause/resume and downloaded artifact sync are not yet wired
+- [ ] Daytona backend can create an ephemeral sandbox from a snapshot or base image and run code
+- [ ] Daytona truthfully documents upload-only sync and the current mount/network limits
 - [ ] sandbox doctor reports backend availability accurately
 
 ### Policy

@@ -100,6 +100,13 @@ Before `@Claude review`:
 - run the relevant local tests, or `make check` when the slice is broad
 - post a short summary of what changed and what was validated
 
+After `@claude review`:
+
+- treat the review as pending until GitHub shows a new Claude comment or review artifact on the latest PR head
+- an `eyes` reaction or acknowledgement on the request comment is not completion
+- if the latest Claude artifact predates the latest commit or latest review request, the review is still pending
+- if Claude never completes, record the missing artifact explicitly before asking a human whether to waive or retry
+
 When review lands, classify each finding:
 
 - confirmed bug
@@ -114,8 +121,10 @@ Rules:
 - respond with file paths, test names, and the exact commit that addressed the issue
 - do not merge because a PR is “probably fine”
 - do not ignore Claude because CI is green
+- do not merge while a requested Claude re-review is still pending unless the user explicitly waives it
 
 If the review workflow itself is broken, land the smallest bootstrap fix first, then rerun review on the real PR.
+For a deterministic local fallback, `claude -p "/review <pr-number>"` works well when the CLI is installed.
 
 ## PR Sizing And Merge Discipline
 
@@ -139,6 +148,9 @@ Literal green means:
 - local validation passed
 - required GitHub checks passed
 - no unresolved must-fix review findings remain
+- any requested Claude review has completed on the latest head, or has been explicitly waived
+
+After merging, watch the `push` CI run on `main`. If the merge commit goes red, treat that as new blocking work immediately.
 
 ## RFC Prioritization Heuristics
 

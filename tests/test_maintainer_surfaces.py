@@ -34,6 +34,8 @@ def test_pull_request_template_enforces_slice_and_review_discipline():
     assert "## Validation" in template
     assert "## Review Discipline" in template
     assert "@claude review" in template
+    assert "reactions alone did not count as completion" in template
+    assert "post-merge `main` CI run" in template
 
 
 def test_makefile_exposes_workspace_status_helper():
@@ -57,11 +59,24 @@ def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
     """Claude review should come from Anthropic's managed app, not a repo-local workflow."""
     install_doc = (REPO_ROOT / "docs" / "INSTALL_CLAUDE_APP.md").read_text(encoding="utf-8")
     maintaining_doc = (REPO_ROOT / "docs" / "MAINTAINING.md").read_text(encoding="utf-8")
+    agents_doc = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    claude_doc = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    skill_doc = (
+        REPO_ROOT / ".agents" / "skills" / "hive-v23-execution-discipline" / "SKILL.md"
+    ).read_text(encoding="utf-8")
 
     assert not (REPO_ROOT / ".github" / "workflows" / "claude.yml").exists()
     assert "managed Code Review" in install_doc
     assert "@claude review" in install_doc
+    assert 'claude -p "/review <pr-number>"' in install_doc
     assert "does not ship a custom Claude GitHub Actions review workflow" in maintaining_doc
+    assert "An `eyes` reaction alone is not completion." in install_doc
+    assert "local Claude review is an acceptable primary or fallback path" in maintaining_doc
+    assert 'claude -p "/review <pr-number>"' in maintaining_doc
+    assert "An `eyes` reaction alone does not count as completion." in agents_doc
+    assert "An `eyes` reaction alone does not count as completion." in claude_doc
+    assert 'claude -p "/review <pr-number>"' in skill_doc
+    assert "an `eyes` reaction or acknowledgement on the request comment is not completion" in skill_doc
 
 
 def test_scheduled_uv_installers_use_setup_action():

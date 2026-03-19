@@ -550,13 +550,11 @@ describe("Observe Console smoke", () => {
     const user = userEvent.setup();
     renderConsole([`/runs/${runId}`]);
 
-    await screen.findByRole("heading", { name: runId });
+    await screen.findByText(/this run is staged rather than attached to a live driver session/i);
     expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add Note" })).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/this run is staged rather than attached to a live driver session/i),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: runId })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Capability snapshot" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sandbox policy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Retrieval trace" })).toBeInTheDocument();
@@ -637,10 +635,11 @@ describe("Observe Console smoke", () => {
 
     renderConsole([`/runs/${runId}`]);
 
-    await screen.findByRole("heading", { name: runId });
+    await screen.findByText(/predates capability snapshots or the snapshot is missing/i);
     expect(
       screen.getByText(/predates capability snapshots or the snapshot is missing/i),
     ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: runId })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
   });
 

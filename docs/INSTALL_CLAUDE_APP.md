@@ -40,6 +40,11 @@ For managed Code Review, open a non-draft PR and leave a top-level comment:
 
 If Anthropic Code Review is enabled correctly for the repository, a review/check should appear within a few minutes.
 
+For maintainer-critical PRs, local Claude review is also a valid primary or fallback path when you want a
+deterministic completion loop. The built-in `claude -p "/review <pr-number>"` flow works well for this. If you use
+local review instead of the GitHub app, paste the findings and resolutions into the PR thread so the final review
+state is visible to other maintainers.
+
 If you want generic `@claude` issue or PR automation beyond review, Anthropic recommends GitHub Actions for that. This
 repository does not ship that automation workflow anymore; add your own from Anthropic's examples if you intentionally
 want Claude to implement code or open PRs from GitHub comments.
@@ -82,6 +87,8 @@ If you use the optional dispatcher, the workflow or token that opens issues also
 - Post `@claude review` as a top-level PR comment, not an inline diff comment.
 - Make sure the PR is open and not a draft.
 - If the repository is in manual review mode, the first `@claude review` opts that PR into review.
+- Treat the request as still pending until GitHub shows a new Claude comment or review artifact on the latest PR
+  head. An `eyes` reaction alone is not completion.
 
 ## Checkout-only dispatcher diagnostics
 

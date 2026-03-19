@@ -40,6 +40,31 @@ function jsonPreview(value: unknown): string {
   return String(value);
 }
 
+function liveSteerUnavailableMessage(
+  launchMode: string,
+  sessionPersistence: string,
+): string | null {
+  if (launchMode === "") {
+    return (
+      "Live pause, resume, and note controls stay hidden because this run predates " +
+      "capability snapshots or the snapshot is missing, so live session status is unknown."
+    );
+  }
+  if (launchMode === "staged") {
+    return (
+      "Live pause, resume, and note controls stay hidden because this run is staged " +
+      "rather than attached to a live driver session."
+    );
+  }
+  if (sessionPersistence === "none") {
+    return (
+      "Live pause, resume, and note controls stay hidden because this run is not " +
+      "attached to a persistent live driver session."
+    );
+  }
+  return null;
+}
+
 export function RunDetailPage() {
   const { runId = "" } = useParams();
   const { apiBase, workspacePath } = useConsoleConfig();
@@ -97,6 +122,9 @@ export function RunDetailPage() {
   const launchMode = String(effective.launch_mode ?? "");
   const sessionPersistence = String(effective.session_persistence ?? "none");
   const canLiveSteer = launchMode !== "" && launchMode !== "staged" && sessionPersistence !== "none";
+  const liveSteerMessage = canLiveSteer
+    ? null
+    : liveSteerUnavailableMessage(launchMode, sessionPersistence);
   const canPause = canLiveSteer && runHealth !== "paused";
   const canResume = canLiveSteer && runHealth === "paused";
   const canAnnotate = canLiveSteer;
@@ -326,10 +354,9 @@ export function RunDetailPage() {
               </div>
             </form>
           ) : null}
-          {!canLiveSteer ? (
+          {liveSteerMessage ? (
             <p className="list-card__meta">
-              Live pause, resume, and note controls stay hidden because this run is currently
-              staged or otherwise not attached to a live driver session.
+              {liveSteerMessage}
             </p>
           ) : null}
           {actionMessage ? <p>{actionMessage}</p> : null}

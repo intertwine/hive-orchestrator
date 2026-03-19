@@ -441,6 +441,24 @@ describe("Observe Console smoke", () => {
 
   it("renders runtime inspectors and approval actions for staged runs without live controls", async () => {
     const runId = "run_alpha_codex_1";
+    const approvals = [
+      {
+        approval_id: "approval_1",
+        title: "Approve git status",
+        summary: "Driver wants to run `git status`.",
+        kind: "command",
+        status: "pending",
+        payload: { command: "git status" },
+      },
+      {
+        approval_id: "approval_2",
+        title: "Reject rm -rf /tmp/demo",
+        summary: "Driver wants to remove a temp directory.",
+        kind: "command",
+        status: "pending",
+        payload: { command: "rm -rf /tmp/demo" },
+      },
+    ];
     const fetchMock = installFetchMock([
       {
         pathname: `/runs/${runId}`,
@@ -498,16 +516,7 @@ describe("Observe Console smoke", () => {
                   },
                 ],
               },
-              approvals: [
-                {
-                  approval_id: "approval_1",
-                  title: "Approve git status",
-                  summary: "Driver wants to run `git status`.",
-                  kind: "command",
-                  status: "pending",
-                  payload: { command: "git status" },
-                },
-              ],
+              approvals,
               context_manifest: {
                 run_id: runId,
                 generated_at: "2026-03-17T05:12:00Z",
@@ -523,7 +532,18 @@ describe("Observe Console smoke", () => {
       {
         method: "POST",
         pathname: `/runs/${runId}/approvals/approval_1/approve`,
-        response: jsonResponse({ ok: true, approval: { approval_id: "approval_1", status: "approved" } }),
+        response: () => {
+          approvals[0] = { ...approvals[0], status: "approved" };
+          return jsonResponse({ ok: true, approval: { approval_id: "approval_1", status: "approved" } });
+        },
+      },
+      {
+        method: "POST",
+        pathname: `/runs/${runId}/approvals/approval_2/reject`,
+        response: () => {
+          approvals[1] = { ...approvals[1], status: "rejected" };
+          return jsonResponse({ ok: true, approval: { approval_id: "approval_2", status: "rejected" } });
+        },
       },
     ]);
 
@@ -534,24 +554,94 @@ describe("Observe Console smoke", () => {
     expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add Note" })).not.toBeInTheDocument();
-    expect(screen.getByText(/Live pause, resume, and note controls stay hidden/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/this run is staged rather than attached to a live driver session/i),
+    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Capability snapshot" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sandbox policy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Retrieval trace" })).toBeInTheDocument();
     expect(screen.getByText("Approve git status")).toBeInTheDocument();
+    expect(screen.getByText("Reject rm -rf /tmp/demo")).toBeInTheDocument();
     expect(screen.getByText("PROGRAM.md — program policy outranked general docs")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    const approveCard = screen.getByText("Approve git status").closest("article");
+    const rejectCard = screen.getByText("Reject rm -rf /tmp/demo").closest("article");
+    expect(approveCard).not.toBeNull();
+    expect(rejectCard).not.toBeNull();
+
+    await user.click(within(approveCard as HTMLElement).getByRole("button", { name: "Approve" }));
     expect(await screen.findByText(`Approved approval_1 for ${runId}.`)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Approve git status")).not.toBeInTheDocument();
+    });
+
+    await user.click(within(rejectCard as HTMLElement).getByRole("button", { name: "Reject" }));
+    expect(await screen.findByText(`Rejected approval_2 for ${runId}.`)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Reject rm -rf /tmp/demo")).not.toBeInTheDocument();
+    });
 
     const approvalCalls = fetchMock.mock.calls.filter(([input, init]) => {
       const url = new URL(
         typeof input === "string" ? input : input instanceof URL ? input : input.url,
       );
-      return url.pathname === `/runs/${runId}/approvals/approval_1/approve`
+      return url.pathname.startsWith(`/runs/${runId}/approvals/`)
         && (init?.method ?? "GET").toUpperCase() === "POST";
     });
-    expect(approvalCalls).toHaveLength(1);
+    expect(approvalCalls.map(([input]) => {
+      const url = new URL(
+        typeof input === "string" ? input : input instanceof URL ? input : input.url,
+      );
+      return url.pathname;
+    })).toEqual([
+      `/runs/${runId}/approvals/approval_1/approve`,
+      `/runs/${runId}/approvals/approval_2/reject`,
+    ]);
+  });
+
+  it("explains when live controls are hidden because capability snapshots are missing", async () => {
+    const runId = "run_beta_local_1";
+    installFetchMock([
+      {
+        pathname: `/runs/${runId}`,
+        response: jsonResponse({
+          ok: true,
+          detail: {
+            run: {
+              id: runId,
+              project_id: "beta",
+              driver: "local",
+              status: "running",
+              health: "healthy",
+              started_at: "2026-03-17T06:00:00Z",
+              finished_at: null,
+              metadata_json: { task_title: "Legacy local run" },
+            },
+            promotion_decision: {
+              decision: "pending",
+              reasons: [],
+            },
+            artifact_preview: {},
+            inspector: {},
+            approvals: [],
+            context_manifest: {},
+            steering_history: [],
+            timeline: [],
+            evaluations: [],
+            changed_files: {},
+            context_entries: [],
+          },
+        }),
+      },
+    ]);
+
+    renderConsole([`/runs/${runId}`]);
+
+    await screen.findByRole("heading", { name: runId });
+    expect(
+      screen.getByText(/predates capability snapshots or the snapshot is missing/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
   });
 
   it("lets the operator inspect campaign reasoning from the shipped console", async () => {

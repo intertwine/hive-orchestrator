@@ -43,6 +43,7 @@ Useful local commands:
 - `hive run cleanup --terminal` prunes linked worktrees left behind by terminal runs
 
 For the current release train, keep [docs/V2_3_STATUS.md](./V2_3_STATUS.md) up to date as the compact v2.3 execution ledger.
+Use the explicit scope-lock notes there as the current release truth if they narrow older proposed RFC items.
 
 ## Install Paths While Developing
 

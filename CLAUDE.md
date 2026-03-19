@@ -18,6 +18,9 @@ This repository is CLI-first. If you are operating here, use the commands and fi
 - Refresh projections with `hive sync projections --json` after substrate changes.
 - Use `hive driver doctor <driver>` and `hive sandbox doctor <backend>` when debugging v2.3 runtime or sandbox behavior.
 - Run `make check` before you hand work back. Before you ask for PR review on a broad slice, make sure the relevant local validation is green.
+- If you request Claude review, treat it as pending until GitHub shows a new Claude comment or review artifact on the latest PR head. An `eyes` reaction alone does not count as completion.
+- For maintainer-critical PRs, local Claude review is an acceptable primary or fallback review path when GitHub-managed review is delayed or ambiguous. Summarize the resulting findings in the PR thread.
+- After merging, watch the `push` CI run on `main`. A red merge commit is new blocking work, even if the PR checks were green.
 
 ## Specialized Skills
 

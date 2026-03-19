@@ -105,6 +105,16 @@ This repo does not ship a custom Claude GitHub Actions review workflow anymore. 
 managed Code Review GitHub App flow. Use manual `@claude review` requests or the repository's configured review
 behavior in Anthropic admin settings. Keep GitHub Actions for repository-owned CI and scheduled maintenance only.
 
+For maintainer-critical PRs, local Claude review is an acceptable primary or fallback path when GitHub-managed review
+is delayed or ambiguous. If you use that route, summarize the findings and resolutions in the PR thread so the review
+state stays visible.
+
+When you do request `@claude review`, treat the review as pending until GitHub shows a new Claude comment or review
+artifact on the latest PR head. An `eyes` reaction or acknowledgement on the request comment is not completion.
+
+After merging, watch the `push` CI run on `main`. If the merge commit goes red, treat that as immediate new blocking
+work rather than assuming the green PR checks were sufficient.
+
 For bot-generated review branches, this repo also ships [/.github/workflows/branch-hygiene.yml](/Users/bryanyoung/experiments/hive-orchestrator/.github/workflows/branch-hygiene.yml). It runs weekly and can be triggered manually in dry-run mode when you want to preview what it would prune. The cleanup is intentionally conservative:
 
 - merged `codex/*`, `claude/*`, and `copilot/*` branches are safe to delete

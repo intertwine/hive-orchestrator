@@ -31,9 +31,11 @@ Key results:
 
 ## Review Discipline
 
-- [ ] I requested `@claude review` when Anthropic Code Review is enabled for this repo
+- [ ] I requested `@claude review` or ran a local Claude review for this slice
+- [ ] Any requested GitHub Claude review completed on the latest PR head; reactions alone did not count as completion
 - [ ] I resolved or disproved blocking review findings with current-branch evidence
 - [ ] I summarized the final validation and review resolution state in the PR thread
+- [ ] I will watch the post-merge `main` CI run if this PR lands
 
 ## Testing And Risk
 

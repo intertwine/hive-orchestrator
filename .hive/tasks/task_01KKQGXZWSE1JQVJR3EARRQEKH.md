@@ -31,7 +31,7 @@ source:
     line: 304
     path: projects/opencode-plugin/AGENCY.md
   indent: 0
-status: ready
+status: done
 title: Implement `tool.execute.before` hook - Ownership enforcement
 updated_at: '2026-03-15T01:14:23.513407Z'
 ---

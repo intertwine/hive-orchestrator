@@ -31,7 +31,7 @@ source:
     line: 285
     path: projects/opencode-plugin/AGENCY.md
   indent: 0
-status: ready
+status: done
 title: Create `packages/opencode-plugin/` directory structure
 updated_at: '2026-03-15T01:14:23.500484Z'
 ---

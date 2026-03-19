@@ -31,7 +31,7 @@ source:
     line: 296
     path: projects/opencode-plugin/AGENCY.md
   indent: 0
-status: ready
+status: done
 title: Implement `project-context.ts` - Build context strings
 updated_at: '2026-03-15T01:14:23.508929Z'
 ---

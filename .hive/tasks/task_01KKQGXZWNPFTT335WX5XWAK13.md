@@ -31,7 +31,7 @@ source:
     line: 297
     path: projects/opencode-plugin/AGENCY.md
   indent: 0
-status: ready
+status: done
 title: Implement `config.ts` - Load and validate configuration
 updated_at: '2026-03-15T01:14:23.509816Z'
 ---

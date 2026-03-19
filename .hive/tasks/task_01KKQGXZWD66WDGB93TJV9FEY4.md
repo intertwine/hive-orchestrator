@@ -31,7 +31,7 @@ source:
     line: 286
     path: projects/opencode-plugin/AGENCY.md
   indent: 0
-status: ready
+status: done
 title: Initialize package.json with correct dependencies
 updated_at: '2026-03-15T01:14:23.501473Z'
 ---

@@ -31,7 +31,7 @@ source:
     line: 288
     path: projects/opencode-plugin/AGENCY.md
   indent: 0
-status: ready
+status: done
 title: Set up build process (esbuild or tsup)
 updated_at: '2026-03-15T01:14:23.503330Z'
 ---

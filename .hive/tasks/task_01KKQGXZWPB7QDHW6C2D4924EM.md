@@ -31,7 +31,7 @@ source:
     line: 298
     path: projects/opencode-plugin/AGENCY.md
   indent: 0
-status: ready
+status: done
 title: Add unit tests for all services
 updated_at: '2026-03-15T01:14:23.510704Z'
 ---

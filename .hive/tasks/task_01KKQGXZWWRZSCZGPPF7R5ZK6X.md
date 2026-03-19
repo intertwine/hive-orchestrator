@@ -31,7 +31,7 @@ source:
     line: 306
     path: projects/opencode-plugin/AGENCY.md
   indent: 0
-status: ready
+status: done
 title: Implement `chat.message` hook - Context injection
 updated_at: '2026-03-15T01:14:23.516330Z'
 ---

@@ -31,7 +31,7 @@ source:
     line: 302
     path: projects/opencode-plugin/AGENCY.md
   indent: 0
-status: ready
+status: done
 title: Implement `session.start` hook - Display ready work
 updated_at: '2026-03-15T01:14:23.511585Z'
 ---

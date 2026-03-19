@@ -31,7 +31,7 @@ source:
     line: 293
     path: projects/opencode-plugin/AGENCY.md
   indent: 0
-status: ready
+status: done
 title: Implement `agency-parser.ts` - Parse AGENCY.md YAML frontmatter
 updated_at: '2026-03-15T01:14:23.505200Z'
 ---

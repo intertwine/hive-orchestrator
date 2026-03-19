@@ -47,7 +47,13 @@ export interface ConsoleCampaignDetailPayload {
   campaign: JsonRecord;
   active_runs: JsonRecord[];
   accepted_runs: JsonRecord[];
-  project_status: JsonRecord[];
+  active_runs_by_lane?: JsonRecord;
+  active_runs_by_project?: JsonRecord;
+  candidate_set_preview?: JsonRecord;
+  decision_preview?: JsonRecord;
+  latest_candidate_set?: JsonRecord;
+  latest_decision?: JsonRecord;
+  recommended_next?: JsonRecord | null;
 }
 
 export interface ConsoleSearchPayload {
@@ -108,6 +114,48 @@ export function createConsoleClient(apiBase: string, workspacePath: string) {
       return fetchJson<ConsoleRunDetailPayload>(
         withPath(new URL(`${root}/runs/${runId}`), workspacePath),
       );
+    },
+
+    approveRunApproval(
+      runId: string,
+      approvalId: string,
+      payload?: { actor?: string; note?: string },
+    ) {
+      const url = withPath(
+        new URL(`${root}/runs/${runId}/approvals/${approvalId}/approve`),
+        workspacePath,
+      );
+      return fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload ?? {}),
+      }).then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Console request failed: ${response.status} ${response.statusText}`);
+        }
+        return (await response.json()) as JsonRecord;
+      });
+    },
+
+    rejectRunApproval(
+      runId: string,
+      approvalId: string,
+      payload?: { actor?: string; note?: string },
+    ) {
+      const url = withPath(
+        new URL(`${root}/runs/${runId}/approvals/${approvalId}/reject`),
+        workspacePath,
+      );
+      return fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload ?? {}),
+      }).then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Console request failed: ${response.status} ${response.statusText}`);
+        }
+        return (await response.json()) as JsonRecord;
+      });
     },
 
     steerRun(

@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 
 import { ConsoleLayout } from "./components/ConsoleLayout";
+import { CampaignDetailPage } from "./routes/CampaignDetailPage";
 import { CampaignsPage } from "./routes/CampaignsPage";
 import { HomePage } from "./routes/HomePage";
 import { InboxPage } from "./routes/InboxPage";
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/runs" element={<RunsPage />} />
         <Route path="/runs/:runId" element={<RunDetailPage />} />
         <Route path="/campaigns" element={<CampaignsPage />} />
+        <Route path="/campaigns/:campaignId" element={<CampaignDetailPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/search" element={<SearchPage />} />
       </Routes>

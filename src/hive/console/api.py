@@ -43,7 +43,7 @@ def _console_allow_origin_regex() -> str:
 app = FastAPI(
     title="Hive Observe Console API",
     version=__version__,
-    description="Observe-and-steer backend for the Hive 2.2 console.",
+    description="Observe-and-steer backend for the Hive v2.3 console.",
 )
 app.add_middleware(
     CORSMiddleware,
@@ -55,7 +55,12 @@ app.add_middleware(
 
 
 class SteeringInput(BaseModel):
-    """Typed steering request body for the console API."""
+    """Typed steering request body for the console API.
+
+    The current observe console is intended for trusted localhost operators.
+    ``actor`` is copied into the audit trail as provided and is not
+    independently authenticated by this API.
+    """
 
     action: str
     reason: str | None = None
@@ -66,7 +71,12 @@ class SteeringInput(BaseModel):
 
 
 class ApprovalResolutionInput(BaseModel):
-    """Resolution body for a pending approval."""
+    """Resolution body for a pending approval.
+
+    The current observe console is intended for trusted localhost operators.
+    ``actor`` is copied into the audit trail as provided and is not
+    independently authenticated by this API.
+    """
 
     actor: str | None = None
     note: str | None = None
@@ -269,7 +279,7 @@ def approve_run_approval(
     request: ApprovalResolutionInput,
     path: str | None = Query(default=None),
 ) -> dict:
-    """Approve one pending run approval request."""
+    """Approve one pending run approval request from the trusted local console."""
     root = _workspace_root(path)
     sync_workspace(root)
     try:
@@ -298,7 +308,7 @@ def reject_run_approval(
     request: ApprovalResolutionInput,
     path: str | None = Query(default=None),
 ) -> dict:
-    """Reject one pending run approval request."""
+    """Reject one pending run approval request from the trusted local console."""
     root = _workspace_root(path)
     sync_workspace(root)
     try:

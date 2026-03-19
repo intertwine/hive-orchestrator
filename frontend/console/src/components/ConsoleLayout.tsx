@@ -73,7 +73,7 @@ export function ConsoleLayout({ children }: PropsWithChildren) {
       <div className="console-shell">
         <header className="console-hero">
           <div>
-            <p className="eyebrow">Agent Hive 2.2</p>
+            <p className="eyebrow">Agent Hive 2.3</p>
             <h1>Observe and steer the work, not the folders.</h1>
             <p className="hero-copy">
               One operator view for live runs, approvals, reroutes, and why Hive picked each next

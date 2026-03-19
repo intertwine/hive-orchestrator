@@ -274,17 +274,13 @@ describe("Observe Console smoke", () => {
     expect(screen.getByText("canonical task record")).toBeInTheDocument();
   });
 
-  it("sends typed steering actions from run detail and refreshes the audit view", async () => {
+  it("sends typed live steering actions from run detail and refreshes the audit view", async () => {
     const steeringHistory: Array<Record<string, unknown>> = [];
     const timeline: Array<Record<string, unknown>> = [];
     const runId = "run_gamma_local_1";
-    // Match the real event vocabulary exactly: reroute records the completed event
-    // (`steering.rerouted`) while the other typed actions use imperative verbs.
     const eventTypeByAction: Record<string, string> = {
       pause: "steering.pause",
-      resume: "steering.resume",
-      approve: "steering.approve",
-      reject: "steering.reject",
+      note: "steering.note",
       cancel: "steering.cancel",
       reroute: "steering.rerouted",
     };
@@ -324,10 +320,33 @@ describe("Observe Console smoke", () => {
                 search_hits: [{ title: "Launch copy", why: ["matched title terms: launch"] }],
                 outputs: ["SESSION_CONTEXT.md"],
               },
+              capability_snapshot: {
+                effective: {
+                  launch_mode: "local",
+                  session_persistence: "session",
+                  event_stream: "status",
+                  approvals: [],
+                  artifacts: ["runpack", "transcript"],
+                },
+              },
+              sandbox_policy: {
+                backend: "podman",
+                profile: "local-safe",
+              },
+              retrieval_trace: {
+                selected_context: [
+                  {
+                    chunk_id: "program",
+                    title: "PROGRAM.md",
+                    explanation: "program policy outranked general docs",
+                  },
+                ],
+              },
               context_manifest: {
                 run_id: runId,
                 generated_at: "2026-03-17T05:21:00Z",
               },
+              approvals: [],
               steering_history: steeringHistory,
               timeline,
               evaluations: [{ evaluator_id: "pytest", status: "passed", command: "pytest -q" }],
@@ -366,20 +385,18 @@ describe("Observe Console smoke", () => {
 
     const reasonBox = screen.getByRole("textbox", { name: "Reason" });
 
-    async function triggerAction(action: string, reason: string) {
+    async function triggerAction(action: string, reason: string, actionId: string) {
       await user.clear(reasonBox);
       await user.type(reasonBox, reason);
       await user.click(screen.getByRole("button", { name: action }));
-      expect(await screen.findByText(`Sent ${action.toLowerCase()} for ${runId}.`)).toBeInTheDocument();
-      expect(await within(steeringPanel as HTMLElement).findByText(eventTypeByAction[action.toLowerCase()])).toBeInTheDocument();
-      expect(await within(timelinePanel as HTMLElement).findByText(eventTypeByAction[action.toLowerCase()])).toBeInTheDocument();
+      expect(await screen.findByText(`Sent ${actionId} for ${runId}.`)).toBeInTheDocument();
+      expect(await within(steeringPanel as HTMLElement).findByText(eventTypeByAction[actionId])).toBeInTheDocument();
+      expect(await within(timelinePanel as HTMLElement).findByText(eventTypeByAction[actionId])).toBeInTheDocument();
     }
 
-    await triggerAction("Pause", "Need a pause before rerouting.");
-    await triggerAction("Resume", "Resume after a quick checkpoint.");
-    await triggerAction("Approve", "The operator is satisfied with this slice.");
-    await triggerAction("Reject", "The operator wants a narrower follow-up.");
-    await triggerAction("Cancel", "Stop this run before reassigning it.");
+    await triggerAction("Pause", "Need a pause before rerouting.", "pause");
+    await triggerAction("Add Note", "Leave a note for the next turn.", "note");
+    await triggerAction("Cancel", "Stop this run before reassigning it.", "cancel");
 
     const noteBox = screen.getByRole("textbox", { name: "Note" });
     await user.clear(reasonBox);
@@ -403,19 +420,9 @@ describe("Observe Console smoke", () => {
         reason: "Need a pause before rerouting.",
       },
       {
-        action: "resume",
+        action: "note",
         actor: "console-operator",
-        reason: "Resume after a quick checkpoint.",
-      },
-      {
-        action: "approve",
-        actor: "console-operator",
-        reason: "The operator is satisfied with this slice.",
-      },
-      {
-        action: "reject",
-        actor: "console-operator",
-        reason: "The operator wants a narrower follow-up.",
+        reason: "Leave a note for the next turn.",
       },
       {
         action: "cancel",
@@ -430,6 +437,300 @@ describe("Observe Console smoke", () => {
         target: { driver: "codex" },
       },
     ]);
+  });
+
+  it("renders runtime inspectors and approval actions for staged runs without live controls", async () => {
+    const runId = "run_alpha_codex_1";
+    const approvals = [
+      {
+        approval_id: "approval_1",
+        title: "Approve git status",
+        summary: "Driver wants to run `git status`.",
+        kind: "command",
+        status: "pending",
+        payload: { command: "git status" },
+      },
+      {
+        approval_id: "approval_2",
+        title: "Reject rm -rf /tmp/demo",
+        summary: "Driver wants to remove a temp directory.",
+        kind: "command",
+        status: "pending",
+        payload: { command: "rm -rf /tmp/demo" },
+      },
+    ];
+    const fetchMock = installFetchMock([
+      {
+        pathname: `/runs/${runId}`,
+        response: () =>
+          jsonResponse({
+            ok: true,
+            detail: {
+              run: {
+                id: runId,
+                project_id: "alpha",
+                driver: "codex",
+                status: "awaiting_input",
+                health: "healthy",
+                started_at: "2026-03-17T05:10:00Z",
+                finished_at: null,
+                metadata_json: { task_title: "Alpha codex slice" },
+              },
+              promotion_decision: {
+                decision: "review",
+                reasons: ["Waiting for operator approval."],
+              },
+              artifact_preview: {
+                run_brief: "Follow the prepared Codex run brief.",
+                review_summary: "Waiting for a final signoff.",
+                review_notes: "This run is paused for review.",
+                diff: "diff --git a/src/app.tsx b/src/app.tsx",
+                stdout: "codex ready",
+                stderr: "",
+              },
+              inspector: {
+                memory_entries: [{ source_path: ".hive/memory/project/profile.md" }],
+                skill_entries: [{ source_path: ".agents/skills/writing-humanizer/SKILL.md" }],
+                search_hits: [{ title: "Alpha launch copy", why: ["matched title terms: alpha"] }],
+                outputs: ["SESSION_CONTEXT.md"],
+              },
+              capability_snapshot: {
+                effective: {
+                  launch_mode: "staged",
+                  session_persistence: "none",
+                  event_stream: "none",
+                  approvals: [],
+                  artifacts: ["runpack"],
+                },
+              },
+              sandbox_policy: {
+                backend: "podman",
+                profile: "local-safe",
+              },
+              retrieval_trace: {
+                selected_context: [
+                  {
+                    chunk_id: "program",
+                    title: "PROGRAM.md",
+                    explanation: "program policy outranked general docs",
+                  },
+                ],
+              },
+              approvals,
+              context_manifest: {
+                run_id: runId,
+                generated_at: "2026-03-17T05:12:00Z",
+              },
+              steering_history: [],
+              timeline: [],
+              evaluations: [{ evaluator_id: "pytest", status: "passed", command: "pytest -q" }],
+              changed_files: { touched_paths: ["src/app.tsx"] },
+              context_entries: [{ source_path: "AGENTS.md" }],
+            },
+          }),
+      },
+      {
+        method: "POST",
+        pathname: `/runs/${runId}/approvals/approval_1/approve`,
+        response: () => {
+          approvals[0] = { ...approvals[0], status: "approved" };
+          return jsonResponse({ ok: true, approval: { approval_id: "approval_1", status: "approved" } });
+        },
+      },
+      {
+        method: "POST",
+        pathname: `/runs/${runId}/approvals/approval_2/reject`,
+        response: () => {
+          approvals[1] = { ...approvals[1], status: "rejected" };
+          return jsonResponse({ ok: true, approval: { approval_id: "approval_2", status: "rejected" } });
+        },
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderConsole([`/runs/${runId}`]);
+
+    await screen.findByRole("heading", { name: runId });
+    expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add Note" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/this run is staged rather than attached to a live driver session/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Capability snapshot" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sandbox policy" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Retrieval trace" })).toBeInTheDocument();
+    expect(screen.getByText("Approve git status")).toBeInTheDocument();
+    expect(screen.getByText("Reject rm -rf /tmp/demo")).toBeInTheDocument();
+    expect(screen.getByText("PROGRAM.md — program policy outranked general docs")).toBeInTheDocument();
+
+    const approveCard = screen.getByText("Approve git status").closest("article");
+    const rejectCard = screen.getByText("Reject rm -rf /tmp/demo").closest("article");
+    expect(approveCard).not.toBeNull();
+    expect(rejectCard).not.toBeNull();
+
+    await user.click(within(approveCard as HTMLElement).getByRole("button", { name: "Approve" }));
+    expect(await screen.findByText(`Approved approval_1 for ${runId}.`)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Approve git status")).not.toBeInTheDocument();
+    });
+
+    await user.click(within(rejectCard as HTMLElement).getByRole("button", { name: "Reject" }));
+    expect(await screen.findByText(`Rejected approval_2 for ${runId}.`)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Reject rm -rf /tmp/demo")).not.toBeInTheDocument();
+    });
+
+    const approvalCalls = fetchMock.mock.calls.filter(([input, init]) => {
+      const url = new URL(
+        typeof input === "string" ? input : input instanceof URL ? input : input.url,
+      );
+      return url.pathname.startsWith(`/runs/${runId}/approvals/`)
+        && (init?.method ?? "GET").toUpperCase() === "POST";
+    });
+    expect(approvalCalls.map(([input]) => {
+      const url = new URL(
+        typeof input === "string" ? input : input instanceof URL ? input : input.url,
+      );
+      return url.pathname;
+    })).toEqual([
+      `/runs/${runId}/approvals/approval_1/approve`,
+      `/runs/${runId}/approvals/approval_2/reject`,
+    ]);
+  });
+
+  it("explains when live controls are hidden because capability snapshots are missing", async () => {
+    const runId = "run_beta_local_1";
+    installFetchMock([
+      {
+        pathname: `/runs/${runId}`,
+        response: jsonResponse({
+          ok: true,
+          detail: {
+            run: {
+              id: runId,
+              project_id: "beta",
+              driver: "local",
+              status: "running",
+              health: "healthy",
+              started_at: "2026-03-17T06:00:00Z",
+              finished_at: null,
+              metadata_json: { task_title: "Legacy local run" },
+            },
+            promotion_decision: {
+              decision: "pending",
+              reasons: [],
+            },
+            artifact_preview: {},
+            inspector: {},
+            approvals: [],
+            context_manifest: {},
+            steering_history: [],
+            timeline: [],
+            evaluations: [],
+            changed_files: {},
+            context_entries: [],
+          },
+        }),
+      },
+    ]);
+
+    renderConsole([`/runs/${runId}`]);
+
+    await screen.findByRole("heading", { name: runId });
+    expect(
+      screen.getByText(/predates capability snapshots or the snapshot is missing/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
+  });
+
+  it("lets the operator inspect campaign reasoning from the shipped console", async () => {
+    installFetchMock([
+      {
+        pathname: "/campaigns",
+        response: jsonResponse({
+          ok: true,
+          campaigns: [
+            {
+              id: "campaign_daily",
+              title: "North Star Daily Brief",
+              status: "active",
+              goal: "Keep the portfolio moving.",
+              driver: "local",
+              cadence: "daily",
+              brief_cadence: "daily",
+              lane_quotas: { exploit: 60, explore: 20, review: 10, maintenance: 10 },
+            },
+          ],
+        }),
+      },
+      {
+        pathname: "/campaigns/campaign_daily",
+        response: jsonResponse({
+          ok: true,
+          campaign: {
+            id: "campaign_daily",
+            title: "North Star Daily Brief",
+            status: "active",
+            goal: "Keep the portfolio moving.",
+            type: "delivery",
+            driver: "local",
+            sandbox_profile: "local-safe",
+            cadence: "daily",
+            brief_cadence: "daily",
+            max_active_runs: 2,
+            lane_quotas: { exploit: 60, explore: 20, review: 10, maintenance: 10 },
+          },
+          active_runs: [],
+          accepted_runs: [],
+          decision_preview: {
+            selected_candidate_id: "task_1",
+            selected_lane: "exploit",
+            selected_action: "launch",
+            reason: "highest exploit score under current lane quotas",
+            selected_candidate: {
+              candidate_id: "task_1",
+              title: "Ship the settings page",
+            },
+          },
+          candidate_set_preview: {
+            candidates: [
+              {
+                candidate_id: "task_1",
+                title: "Ship the settings page",
+                lane: "exploit",
+                recommended_driver: "codex",
+                recommended_sandbox: "local-safe",
+                scores: { campaign_alignment: 0.9, harness_fit: 0.95 },
+              },
+              {
+                candidate_id: "task_2",
+                title: "Investigate a research spike",
+                lane: "explore",
+                recommended_driver: "claude",
+                recommended_sandbox: "local-safe",
+                scores: { campaign_alignment: 0.6, harness_fit: 0.7 },
+              },
+            ],
+          },
+          latest_candidate_set: { candidates: [] },
+          latest_decision: { selected_candidate_id: "task_1" },
+        }),
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderConsole(["/campaigns"]);
+
+    await screen.findByRole("heading", { name: "Campaigns" });
+    await user.click(screen.getByRole("link", { name: "North Star Daily Brief" }));
+
+    await screen.findByRole("heading", { name: "Decision Preview" });
+    expect(screen.getByText("highest exploit score under current lane quotas")).toBeInTheDocument();
+    expect(screen.getAllByText("Ship the settings page")).toHaveLength(2);
+    expect(screen.getByText("Investigate a research spike")).toBeInTheDocument();
+    expect(screen.getByText("selected")).toBeInTheDocument();
+    expect(screen.getByText("rejected")).toBeInTheDocument();
   });
 
   it("recovers the run event view after a browser refresh", async () => {

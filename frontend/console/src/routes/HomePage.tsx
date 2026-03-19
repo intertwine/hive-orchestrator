@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import { createConsoleClient } from "../api/client";
 import { KeyValueGrid } from "../components/KeyValueGrid";
 import { Panel } from "../components/Panel";
@@ -133,7 +135,11 @@ export function HomePage() {
               return (
                 <article className="list-card" key={String(campaign.id)}>
                   <div className="list-card__header">
-                    <h3>{String(campaign.title ?? campaign.id ?? "Campaign")}</h3>
+                    <h3>
+                      <Link to={`/campaigns/${String(campaign.id)}`}>
+                        {String(campaign.title ?? campaign.id ?? "Campaign")}
+                      </Link>
+                    </h3>
                     <StatusPill tone={String(campaign.status ?? "healthy")}>
                       {String(campaign.status ?? "unknown")}
                     </StatusPill>

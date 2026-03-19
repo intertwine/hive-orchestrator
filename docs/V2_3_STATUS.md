@@ -18,8 +18,8 @@ merge changes release readiness or moves the next blocker.
 | One real hosted sandbox path | Partial | `#124`, `#132`, `src/hive/runs/executors.py` | Final acceptance validation for E2B behavior and docs |
 | One real self-hosted sandbox path | Partial | `#125`, `#127`, `#133`, `src/hive/runs/executors.py` | Final acceptance validation for Daytona behavior and docs |
 | Retrieval traces and explainability | Partial | `retrieval/trace.json`, `retrieval/hits.json`, `src/hive/runs/paths.py`, `src/hive/console/state.py` | Full hybrid retrieval engine is still not landed |
-| Campaign candidate and decision artifacts | Partial | `candidate-set.json`, `decision.json`, `src/hive/control/campaigns.py` | Final operator-facing wiring and docs still need work |
-| Observe-and-steer console at RFC depth | Partial | richer run status, approvals, session payloads in `src/hive/console/state.py` | Finish the remaining inspector and campaign UX surfaces |
+| Campaign candidate and decision artifacts | Complete | `candidate-set.json`, `decision.json`, `src/hive/control/campaigns.py`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
+| Observe-and-steer console at RFC depth | Complete | `frontend/console/src/routes/RunDetailPage.tsx`, `frontend/console/src/routes/InboxPage.tsx`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `tests/test_console_frontend_story.py`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Pi driver at acceptance bar | Pending | none | Decide whether Pi remains a v2.3 requirement or explicitly moves to later |
 | Release docs, demo, and acceptance alignment | Pending | `docs/`, `docs/hive-v2.3-rfc/`, `tests/test_v23_runtime_foundation.py` | Tighten scope and prove the final release story end-to-end |
 
@@ -31,6 +31,7 @@ What is real now:
 - Codex and Claude are both substantially real as live supervised drivers
 - approval truthfulness and runtime event/artifact plumbing are no longer just scaffolding
 - local, hosted, and self-hosted sandbox paths all exist in code and tests
+- the shipped operator console now surfaces capability truth, sandbox policy, retrieval traces, approval actions, and campaign decision reasoning
 
 What is still holding back a clean release call:
 
@@ -41,12 +42,12 @@ What is still holding back a clean release call:
 
 ## Next Blocker
 
-Narrow the remaining release scope and convert the open partial gates into a short
+Lock the remaining release scope and turn the rest of v2.3 into a short
 acceptance-driven train:
 
-1. finalize the v2.3 release scope, especially Pi and the hybrid retrieval bar
-2. run the remaining sandbox/retrieval/campaign acceptance checks against current `main`
-3. close the gap between the real code and the maintainer/operator docs
+1. decide whether Pi and the full hybrid retrieval stack stay in v2.3 scope or are explicitly deferred
+2. land the sandbox acceptance-and-docs slice for `local-safe`, E2B, and Daytona
+3. align public docs and demo collateral with the real v2.3 operator story
 
 ## Update Rule
 

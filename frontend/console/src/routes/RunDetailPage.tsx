@@ -353,16 +353,9 @@ export function RunDetailPage() {
               </div>
             </form>
           ) : null}
-<<<<<<< HEAD
           {liveSteerMessage ? (
             <p className="list-card__meta">
               {liveSteerMessage}
-=======
-          {!canLiveSteer ? (
-            <p className="list-card__meta">
-              Live pause, resume, and note controls stay hidden because this run is currently
-              staged or otherwise not attached to a live driver session.
->>>>>>> origin/codex/v23-console-truthfulness
             </p>
           ) : null}
           {actionMessage ? <p>{actionMessage}</p> : null}

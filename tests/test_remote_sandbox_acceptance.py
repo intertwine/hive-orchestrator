@@ -53,6 +53,7 @@ def test_e2b_remote_acceptance(tmp_path):
     artifacts.mkdir()
     (worktree / "README.md").write_text("remote acceptance\n", encoding="utf-8")
 
+    # LocalExecutor is the unified entry point for both local and remote sandboxes.
     executor = LocalExecutor(
         _remote_policy(
             backend="e2b",
@@ -61,9 +62,10 @@ def test_e2b_remote_acceptance(tmp_path):
             artifacts=artifacts,
         )
     )
-    result = executor.run_command("pwd", cwd=worktree, timeout_seconds=45)
+    result = executor.run_command("sh -lc 'cat README.md && pwd'", cwd=worktree, timeout_seconds=60)
 
     assert result.returncode == 0
+    assert "remote acceptance" in result.stdout
     assert result.stdout.strip().endswith("/workspace")
     assert result.sandbox is not None
     assert result.sandbox["backend"] == "e2b"
@@ -93,6 +95,7 @@ def test_daytona_remote_acceptance(tmp_path):
     artifacts.mkdir()
     (worktree / "README.md").write_text("remote acceptance\n", encoding="utf-8")
 
+    # LocalExecutor is the unified entry point for both local and remote sandboxes.
     executor = LocalExecutor(
         _remote_policy(
             backend="daytona",
@@ -101,9 +104,10 @@ def test_daytona_remote_acceptance(tmp_path):
             artifacts=artifacts,
         )
     )
-    result = executor.run_command("pwd", cwd=worktree, timeout_seconds=60)
+    result = executor.run_command("sh -lc 'cat README.md && pwd'", cwd=worktree, timeout_seconds=60)
 
     assert result.returncode == 0
+    assert "remote acceptance" in result.stdout
     assert result.stdout.strip().endswith("/workspace")
     assert result.sandbox is not None
     assert result.sandbox["backend"] == "daytona"
@@ -111,4 +115,4 @@ def test_daytona_remote_acceptance(tmp_path):
     assert result.sandbox["command_payload"]["transport"] == "daytona-sdk"
     assert result.sandbox["network_mode"] == "deny"
     assert result.sandbox["remote_sandbox_id"]
-    assert "snapshot" in result.sandbox or "image" in result.sandbox
+    assert result.sandbox.get("snapshot") or result.sandbox.get("image")

@@ -29,9 +29,10 @@ def test_v23_status_doc_tracks_release_gates_and_next_blocker():
     assert "Pi driver at acceptance bar | Deferred" in status_doc
     assert "full hybrid retrieval stack" in status_doc
     assert "the Daytona self-hosted proof now passed in a credentialed environment" in status_doc
-    assert "Release docs, demo, and acceptance alignment | Partial" in status_doc
-    assert "Finish the installed-package retrieval proof and the final release call" in status_doc
-    assert "finish the installed-package retrieval usefulness and release-demo validation pass" in status_doc
+    assert "Explainable retrieval, packaged corpus, and traces | Complete" in status_doc
+    assert "Release docs, demo, and acceptance alignment | Complete" in status_doc
+    assert "built-artifact release smoke path now proves installed-package `hive search`" in status_doc
+    assert "make the final v2.3 release call against the now-closed runtime" in status_doc
 
 
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():
@@ -59,6 +60,7 @@ def test_release_docs_require_scope_locked_v23_story_and_installed_search_proof(
     assert "Installed-package `hive search` is proven useful" in release_doc
     assert 'hive search "runtime contract" --scope api --limit 5 --json' in release_doc
     assert 'hive search "sandbox doctor" --scope examples --limit 5 --json' in release_doc
+    assert "built-artifact smoke script now proves installed-package" in release_doc
     assert "truthful v2.3 operator surface" in readme
     assert "Hive v2.3 assumes the operator mostly supervises" in operator_doc
     assert "If you want the latest unreleased checkout" in start_here

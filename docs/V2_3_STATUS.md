@@ -33,11 +33,11 @@ The following items are explicitly deferred from blocking the v2.3 release:
 | One real local sandbox path | Complete | `#117`, `#128`, `src/hive/sandbox/runtime.py`, `src/hive/sandbox/registry.py`, `docs/recipes/sandbox-doctor.md`, `.github/workflows/ci.yml`, `tests/test_local_safe_acceptance.py` | Final release/demo validation only |
 | One real hosted sandbox path | Complete | `#124`, `#132`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md`, `docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md`, `tests/test_remote_sandbox_acceptance.py` | Final release/demo validation only |
 | One real self-hosted sandbox path | Complete | `#125`, `#127`, `#133`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md`, `tests/test_remote_sandbox_acceptance.py`, `2026-03-19 live Daytona proof (1 passed)` | Final release/demo validation only |
-| Explainable retrieval, packaged corpus, and traces | Partial | `retrieval/trace.json`, `retrieval/hits.json`, `src/hive/runs/paths.py`, `src/hive/console/state.py`, `tests/test_install_story.py` | Final installed-package usefulness check and docs/demo alignment |
+| Explainable retrieval, packaged corpus, and traces | Complete | `retrieval/trace.json`, `retrieval/hits.json`, `src/hive/runs/paths.py`, `src/hive/console/state.py`, `scripts/smoke_release_install.sh`, `tests/test_install_story.py`, `tests/test_release_tooling.py` | Final release/demo validation only |
 | Campaign candidate and decision artifacts | Complete | `candidate-set.json`, `decision.json`, `src/hive/control/campaigns.py`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Observe-and-steer console at RFC depth | Complete | `frontend/console/src/routes/RunDetailPage.tsx`, `frontend/console/src/routes/InboxPage.tsx`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `tests/test_console_frontend_story.py`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Pi driver at acceptance bar | Deferred | `src/hive/drivers/pi.py`, `docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md` | Keep staged truthfulness intact and carry full RPC depth to the next release line |
-| Release docs, demo, and acceptance alignment | Partial | `README.md`, `docs/DEMO_WALKTHROUGH.md`, `docs/OPERATOR_FLOWS.md`, `docs/START_HERE.md`, `docs/RELEASING.md`, `docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md`, `tests/test_launch_collateral.py`, `tests/test_maintainer_surfaces.py` | Finish the installed-package retrieval proof and the final release call |
+| Release docs, demo, and acceptance alignment | Complete | `README.md`, `docs/DEMO_WALKTHROUGH.md`, `docs/OPERATOR_FLOWS.md`, `docs/START_HERE.md`, `docs/RELEASING.md`, `docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md`, `tests/test_launch_collateral.py`, `tests/test_maintainer_surfaces.py`, `scripts/smoke_release_install.sh`, `tests/test_release_tooling.py` | Final release/demo validation only |
 
 ## Current Read
 
@@ -54,17 +54,17 @@ What is real now:
 - the local-safe sandbox path now has a real Podman-backed CI proof instead of only mocked contract coverage
 - the Daytona self-hosted proof now passed in a credentialed environment using `DAYTONA_API_URL` + `DAYTONA_API_KEY`
 - the public README, demo walkthrough, operator flows, and acceptance/release docs now describe the scoped v2.3 operator story instead of the older v2.2 launch framing
+- the built-artifact release smoke path now proves installed-package `hive search` returns packaged API/RFC and recipe hits with explanations
 
 What is still holding back a clean release call:
 
-- installed-package retrieval usefulness and final operator-grade retrieval/docs validation
+- the actual v2.3 release decision, version/tag cut, and final demo/release verification against the now-closed gates
 
 ## Next Blocker
 
 Close the remaining acceptance-driven train against the scope-locked release:
 
-1. finish the installed-package retrieval usefulness and release-demo validation pass
-2. make the final release call against the now-closed runtime and sandbox gates
+1. make the final v2.3 release call against the now-closed runtime, sandbox, retrieval, campaign, console, and docs gates
 
 ## Update Rule
 

@@ -152,9 +152,10 @@ hive doctor --json
 hive task ready --project-id demo --json
 ```
 
-For the scoped v2.3 release line, also prove installed-package retrieval usefulness from that clean
-environment. At minimum, run one API/RFC query and one packaged recipe query without a source
-checkout on the `PYTHONPATH`:
+For the scoped v2.3 release line, the built-artifact smoke script now proves installed-package
+retrieval usefulness automatically for the `uv tool` install lane. If you are verifying manually or
+debugging a release candidate, run one API/RFC query and one packaged recipe query without a
+source checkout on the `PYTHONPATH`:
 
 ```bash
 hive search "runtime contract" --scope api --limit 5 --json

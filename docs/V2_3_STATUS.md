@@ -32,7 +32,7 @@ The following items are explicitly deferred from blocking the v2.3 release:
 | Deep Claude live driver with SDK adapter and approval bridging | Complete | `#122`, `#127`, `#130`, `#136`, `src/hive/drivers/claude_sdk.py` | Final release/demo validation only |
 | One real local sandbox path | Complete | `#117`, `#128`, `src/hive/sandbox/runtime.py`, `src/hive/sandbox/registry.py`, `docs/recipes/sandbox-doctor.md`, `.github/workflows/ci.yml`, `tests/test_local_safe_acceptance.py` | Final release/demo validation only |
 | One real hosted sandbox path | Complete | `#124`, `#132`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md`, `docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md`, `tests/test_remote_sandbox_acceptance.py` | Final release/demo validation only |
-| One real self-hosted sandbox path | Partial | `#125`, `#127`, `#133`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md`, `tests/test_remote_sandbox_acceptance.py` | Run the opt-in Daytona acceptance proof in a credentialed environment and fold the result into the release call |
+| One real self-hosted sandbox path | Complete | `#125`, `#127`, `#133`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md`, `tests/test_remote_sandbox_acceptance.py`, `2026-03-19 live Daytona proof (1 passed)` | Final release/demo validation only |
 | Explainable retrieval, packaged corpus, and traces | Partial | `retrieval/trace.json`, `retrieval/hits.json`, `src/hive/runs/paths.py`, `src/hive/console/state.py`, `tests/test_install_story.py` | Final installed-package usefulness check and docs/demo alignment |
 | Campaign candidate and decision artifacts | Complete | `candidate-set.json`, `decision.json`, `src/hive/control/campaigns.py`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Observe-and-steer console at RFC depth | Complete | `frontend/console/src/routes/RunDetailPage.tsx`, `frontend/console/src/routes/InboxPage.tsx`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `tests/test_console_frontend_story.py`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
@@ -52,10 +52,10 @@ What is real now:
 - the release retrieval bar is now explainability, provenance, packaged corpus coverage, and trace persistence rather than the full hybrid backend stack
 - sandbox doctor and install docs now describe the real backend shapes and optional extras instead of leaving them buried in the RFC
 - the local-safe sandbox path now has a real Podman-backed CI proof instead of only mocked contract coverage
+- the Daytona self-hosted proof now passed in a credentialed environment using `DAYTONA_API_URL` + `DAYTONA_API_KEY`
 
 What is still holding back a clean release call:
 
-- final real-environment validation for Daytona through the new opt-in acceptance proof
 - installed-package retrieval usefulness and final operator-grade retrieval/docs validation
 - docs, console, and demo alignment so the shipped story matches the implementation
 
@@ -63,9 +63,9 @@ What is still holding back a clean release call:
 
 Close the remaining acceptance-driven train against the scope-locked release:
 
-1. run the Daytona self-hosted acceptance proof in a credentialed environment and record the result in the release call
-2. align public docs and demo collateral with the real v2.3 operator story
-3. finish the installed-package retrieval usefulness and release-demo validation pass
+1. align public docs and demo collateral with the real v2.3 operator story
+2. finish the installed-package retrieval usefulness and release-demo validation pass
+3. make the final release call against the now-closed runtime and sandbox gates
 
 ## Update Rule
 

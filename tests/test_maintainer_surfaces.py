@@ -25,9 +25,11 @@ def test_v23_status_doc_tracks_release_gates_and_next_blocker():
     assert "Deep Claude live driver with SDK adapter and approval bridging" in status_doc
     assert "One real hosted sandbox path" in status_doc
     assert "One real hosted sandbox path | Complete" in status_doc
+    assert "One real self-hosted sandbox path | Complete" in status_doc
     assert "Pi driver at acceptance bar | Deferred" in status_doc
     assert "full hybrid retrieval stack" in status_doc
-    assert "run the Daytona self-hosted acceptance proof in a credentialed environment" in status_doc
+    assert "the Daytona self-hosted proof now passed in a credentialed environment" in status_doc
+    assert "align public docs and demo collateral with the real v2.3 operator story" in status_doc
 
 
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():

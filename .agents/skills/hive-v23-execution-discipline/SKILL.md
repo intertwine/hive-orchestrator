@@ -15,6 +15,8 @@ Use this skill for Hive work that is too large for a single edit loop and too im
 - treat Claude review as part of the implementation loop, not as decoration
 - leave a compact restart trail after every merge or pause
 
+Keep `docs/V2_3_STATUS.md` current as the compact execution ledger for this release line.
+
 ## Precedence
 
 When current git state, GitHub state, repo-local docs, skills, and memory disagree, trust them in this order:
@@ -32,9 +34,7 @@ Treat observational memory as advisory context, not as authority.
 Before substantial work:
 
 ```bash
-git status --short
-git worktree list
-gh pr status
+make workspace-status
 hive doctor --json
 ```
 

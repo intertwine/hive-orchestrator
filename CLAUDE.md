@@ -11,7 +11,8 @@ This repository is CLI-first. If you are operating here, use the commands and fi
 - Human project context lives in `projects/*/AGENCY.md`.
 - Autonomy policy lives in `projects/*/PROGRAM.md`.
 - If repo-local docs, skills, memory, and current git state disagree, trust current repo state and tests first, then repo-local docs and `PROGRAM.md`.
-- Before substantial repo work, check `git status --short`, `git worktree list`, `gh pr status`, and `hive doctor --json`.
+- For the current v2.3 line, keep `docs/V2_3_STATUS.md` current as the compact release ledger.
+- Before substantial repo work, prefer `make workspace-status`, or check `git status --short`, `git worktree list`, `gh pr status`, and `hive doctor --json` directly.
 - Build context with `hive context startup --project <project-id> --task <task-id> --json`.
 - Use `make session PROJECT=<project-id>` only from a repo checkout when you want a saved startup bundle.
 - Refresh projections with `hive sync projections --json` after substrate changes.
@@ -29,9 +30,7 @@ For heavier workflows, follow the repo skills instead of inventing your own proc
 ## Fast Path
 
 ```bash
-git status --short
-git worktree list
-gh pr status
+make workspace-status
 hive doctor --json
 hive console home --json
 hive next --json

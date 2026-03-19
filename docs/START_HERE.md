@@ -41,7 +41,8 @@ hive --version
 hive doctor
 ```
 
-If you are testing before the first tagged public release lands, use the git install instead:
+If you want the latest unreleased checkout before the next tagged release or before package
+indexes catch up, use the git install instead:
 
 ```bash
 uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git mellona-hive

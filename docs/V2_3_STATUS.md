@@ -37,7 +37,7 @@ The following items are explicitly deferred from blocking the v2.3 release:
 | Campaign candidate and decision artifacts | Complete | `candidate-set.json`, `decision.json`, `src/hive/control/campaigns.py`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Observe-and-steer console at RFC depth | Complete | `frontend/console/src/routes/RunDetailPage.tsx`, `frontend/console/src/routes/InboxPage.tsx`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `tests/test_console_frontend_story.py`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Pi driver at acceptance bar | Deferred | `src/hive/drivers/pi.py`, `docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md` | Keep staged truthfulness intact and carry full RPC depth to the next release line |
-| Release docs, demo, and acceptance alignment | Pending | `docs/`, `docs/hive-v2.3-rfc/`, `tests/test_v23_runtime_foundation.py` | Tighten scope and prove the final release story end-to-end |
+| Release docs, demo, and acceptance alignment | Partial | `README.md`, `docs/DEMO_WALKTHROUGH.md`, `docs/OPERATOR_FLOWS.md`, `docs/START_HERE.md`, `docs/RELEASING.md`, `docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md`, `tests/test_launch_collateral.py`, `tests/test_maintainer_surfaces.py` | Finish the installed-package retrieval proof and the final release call |
 
 ## Current Read
 
@@ -53,19 +53,18 @@ What is real now:
 - sandbox doctor and install docs now describe the real backend shapes and optional extras instead of leaving them buried in the RFC
 - the local-safe sandbox path now has a real Podman-backed CI proof instead of only mocked contract coverage
 - the Daytona self-hosted proof now passed in a credentialed environment using `DAYTONA_API_URL` + `DAYTONA_API_KEY`
+- the public README, demo walkthrough, operator flows, and acceptance/release docs now describe the scoped v2.3 operator story instead of the older v2.2 launch framing
 
 What is still holding back a clean release call:
 
 - installed-package retrieval usefulness and final operator-grade retrieval/docs validation
-- docs, console, and demo alignment so the shipped story matches the implementation
 
 ## Next Blocker
 
 Close the remaining acceptance-driven train against the scope-locked release:
 
-1. align public docs and demo collateral with the real v2.3 operator story
-2. finish the installed-package retrieval usefulness and release-demo validation pass
-3. make the final release call against the now-closed runtime and sandbox gates
+1. finish the installed-package retrieval usefulness and release-demo validation pass
+2. make the final release call against the now-closed runtime and sandbox gates
 
 ## Update Rule
 

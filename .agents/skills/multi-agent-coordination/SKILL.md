@@ -1,9 +1,13 @@
 ---
 name: multi-agent-coordination
-description: Coordinate work between multiple agents in Hive v2. Use this skill when several agents need to split work, hand off tasks, manage blockers, or add optional real-time coordination.
+description: Coordinate work between multiple agents in Hive v2. Use this skill when several agents need to split task ownership, hand off work, manage blockers, or add optional real-time coordination. For long-running v2.3 maintainer work in this repo, pair it with `hive-v23-execution-discipline` so delegation, review, and merge decisions stay disciplined.
 ---
 
 # Multi-Agent Coordination
+
+This skill is about coordination mechanics.
+
+If the work is also PR-heavy, review-heavy, or release-critical, use `.agents/skills/hive-v23-execution-discipline/SKILL.md` for slice sizing, review handling, and merge discipline, then use this skill for task claims, blocker links, and handoffs.
 
 In Hive v2, agents coordinate on canonical tasks and governed runs.
 

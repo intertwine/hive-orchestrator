@@ -15,6 +15,18 @@ Use this skill for Hive work that is too large for a single edit loop and too im
 - treat Claude review as part of the implementation loop, not as decoration
 - leave a compact restart trail after every merge or pause
 
+## Precedence
+
+When current git state, GitHub state, repo-local docs, skills, and memory disagree, trust them in this order:
+
+1. current repo state and test results
+2. current GitHub PR/check state
+3. `AGENTS.md`, `CLAUDE.md`, and the active project `PROGRAM.md`
+4. repo-local skills
+5. observational memory and older session summaries
+
+Treat observational memory as advisory context, not as authority.
+
 ## Ground Truth First
 
 Before substantial work:

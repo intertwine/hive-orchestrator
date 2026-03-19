@@ -10,6 +10,7 @@ This repository is CLI-first. If you are operating here, use the commands and fi
 - Canonical task state lives in `.hive/tasks/*.md`.
 - Human project context lives in `projects/*/AGENCY.md`.
 - Autonomy policy lives in `projects/*/PROGRAM.md`.
+- If repo-local docs, skills, memory, and current git state disagree, trust current repo state and tests first, then repo-local docs and `PROGRAM.md`.
 - Before substantial repo work, check `git status --short`, `git worktree list`, `gh pr status`, and `hive doctor --json`.
 - Build context with `hive context startup --project <project-id> --task <task-id> --json`.
 - Use `make session PROJECT=<project-id>` only from a repo checkout when you want a saved startup bundle.

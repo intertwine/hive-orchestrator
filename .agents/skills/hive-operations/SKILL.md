@@ -1,6 +1,6 @@
 ---
 name: hive-operations
-description: Operate Hive through the v2 CLI. Use this skill when someone asks about ready work, blockers, sync, quickstart, or everyday Hive commands.
+description: Operate Hive through the v2 CLI. Use this skill for ready work, blockers, sync, quickstart, or everyday Hive commands in normal usage. For maintainer implementation, large RFC work, or PR/review discipline in this repo, prefer `hive-v23-execution-discipline`.
 ---
 
 # Hive Operations

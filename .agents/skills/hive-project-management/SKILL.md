@@ -1,6 +1,6 @@
 ---
 name: hive-project-management
-description: Manage Hive projects through the v2 substrate and projections. Use this skill when creating projects, tasks, claims, links, or project policy.
+description: Manage Hive projects through the v2 substrate and projections. Use this skill when creating projects, tasks, claims, links, or project policy. For repo-maintainer v2.3 implementation and PR trains in this repo, use `hive-v23-execution-discipline` for execution discipline and use this skill only for the substrate operations themselves.
 ---
 
 # Hive Project Management

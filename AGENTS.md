@@ -10,6 +10,7 @@ Start with the `hive` CLI, not ad hoc markdown edits or compatibility shims.
 - Treat `.hive/tasks/*.md` as the canonical task database.
 - Treat `projects/*/AGENCY.md` as the narrative project document.
 - Read `projects/*/PROGRAM.md` before autonomous edits or evaluator runs.
+- If repo-local docs, skills, memory, and current git state disagree, trust current repo state and tests first, then repo-local docs and `PROGRAM.md`.
 - Before substantial repo work, check `git status --short`, `git worktree list`, `gh pr status`, and `hive doctor --json`.
 - Build startup context with `hive context startup --project <project-id> --task <task-id> --json`.
 - Use `make session PROJECT=<project-id>` only from a repo checkout when you want a saved context file.

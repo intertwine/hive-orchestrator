@@ -1,9 +1,13 @@
 ---
 name: deep-work-session
-description: Enter and manage focused Hive v2 work sessions. Use this skill when starting work on a project, generating startup context, claiming tasks, or handing work off cleanly.
+description: Enter and manage focused Hive v2 task sessions. Use this skill for task-first project work, startup context, claims, and clean handoff in normal Hive usage. Do not use it as the primary guide for long-running v2.3 maintainer work, PR-driven implementation, or review-heavy merge trains in this repo; use `hive-v23-execution-discipline` for those.
 ---
 
 # Deep Work Session
+
+This skill is for task-lease-oriented Hive work.
+
+If you are working inside this repository on v2.3, RFC implementation, review debt, merge trains, or other maintainer-heavy work, follow `.agents/skills/hive-v23-execution-discipline/SKILL.md` first and only borrow the task/claim parts from here when they help.
 
 Hive v2 deep work is task-first:
 

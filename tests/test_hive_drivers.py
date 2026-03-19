@@ -2427,6 +2427,105 @@ class TestHiveDrivers:
         assert captured["options"].extra_args == {"max-budget-usd": "12.5"}
         assert captured["query"] == {"prompt": "Build the fix.", "session_id": "sdk-session"}
 
+    def test_claude_sdk_worker_treats_error_results_as_failed(self, tmp_path, monkeypatch):
+        from src.hive.drivers.claude_sdk_worker import ClaudeSDKBroker
+
+        fake_sdk = types.ModuleType("claude_code_sdk")
+
+        class ClaudeCodeOptions:
+            def __init__(self, **kwargs):
+                self.extra_args = {}
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        class ClaudeSDKClient:
+            def __init__(self, *, options):
+                self.options = options
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def connect(self):
+                return None
+
+            async def query(self, prompt, session_id=None):
+                return None
+
+            async def receive_response(self):
+                yield ResultMessage()
+
+            async def interrupt(self):
+                return None
+
+        class StreamEvent:
+            pass
+
+        class AssistantMessage:
+            pass
+
+        class TextBlock:
+            pass
+
+        class ThinkingBlock:
+            pass
+
+        class ToolUseBlock:
+            pass
+
+        class ToolResultBlock:
+            pass
+
+        class ResultMessage:
+            def __init__(self):
+                self.session_id = "sdk-session"
+                self.duration_ms = 500
+                self.total_cost_usd = 0.12
+                self.usage = {}
+                self.result = "Claude hit an in-band error."
+                self.is_error = True
+
+        fake_sdk.ClaudeCodeOptions = ClaudeCodeOptions
+        fake_sdk.ClaudeSDKClient = ClaudeSDKClient
+        fake_sdk.StreamEvent = StreamEvent
+        fake_sdk.AssistantMessage = AssistantMessage
+        fake_sdk.TextBlock = TextBlock
+        fake_sdk.ThinkingBlock = ThinkingBlock
+        fake_sdk.ToolUseBlock = ToolUseBlock
+        fake_sdk.ToolResultBlock = ToolResultBlock
+        fake_sdk.ResultMessage = ResultMessage
+        monkeypatch.setitem(sys.modules, "claude_code_sdk", fake_sdk)
+
+        policy_path = tmp_path / "policy.json"
+        prompt_path = tmp_path / "prompt.txt"
+        policy_path.write_text("{}", encoding="utf-8")
+        prompt_path.write_text("Build the fix.", encoding="utf-8")
+        broker = ClaudeSDKBroker(
+            argparse.Namespace(
+                worktree=str(tmp_path),
+                prompt=str(prompt_path),
+                raw_output=str(tmp_path / "raw.jsonl"),
+                last_message=str(tmp_path / "last-message.txt"),
+                exit_code=str(tmp_path / "exit.txt"),
+                stderr=str(tmp_path / "stderr.txt"),
+                approval_channel=str(tmp_path / "approval-channel.ndjson"),
+                state=str(tmp_path / "state.json"),
+                policy=str(policy_path),
+                session_id="sdk-session",
+                model=None,
+                max_budget_usd=0.0,
+                claude_md=None,
+            )
+        )
+
+        exit_code = asyncio.run(broker.run())
+
+        assert exit_code == 1
+        assert broker.state["status"] == "failed"
+        assert broker.state["error"] == "Claude hit an in-band error."
+
     def test_claude_interrupt_targets_process_group(self, monkeypatch):
         driver = get_driver("claude-code")
         handle = RunHandle(

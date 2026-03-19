@@ -114,9 +114,15 @@ class ClaudeSDKDriver(ClaudeCodeDriver):
 
     @staticmethod
     def _budget_usage_from_state(state: dict[str, Any]) -> RunBudgetUsage:
+        duration_ms = int(state.get("duration_ms") or 0)
+        wall_minutes = 0 if duration_ms <= 0 else max(1, (duration_ms + 59_999) // 60_000)
         usage = state.get("usage")
         if not isinstance(usage, dict):
-            return RunBudgetUsage()
+            return RunBudgetUsage(
+                spent_tokens=0,
+                spent_cost_usd=float(state.get("total_cost_usd") or 0.0),
+                wall_minutes=wall_minutes,
+            )
         input_tokens = int(
             usage.get("input_tokens", 0)
             + usage.get("cache_creation_input_tokens", 0)
@@ -125,8 +131,6 @@ class ClaudeSDKDriver(ClaudeCodeDriver):
         )
         output_tokens = int(usage.get("output_tokens", 0) + usage.get("reasoning_output_tokens", 0))
         total_tokens = int(usage.get("total_tokens") or input_tokens + output_tokens)
-        duration_ms = int(state.get("duration_ms") or 0)
-        wall_minutes = 0 if duration_ms <= 0 else max(1, (duration_ms + 59_999) // 60_000)
         return RunBudgetUsage(
             spent_tokens=total_tokens,
             spent_cost_usd=float(state.get("total_cost_usd") or 0.0),

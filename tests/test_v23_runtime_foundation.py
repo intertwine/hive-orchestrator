@@ -4163,6 +4163,97 @@ def test_run_status_refreshes_live_claude_sdk_result_and_budget(temp_hive_dir, c
     assert event_types.count("driver.status") >= 1
 
 
+def test_run_status_refreshes_live_claude_sdk_error_result_as_failed(temp_hive_dir, capsys, monkeypatch):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    driver = get_driver("claude")
+
+    def fake_live_sdk_enabled(self):
+        return True
+
+    def fake_sdk_available(self):
+        return True
+
+    def fake_launch_live_sdk(self, request):
+        run_root = Path(request.artifacts_path)
+        raw_output_path = run_root / "transcript" / "raw" / "claude-sdk-events.jsonl"
+        state_path = run_root / "driver" / "claude-sdk-state.json"
+        exit_code_path = run_root / "driver" / "claude-sdk-exit.txt"
+        raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_output_path.write_text(
+            json.dumps(
+                {
+                    "kind": "result",
+                    "payload": {
+                        "session_id": "sdk-session-error",
+                        "duration_ms": 1200,
+                        "total_cost_usd": 0.33,
+                        "usage": {},
+                        "result": "Claude returned an error result.",
+                        "is_error": True,
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        state_path.write_text(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "session_id": "sdk-session-error",
+                    "duration_ms": 1200,
+                    "total_cost_usd": 0.33,
+                    "usage": {},
+                    "result": "Claude returned an error result.",
+                    "error": "Claude returned an error result.",
+                }
+            ),
+            encoding="utf-8",
+        )
+        exit_code_path.write_text("1\n", encoding="utf-8")
+        return RunHandle(
+            run_id=request.run_id,
+            driver="claude",
+            driver_handle=f"claude:sdk:{request.run_id}",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="sdk",
+            transport="sdk_worker",
+            session_id="sdk-session-error",
+            event_cursor="0",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
+            metadata={
+                "pid": 9152,
+                "raw_output_path": str(raw_output_path),
+                "last_message_path": str(
+                    run_root / "transcript" / "raw" / "claude-sdk-last-message.txt"
+                ),
+                "exit_code_path": str(exit_code_path),
+                "state_path": str(state_path),
+                "worker_stderr_path": str(run_root / "logs" / "claude-sdk-worker-stderr.txt"),
+            },
+        )
+
+    monkeypatch.setattr(type(driver), "_live_sdk_enabled", fake_live_sdk_enabled)
+    monkeypatch.setattr(type(driver), "_sdk_available", fake_sdk_available)
+    monkeypatch.setattr(type(driver), "_launch_live_sdk", fake_launch_live_sdk)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="claude")
+    payload = _invoke_cli_json(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+    )
+    metadata = load_run(temp_hive_dir, run.id)
+
+    assert payload["status"]["state"] == "failed"
+    assert payload["status"]["budget"]["spent_cost_usd"] == 0.33
+    assert payload["status"]["budget"]["wall_minutes"] == 1
+    assert metadata["cost_usd"] == 0.33
+    assert metadata["metadata_json"]["driver_status"]["state"] == "failed"
+
+
 def test_run_status_refreshes_live_claude_sdk_approval_and_bridges_resolution(
     temp_hive_dir, capsys, monkeypatch
 ):

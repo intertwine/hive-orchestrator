@@ -18,7 +18,7 @@ def _append_ndjson(path: Path, record: dict[str, Any]) -> None:
 
 
 def _load_channel_records(path: Path, cursor: int) -> tuple[list[dict[str, Any]], int]:
-    if not path.exists():
+    if not path.exists() or not path.is_file():
         return [], cursor
     with open(path, "r", encoding="utf-8") as handle:
         lines = [line for line in handle.read().splitlines() if line.strip()]
@@ -310,7 +310,11 @@ class ClaudeSDKBroker:
             "approval_id": record.get("approval_id"),
             "request_id": server_request_id or None,
             "server_request_id": server_request_id or None,
-            "resolution": record.get("resolution") or payload.get("resolution"),
+            "resolution": (
+                record.get("resolution")
+                if record.get("resolution") is not None
+                else payload.get("resolution")
+            ),
             "resolution_note": (
                 record.get("resolution_note")
                 if record.get("resolution_note") is not None
@@ -440,12 +444,19 @@ class ClaudeSDKBroker:
             self._write_state()
             return
         if isinstance(message, ResultMessage):
-            self.state["status"] = "cancelled" if self.cancel_requested else "completed"
+            result_is_error = bool(message.is_error)
+            self.state["status"] = (
+                "cancelled"
+                if self.cancel_requested
+                else ("failed" if result_is_error else "completed")
+            )
             self.state["session_id"] = str(message.session_id or self.session_id)
             self.state["duration_ms"] = int(message.duration_ms or 0)
             self.state["total_cost_usd"] = float(message.total_cost_usd or 0.0)
             self.state["usage"] = dict(message.usage or {})
             self.state["result"] = message.result
+            if result_is_error:
+                self.state["error"] = str(message.result or "").strip() or "Claude returned an error."
             self._update_last_message(str(message.result or "").strip() or None)
             _append_ndjson(
                 self.raw_output_path,
@@ -525,7 +536,7 @@ class ClaudeSDKBroker:
                     await channel_task
                 except asyncio.CancelledError:
                     pass
-        return 0
+        return 1 if self.state.get("status") == "failed" else 0
 
 
 def _build_parser() -> argparse.ArgumentParser:

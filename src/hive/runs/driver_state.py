@@ -765,21 +765,23 @@ def _ingest_claude_sdk_events(
                 )
                 _record_driver_usage(metadata, status_payload, usage)
             result_text = str(payload.get("result") or "").strip()
+            result_is_error = bool(payload.get("is_error"))
             if result_text and transcript_path_value:
                 _append_transcript_entry(
                     Path(transcript_path_value),
                     {
                         "ts": utc_now_iso(),
-                        "kind": "assistant",
+                        "kind": "system" if result_is_error else "assistant",
                         "driver": metadata.get("driver"),
                         "message": result_text,
-                        "driver_event_type": kind,
+                        "driver_event_type": "result_error" if result_is_error else kind,
                         "state": status_payload.get("state"),
                     },
                 )
-                imports["last_message_sha256"] = hashlib.sha256(
-                    result_text.encode("utf-8")
-                ).hexdigest()
+                if not result_is_error:
+                    imports["last_message_sha256"] = hashlib.sha256(
+                        result_text.encode("utf-8")
+                    ).hexdigest()
             _emit_runtime_driver_event(
                 root,
                 metadata,

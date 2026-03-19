@@ -488,6 +488,9 @@ def test_start_run_materializes_claude_projection_and_selected_skills(temp_hive_
     skill_root.mkdir(parents=True, exist_ok=True)
     skill_text = "# Claude Context\n\nSupport sandbox policy decisions.\n"
     (skill_root / "SKILL.md").write_text(skill_text, encoding="utf-8")
+    script_path = skill_root / "scripts" / "policy-check.sh"
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path.write_text("#!/bin/sh\necho policy-check\n", encoding="utf-8")
     create_task(
         temp_hive_dir,
         "demo",
@@ -509,8 +512,18 @@ def test_start_run_materializes_claude_projection_and_selected_skills(temp_hive_
     run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
 
     projection_path = run_root / "projections" / "CLAUDE.md"
+    projected_run_brief_path = run_root / "projections" / "run-brief.md"
     skill_projection_path = (
         run_root / "projections" / ".claude" / "skills" / "claude-context" / "SKILL.md"
+    )
+    projected_script_path = (
+        run_root
+        / "projections"
+        / ".claude"
+        / "skills"
+        / "claude-context"
+        / "scripts"
+        / "policy-check.sh"
     )
     context_manifest = json.loads(
         (run_root / "context" / "manifest.json").read_text(encoding="utf-8")
@@ -519,10 +532,21 @@ def test_start_run_materializes_claude_projection_and_selected_skills(temp_hive_
     assert projection_path.exists()
     assert "Workspace CLAUDE" in projection_path.read_text(encoding="utf-8")
     assert "Selected Skills" in projection_path.read_text(encoding="utf-8")
+    assert "`run-brief.md`" in projection_path.read_text(encoding="utf-8")
+    assert projected_run_brief_path.exists()
     assert skill_projection_path.exists()
     assert skill_projection_path.read_text(encoding="utf-8") == skill_text
+    assert projected_script_path.exists()
+    assert projected_script_path.read_text(encoding="utf-8") == script_path.read_text(
+        encoding="utf-8"
+    )
     assert "projections/CLAUDE.md" in context_manifest["outputs"]
+    assert "projections/run-brief.md" in context_manifest["outputs"]
     assert "projections/.claude/skills/claude-context/SKILL.md" in context_manifest["outputs"]
+    assert (
+        "projections/.claude/skills/claude-context/scripts/policy-check.sh"
+        in context_manifest["outputs"]
+    )
 
 
 def test_start_run_selects_local_safe_sandbox_backend_when_available(

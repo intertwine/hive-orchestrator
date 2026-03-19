@@ -300,6 +300,25 @@ class ClaudeSDKBroker:
         content = self.claude_md_path.read_text(encoding="utf-8").strip()
         return content or None
 
+    @staticmethod
+    def _normalize_resolution_record(record: dict[str, Any]) -> dict[str, Any]:
+        payload = dict(record.get("payload") or {})
+        server_request_id = str(
+            payload.get("server_request_id") or payload.get("request_id") or ""
+        ).strip()
+        normalized = {
+            "approval_id": record.get("approval_id"),
+            "request_id": server_request_id or None,
+            "server_request_id": server_request_id or None,
+            "resolution": record.get("resolution") or payload.get("resolution"),
+            "resolution_note": (
+                record.get("resolution_note")
+                if record.get("resolution_note") is not None
+                else payload.get("resolution_note")
+            ),
+        }
+        return normalized
+
     async def _watch_driver_channel(self, client: Any) -> None:
         while not self.stop_requested:
             records, self.driver_channel_cursor = _load_channel_records(
@@ -308,15 +327,17 @@ class ClaudeSDKBroker:
             for record in records:
                 kind = str(record.get("kind") or "")
                 if kind == "approval_resolution":
-                    payload = dict(record.get("payload") or {})
-                    candidate = str(payload.get("server_request_id") or "").strip()
+                    resolution = self._normalize_resolution_record(record)
+                    candidate = str(
+                        resolution.get("server_request_id") or resolution.get("request_id") or ""
+                    ).strip()
                     if (
                         candidate
                         and candidate == self.pending_request_id
                         and self.pending_resolution_future is not None
                         and not self.pending_resolution_future.done()
                     ):
-                        self.pending_resolution_future.set_result(record)
+                        self.pending_resolution_future.set_result(resolution)
                 elif kind == "interrupt" and str(record.get("mode") or "") == "cancel":
                     self.cancel_requested = True
                     self.state["status"] = "cancelled"
@@ -466,11 +487,14 @@ class ClaudeSDKBroker:
             can_use_tool=self._can_use_tool,
         )
         if self.max_budget_usd > 0:
-            options.extra_args["max-budget-usd"] = str(self.max_budget_usd)
+            extra_args = dict(getattr(options, "extra_args", {}) or {})
+            extra_args["max-budget-usd"] = str(self.max_budget_usd)
+            options.extra_args = extra_args
 
         self.state["status"] = "starting"
         self._write_state()
         _append_ndjson(self.raw_output_path, {"kind": "status", "payload": {"status": "starting"}})
+        channel_task: asyncio.Task[None] | None = None
         try:
             async with ClaudeSDKClient(options=options) as client:
                 channel_task = asyncio.create_task(self._watch_driver_channel(client))
@@ -484,12 +508,6 @@ class ClaudeSDKBroker:
                 await client.query(prompt, session_id=self.session_id)
                 async for message in client.receive_response():
                     await self._record_message(message)
-                self.stop_requested = True
-                channel_task.cancel()
-                try:
-                    await channel_task
-                except asyncio.CancelledError:
-                    pass
         except Exception as exc:  # pragma: no cover - exercised through functional tests
             self.state["status"] = "cancelled" if self.cancel_requested else "failed"
             self.state["error"] = str(exc)
@@ -499,6 +517,14 @@ class ClaudeSDKBroker:
                 {"kind": "worker_error", "payload": {"message": str(exc)}},
             )
             return 0 if self.cancel_requested else 1
+        finally:
+            self.stop_requested = True
+            if channel_task is not None:
+                channel_task.cancel()
+                try:
+                    await channel_task
+                except asyncio.CancelledError:
+                    pass
         return 0
 
 

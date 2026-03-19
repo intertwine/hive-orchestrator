@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import argparse
+import asyncio
 import atexit
 import json
 from pathlib import Path
@@ -14,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 
 import pytest
 
@@ -2233,6 +2236,197 @@ class TestHiveDrivers:
         assert status.session["session_id"] == "sdk-session-1"
         assert status.session["tool_name"] == "Bash"
 
+    @pytest.mark.parametrize("request_key", ["server_request_id", "request_id"])
+    def test_claude_sdk_worker_accepts_forwarded_approval_resolution(
+        self, tmp_path, monkeypatch, request_key
+    ):
+        from src.hive.drivers.claude_sdk_worker import ClaudeSDKBroker
+
+        fake_sdk = types.ModuleType("claude_code_sdk")
+
+        class PermissionResultAllow:
+            pass
+
+        class PermissionResultDeny:
+            def __init__(self, *, message, interrupt):
+                self.message = message
+                self.interrupt = interrupt
+
+        fake_sdk.PermissionResultAllow = PermissionResultAllow
+        fake_sdk.PermissionResultDeny = PermissionResultDeny
+        monkeypatch.setitem(sys.modules, "claude_code_sdk", fake_sdk)
+
+        approval_channel = tmp_path / "approval-channel.ndjson"
+        policy_path = tmp_path / "policy.json"
+        prompt_path = tmp_path / "prompt.txt"
+        policy_path.write_text("{}", encoding="utf-8")
+        prompt_path.write_text("Run git status.", encoding="utf-8")
+        broker = ClaudeSDKBroker(
+            argparse.Namespace(
+                worktree=str(tmp_path),
+                prompt=str(prompt_path),
+                raw_output=str(tmp_path / "raw.jsonl"),
+                last_message=str(tmp_path / "last-message.txt"),
+                exit_code=str(tmp_path / "exit.txt"),
+                stderr=str(tmp_path / "stderr.txt"),
+                approval_channel=str(approval_channel),
+                state=str(tmp_path / "state.json"),
+                policy=str(policy_path),
+                session_id="sdk-session",
+                model=None,
+                max_budget_usd=0.0,
+                claude_md=None,
+            )
+        )
+
+        class FakeClient:
+            async def interrupt(self):
+                return None
+
+        async def exercise():
+            watcher = asyncio.create_task(broker._watch_driver_channel(FakeClient()))
+
+            async def resolve():
+                while not broker.state.get("pending_request"):
+                    await asyncio.sleep(0.01)
+                request_id = broker.state["pending_request"]["request_id"]
+                approval_channel.write_text(
+                    json.dumps(
+                        {
+                            "kind": "approval_resolution",
+                            "approval_id": "approval_123",
+                            "resolution": "approved",
+                            "resolution_note": "Looks good.",
+                            "payload": {request_key: request_id},
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            resolver = asyncio.create_task(resolve())
+            try:
+                return await asyncio.wait_for(
+                    broker._can_use_tool(
+                        "Bash",
+                        {"command": "git status"},
+                        types.SimpleNamespace(suggestions=[]),
+                    ),
+                    timeout=1.0,
+                )
+            finally:
+                broker.stop_requested = True
+                watcher.cancel()
+                try:
+                    await watcher
+                except asyncio.CancelledError:
+                    pass
+                await resolver
+
+        result = asyncio.run(exercise())
+        assert isinstance(result, PermissionResultAllow)
+
+    def test_claude_sdk_worker_initializes_extra_args_before_budget_flag(self, tmp_path, monkeypatch):
+        from src.hive.drivers.claude_sdk_worker import ClaudeSDKBroker
+
+        captured: dict[str, object] = {}
+        fake_sdk = types.ModuleType("claude_code_sdk")
+
+        class ClaudeCodeOptions:
+            def __init__(self, **kwargs):
+                self.extra_args = None
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+                captured["options"] = self
+
+        class ClaudeSDKClient:
+            def __init__(self, *, options):
+                self.options = options
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def connect(self):
+                return None
+
+            async def query(self, prompt, session_id=None):
+                captured["query"] = {"prompt": prompt, "session_id": session_id}
+
+            async def receive_response(self):
+                yield ResultMessage()
+
+            async def interrupt(self):
+                return None
+
+        class StreamEvent:
+            pass
+
+        class AssistantMessage:
+            pass
+
+        class TextBlock:
+            pass
+
+        class ThinkingBlock:
+            pass
+
+        class ToolUseBlock:
+            pass
+
+        class ToolResultBlock:
+            pass
+
+        class ResultMessage:
+            def __init__(self):
+                self.session_id = "sdk-session"
+                self.duration_ms = 1200
+                self.total_cost_usd = 0.75
+                self.usage = {"input_tokens": 12, "output_tokens": 3, "total_tokens": 15}
+                self.result = "Done"
+                self.is_error = False
+
+        fake_sdk.ClaudeCodeOptions = ClaudeCodeOptions
+        fake_sdk.ClaudeSDKClient = ClaudeSDKClient
+        fake_sdk.StreamEvent = StreamEvent
+        fake_sdk.AssistantMessage = AssistantMessage
+        fake_sdk.TextBlock = TextBlock
+        fake_sdk.ThinkingBlock = ThinkingBlock
+        fake_sdk.ToolUseBlock = ToolUseBlock
+        fake_sdk.ToolResultBlock = ToolResultBlock
+        fake_sdk.ResultMessage = ResultMessage
+        monkeypatch.setitem(sys.modules, "claude_code_sdk", fake_sdk)
+
+        policy_path = tmp_path / "policy.json"
+        prompt_path = tmp_path / "prompt.txt"
+        policy_path.write_text("{}", encoding="utf-8")
+        prompt_path.write_text("Build the fix.", encoding="utf-8")
+        broker = ClaudeSDKBroker(
+            argparse.Namespace(
+                worktree=str(tmp_path),
+                prompt=str(prompt_path),
+                raw_output=str(tmp_path / "raw.jsonl"),
+                last_message=str(tmp_path / "last-message.txt"),
+                exit_code=str(tmp_path / "exit.txt"),
+                stderr=str(tmp_path / "stderr.txt"),
+                approval_channel=str(tmp_path / "approval-channel.ndjson"),
+                state=str(tmp_path / "state.json"),
+                policy=str(policy_path),
+                session_id="sdk-session",
+                model="claude-opus-4.5",
+                max_budget_usd=12.5,
+                claude_md=None,
+            )
+        )
+
+        exit_code = asyncio.run(broker.run())
+
+        assert exit_code == 0
+        assert captured["options"].extra_args == {"max-budget-usd": "12.5"}
+        assert captured["query"] == {"prompt": "Build the fix.", "session_id": "sdk-session"}
+
     def test_claude_interrupt_targets_process_group(self, monkeypatch):
         driver = get_driver("claude-code")
         handle = RunHandle(
@@ -2284,6 +2478,44 @@ class TestHiveDrivers:
         assert records[-1]["kind"] == "interrupt"
         assert records[-1]["mode"] == "cancel"
         assert records[-1]["driver"] == "claude"
+
+    def test_cli_steer_reroute_accepts_canonical_claude_driver(self, temp_hive_dir, capsys):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="local")
+        payload = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "steer",
+                "reroute",
+                run.id,
+                "--driver",
+                "claude",
+                "--reason",
+                "Use Claude for synthesis",
+            ],
+        )
+        metadata = load_run(temp_hive_dir, run.id)
+
+        assert payload["run"]["driver"] == "claude"
+        assert metadata["driver"] == "claude"
 
     def test_same_run_can_move_from_local_to_codex_to_claude_code(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 from typing import Any
 
 from src.hive.clock import utc_now_iso
@@ -85,6 +86,9 @@ def _write_claude_projection(
     """Materialize the Claude-facing projection tree for a run."""
     projection_root = run_directory / "projections"
     projection_root.mkdir(parents=True, exist_ok=True)
+    projected_run_brief_path = projection_root / "run-brief.md"
+    projected_run_brief_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(run_brief_path, projected_run_brief_path)
 
     claude_projection_path = projection_root / "CLAUDE.md"
     source_claude = (
@@ -105,7 +109,7 @@ def _write_claude_projection(
         "",
         "## Canonical Inputs",
         "",
-        f"- Run brief: `{run_brief_path.as_posix()}`",
+        f"- Run brief: `{projected_run_brief_path.relative_to(projection_root).as_posix()}`",
         "- Task state: `.hive/tasks/*.md`",
         "- Project policy: `projects/*/PROGRAM.md`",
         "- Project brief: `projects/*/AGENCY.md`",
@@ -129,7 +133,7 @@ def _write_claude_projection(
         encoding="utf-8",
     )
 
-    skill_outputs: list[str] = []
+    skill_outputs: list[str] = [projected_run_brief_path.relative_to(run_directory).as_posix()]
     claude_skills_root = projection_root / ".claude" / "skills"
     for skill in selected_skills:
         skill_name = str(skill.get("name") or "").strip()
@@ -139,12 +143,14 @@ def _write_claude_projection(
         source_skill_path = Path(skill_path)
         if not source_skill_path.exists():
             continue
-        target_skill_path = claude_skills_root / skill_name / source_skill_path.name
-        target_skill_path.parent.mkdir(parents=True, exist_ok=True)
-        target_skill_path.write_text(
-            source_skill_path.read_text(encoding="utf-8"), encoding="utf-8"
-        )
-        skill_outputs.append(target_skill_path.relative_to(run_directory).as_posix())
+        target_skill_root = claude_skills_root / skill_name
+        for source_path in sorted(source_skill_path.parent.rglob("*")):
+            if source_path.is_dir():
+                continue
+            target_path = target_skill_root / source_path.relative_to(source_skill_path.parent)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_path, target_path)
+            skill_outputs.append(target_path.relative_to(run_directory).as_posix())
     return claude_projection_path.relative_to(run_directory).as_posix(), skill_outputs
 
 

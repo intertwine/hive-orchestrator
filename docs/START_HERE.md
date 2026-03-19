@@ -59,6 +59,17 @@ uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git m
 `mellona-hive[mcp]` keeps the adapter deliberately small: `search` and `execute` only. `execute` is a bounded local
 Python helper, not a full sandbox.
 
+If you plan to use hosted or self-hosted sandbox execution, install the backend extras as needed:
+
+- `uv tool install --upgrade 'mellona-hive[sandbox-e2b]'`
+- `uv tool install --upgrade 'mellona-hive[sandbox-daytona]'`
+
+After installing those extras, verify the current machine truthfully with:
+
+```bash
+hive sandbox doctor --json
+```
+
 ## Fresh Workspace
 
 If you want the shortest path to a real Hive workspace:
@@ -126,3 +137,4 @@ From that point on, stay in the maintainer docs:
 - [Maintaining Hive](./MAINTAINING.md)
 - [Releasing Hive](./RELEASING.md)
 - [Installing the Claude Code GitHub App](./INSTALL_CLAUDE_APP.md)
+- [Sandbox Doctor](./recipes/sandbox-doctor.md)

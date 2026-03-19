@@ -74,6 +74,32 @@ def test_public_docs_call_out_console_extra_before_console_serve():
     assert "install `mellona-hive[console]` first" in pypi_readme.lower()
 
 
+def test_public_docs_cover_sandbox_extras_and_doctor_recipe():
+    """Install docs should explain sandbox extras and point at sandbox doctor guidance."""
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    start_here = (REPO_ROOT / "docs" / "START_HERE.md").read_text(encoding="utf-8")
+    quickstart = (REPO_ROOT / "docs" / "QUICKSTART.md").read_text(encoding="utf-8")
+    pypi_readme = (REPO_ROOT / "docs" / "PYPI_README.md").read_text(encoding="utf-8")
+    operator_flows = (REPO_ROOT / "docs" / "OPERATOR_FLOWS.md").read_text(encoding="utf-8")
+    sandbox_doc = (REPO_ROOT / "docs" / "recipes" / "sandbox-doctor.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "mellona-hive[sandbox-e2b]" in readme
+    assert "mellona-hive[sandbox-daytona]" in readme
+    assert "hive sandbox doctor --json" in readme
+    assert "mellona-hive[sandbox-e2b]" in start_here
+    assert "mellona-hive[sandbox-daytona]" in start_here
+    assert "hive sandbox doctor --json" in start_here
+    assert "hive sandbox doctor --json" in quickstart
+    assert "mellona-hive[sandbox-e2b]" in pypi_readme
+    assert "mellona-hive[sandbox-daytona]" in pypi_readme
+    assert "hive sandbox doctor --json" in operator_flows
+    assert "local-fast` is weaker than `local-safe" in sandbox_doc
+    assert "HIVE_DAYTONA_SNAPSHOT" in sandbox_doc
+    assert "supports network modes `deny` and `inherit` only" in sandbox_doc
+
+
 def test_onboarding_docs_explain_local_smoke_is_only_a_placeholder():
     """Onboarding docs should distinguish a wired-up loop from a real quality gate."""
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")

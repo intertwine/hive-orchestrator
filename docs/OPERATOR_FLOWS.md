@@ -61,6 +61,19 @@ Use this before blaming the run engine. Most blocked promotions are a policy pro
 If Program Doctor suggested `local-smoke`, remember that it is only a bootstrap placeholder until you replace it with
 a real evaluator for the repo.
 
+## Sandbox readiness loop
+
+When a run is blocked on sandbox setup or remote execution policy, inspect the backend truth directly:
+
+```bash
+hive sandbox doctor --json
+hive sandbox doctor podman --json
+hive sandbox doctor e2b --json
+hive sandbox doctor daytona --json
+```
+
+Use [docs/recipes/sandbox-doctor.md](./recipes/sandbox-doctor.md) for the profile map, optional extras, and current backend limitations.
+
 ## Campaign loop
 
 Use campaigns when the work is larger than a single task:

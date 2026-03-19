@@ -41,6 +41,7 @@ Useful local commands:
 - `make brew-formula` regenerates the Homebrew formula from the current package metadata
 - `hive workspace checkpoint --message "Checkpoint workspace"` creates a clean Git checkpoint before a run
 - `hive run cleanup --terminal` prunes linked worktrees left behind by terminal runs
+- `uv run hive sandbox doctor --json` reports truthful backend availability and configuration for `local-safe`, `local-fast`, E2B, and Daytona
 
 For the current release train, keep [docs/V2_3_STATUS.md](./V2_3_STATUS.md) up to date as the compact v2.3 execution ledger.
 Use the explicit scope-lock notes there as the current release truth if they narrow older proposed RFC items.
@@ -59,6 +60,8 @@ If you need optional extras while testing:
 ```bash
 uv tool install --force --from . 'mellona-hive[console]'
 uv tool install --force --from . 'mellona-hive[mcp]'
+uv tool install --force --from . 'mellona-hive[sandbox-e2b]'
+uv tool install --force --from . 'mellona-hive[sandbox-daytona]'
 ```
 
 If you are iterating on the React console itself:

@@ -1304,6 +1304,8 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "claude-code-sdk" },
+    { name = "daytona" },
+    { name = "e2b" },
     { name = "fastapi" },
     { name = "mcp" },
     { name = "uvicorn" },
@@ -1358,7 +1360,9 @@ requires-dist = [
     { name = "claude-code-sdk", marker = "extra == 'all'", specifier = ">=0.0.25,<1.0.0" },
     { name = "claude-code-sdk", marker = "extra == 'dev'", specifier = ">=0.0.25,<1.0.0" },
     { name = "claude-code-sdk", marker = "extra == 'drivers-claude'", specifier = ">=0.0.25,<1.0.0" },
+    { name = "daytona", marker = "extra == 'all'", specifier = ">=0.152.0,<1.0.0" },
     { name = "daytona", marker = "extra == 'sandbox-daytona'", specifier = ">=0.152.0,<1.0.0" },
+    { name = "e2b", marker = "extra == 'all'", specifier = ">=2.2.5,<3.0.0" },
     { name = "e2b", marker = "extra == 'sandbox-e2b'", specifier = ">=2.2.5,<3.0.0" },
     { name = "fastapi", marker = "extra == 'all'", specifier = ">=0.115.0,<1.0.0" },
     { name = "fastapi", marker = "extra == 'console'", specifier = ">=0.115.0,<1.0.0" },

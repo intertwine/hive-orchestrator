@@ -41,7 +41,15 @@ If you want optional extras:
 
 - Observe console: `uv tool install --upgrade 'mellona-hive[console]'`
 - MCP adapter: `uv tool install --upgrade 'mellona-hive[mcp]'`
+- Hosted E2B sandbox: `uv tool install --upgrade 'mellona-hive[sandbox-e2b]'`
+- Self-hosted Daytona sandbox: `uv tool install --upgrade 'mellona-hive[sandbox-daytona]'`
 - Homebrew currently ships the base CLI only, so add extras through `uv tool`, `pipx`, or `pip`
+
+If you install sandbox extras, verify the current machine with:
+
+```bash
+hive sandbox doctor --json
+```
 
 If you are testing before the first tagged public release lands on PyPI and Homebrew, use the git install:
 

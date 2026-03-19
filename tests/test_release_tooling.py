@@ -181,13 +181,38 @@ def test_pyproject_runtime_extras_cover_console_and_optional_surfaces():
     assert extras["drivers-claude"] == [
         "claude-code-sdk>=0.0.25,<1.0.0",
     ]
+    assert extras["sandbox-e2b"] == [
+        "e2b>=2.2.5,<3.0.0",
+    ]
+    assert extras["sandbox-daytona"] == [
+        "daytona>=0.152.0,<1.0.0",
+    ]
     assert extras["all"] == [
         "claude-code-sdk>=0.0.25,<1.0.0",
+        "e2b>=2.2.5,<3.0.0",
+        "daytona>=0.152.0,<1.0.0",
         "mcp~=1.22.0",
         "fastapi>=0.115.0,<1.0.0",
         "uvicorn>=0.32.0,<1.0.0",
         "weave>=0.51.0,<1.0.0",
     ]
+
+
+def test_release_guide_and_smoke_script_cover_sandbox_doctor():
+    """Public release verification should exercise the packaged sandbox doctor surface."""
+    release_doc = (Path(__file__).resolve().parents[1] / "docs" / "RELEASING.md").read_text(
+        encoding="utf-8"
+    )
+    smoke_script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "smoke_release_install.sh"
+    ).read_text(encoding="utf-8")
+
+    assert "hive sandbox doctor --json" in release_doc
+    assert "./pip-verify/bin/hive sandbox doctor --json" in release_doc
+    assert "pipx run --spec mellona-hive hive sandbox doctor --json" in release_doc
+    assert '"$hive_bin" sandbox doctor --json >/dev/null' in smoke_script
+    assert '"$pipx_bin/hive" sandbox doctor --json >/dev/null' in smoke_script
+    assert '"$venv_dir/bin/hive" sandbox doctor --json >/dev/null' in smoke_script
 
 
 def test_wheel_force_include_does_not_duplicate_recipe_files():

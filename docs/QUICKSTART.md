@@ -196,3 +196,11 @@ hive doctor
 ```
 
 That will tell you whether the workspace is missing layout, projects, tasks, or cache, and it will print the next recommended step.
+
+If the worker runtime is fine but sandboxed execution is blocked, inspect the backend truth directly:
+
+```bash
+hive sandbox doctor --json
+```
+
+The sandbox profile and backend guide lives in [docs/recipes/sandbox-doctor.md](./recipes/sandbox-doctor.md).

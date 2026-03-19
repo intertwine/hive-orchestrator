@@ -207,12 +207,15 @@ def test_release_guide_and_smoke_script_cover_sandbox_doctor():
         Path(__file__).resolve().parents[1] / "scripts" / "smoke_release_install.sh"
     ).read_text(encoding="utf-8")
 
-    assert "hive sandbox doctor --json" in release_doc
-    assert "./pip-verify/bin/hive sandbox doctor --json" in release_doc
-    assert "pipx run --spec mellona-hive hive sandbox doctor --json" in release_doc
-    assert '"$hive_bin" sandbox doctor --json >/dev/null' in smoke_script
-    assert '"$pipx_bin/hive" sandbox doctor --json >/dev/null' in smoke_script
-    assert '"$venv_dir/bin/hive" sandbox doctor --json >/dev/null' in smoke_script
+    assert 'hive --path "$release_verify_dir" sandbox doctor --json' in release_doc
+    assert './pip-verify/bin/hive --path "$release_verify_dir" sandbox doctor --json' in release_doc
+    assert (
+        'pipx run --spec mellona-hive hive --path "$release_verify_dir" sandbox doctor --json'
+        in release_doc
+    )
+    assert '"$hive_bin" --path "$workspace" sandbox doctor --json >/dev/null' in smoke_script
+    assert '"$pipx_bin/hive" --path "$workspace" sandbox doctor --json >/dev/null' in smoke_script
+    assert '"$venv_dir/bin/hive" --path "$workspace" sandbox doctor --json >/dev/null' in smoke_script
 
 
 def test_wheel_force_include_does_not_duplicate_recipe_files():

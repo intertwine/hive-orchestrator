@@ -117,3 +117,4 @@ hive driver doctor --json
 ```
 
 If `configured` is false, fix the backend credentials, SDK extra, or local runtime first.
+If `available` is false, install or enable the backend binary/runtime before you debug Hive itself.

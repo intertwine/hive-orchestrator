@@ -58,7 +58,7 @@ run_uv_tool_smoke() {
     "$hive_bin" --version >/dev/null
     "$hive_bin" --path "$workspace" init --json >/dev/null
     "$hive_bin" --path "$workspace" doctor --json >/dev/null
-    "$hive_bin" sandbox doctor --json >/dev/null
+    "$hive_bin" --path "$workspace" sandbox doctor --json >/dev/null
 }
 
 run_pipx_smoke() {
@@ -80,7 +80,7 @@ run_pipx_smoke() {
     "$pipx_bin/hive" --version >/dev/null
     "$pipx_bin/hive" --path "$workspace" init --json >/dev/null
     "$pipx_bin/hive" --path "$workspace" doctor --json >/dev/null
-    "$pipx_bin/hive" sandbox doctor --json >/dev/null
+    "$pipx_bin/hive" --path "$workspace" sandbox doctor --json >/dev/null
 }
 
 run_pip_smoke() {
@@ -96,10 +96,10 @@ run_pip_smoke() {
     "$venv_dir/bin/hive" --version >/dev/null
     "$venv_dir/bin/hive" --path "$workspace" init --json >/dev/null
     "$venv_dir/bin/hive" --path "$workspace" doctor --json >/dev/null
-    "$venv_dir/bin/hive" sandbox doctor --json >/dev/null
+    "$venv_dir/bin/hive" --path "$workspace" sandbox doctor --json >/dev/null
     "$venv_dir/bin/python" -m hive --version >/dev/null
     "$venv_dir/bin/python" -m hive --path "$workspace" doctor --json >/dev/null
-    "$venv_dir/bin/python" -m hive sandbox doctor --json >/dev/null
+    "$venv_dir/bin/python" -m hive --path "$workspace" sandbox doctor --json >/dev/null
 }
 
 echo "🔎 Smoke-testing uv tool install..."

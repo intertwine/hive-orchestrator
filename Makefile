@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help install install-dev install-tool install-pipx run console dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install release-check dev-quickstart quickstart
+.PHONY: help install install-dev install-tool install-pipx run console dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor workspace-status sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install release-check dev-quickstart quickstart
 
 BUMP ?= patch
 RELEASE_PYTHON_VERSION ?= 3.11
@@ -36,6 +36,7 @@ help:
 	@echo "  make hive           Show Hive 2.2 doctor output"
 	@echo "  make hive-init      Initialize the Hive 2.2 layout"
 	@echo "  make doctor         Show Hive 2.2 doctor output"
+	@echo "  make workspace-status  Show maintainer git/PR/worker/workspace state"
 	@echo "  make sync-projections  Rebuild cache and refresh generated sections"
 	@echo "  make migrate-v2     Import v1 projects into the v2 substrate"
 	@echo "  make session        Save a Hive v2 startup bundle (PROJECT=<project-id> or path)"
@@ -149,6 +150,32 @@ hive-doctor:
 
 doctor:
 	@uv run hive doctor
+
+workspace-status:
+	@echo "=== Branch ==="
+	@git branch --show-current
+	@echo ""
+	@echo "=== Git Status ==="
+	@git status --short
+	@echo ""
+	@echo "=== Worktrees ==="
+	@git worktree list
+	@echo ""
+	@echo "=== PR Status ==="
+	@if command -v gh >/dev/null 2>&1; then \
+		gh pr status || true; \
+	else \
+		echo "gh not installed"; \
+	fi
+	@echo ""
+	@echo "=== Hive Doctor ==="
+	@uv run hive doctor --json || true
+	@echo ""
+	@echo "=== Worker Processes ==="
+	@pgrep -fl "codex_app_server_worker.py|claude_sdk_worker.py|agent_dispatcher|hive " || true
+	@echo ""
+	@echo "=== Untracked .hive Events ==="
+	@git ls-files --others --exclude-standard -- .hive/events || true
 
 sync-projections:
 	@uv run hive cache rebuild

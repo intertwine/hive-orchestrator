@@ -35,11 +35,14 @@ make release-check
 Useful local commands:
 
 - `make console` opens the packaged observe-and-steer console from this checkout
+- `make workspace-status` shows branch, worktrees, PR state, Hive doctor output, worker processes, and untracked `.hive/events`
 - `make session PROJECT=demo` writes a startup bundle into the project directory
 - `make verify-claude` checks the optional GitHub App setup against the current workspace
 - `make brew-formula` regenerates the Homebrew formula from the current package metadata
 - `hive workspace checkpoint --message "Checkpoint workspace"` creates a clean Git checkpoint before a run
 - `hive run cleanup --terminal` prunes linked worktrees left behind by terminal runs
+
+For the current release train, keep [docs/V2_3_STATUS.md](./V2_3_STATUS.md) up to date as the compact v2.3 execution ledger.
 
 ## Install Paths While Developing
 

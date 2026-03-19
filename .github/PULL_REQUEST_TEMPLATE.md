@@ -1,40 +1,49 @@
-## Description
+## Blocker Removed
 
-Brief description of the changes in this PR.
+What concrete blocker does this PR remove?
 
-## Type of Change
+## Why This Slice Is Mergeable
 
-- [ ] Bug fix (non-breaking change that fixes an issue)
-- [ ] New feature (non-breaking change that adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to change)
+- Scope:
+- Why this is a single-purpose slice:
+- Intentionally deferred follow-up work:
+
+## Type Of Change
+
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
 - [ ] Documentation update
-- [ ] Refactoring (no functional changes)
+- [ ] Refactor
+- [ ] Maintainer workflow or release tooling
+
+## Validation
+
+Local commands run:
+
+```bash
+# paste commands here
+```
+
+Key results:
+
+- 
+
+## Review Discipline
+
+- [ ] I requested `@Claude review` when the repo workflow supports it
+- [ ] I resolved or disproved blocking review findings with current-branch evidence
+- [ ] I summarized the final validation and review resolution state in the PR thread
+
+## Testing And Risk
+
+- Added or updated tests:
+- Main risks or follow-up checks:
 
 ## Related Issues
 
 Fixes # (issue number)
 
-## Checklist
-
-- [ ] My code follows the project's style guidelines
-- [ ] I have run `make format` to format my code
-- [ ] I have run `make lint` and achieved a score >= 9.0/10
-- [ ] I have run `make test` and all tests pass
-- [ ] I have added tests for new functionality
-- [ ] I have updated documentation as needed
-- [ ] My changes generate no new warnings
-
-## Testing
-
-Describe how you tested these changes:
-
-1. Test case 1...
-2. Test case 2...
-
-## Screenshots (if applicable)
-
-Add screenshots to help explain your changes.
-
 ## Additional Notes
 
-Any additional information reviewers should know.
+Anything reviewers should know about scope boundaries, rollout, or follow-up work.

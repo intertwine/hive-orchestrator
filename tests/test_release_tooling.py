@@ -308,6 +308,19 @@ def test_release_smoke_script_prefers_supported_python():
     assert "command -v python3 || command -v python" not in script
 
 
+def test_release_smoke_script_proves_installed_search_usefulness():
+    """Release install smoke should verify packaged search results, not only init/doctor."""
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "smoke_release_install.sh"
+    script = script_path.read_text(encoding="utf-8")
+
+    assert "run_installed_search_smoke()" in script
+    assert "assert_search_payload()" in script
+    assert '"$hive_bin" --path "$workspace" search "runtime contract" --scope api --limit 5 --json' in script
+    assert '"$hive_bin" --path "$workspace" search "sandbox doctor" --scope examples --limit 5 --json' in script
+    assert "package:docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md" in script
+    assert "package:docs/recipes/sandbox-doctor.md" in script
+
+
 def test_release_workflow_requires_tag_and_homebrew_verification():
     """Tagged releases should be gated by both tag validation and Homebrew verification."""
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "release.yml"

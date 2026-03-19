@@ -45,6 +45,62 @@ resolve_release_python_bin() {
     exit 1
 }
 
+assert_search_payload() {
+    local python_bin="$1"
+    local json_path="$2"
+    local expected_kind="$3"
+    local expected_path_fragment="$4"
+
+    "$python_bin" - "$json_path" "$expected_kind" "$expected_path_fragment" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+json_path, expected_kind, expected_path_fragment = sys.argv[1:4]
+payload = json.loads(Path(json_path).read_text(encoding="utf-8"))
+results = payload.get("results") if isinstance(payload, dict) else payload
+if not isinstance(results, list) or not results:
+    raise SystemExit(f"Search payload {json_path} did not include any results.")
+
+matches = [
+    item
+    for item in results
+    if item.get("kind") == expected_kind
+    and expected_path_fragment in str(item.get("path", ""))
+]
+if not matches:
+    raise SystemExit(
+        f"Expected a {expected_kind} result containing {expected_path_fragment!r} in {json_path}."
+    )
+if not all(str(item.get("explanation", "")).strip() for item in matches):
+    raise SystemExit(f"Matched results in {json_path} were missing explanations.")
+PY
+}
+
+run_installed_search_smoke() {
+    local hive_bin="$1"
+    local workspace="$2"
+    local python_bin
+    local api_json="$TEMP_ROOT/installed-api-search.json"
+    local examples_json="$TEMP_ROOT/installed-examples-search.json"
+
+    python_bin="$(resolve_release_python_bin)"
+
+    "$hive_bin" --path "$workspace" search "runtime contract" --scope api --limit 5 --json >"$api_json"
+    "$hive_bin" --path "$workspace" search "sandbox doctor" --scope examples --limit 5 --json >"$examples_json"
+
+    assert_search_payload \
+        "$python_bin" \
+        "$api_json" \
+        "api" \
+        "package:docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md"
+    assert_search_payload \
+        "$python_bin" \
+        "$examples_json" \
+        "example" \
+        "package:docs/recipes/sandbox-doctor.md"
+}
+
 run_uv_tool_smoke() {
     local uv_home="$TEMP_ROOT/uv-home"
     local uv_bin_dir="$uv_home/.local/bin"
@@ -59,6 +115,7 @@ run_uv_tool_smoke() {
     "$hive_bin" --path "$workspace" init --json >/dev/null
     "$hive_bin" --path "$workspace" doctor --json >/dev/null
     "$hive_bin" --path "$workspace" sandbox doctor --json >/dev/null
+    run_installed_search_smoke "$hive_bin" "$workspace"
 }
 
 run_pipx_smoke() {

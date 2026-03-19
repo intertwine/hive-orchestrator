@@ -257,6 +257,13 @@ def _coerce_remote_returncode(result: object) -> int:
     )
 
 
+def _coerce_remote_exception_returncode(exc: Exception) -> int:
+    exit_code = getattr(exc, "exit_code", None)
+    if exit_code is None:
+        return 1
+    return int(exit_code)
+
+
 def _e2b_allow_internet_access(policy: SandboxPolicy) -> bool:
     mode = str(policy.network.get("mode") or "").strip().lower()
     if mode == "deny":
@@ -358,9 +365,7 @@ def _run_e2b_command(
     sandbox_metadata["command_payload"] = {"transport": "e2b-sdk", "remote_cwd": remote_cwd}
     sandbox = None
     try:
-        if any(
-            policy.resources.get(key) is not None for key in ("cpu", "memory_mb", "disk_mb")
-        ):
+        if any(policy.resources.get(key) is not None for key in ("cpu", "memory_mb", "disk_mb")):
             raise NotImplementedError(
                 "E2B hosted-managed execution does not yet project explicit CPU, "
                 "memory, or disk limits."
@@ -426,7 +431,7 @@ def _run_e2b_command(
                 command=command,
                 started_at=started,
                 finished_at=utc_now_iso(),
-                returncode=int(getattr(exc, "exit_code", 1) or 1),
+                returncode=_coerce_remote_exception_returncode(exc),
                 stdout=_stringify_output(getattr(exc, "stdout", "")),
                 stderr=_stringify_output(getattr(exc, "stderr", str(exc))),
                 timed_out=False,
@@ -492,7 +497,9 @@ def _is_daytona_command_exit_exception(exc: Exception) -> bool:
 
 def _validated_daytona_allowlist(policy: SandboxPolicy) -> list[str]:
     allowlist = [
-        str(item).strip() for item in list(policy.network.get("allowlist") or []) if str(item).strip()
+        str(item).strip()
+        for item in list(policy.network.get("allowlist") or [])
+        if str(item).strip()
     ]
     if not allowlist:
         return []
@@ -536,7 +543,9 @@ def _run_daytona_command(
     """Run one evaluator-style command inside an ephemeral Daytona sandbox."""
     started = started_at
     raw_allowlist = [
-        str(item).strip() for item in list(policy.network.get("allowlist") or []) if str(item).strip()
+        str(item).strip()
+        for item in list(policy.network.get("allowlist") or [])
+        if str(item).strip()
     ]
     network_mode = policy.network.get("mode")
     sandbox_metadata: dict[str, object] = {
@@ -635,10 +644,7 @@ def _run_daytona_command(
             raise ValueError("DAYTONA_API_URL is required for team-self-hosted execution.")
         if not (
             config_kwargs.get("api_key")
-            or (
-                config_kwargs.get("jwt_token")
-                and config_kwargs.get("organization_id")
-            )
+            or (config_kwargs.get("jwt_token") and config_kwargs.get("organization_id"))
         ):
             raise ValueError(
                 "Daytona execution requires DAYTONA_API_KEY or "
@@ -655,7 +661,9 @@ def _run_daytona_command(
             # Daytona treats a non-empty allow list as the network boundary, so we reject /0
             # above and only disable block-all when a bounded IPv4 allow list is present.
             "network_block_all": network_mode == "deny" and not allowlist,
-            "network_allow_list": ",".join(allowlist) if network_mode == "deny" and allowlist else None,
+            "network_allow_list": (
+                ",".join(allowlist) if network_mode == "deny" and allowlist else None
+            ),
             "resources": _daytona_resources(policy, resources_class),
         }
         snapshot = os.environ.get("HIVE_DAYTONA_SNAPSHOT")
@@ -691,7 +699,9 @@ def _run_daytona_command(
             timeout=max(timeout_seconds, 60),
         )
         if _coerce_remote_returncode(sync_result) != 0:
-            raise RuntimeError(_stringify_output(getattr(sync_result, "result", "mount sync failed")))
+            raise RuntimeError(
+                _stringify_output(getattr(sync_result, "result", "mount sync failed"))
+            )
         sandbox.process.create_session(_DAYTONA_SESSION_ID)
         session_created = True
         result = sandbox.process.execute_session_command(
@@ -730,7 +740,7 @@ def _run_daytona_command(
                 command=command,
                 started_at=started,
                 finished_at=utc_now_iso(),
-                returncode=int(getattr(exc, "exit_code", 1) or 1),
+                returncode=_coerce_remote_exception_returncode(exc),
                 stdout=_stringify_output(
                     getattr(exc, "stdout", getattr(exc, "output", getattr(exc, "result", "")))
                 ),

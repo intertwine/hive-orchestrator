@@ -74,7 +74,7 @@ def test_driver_doctor_reports_truthful_staged_capabilities(capsys, temp_hive_di
     assert codex["capabilities"]["streaming"] is False
     assert codex["capabilities"]["subagents"] is False
 
-    claude = drivers["claude-code"]
+    claude = drivers["claude"]
     assert claude["declared"]["launch_mode"] == "sdk"
     assert claude["effective"]["launch_mode"] == "staged"
 
@@ -98,7 +98,7 @@ def test_driver_doctor_surfaces_binary_backed_probe_details(monkeypatch, capsys,
                 return "--json --output-schema --output-last-message"
             if args == ("app-server", "--help"):
                 return "generate-ts generate-json-schema --listen"
-        if self.name == "claude-code":
+        if self.name == "claude":
             if args == ("--version",):
                 return "claude 2.1.78 (Claude Code)"
             if args == ("--help",):
@@ -127,7 +127,7 @@ def test_driver_doctor_surfaces_binary_backed_probe_details(monkeypatch, capsys,
     assert codex["probed"]["exec_output_last_message"] is True
     assert codex["probed"]["app_server_listen"] is True
 
-    claude = drivers["claude-code"]
+    claude = drivers["claude"]
     assert claude["version"] == "claude 2.1.78 (Claude Code)"
     assert claude["probed"]["binary_name"] == "claude"
     assert claude["probed"]["resume"] is True
@@ -166,9 +166,50 @@ def test_driver_doctor_surfaces_claude_live_exec_when_enabled(monkeypatch, capsy
     )
     driver_payload = payload["drivers"][0]
 
-    assert driver_payload["driver"] == "claude-code"
+    assert driver_payload["driver"] == "claude"
     assert driver_payload["effective"]["launch_mode"] == "exec"
     assert driver_payload["effective"]["session_persistence"] == "ephemeral"
+
+
+def test_driver_doctor_surfaces_claude_live_sdk_when_enabled(monkeypatch, capsys, temp_hive_dir):
+    driver = get_driver("claude")
+
+    def fake_live_sdk_enabled(self):
+        return True
+
+    def fake_sdk_available(self):
+        return True
+
+    def fake_binary_details(self):
+        return "claude", "/tmp/claude"
+
+    def fake_command_output(self, *args):
+        if args == ("--version",):
+            return "claude 2.1.78 (Claude Code)"
+        if args == ("--help",):
+            return (
+                "--print --output-format json --input-format stream-json "
+                "--resume --continue --session-id --permission-mode "
+                "--mcp-config --max-budget-usd"
+            )
+        return None
+
+    monkeypatch.setattr(type(driver), "_live_sdk_enabled", fake_live_sdk_enabled)
+    monkeypatch.setattr(type(driver), "_sdk_available", fake_sdk_available)
+    monkeypatch.setattr(type(driver), "_detected_binary_details", fake_binary_details)
+    monkeypatch.setattr(type(driver), "_command_output", fake_command_output)
+
+    payload = _invoke_cli_json(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "driver", "doctor", "claude"],
+    )
+    driver_payload = payload["drivers"][0]
+
+    assert driver_payload["driver"] == "claude"
+    assert driver_payload["probed"]["python_sdk"] is True
+    assert driver_payload["effective"]["launch_mode"] == "sdk"
+    assert driver_payload["effective"]["session_persistence"] == "session"
+    assert driver_payload["effective"]["approvals"] == ["command", "file", "network"]
 
 
 def test_driver_doctor_surfaces_codex_app_server_when_enabled(monkeypatch, capsys, temp_hive_dir):
@@ -193,7 +234,9 @@ def test_driver_doctor_surfaces_codex_app_server_when_enabled(monkeypatch, capsy
     monkeypatch.setenv("HIVE_CODEX_LIVE_APP_SERVER", "1")
     monkeypatch.delenv("HIVE_CODEX_LIVE_EXEC", raising=False)
 
-    payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "driver", "doctor", "codex"])
+    payload = _invoke_cli_json(
+        capsys, ["--path", temp_hive_dir, "--json", "driver", "doctor", "codex"]
+    )
 
     driver_payload = payload["drivers"][0]
     assert driver_payload["effective"]["launch_mode"] == "app_server"
@@ -404,7 +447,9 @@ def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):
     manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
     snapshot = json.loads((run_root / "capability-snapshot.json").read_text(encoding="utf-8"))
     sandbox = json.loads((run_root / "sandbox-policy.json").read_text(encoding="utf-8"))
-    retrieval_trace = json.loads((run_root / "retrieval" / "trace.json").read_text(encoding="utf-8"))
+    retrieval_trace = json.loads(
+        (run_root / "retrieval" / "trace.json").read_text(encoding="utf-8")
+    )
     retrieval_hits = json.loads((run_root / "retrieval" / "hits.json").read_text(encoding="utf-8"))
     eval_results = json.loads((run_root / "eval" / "results.json").read_text(encoding="utf-8"))
     final_state = json.loads((run_root / "final.json").read_text(encoding="utf-8"))
@@ -429,6 +474,79 @@ def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):
     assert final_state["run_id"] == run.id
     assert final_state["status"] == "awaiting_input"
     assert final_state["task_status"] == "in_progress"
+    assert not (run_root / "projections" / "CLAUDE.md").exists()
+
+
+def test_start_run_materializes_claude_projection_and_selected_skills(temp_hive_dir, capsys):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    root = Path(temp_hive_dir)
+    (root / "CLAUDE.md").write_text(
+        "# Workspace CLAUDE\n\nBe concise and follow the run brief.\n",
+        encoding="utf-8",
+    )
+    skill_root = root / "skills" / "claude-context"
+    skill_root.mkdir(parents=True, exist_ok=True)
+    skill_text = "# Claude Context\n\nSupport sandbox policy decisions.\n"
+    (skill_root / "SKILL.md").write_text(skill_text, encoding="utf-8")
+    script_path = skill_root / "scripts" / "policy-check.sh"
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path.write_text("#!/bin/sh\necho policy-check\n", encoding="utf-8")
+    create_task(
+        temp_hive_dir,
+        "demo",
+        "Sandbox policy evaluator guardrails",
+        status="ready",
+        priority=1,
+        summary_md="Update PROGRAM budget and sandbox approval rules.",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Add Claude projection fixtures"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="claude-code")
+    run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
+
+    projection_path = run_root / "projections" / "CLAUDE.md"
+    projected_run_brief_path = run_root / "projections" / "run-brief.md"
+    skill_projection_path = (
+        run_root / "projections" / ".claude" / "skills" / "claude-context" / "SKILL.md"
+    )
+    projected_script_path = (
+        run_root
+        / "projections"
+        / ".claude"
+        / "skills"
+        / "claude-context"
+        / "scripts"
+        / "policy-check.sh"
+    )
+    context_manifest = json.loads(
+        (run_root / "context" / "manifest.json").read_text(encoding="utf-8")
+    )
+
+    assert projection_path.exists()
+    assert "Workspace CLAUDE" in projection_path.read_text(encoding="utf-8")
+    assert "Selected Skills" in projection_path.read_text(encoding="utf-8")
+    assert "`run-brief.md`" in projection_path.read_text(encoding="utf-8")
+    assert projected_run_brief_path.exists()
+    assert skill_projection_path.exists()
+    assert skill_projection_path.read_text(encoding="utf-8") == skill_text
+    assert projected_script_path.exists()
+    assert projected_script_path.read_text(encoding="utf-8") == script_path.read_text(
+        encoding="utf-8"
+    )
+    assert "projections/CLAUDE.md" in context_manifest["outputs"]
+    assert "projections/run-brief.md" in context_manifest["outputs"]
+    assert "projections/.claude/skills/claude-context/SKILL.md" in context_manifest["outputs"]
+    assert (
+        "projections/.claude/skills/claude-context/scripts/policy-check.sh"
+        in context_manifest["outputs"]
+    )
 
 
 def test_start_run_selects_local_safe_sandbox_backend_when_available(
@@ -572,13 +690,13 @@ def test_start_run_emits_sandbox_selected_event(temp_hive_dir, capsys, monkeypat
 
     task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
     run = start_run(temp_hive_dir, task_id, driver_name="local", profile="local-safe")
-    events = list((Path(temp_hive_dir) / ".hive" / "runs" / run.id / "events.ndjson").read_text(
-        encoding="utf-8"
-    ).splitlines())
+    events = list(
+        (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "events.ndjson")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
     final_state = json.loads(
-        (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "final.json").read_text(
-            encoding="utf-8"
-        )
+        (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "final.json").read_text(encoding="utf-8")
     )
 
     sandbox_events = [json.loads(line) for line in events if line.strip()]
@@ -708,12 +826,12 @@ def test_local_executor_wraps_commands_for_asrt_local_fast(monkeypatch, tmp_path
         artifacts_path=str(artifacts),
         profile="local-fast",
     )
-    executor = LocalExecutor(
-        policy
-    )
+    executor = LocalExecutor(policy)
 
     result = executor.run_command("python -c \"print('ok')\"", cwd=worktree, timeout_seconds=30)
-    second = executor.run_command("python -c \"print('ok again')\"", cwd=worktree, timeout_seconds=30)
+    second = executor.run_command(
+        "python -c \"print('ok again')\"", cwd=worktree, timeout_seconds=30
+    )
 
     argv = list(calls[0]["args"][0])
     settings_path = Path(argv[2])
@@ -895,7 +1013,9 @@ def test_local_executor_runs_commands_via_daytona_sdk(monkeypatch, tmp_path):
     assert calls["deleted"] == 60
 
 
-def test_local_executor_runs_commands_via_daytona_snapshot_with_cidr_allowlist(monkeypatch, tmp_path):
+def test_local_executor_runs_commands_via_daytona_snapshot_with_cidr_allowlist(
+    monkeypatch, tmp_path
+):
     worktree = tmp_path / "worktree"
     artifacts = tmp_path / "artifacts"
     worktree.mkdir()
@@ -909,7 +1029,9 @@ def test_local_executor_runs_commands_via_daytona_snapshot_with_cidr_allowlist(m
 
     class FakeCreateSandboxFromImageParams:
         def __init__(self, **kwargs):
-            raise AssertionError("image params should not be used when HIVE_DAYTONA_SNAPSHOT is set")
+            raise AssertionError(
+                "image params should not be used when HIVE_DAYTONA_SNAPSHOT is set"
+            )
 
     class FakeCreateSandboxFromSnapshotParams:
         def __init__(self, **kwargs):
@@ -1048,7 +1170,9 @@ def test_local_executor_rejects_daytona_read_only_mount_projection(monkeypatch, 
     readonly.mkdir()
     monkeypatch.setattr(
         "src.hive.runs.executors._load_daytona_sdk",
-        lambda: (_ for _ in ()).throw(AssertionError("SDK should not be loaded for unsupported mounts")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("SDK should not be loaded for unsupported mounts")
+        ),
     )
     monkeypatch.setenv("DAYTONA_API_KEY", "token")
     monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
@@ -1857,6 +1981,121 @@ def test_local_executor_does_not_treat_non_daytona_command_exit_names_as_remote_
     assert result.stderr == "pretend command exit"
 
 
+def test_local_executor_preserves_daytona_zero_exit_code_from_command_exit_exception(
+    monkeypatch, tmp_path
+):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    class DaytonaCommandExitException(Exception):
+        __module__ = "daytona.sdk"
+        exit_code = 0
+
+    class FakeDaytonaConfig:
+        def __init__(self, **kwargs):
+            return None
+
+    class FakeCreateSandboxFromImageParams:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeCreateSandboxFromSnapshotParams:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeResources:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeSessionExecuteRequest:
+        def __init__(self, command):
+            self.command = command
+
+    class FakeSyncResult:
+        exit_code = 0
+        result = ""
+
+    class FakeProcess:
+        def exec(self, command, **kwargs):
+            return FakeSyncResult()
+
+        def create_session(self, session_id):
+            return None
+
+        def execute_session_command(self, session_id, req, **kwargs):
+            raise DaytonaCommandExitException("remote command exited cleanly")
+
+        def delete_session(self, session_id):
+            return None
+
+    class FakeFileSystem:
+        def create_folder(self, path, mode):
+            return None
+
+        def upload_file(self, src, dst, timeout=1800):
+            return None
+
+    class FakeSandbox:
+        id = "daytona_exit_zero"
+
+        def __init__(self):
+            self.fs = FakeFileSystem()
+            self.process = FakeProcess()
+
+        def delete(self, timeout=60):
+            return None
+
+    class FakeDaytona:
+        def __init__(self, config):
+            return None
+
+        def create(self, params, timeout=60):
+            return FakeSandbox()
+
+    monkeypatch.setattr(
+        "src.hive.runs.executors._load_daytona_sdk",
+        lambda: (
+            FakeDaytona,
+            FakeDaytonaConfig,
+            FakeCreateSandboxFromImageParams,
+            FakeCreateSandboxFromSnapshotParams,
+            FakeResources,
+            FakeSessionExecuteRequest,
+        ),
+    )
+    monkeypatch.setenv("DAYTONA_API_KEY", "token")
+    monkeypatch.setenv("DAYTONA_API_URL", "https://daytona.example.invalid")
+    monkeypatch.delenv("HIVE_DAYTONA_SNAPSHOT", raising=False)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="daytona",
+            isolation_class="remote-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="team-self-hosted",
+            provenance="sandbox_v2_backend:daytona",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 0
+    assert result.timed_out is False
+    assert result.stderr == "remote command exited cleanly"
+
+
 def test_resolve_hosted_managed_requires_configured_backend(monkeypatch, tmp_path):
     backend = get_backend("e2b")
     worktree = tmp_path / "worktree"
@@ -2461,6 +2700,78 @@ def test_local_executor_does_not_treat_non_e2b_command_exit_names_as_remote_exit
     assert result.stderr == "pretend command exit"
 
 
+def test_local_executor_preserves_e2b_zero_exit_code_from_command_exit_exception(
+    monkeypatch, tmp_path
+):
+    worktree = tmp_path / "worktree"
+    artifacts = tmp_path / "artifacts"
+    worktree.mkdir()
+    artifacts.mkdir()
+
+    class E2BCommandExitException(Exception):
+        __module__ = "e2b.sdk"
+        exit_code = 0
+
+    class FakeCommands:
+        def __init__(self):
+            self.calls = 0
+
+        def run(self, cmd, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return {"exit_code": 0, "stdout": "", "stderr": ""}
+            raise E2BCommandExitException("remote command exited cleanly")
+
+    class FakeFiles:
+        def make_dir(self, path):
+            return True
+
+        def write(self, path, data):
+            return {"path": path}
+
+    class FakeSandbox:
+        sandbox_id = "sbx_123"
+
+        def __init__(self):
+            self.files = FakeFiles()
+            self.commands = FakeCommands()
+
+        def kill(self):
+            return True
+
+        @classmethod
+        def create(cls, **kwargs):
+            return cls()
+
+    monkeypatch.setattr("src.hive.runs.executors._load_e2b_sdk", lambda: FakeSandbox)
+
+    executor = LocalExecutor(
+        SandboxPolicy(
+            backend="e2b",
+            isolation_class="managed-sandbox",
+            network={"mode": "deny", "allowlist": []},
+            mounts={
+                "read_only": [],
+                "read_write": [str(worktree), str(artifacts)],
+                "container_worktree": "/workspace",
+                "container_artifacts": "/artifacts",
+            },
+            resources={"cpu": None, "memory_mb": None, "disk_mb": None, "wall_clock_sec": None},
+            env={"inherit": False, "allowlist": [], "passthrough": []},
+            snapshot=False,
+            resume=False,
+            profile="hosted-managed",
+            provenance="sandbox_v2_backend:e2b",
+        )
+    )
+
+    result = executor.run_command("pytest -q", cwd=worktree, timeout_seconds=45)
+
+    assert result.returncode == 0
+    assert result.timed_out is False
+    assert result.stderr == "remote command exited cleanly"
+
+
 def test_local_executor_reports_missing_daytona_sdk(monkeypatch, tmp_path):
     worktree = tmp_path / "worktree"
     artifacts = tmp_path / "artifacts"
@@ -2831,9 +3142,10 @@ def test_runtime_artifacts_track_eval_accept_and_cancel(temp_hive_dir, capsys):
     assert eval_results["results"][0]["status"] == "pass"
     assert final_after_eval["status"] == "awaiting_review"
     assert final_after_eval["promotion_decision"]["decision"] == "accept"
-    assert Path(str(artifacts["artifacts"]["eval_results"])).resolve() == (
-        run_root / "eval" / "results.json"
-    ).resolve()
+    assert (
+        Path(str(artifacts["artifacts"]["eval_results"])).resolve()
+        == (run_root / "eval" / "results.json").resolve()
+    )
 
     accepted = accept_run(temp_hive_dir, run.id)
     final_after_accept = json.loads((run_root / "final.json").read_text(encoding="utf-8"))
@@ -2929,9 +3241,13 @@ def test_console_approval_resolution_targets_requested_item(temp_hive_dir, capsy
         json={"actor": "operator", "note": "approve the first request"},
     )
     approvals = client.get(f"/runs/{run.id}/approvals", params={"path": temp_hive_dir})
-    broker_path = Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "approval-channel.ndjson"
+    broker_path = (
+        Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "approval-channel.ndjson"
+    )
     broker_records = [
-        json.loads(line) for line in broker_path.read_text(encoding="utf-8").splitlines() if line.strip()
+        json.loads(line)
+        for line in broker_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
     ]
 
     assert resolution.status_code == 200
@@ -3027,9 +3343,7 @@ def test_cancel_run_rejects_pending_approvals(capsys, temp_hive_dir):
     }
     assert all(item["resolution"] == "rejected" for item in channel_records)
     assert "approval.forwarded" in event_types
-    assert [item["action"] for item in metadata["metadata_json"]["steering_history"]] == [
-        "cancel"
-    ]
+    assert [item["action"] for item in metadata["metadata_json"]["steering_history"]] == ["cancel"]
     assert metadata["metadata_json"]["approval_forwarding"][-1]["driver_ack"]["ok"] is True
 
 
@@ -3139,7 +3453,9 @@ def test_run_status_refresh_surfaces_live_codex_session_payload(temp_hive_dir, c
     assert payload["status"]["artifacts"]["raw_output_path"] == "/tmp/codex.jsonl"
 
 
-def test_run_status_refresh_surfaces_live_claude_session_payload(temp_hive_dir, capsys, monkeypatch):
+def test_run_status_refresh_surfaces_live_claude_session_payload(
+    temp_hive_dir, capsys, monkeypatch
+):
     _bootstrap_workspace(temp_hive_dir, capsys)
     driver = get_driver("claude-code")
     calls = {"count": 0}
@@ -3559,7 +3875,11 @@ def test_claude_terminal_refresh_tolerates_missing_transcript_path(tmp_path, mon
                 last_event_at="2026-03-18T06:01:00Z",
                 budget=RunBudgetUsage(spent_tokens=11, spent_cost_usd=0.45, wall_minutes=0),
                 event_cursor="1",
-                session={"launch_mode": "exec", "transport": "subprocess", "session_id": "sess-7200"},
+                session={
+                    "launch_mode": "exec",
+                    "transport": "subprocess",
+                    "session_id": "sess-7200",
+                },
                 artifacts={
                     "raw_output_path": str(raw_output_path),
                     "last_message_path": str(last_message_path),
@@ -3725,6 +4045,327 @@ def test_claude_exec_ingest_emits_truthful_status_when_result_text_is_empty(tmp_
     assert statuses[0]["payload"]["payload"]["has_result_text"] is False
 
 
+def test_run_status_refreshes_live_claude_sdk_result_and_budget(temp_hive_dir, capsys, monkeypatch):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    driver = get_driver("claude")
+
+    def fake_live_sdk_enabled(self):
+        return True
+
+    def fake_sdk_available(self):
+        return True
+
+    def fake_launch_live_sdk(self, request):
+        run_root = Path(request.artifacts_path)
+        raw_output_path = run_root / "transcript" / "raw" / "claude-sdk-events.jsonl"
+        last_message_path = run_root / "transcript" / "raw" / "claude-sdk-last-message.txt"
+        exit_code_path = run_root / "driver" / "claude-sdk-exit.txt"
+        state_path = run_root / "driver" / "claude-sdk-state.json"
+        raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_output_path.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "kind": "assistant_text",
+                            "payload": {"text": "Working through the changes."},
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "kind": "result",
+                            "payload": {
+                                "session_id": "sdk-session-42",
+                                "duration_ms": 4200,
+                                "total_cost_usd": 0.45,
+                                "usage": {
+                                    "input_tokens": 100,
+                                    "output_tokens": 23,
+                                    "total_tokens": 123,
+                                },
+                                "result": "Delivered the requested implementation.",
+                            },
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        state_path.write_text(
+            json.dumps(
+                {
+                    "status": "completed",
+                    "session_id": "sdk-session-42",
+                    "duration_ms": 4200,
+                    "total_cost_usd": 0.45,
+                    "usage": {
+                        "input_tokens": 100,
+                        "output_tokens": 23,
+                        "total_tokens": 123,
+                    },
+                    "result": "Delivered the requested implementation.",
+                }
+            ),
+            encoding="utf-8",
+        )
+        last_message_path.write_text("Delivered the requested implementation.\n", encoding="utf-8")
+        exit_code_path.write_text("0\n", encoding="utf-8")
+        return RunHandle(
+            run_id=request.run_id,
+            driver="claude",
+            driver_handle=f"claude:sdk:{request.run_id}",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="sdk",
+            transport="sdk_worker",
+            session_id="sdk-session-42",
+            event_cursor="0",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
+            metadata={
+                "pid": 9042,
+                "raw_output_path": str(raw_output_path),
+                "last_message_path": str(last_message_path),
+                "exit_code_path": str(exit_code_path),
+                "state_path": str(state_path),
+                "worker_stderr_path": str(run_root / "logs" / "claude-sdk-worker-stderr.txt"),
+            },
+        )
+
+    monkeypatch.setattr(type(driver), "_live_sdk_enabled", fake_live_sdk_enabled)
+    monkeypatch.setattr(type(driver), "_sdk_available", fake_sdk_available)
+    monkeypatch.setattr(type(driver), "_launch_live_sdk", fake_launch_live_sdk)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="claude-code")
+    payload = _invoke_cli_json(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+    )
+    metadata = load_run(temp_hive_dir, run.id)
+    run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
+    transcript = (run_root / "transcript.ndjson").read_text(encoding="utf-8")
+    event_types = [
+        json.loads(line)["type"]
+        for line in (run_root / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert payload["status"]["state"] == "completed_candidate"
+    assert payload["status"]["session"]["session_id"] == "sdk-session-42"
+    assert metadata["metadata_json"]["driver_usage"]["spent_tokens"] == 123
+    assert metadata["tokens_in"] == 100
+    assert metadata["tokens_out"] == 23
+    assert metadata["cost_usd"] == 0.45
+    assert "Delivered the requested implementation." in transcript
+    assert event_types.count("driver.output.delta") == 1
+    assert event_types.count("driver.status") >= 1
+
+
+def test_run_status_refreshes_live_claude_sdk_error_result_as_failed(temp_hive_dir, capsys, monkeypatch):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    driver = get_driver("claude")
+
+    def fake_live_sdk_enabled(self):
+        return True
+
+    def fake_sdk_available(self):
+        return True
+
+    def fake_launch_live_sdk(self, request):
+        run_root = Path(request.artifacts_path)
+        raw_output_path = run_root / "transcript" / "raw" / "claude-sdk-events.jsonl"
+        state_path = run_root / "driver" / "claude-sdk-state.json"
+        exit_code_path = run_root / "driver" / "claude-sdk-exit.txt"
+        raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_output_path.write_text(
+            json.dumps(
+                {
+                    "kind": "result",
+                    "payload": {
+                        "session_id": "sdk-session-error",
+                        "duration_ms": 1200,
+                        "total_cost_usd": 0.33,
+                        "usage": {},
+                        "result": "Claude returned an error result.",
+                        "is_error": True,
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        state_path.write_text(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "session_id": "sdk-session-error",
+                    "duration_ms": 1200,
+                    "total_cost_usd": 0.33,
+                    "usage": {},
+                    "result": "Claude returned an error result.",
+                    "error": "Claude returned an error result.",
+                }
+            ),
+            encoding="utf-8",
+        )
+        exit_code_path.write_text("1\n", encoding="utf-8")
+        return RunHandle(
+            run_id=request.run_id,
+            driver="claude",
+            driver_handle=f"claude:sdk:{request.run_id}",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="sdk",
+            transport="sdk_worker",
+            session_id="sdk-session-error",
+            event_cursor="0",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
+            metadata={
+                "pid": 9152,
+                "raw_output_path": str(raw_output_path),
+                "last_message_path": str(
+                    run_root / "transcript" / "raw" / "claude-sdk-last-message.txt"
+                ),
+                "exit_code_path": str(exit_code_path),
+                "state_path": str(state_path),
+                "worker_stderr_path": str(run_root / "logs" / "claude-sdk-worker-stderr.txt"),
+            },
+        )
+
+    monkeypatch.setattr(type(driver), "_live_sdk_enabled", fake_live_sdk_enabled)
+    monkeypatch.setattr(type(driver), "_sdk_available", fake_sdk_available)
+    monkeypatch.setattr(type(driver), "_launch_live_sdk", fake_launch_live_sdk)
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="claude")
+    payload = _invoke_cli_json(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+    )
+    metadata = load_run(temp_hive_dir, run.id)
+
+    assert payload["status"]["state"] == "failed"
+    assert payload["status"]["budget"]["spent_cost_usd"] == 0.33
+    assert payload["status"]["budget"]["wall_minutes"] == 1
+    assert metadata["cost_usd"] == 0.33
+    assert metadata["metadata_json"]["driver_status"]["state"] == "failed"
+
+
+def test_run_status_refreshes_live_claude_sdk_approval_and_bridges_resolution(
+    temp_hive_dir, capsys, monkeypatch
+):
+    _bootstrap_workspace(temp_hive_dir, capsys)
+    driver = get_driver("claude")
+
+    def fake_live_sdk_enabled(self):
+        return True
+
+    def fake_sdk_available(self):
+        return True
+
+    def fake_launch_live_sdk(self, request):
+        run_root = Path(request.artifacts_path)
+        raw_output_path = run_root / "transcript" / "raw" / "claude-sdk-events.jsonl"
+        state_path = run_root / "driver" / "claude-sdk-state.json"
+        raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_output_path.write_text(
+            json.dumps(
+                {
+                    "kind": "permission_request",
+                    "payload": {
+                        "request_id": "claude-sdk-request-1",
+                        "approval_kind": "command",
+                        "tool_name": "Bash",
+                        "title": "Approve Claude command: git status",
+                        "summary": "Claude requested permission to run `git status`.",
+                        "input": {"command": "git status"},
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        state_path.write_text(
+            json.dumps(
+                {
+                    "status": "waiting_approval",
+                    "session_id": "sdk-session-approval",
+                    "pending_request": {"request_id": "claude-sdk-request-1", "tool_name": "Bash"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return RunHandle(
+            run_id=request.run_id,
+            driver="claude",
+            driver_handle=f"claude:sdk:{request.run_id}",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="sdk",
+            transport="sdk_worker",
+            session_id="sdk-session-approval",
+            event_cursor="0",
+            approval_channel=str(request.metadata.get("approval_channel") or "") or None,
+            metadata={
+                "pid": 9150,
+                "raw_output_path": str(raw_output_path),
+                "last_message_path": str(
+                    run_root / "transcript" / "raw" / "claude-sdk-last-message.txt"
+                ),
+                "exit_code_path": str(run_root / "driver" / "claude-sdk-exit.txt"),
+                "state_path": str(state_path),
+                "worker_stderr_path": str(run_root / "logs" / "claude-sdk-worker-stderr.txt"),
+            },
+        )
+
+    monkeypatch.setattr(type(driver), "_live_sdk_enabled", fake_live_sdk_enabled)
+    monkeypatch.setattr(type(driver), "_sdk_available", fake_sdk_available)
+    monkeypatch.setattr(type(driver), "_launch_live_sdk", fake_launch_live_sdk)
+    monkeypatch.setattr(type(driver), "_pid_is_running", staticmethod(lambda pid: True))
+
+    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    run = start_run(temp_hive_dir, task_id, driver_name="claude-code")
+    payload = _invoke_cli_json(
+        capsys,
+        ["--path", temp_hive_dir, "--json", "run", "status", run.id],
+    )
+    approvals = pending_approvals(temp_hive_dir, run.id)
+    approval = approvals[0]
+    resolution = _invoke_cli_json(
+        capsys,
+        [
+            "--path",
+            temp_hive_dir,
+            "--json",
+            "steer",
+            "approve",
+            run.id,
+            "--approval-id",
+            approval["approval_id"],
+            "--owner",
+            "operator",
+        ],
+    )
+    metadata = load_run(temp_hive_dir, run.id)
+    broker_records = [
+        json.loads(line)
+        for line in Path(metadata["approval_channel_path"]).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert payload["status"]["health"] == "blocked"
+    assert payload["status"]["waiting_on"] == "approval"
+    assert approval["kind"] == "command"
+    assert resolution["approval"]["status"] == "approved"
+    assert broker_records[-1]["kind"] == "approval_resolution"
+    assert broker_records[-1]["payload"]["server_request_id"] == "claude-sdk-request-1"
+    assert broker_records[-1]["resolution"] == "approved"
+
+
 def test_eval_run_refreshes_live_codex_state_before_review(temp_hive_dir, capsys, monkeypatch):
     _bootstrap_workspace(temp_hive_dir, capsys)
     driver = get_driver("codex")
@@ -3840,6 +4481,4 @@ def test_eval_run_refreshes_live_claude_state_before_review(temp_hive_dir, capsy
     transcript_path = Path(temp_hive_dir) / ".hive" / "runs" / run.id / "transcript.ndjson"
 
     assert evaluated["run"]["status"] == "awaiting_review"
-    assert "Delivered the requested implementation." in transcript_path.read_text(
-        encoding="utf-8"
-    )
+    assert "Delivered the requested implementation." in transcript_path.read_text(encoding="utf-8")

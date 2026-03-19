@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from src.hive.control import portfolio_status, recommend_next_task
+from src.hive.drivers.registry import normalize_driver_name
 from src.hive.runtime.approvals import list_approvals
 from src.hive.runs.engine import refresh_run_driver_state
 from src.hive.scheduler.query import dependency_summary
@@ -30,11 +31,12 @@ def list_runs(
 ) -> list[dict]:
     """Return normalized runs for the observe console."""
     runs: list[dict] = []
+    requested_driver = normalize_driver_name(driver)
     for metadata_path in _run_metadata_paths(base_path):
         run = refresh_run_driver_state(base_path, metadata_path.parent.name)
         if project_id and run.get("project_id") != project_id:
             continue
-        if driver and run.get("driver") != driver:
+        if requested_driver and normalize_driver_name(str(run.get("driver") or "")) != requested_driver:
             continue
         if health and run.get("health") != health:
             continue

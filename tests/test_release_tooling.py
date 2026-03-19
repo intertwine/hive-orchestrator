@@ -82,7 +82,9 @@ def test_generate_homebrew_formula_uses_stable_help_assertion():
 
 def test_generate_homebrew_formula_uses_platform_resource_blocks_and_short_desc():
     """Platform-specific wheels should nest inside one resource block and keep a short description."""
-    module = _load_module("generate_homebrew_formula_platform", "scripts/generate_homebrew_formula.py")
+    module = _load_module(
+        "generate_homebrew_formula_platform", "scripts/generate_homebrew_formula.py"
+    )
     source_artifact = module.Artifact(
         name="mellona-hive",
         version="1.2.3",
@@ -144,7 +146,9 @@ def test_public_top_level_packages_are_available():
 
 def test_public_package_versions_match_pyproject():
     """Published package metadata and public module versions should stay aligned."""
-    payload = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
+    payload = tomllib.loads(
+        (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+    )
     expected = payload["project"]["version"]
     hive = importlib.import_module("hive")
     hive_mcp = importlib.import_module("hive_mcp")
@@ -174,7 +178,11 @@ def test_pyproject_runtime_extras_cover_console_and_optional_surfaces():
         "fastapi>=0.115.0,<1.0.0",
         "uvicorn>=0.32.0,<1.0.0",
     ]
+    assert extras["drivers-claude"] == [
+        "claude-code-sdk>=0.0.25,<1.0.0",
+    ]
     assert extras["all"] == [
+        "claude-code-sdk>=0.0.25,<1.0.0",
         "mcp~=1.22.0",
         "fastapi>=0.115.0,<1.0.0",
         "uvicorn>=0.32.0,<1.0.0",
@@ -209,7 +217,10 @@ def test_wheel_force_include_uses_repo_docs_as_the_only_markdown_source():
     assert force_include["README.md"] == "src/hive/resources/docs/README.md"
     assert force_include["docs/START_HERE.md"] == "src/hive/resources/docs/START_HERE.md"
     assert force_include["docs/QUICKSTART.md"] == "src/hive/resources/docs/QUICKSTART.md"
-    assert force_include["docs/ADOPT_EXISTING_REPO.md"] == "src/hive/resources/docs/ADOPT_EXISTING_REPO.md"
+    assert (
+        force_include["docs/ADOPT_EXISTING_REPO.md"]
+        == "src/hive/resources/docs/ADOPT_EXISTING_REPO.md"
+    )
     assert mirror_files == []
 
 
@@ -243,10 +254,7 @@ def test_release_smoke_script_exercises_python_module_entrypoint():
     script_path = Path(__file__).resolve().parents[1] / "scripts" / "smoke_release_install.sh"
     script = script_path.read_text(encoding="utf-8")
 
-    assert (
-        '"$venv_dir/bin/python" -m hive --path "$workspace" doctor --json >/dev/null'
-        in script
-    )
+    assert '"$venv_dir/bin/python" -m hive --path "$workspace" doctor --json >/dev/null' in script
     assert '"$venv_dir/bin/python" -m hive --version >/dev/null' in script
 
 
@@ -280,12 +288,16 @@ def test_release_workflow_requires_tag_and_homebrew_verification():
         (step for step in publish_steps if step["name"] == "Require a version tag ref"),
         None,
     )
-    assert (
-        guard_step is not None
-    ), "Missing 'Require a version tag ref' step in publish-pypi"
+    assert guard_step is not None, "Missing 'Require a version tag ref' step in publish-pypi"
     assert "refs/tags/v*" in guard_step["run"]
-    assert "ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_ref) || github.ref }}" in workflow_text
-    assert 'skip-existing: ${{ github.event_name == \'workflow_dispatch\' && inputs.skip_existing || false }}' in workflow_text
+    assert (
+        "ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_ref) || github.ref }}"
+        in workflow_text
+    )
+    assert (
+        "skip-existing: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_existing || false }}"
+        in workflow_text
+    )
     assert publish_steps[1]["name"] == "Require a version tag ref"
     workflow_on = workflow.get("on", workflow.get(True))
     dispatch_inputs = workflow_on["workflow_dispatch"]["inputs"]
@@ -297,10 +309,7 @@ def test_release_workflow_requires_tag_and_homebrew_verification():
 
     update_homebrew_needs = workflow["jobs"]["update-homebrew"]["needs"]
     assert update_homebrew_needs == ["publish-pypi", "verify-homebrew"]
-    assert (
-        'git status --porcelain -- Formula/${{ env.HOMEBREW_FORMULA_NAME }}.rb'
-        in workflow_text
-    )
+    assert "git status --porcelain -- Formula/${{ env.HOMEBREW_FORMULA_NAME }}.rb" in workflow_text
 
 
 def test_makefile_supports_overriding_homebrew_package_version():
@@ -318,7 +327,10 @@ def test_makefile_supports_overriding_release_python_version():
     assert "RELEASE_PYTHON_VERSION ?= 3.11" in makefile
     assert "DIST_PACKAGE_NAME ?= mellona-hive" in makefile
     assert "HOMEBREW_FORMULA_NAME ?= mellona-hive" in makefile
-    assert 'DIST_PACKAGE_NAME="$(DIST_PACKAGE_NAME)" RELEASE_PYTHON_VERSION="$(RELEASE_PYTHON_VERSION)" ./scripts/smoke_release_install.sh' in makefile
+    assert (
+        'DIST_PACKAGE_NAME="$(DIST_PACKAGE_NAME)" RELEASE_PYTHON_VERSION="$(RELEASE_PYTHON_VERSION)" ./scripts/smoke_release_install.sh'
+        in makefile
+    )
 
 
 def test_makefile_clean_removes_stale_release_artifacts():
@@ -334,6 +346,6 @@ def test_releasing_guide_derives_the_tagged_version_from_pyproject():
         encoding="utf-8"
     )
 
-    assert 'VERSION="$(uv run python - <<\'PY\'' in guide
+    assert "VERSION=\"$(uv run python - <<'PY'" in guide
     assert 'git commit -m "Release v${VERSION}"' in guide
     assert 'git tag "v${VERSION}"' in guide

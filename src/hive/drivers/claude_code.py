@@ -26,9 +26,9 @@ from src.hive.runtime.capabilities import capability_surface
 
 
 class ClaudeCodeDriver(HarnessDriver):
-    """Driver that stages or launches Claude Code runs."""
+    """Driver that stages or launches Claude runs."""
 
-    name = "claude-code"
+    name = "claude"
     binary_names = ("claude", "claude-code")
     display_name = "Claude Code"
     cli_label = "Claude Code CLI"
@@ -94,7 +94,9 @@ class ClaudeCodeDriver(HarnessDriver):
         path = Path(path_value)
         if not path.exists():
             return {}
-        lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        lines = [
+            line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+        ]
         if not lines:
             return {}
         try:
@@ -279,7 +281,7 @@ class ClaudeCodeDriver(HarnessDriver):
         }
         notes = []
         if binary_name == "claude":
-            notes.append("Claude Code is currently detected through the `claude` executable.")
+            notes.append("Claude is currently detected through the `claude` executable.")
         if probed["resume"] and probed["session_id"]:
             notes.append(
                 "Claude CLI exposes resume/session flags, which supports truthful session "
@@ -292,7 +294,7 @@ class ClaudeCodeDriver(HarnessDriver):
                 else "Claude CLI help could not be read on this machine."
             ),
             "claude_binary": (
-                "Hive normalizes the `claude` executable to the `claude-code` driver alias."
+                "Hive normalizes the `claude-code` executable to the `claude` driver."
                 if binary_name == "claude"
                 else "Hive detected a `claude-code` executable directly."
             ),

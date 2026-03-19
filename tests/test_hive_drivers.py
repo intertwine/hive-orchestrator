@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import argparse
+import asyncio
 import atexit
 import json
 from pathlib import Path
@@ -14,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 
 import pytest
 
@@ -302,8 +305,7 @@ if __name__ == "__main__":
     )
     target = temp_dir / "fake-codex"
     target.write_text(
-        "#!/bin/sh\n"
-        f"exec {shlex.quote(sys.executable)} -u {shlex.quote(str(impl_path))} \"$@\"\n",
+        "#!/bin/sh\n" f'exec {shlex.quote(sys.executable)} -u {shlex.quote(str(impl_path))} "$@"\n',
         encoding="utf-8",
     )
     target.chmod(0o755)
@@ -313,7 +315,9 @@ if __name__ == "__main__":
 def _poll_run_status(temp_hive_dir: str, capsys, run_id: str, *, attempts: int = 20) -> dict:
     payload: dict = {}
     for _ in range(attempts):
-        payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "run", "status", run_id])
+        payload = _invoke_cli_json(
+            capsys, ["--path", temp_hive_dir, "--json", "run", "status", run_id]
+        )
         if payload.get("status"):
             return payload
         time.sleep(0.1)
@@ -439,25 +443,45 @@ def _timeout_diagnostics(payload: dict) -> dict[str, object]:
         "stderr": _read_preview(str(Path(logs_dir) / "stderr.txt") if logs_dir else None),
         "stdout": _read_preview(str(Path(logs_dir) / "stdout.txt") if logs_dir else None),
         "driver_handles": _read_preview(
-            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None
+            str(run_payload.get("driver_handles_path") or "")
+            if isinstance(run_payload, dict)
+            else None
         ),
         "driver_metadata": _read_preview(
-            str(run_payload.get("driver_metadata_path") or "") if isinstance(run_payload, dict) else None
+            str(run_payload.get("driver_metadata_path") or "")
+            if isinstance(run_payload, dict)
+            else None
         ),
         "command": _handle_metadata_preview(
-            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
+            (
+                str(run_payload.get("driver_handles_path") or "")
+                if isinstance(run_payload, dict)
+                else None
+            ),
             "command_path",
         ),
         "prompt": _handle_metadata_preview(
-            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
+            (
+                str(run_payload.get("driver_handles_path") or "")
+                if isinstance(run_payload, dict)
+                else None
+            ),
             "prompt_path",
         ),
         "binary": _handle_metadata_preview(
-            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
+            (
+                str(run_payload.get("driver_handles_path") or "")
+                if isinstance(run_payload, dict)
+                else None
+            ),
             "binary_path",
         ),
         "launch_error": _handle_metadata_value(
-            str(run_payload.get("driver_handles_path") or "") if isinstance(run_payload, dict) else None,
+            (
+                str(run_payload.get("driver_handles_path") or "")
+                if isinstance(run_payload, dict)
+                else None
+            ),
             "launch_error",
         ),
     }
@@ -476,7 +500,9 @@ def _wait_for_run_status(
 ) -> dict:
     payload: dict = {}
     for _ in range(attempts):
-        payload = _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "run", "status", run_id])
+        payload = _invoke_cli_json(
+            capsys, ["--path", temp_hive_dir, "--json", "run", "status", run_id]
+        )
         status = payload.get("status")
         if isinstance(status, dict) and predicate(status):
             return payload
@@ -500,7 +526,8 @@ class TestHiveDrivers:
             "local",
             "manual",
             "codex",
-            "claude-code",
+            "claude",
+            "pi",
         ]
 
     def test_run_start_for_external_harness_drivers_writes_normalized_artifacts(
@@ -525,11 +552,12 @@ class TestHiveDrivers:
 
         for driver_name in ("codex", "claude-code"):
             task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+            driver = get_driver(driver_name)
             run = start_run(temp_hive_dir, task_id, driver_name=driver_name)
             metadata = load_run(temp_hive_dir, run.id)
             run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
 
-            assert metadata["driver"] == driver_name
+            assert metadata["driver"] == driver.name
             assert metadata["status"] == "awaiting_input"
             assert (run_root / "launch.json").exists()
             assert (run_root / "context" / "manifest.json").exists()
@@ -624,9 +652,9 @@ class TestHiveDrivers:
         metadata = load_run(temp_hive_dir, run.id)
         handles_path = Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json"
         handles = json.loads(handles_path.read_text(encoding="utf-8"))
-        timeline = (
-            Path(temp_hive_dir) / ".hive" / "runs" / run.id / "events.jsonl"
-        ).read_text(encoding="utf-8")
+        timeline = (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "events.jsonl").read_text(
+            encoding="utf-8"
+        )
 
         assert payload["run"]["driver"] == "codex"
         assert metadata["driver"] == "codex"
@@ -685,7 +713,11 @@ class TestHiveDrivers:
                 waiting_on=None,
                 last_event_at="2026-03-18T06:00:01Z",
                 event_cursor="1",
-                session={"launch_mode": "exec", "transport": "subprocess", "session_id": "pid-4242"},
+                session={
+                    "launch_mode": "exec",
+                    "transport": "subprocess",
+                    "session_id": "pid-4242",
+                },
                 artifacts={"last_message_path": "/tmp/codex-last.txt"},
             )
 
@@ -697,9 +729,9 @@ class TestHiveDrivers:
         run = start_run(temp_hive_dir, task_id, driver_name="codex")
         metadata = load_run(temp_hive_dir, run.id)
         handles = json.loads(
-            (
-                Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json"
-            ).read_text(encoding="utf-8")
+            (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json").read_text(
+                encoding="utf-8"
+            )
         )
 
         assert metadata["status"] == "running"
@@ -788,9 +820,7 @@ class TestHiveDrivers:
             )
         )
 
-        command_text = (artifacts / "driver" / "codex-exec-command.txt").read_text(
-            encoding="utf-8"
-        )
+        command_text = (artifacts / "driver" / "codex-exec-command.txt").read_text(encoding="utf-8")
         assert handle is not None
         assert handle.status == "running"
         assert "approval_policy=" in command_text
@@ -834,8 +864,7 @@ class TestHiveDrivers:
                 return "Commands: exec app-server sandbox"
             if args == ("exec", "--help"):
                 return (
-                    "--json --ephemeral --sandbox --ask-for-approval "
-                    "--output-last-message --cd"
+                    "--json --ephemeral --sandbox --ask-for-approval " "--output-last-message --cd"
                 )
             if args == ("app-server", "--help"):
                 return "--listen"
@@ -874,9 +903,7 @@ class TestHiveDrivers:
             )
         )
 
-        command_text = (artifacts / "driver" / "codex-exec-command.txt").read_text(
-            encoding="utf-8"
-        )
+        command_text = (artifacts / "driver" / "codex-exec-command.txt").read_text(encoding="utf-8")
         assert handle is not None
         assert handle.status == "running"
         assert "--ask-for-approval never" in command_text
@@ -935,8 +962,15 @@ class TestHiveDrivers:
                 waiting_on=None,
                 last_event_at="2026-03-18T06:00:30Z",
                 event_cursor=cursor,
-                session={"launch_mode": "exec", "transport": "subprocess", "session_id": "pid-9000"},
-                artifacts={"last_message_path": "/tmp/codex-last.txt", "raw_output_path": "/tmp/codex.jsonl"},
+                session={
+                    "launch_mode": "exec",
+                    "transport": "subprocess",
+                    "session_id": "pid-9000",
+                },
+                artifacts={
+                    "last_message_path": "/tmp/codex-last.txt",
+                    "raw_output_path": "/tmp/codex.jsonl",
+                },
             )
 
         monkeypatch.setattr(type(driver), "_live_exec_enabled", fake_live_exec_enabled)
@@ -951,9 +985,9 @@ class TestHiveDrivers:
         )
         metadata = load_run(temp_hive_dir, run.id)
         handles = json.loads(
-            (
-                Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json"
-            ).read_text(encoding="utf-8")
+            (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json").read_text(
+                encoding="utf-8"
+            )
         )
 
         assert payload["status"]["state"] == "running"
@@ -1009,7 +1043,11 @@ class TestHiveDrivers:
                 ),
                 waiting_on=None,
                 last_event_at="2026-03-18T06:00:30Z",
-                session={"launch_mode": "exec", "transport": "subprocess", "session_id": "pid-8128"},
+                session={
+                    "launch_mode": "exec",
+                    "transport": "subprocess",
+                    "session_id": "pid-8128",
+                },
             )
 
         def fake_interrupt(self, handle, mode):
@@ -1123,9 +1161,9 @@ class TestHiveDrivers:
         run = start_run(temp_hive_dir, task_id, driver_name="claude-code")
         metadata = load_run(temp_hive_dir, run.id)
         handles = json.loads(
-            (
-                Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json"
-            ).read_text(encoding="utf-8")
+            (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json").read_text(
+                encoding="utf-8"
+            )
         )
 
         assert metadata["status"] == "running"
@@ -1134,6 +1172,71 @@ class TestHiveDrivers:
         assert handles["active"]["session_id"] == "sess-4242"
         assert handles["active"]["approval_channel"] == metadata["approval_channel_path"]
         assert handles["active"]["metadata"]["pid"] == 4242
+
+    def test_claude_sdk_launch_uses_worker_module(self, tmp_path, monkeypatch):
+        driver = get_driver("claude")
+        worktree = tmp_path / "worktree"
+        artifacts = tmp_path / "artifacts"
+        worktree.mkdir()
+        artifacts.mkdir()
+        calls: dict[str, object] = {}
+
+        class FakeProcess:
+            pid = 4242
+
+            def poll(self):
+                return None
+
+        def fake_popen(command, **kwargs):
+            calls["command"] = command
+            calls["kwargs"] = kwargs
+            return FakeProcess()
+
+        monkeypatch.setenv("HIVE_CLAUDE_LIVE_SDK", "1")
+        monkeypatch.setattr(type(driver), "_sdk_available", lambda self: True)
+        monkeypatch.setattr(
+            type(driver), "_detected_binary_details", lambda self: ("claude", "/tmp/claude")
+        )
+        monkeypatch.setattr(
+            type(driver), "_build_sdk_prompt", lambda self, request: "Follow the run brief.\n"
+        )
+        monkeypatch.setattr(
+            type(driver),
+            "_wait_for_startup_artifact",
+            staticmethod(lambda path, *, process, timeout_seconds=3.0, poll_seconds=0.05: True),
+        )
+        monkeypatch.setattr("src.hive.drivers.claude_sdk.subprocess.Popen", fake_popen)
+
+        request = RunLaunchRequest(
+            run_id="run_sdk_launch",
+            task_id="task_sdk_launch",
+            project_id="demo",
+            campaign_id=None,
+            driver="claude",
+            model="claude-opus-4.5",
+            budget=RunBudget(max_tokens=0, max_cost_usd=12.5, max_wall_minutes=60),
+            workspace=RunWorkspace(
+                repo_root=str(tmp_path),
+                worktree_path=str(worktree),
+                base_branch="main",
+            ),
+            compiled_context_path=str(artifacts / "context"),
+            artifacts_path=str(artifacts),
+            program_policy={"network": "ask", "paths": [], "blocked_paths": []},
+            metadata={"approval_channel": str(artifacts / "driver" / "approval-channel.ndjson")},
+        )
+
+        handle = driver.launch(request)
+        command_path = Path(str(handle.metadata["command_path"]))
+        command_text = command_path.read_text(encoding="utf-8")
+
+        assert handle.launch_mode == "sdk"
+        assert handle.transport == "sdk_worker"
+        assert handle.driver == "claude"
+        assert "src.hive.drivers.claude_sdk_worker" in command_text
+        assert "--model claude-opus-4.5" in command_text
+        assert "--max-budget-usd 12.5" in command_text
+        assert calls["command"][3] == "src.hive.drivers.claude_sdk_worker"
 
     def test_approval_resolution_forwards_to_live_driver_channel(
         self, temp_hive_dir, capsys, monkeypatch
@@ -1241,7 +1344,9 @@ class TestHiveDrivers:
         )
         assert "approval.forwarded" in event_types
 
-    def test_cli_steer_approve_targets_explicit_approval_id(self, temp_hive_dir, capsys, monkeypatch):
+    def test_cli_steer_approve_targets_explicit_approval_id(
+        self, temp_hive_dir, capsys, monkeypatch
+    ):
         init_git_repo(temp_hive_dir)
         _invoke_cli_json(
             capsys,
@@ -1332,13 +1437,17 @@ class TestHiveDrivers:
             ],
         )
 
-        approvals = {item["approval_id"]: item["status"] for item in list_approvals(temp_hive_dir, run.id)}
+        approvals = {
+            item["approval_id"]: item["status"] for item in list_approvals(temp_hive_dir, run.id)
+        }
 
         assert payload["approval"]["approval_id"] == second["approval_id"]
         assert approvals[first["approval_id"]] == "pending"
         assert approvals[second["approval_id"]] == "approved"
 
-    def test_cli_steer_reject_targets_explicit_approval_id(self, temp_hive_dir, capsys, monkeypatch):
+    def test_cli_steer_reject_targets_explicit_approval_id(
+        self, temp_hive_dir, capsys, monkeypatch
+    ):
         init_git_repo(temp_hive_dir)
         _invoke_cli_json(
             capsys,
@@ -1431,7 +1540,9 @@ class TestHiveDrivers:
             ],
         )
 
-        approvals = {item["approval_id"]: item["status"] for item in list_approvals(temp_hive_dir, run.id)}
+        approvals = {
+            item["approval_id"]: item["status"] for item in list_approvals(temp_hive_dir, run.id)
+        }
 
         assert payload["approval"]["approval_id"] == second["approval_id"]
         assert payload["approval"]["resolution"] == "rejected"
@@ -1515,7 +1626,9 @@ class TestHiveDrivers:
             payload={"command": "git diff"},
         )
 
-        with pytest.raises(ValueError, match="Multiple pending approvals require an explicit approval_id"):
+        with pytest.raises(
+            ValueError, match="Multiple pending approvals require an explicit approval_id"
+        ):
             steer_run(
                 temp_hive_dir,
                 run.id,
@@ -1588,7 +1701,9 @@ class TestHiveDrivers:
         assert pending_payload["status"]["session"]["launch_mode"] == "app_server"
         assert pending_payload["status"]["session"]["transport"] == "stdio-jsonrpc"
         assert pending_payload["status"]["waiting_on"] == "approval"
-        assert pending_payload["status"]["pending_approvals"][0]["payload"]["command"] == "git status"
+        assert (
+            pending_payload["status"]["pending_approvals"][0]["payload"]["command"] == "git status"
+        )
         assert completed_payload["status"]["state"] == "completed_candidate"
         assert completed_payload["status"]["session"]["thread_id"] == "thread_test"
         assert handles["active"]["launch_mode"] == "app_server"
@@ -1697,7 +1812,9 @@ class TestHiveDrivers:
         resolution = steer_run(
             temp_hive_dir,
             run.id,
-            SteeringRequest(action="approve", target={"approval_id": pending_approval["approval_id"]}),
+            SteeringRequest(
+                action="approve", target={"approval_id": pending_approval["approval_id"]}
+            ),
             actor="operator",
         )
 
@@ -1721,7 +1838,9 @@ class TestHiveDrivers:
         assert metadata["metadata_json"]["budget_rollup"]["spent_tokens"] == 12
         assert "file approved" in transcript
 
-    def test_codex_app_server_recovers_completed_turn_without_exit_marker(self, tmp_path, monkeypatch):
+    def test_codex_app_server_recovers_completed_turn_without_exit_marker(
+        self, tmp_path, monkeypatch
+    ):
         driver = get_driver("codex")
         raw_output_path = tmp_path / "codex-events.jsonl"
         raw_output_path.write_text("", encoding="utf-8")
@@ -1733,7 +1852,9 @@ class TestHiveDrivers:
                     "thread_status": "idle",
                     "turn_id": "turn_1",
                     "turn_status": "completed",
-                    "token_usage": {"total": {"totalTokens": 12, "inputTokens": 5, "outputTokens": 7}},
+                    "token_usage": {
+                        "total": {"totalTokens": 12, "inputTokens": 5, "outputTokens": 7}
+                    },
                 }
             ),
             encoding="utf-8",
@@ -1766,7 +1887,9 @@ class TestHiveDrivers:
         assert status.waiting_on == "review"
         assert status.budget.spent_tokens == 12
 
-    def test_codex_app_server_reports_failed_when_broker_never_initializes_state(self, tmp_path, monkeypatch):
+    def test_codex_app_server_reports_failed_when_broker_never_initializes_state(
+        self, tmp_path, monkeypatch
+    ):
         driver = get_driver("codex")
         raw_output_path = tmp_path / "codex-events.jsonl"
         stderr_path = tmp_path / "stderr.txt"
@@ -1980,9 +2103,9 @@ class TestHiveDrivers:
         )
         metadata = load_run(temp_hive_dir, run.id)
         handles = json.loads(
-            (
-                Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json"
-            ).read_text(encoding="utf-8")
+            (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "driver" / "handles.json").read_text(
+                encoding="utf-8"
+            )
         )
 
         assert payload["status"]["state"] == "running"
@@ -2066,6 +2189,343 @@ class TestHiveDrivers:
         assert payload["driver_ack"]["ok"] is True
         assert metadata["status"] == "cancelled"
 
+    def test_claude_sdk_status_reports_blocked_approval(self, tmp_path, monkeypatch):
+        driver = get_driver("claude")
+        raw_output_path = tmp_path / "claude-sdk-events.jsonl"
+        state_path = tmp_path / "claude-sdk-state.json"
+        raw_output_path.write_text(
+            '{"kind":"status","payload":{"status":"connected"}}\n', encoding="utf-8"
+        )
+        state_path.write_text(
+            json.dumps(
+                {
+                    "status": "waiting_approval",
+                    "session_id": "sdk-session-1",
+                    "pending_request": {"tool_name": "Bash"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(type(driver), "_pid_is_running", staticmethod(lambda pid: True))
+
+        status = driver.status(
+            RunHandle(
+                run_id="run_sdk_status",
+                driver="claude",
+                driver_handle="claude:sdk:7331",
+                status="running",
+                launched_at="2026-03-18T06:00:00Z",
+                launch_mode="sdk",
+                transport="sdk_worker",
+                session_id="sdk-session-1",
+                event_cursor="0",
+                metadata={
+                    "pid": 7331,
+                    "raw_output_path": str(raw_output_path),
+                    "last_message_path": str(tmp_path / "claude-sdk-last-message.txt"),
+                    "exit_code_path": str(tmp_path / "missing-exit.txt"),
+                    "state_path": str(state_path),
+                    "worker_stderr_path": str(tmp_path / "worker-stderr.txt"),
+                },
+            )
+        )
+
+        assert status.state == "running"
+        assert status.health == "blocked"
+        assert status.waiting_on == "approval"
+        assert status.session["session_id"] == "sdk-session-1"
+        assert status.session["tool_name"] == "Bash"
+
+    @pytest.mark.parametrize("request_key", ["server_request_id", "request_id"])
+    def test_claude_sdk_worker_accepts_forwarded_approval_resolution(
+        self, tmp_path, monkeypatch, request_key
+    ):
+        from src.hive.drivers.claude_sdk_worker import ClaudeSDKBroker
+
+        fake_sdk = types.ModuleType("claude_code_sdk")
+
+        class PermissionResultAllow:
+            pass
+
+        class PermissionResultDeny:
+            def __init__(self, *, message, interrupt):
+                self.message = message
+                self.interrupt = interrupt
+
+        fake_sdk.PermissionResultAllow = PermissionResultAllow
+        fake_sdk.PermissionResultDeny = PermissionResultDeny
+        monkeypatch.setitem(sys.modules, "claude_code_sdk", fake_sdk)
+
+        approval_channel = tmp_path / "approval-channel.ndjson"
+        policy_path = tmp_path / "policy.json"
+        prompt_path = tmp_path / "prompt.txt"
+        policy_path.write_text("{}", encoding="utf-8")
+        prompt_path.write_text("Run git status.", encoding="utf-8")
+        broker = ClaudeSDKBroker(
+            argparse.Namespace(
+                worktree=str(tmp_path),
+                prompt=str(prompt_path),
+                raw_output=str(tmp_path / "raw.jsonl"),
+                last_message=str(tmp_path / "last-message.txt"),
+                exit_code=str(tmp_path / "exit.txt"),
+                stderr=str(tmp_path / "stderr.txt"),
+                approval_channel=str(approval_channel),
+                state=str(tmp_path / "state.json"),
+                policy=str(policy_path),
+                session_id="sdk-session",
+                model=None,
+                max_budget_usd=0.0,
+                claude_md=None,
+            )
+        )
+
+        class FakeClient:
+            async def interrupt(self):
+                return None
+
+        async def exercise():
+            watcher = asyncio.create_task(broker._watch_driver_channel(FakeClient()))
+
+            async def resolve():
+                while not broker.state.get("pending_request"):
+                    await asyncio.sleep(0.01)
+                request_id = broker.state["pending_request"]["request_id"]
+                approval_channel.write_text(
+                    json.dumps(
+                        {
+                            "kind": "approval_resolution",
+                            "approval_id": "approval_123",
+                            "resolution": "approved",
+                            "resolution_note": "Looks good.",
+                            "payload": {request_key: request_id},
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            resolver = asyncio.create_task(resolve())
+            try:
+                return await asyncio.wait_for(
+                    broker._can_use_tool(
+                        "Bash",
+                        {"command": "git status"},
+                        types.SimpleNamespace(suggestions=[]),
+                    ),
+                    timeout=1.0,
+                )
+            finally:
+                broker.stop_requested = True
+                watcher.cancel()
+                try:
+                    await watcher
+                except asyncio.CancelledError:
+                    pass
+                await resolver
+
+        result = asyncio.run(exercise())
+        assert isinstance(result, PermissionResultAllow)
+
+    def test_claude_sdk_worker_initializes_extra_args_before_budget_flag(self, tmp_path, monkeypatch):
+        from src.hive.drivers.claude_sdk_worker import ClaudeSDKBroker
+
+        captured: dict[str, object] = {}
+        fake_sdk = types.ModuleType("claude_code_sdk")
+
+        class ClaudeCodeOptions:
+            def __init__(self, **kwargs):
+                self.extra_args = None
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+                captured["options"] = self
+
+        class ClaudeSDKClient:
+            def __init__(self, *, options):
+                self.options = options
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def connect(self):
+                return None
+
+            async def query(self, prompt, session_id=None):
+                captured["query"] = {"prompt": prompt, "session_id": session_id}
+
+            async def receive_response(self):
+                yield ResultMessage()
+
+            async def interrupt(self):
+                return None
+
+        class StreamEvent:
+            pass
+
+        class AssistantMessage:
+            pass
+
+        class TextBlock:
+            pass
+
+        class ThinkingBlock:
+            pass
+
+        class ToolUseBlock:
+            pass
+
+        class ToolResultBlock:
+            pass
+
+        class ResultMessage:
+            def __init__(self):
+                self.session_id = "sdk-session"
+                self.duration_ms = 1200
+                self.total_cost_usd = 0.75
+                self.usage = {"input_tokens": 12, "output_tokens": 3, "total_tokens": 15}
+                self.result = "Done"
+                self.is_error = False
+
+        fake_sdk.ClaudeCodeOptions = ClaudeCodeOptions
+        fake_sdk.ClaudeSDKClient = ClaudeSDKClient
+        fake_sdk.StreamEvent = StreamEvent
+        fake_sdk.AssistantMessage = AssistantMessage
+        fake_sdk.TextBlock = TextBlock
+        fake_sdk.ThinkingBlock = ThinkingBlock
+        fake_sdk.ToolUseBlock = ToolUseBlock
+        fake_sdk.ToolResultBlock = ToolResultBlock
+        fake_sdk.ResultMessage = ResultMessage
+        monkeypatch.setitem(sys.modules, "claude_code_sdk", fake_sdk)
+
+        policy_path = tmp_path / "policy.json"
+        prompt_path = tmp_path / "prompt.txt"
+        policy_path.write_text("{}", encoding="utf-8")
+        prompt_path.write_text("Build the fix.", encoding="utf-8")
+        broker = ClaudeSDKBroker(
+            argparse.Namespace(
+                worktree=str(tmp_path),
+                prompt=str(prompt_path),
+                raw_output=str(tmp_path / "raw.jsonl"),
+                last_message=str(tmp_path / "last-message.txt"),
+                exit_code=str(tmp_path / "exit.txt"),
+                stderr=str(tmp_path / "stderr.txt"),
+                approval_channel=str(tmp_path / "approval-channel.ndjson"),
+                state=str(tmp_path / "state.json"),
+                policy=str(policy_path),
+                session_id="sdk-session",
+                model="claude-opus-4.5",
+                max_budget_usd=12.5,
+                claude_md=None,
+            )
+        )
+
+        exit_code = asyncio.run(broker.run())
+
+        assert exit_code == 0
+        assert captured["options"].extra_args == {"max-budget-usd": "12.5"}
+        assert captured["query"] == {"prompt": "Build the fix.", "session_id": "sdk-session"}
+
+    def test_claude_sdk_worker_treats_error_results_as_failed(self, tmp_path, monkeypatch):
+        from src.hive.drivers.claude_sdk_worker import ClaudeSDKBroker
+
+        fake_sdk = types.ModuleType("claude_code_sdk")
+
+        class ClaudeCodeOptions:
+            def __init__(self, **kwargs):
+                self.extra_args = {}
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        class ClaudeSDKClient:
+            def __init__(self, *, options):
+                self.options = options
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def connect(self):
+                return None
+
+            async def query(self, prompt, session_id=None):
+                return None
+
+            async def receive_response(self):
+                yield ResultMessage()
+
+            async def interrupt(self):
+                return None
+
+        class StreamEvent:
+            pass
+
+        class AssistantMessage:
+            pass
+
+        class TextBlock:
+            pass
+
+        class ThinkingBlock:
+            pass
+
+        class ToolUseBlock:
+            pass
+
+        class ToolResultBlock:
+            pass
+
+        class ResultMessage:
+            def __init__(self):
+                self.session_id = "sdk-session"
+                self.duration_ms = 500
+                self.total_cost_usd = 0.12
+                self.usage = {}
+                self.result = "Claude hit an in-band error."
+                self.is_error = True
+
+        fake_sdk.ClaudeCodeOptions = ClaudeCodeOptions
+        fake_sdk.ClaudeSDKClient = ClaudeSDKClient
+        fake_sdk.StreamEvent = StreamEvent
+        fake_sdk.AssistantMessage = AssistantMessage
+        fake_sdk.TextBlock = TextBlock
+        fake_sdk.ThinkingBlock = ThinkingBlock
+        fake_sdk.ToolUseBlock = ToolUseBlock
+        fake_sdk.ToolResultBlock = ToolResultBlock
+        fake_sdk.ResultMessage = ResultMessage
+        monkeypatch.setitem(sys.modules, "claude_code_sdk", fake_sdk)
+
+        policy_path = tmp_path / "policy.json"
+        prompt_path = tmp_path / "prompt.txt"
+        policy_path.write_text("{}", encoding="utf-8")
+        prompt_path.write_text("Build the fix.", encoding="utf-8")
+        broker = ClaudeSDKBroker(
+            argparse.Namespace(
+                worktree=str(tmp_path),
+                prompt=str(prompt_path),
+                raw_output=str(tmp_path / "raw.jsonl"),
+                last_message=str(tmp_path / "last-message.txt"),
+                exit_code=str(tmp_path / "exit.txt"),
+                stderr=str(tmp_path / "stderr.txt"),
+                approval_channel=str(tmp_path / "approval-channel.ndjson"),
+                state=str(tmp_path / "state.json"),
+                policy=str(policy_path),
+                session_id="sdk-session",
+                model=None,
+                max_budget_usd=0.0,
+                claude_md=None,
+            )
+        )
+
+        exit_code = asyncio.run(broker.run())
+
+        assert exit_code == 1
+        assert broker.state["status"] == "failed"
+        assert broker.state["error"] == "Claude hit an in-band error."
+
     def test_claude_interrupt_targets_process_group(self, monkeypatch):
         driver = get_driver("claude-code")
         handle = RunHandle(
@@ -2090,6 +2550,71 @@ class TestHiveDrivers:
 
         assert payload["ok"] is True
         assert calls and calls[0][0] == 5131
+
+    def test_claude_sdk_interrupt_writes_control_record(self, tmp_path):
+        driver = get_driver("claude")
+        channel_path = tmp_path / "approval-channel.ndjson"
+        handle = RunHandle(
+            run_id="run_claude_sdk_cancel",
+            driver="claude",
+            driver_handle="claude:sdk:8111",
+            status="running",
+            launched_at="2026-03-18T06:00:00Z",
+            launch_mode="sdk",
+            transport="sdk_worker",
+            approval_channel=str(channel_path),
+            metadata={},
+        )
+
+        payload = driver.interrupt(handle, "cancel")
+        records = [
+            json.loads(line)
+            for line in channel_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+        assert payload["ok"] is True
+        assert records[-1]["kind"] == "interrupt"
+        assert records[-1]["mode"] == "cancel"
+        assert records[-1]["driver"] == "claude"
+
+    def test_cli_steer_reroute_accepts_canonical_claude_driver(self, temp_hive_dir, capsys):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="local")
+        payload = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "steer",
+                "reroute",
+                run.id,
+                "--driver",
+                "claude",
+                "--reason",
+                "Use Claude for synthesis",
+            ],
+        )
+        metadata = load_run(temp_hive_dir, run.id)
+
+        assert payload["run"]["driver"] == "claude"
+        assert metadata["driver"] == "claude"
 
     def test_same_run_can_move_from_local_to_codex_to_claude_code(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)
@@ -2151,13 +2676,13 @@ class TestHiveDrivers:
             if line.strip()
         ]
 
-        assert metadata["driver"] == "claude-code"
+        assert metadata["driver"] == "claude"
         assert metadata["status"] == "awaiting_input"
-        assert handles["active"]["driver"] == "claude-code"
+        assert handles["active"]["driver"] == "claude"
         assert driver_history, "expected non-empty driver history"
         assert driver_history[0] == "local"
         assert "codex" in driver_history
-        assert driver_history[-1] == "claude-code"
+        assert driver_history[-1] == "claude"
         assert (run_root / "transcript" / "normalized.jsonl").exists()
         assert event_types.count("steering.reroute_requested") == 2
         assert event_types.count("steering.rerouted") == 2
@@ -2196,9 +2721,9 @@ class TestHiveDrivers:
         )
         cancelled = load_run(temp_hive_dir, run.id)
         task = ready_tasks(temp_hive_dir, project_id="demo")[0]
-        timeline = (
-            Path(temp_hive_dir) / ".hive" / "runs" / run.id / "events.jsonl"
-        ).read_text(encoding="utf-8")
+        timeline = (Path(temp_hive_dir) / ".hive" / "runs" / run.id / "events.jsonl").read_text(
+            encoding="utf-8"
+        )
 
         assert paused["health"] == "paused"
         assert resumed["health"] == "healthy"
@@ -2403,9 +2928,7 @@ class TestHiveDrivers:
         assert handoffs["runs"][0]["task_id"] == dependency_task_id
         assert launch["metadata"]["handoff_manifest_path"] == str(handoff_path)
 
-    def test_workspace_refresh_keeps_legacy_patch_inside_run_directory(
-        self, temp_hive_dir, capsys
-    ):
+    def test_workspace_refresh_keeps_legacy_patch_inside_run_directory(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)
         _invoke_cli_json(
             capsys,

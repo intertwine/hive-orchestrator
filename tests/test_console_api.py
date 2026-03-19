@@ -155,6 +155,35 @@ class TestObserveConsoleApi:
         assert detail.status_code == 200
         assert detail.json()["detail"]["steering_history"][-1]["type"] == "steering.note_added"
 
+    def test_runs_endpoint_accepts_canonical_and_legacy_claude_filters(self, temp_hive_dir, capsys):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        start_run(temp_hive_dir, task_id, driver_name="claude-code")
+
+        client = TestClient(app)
+        canonical = client.get("/runs", params={"path": temp_hive_dir, "driver": "claude"})
+        legacy = client.get("/runs", params={"path": temp_hive_dir, "driver": "claude-code"})
+
+        assert canonical.status_code == 200
+        assert legacy.status_code == 200
+        assert len(canonical.json()["runs"]) == 1
+        assert len(legacy.json()["runs"]) == 1
+        assert canonical.json()["runs"][0]["id"] == legacy.json()["runs"][0]["id"]
+        assert canonical.json()["runs"][0]["driver"] == "claude"
+
     def test_projects_campaigns_search_and_console_routes_are_available(
         self, temp_hive_dir, capsys
     ):

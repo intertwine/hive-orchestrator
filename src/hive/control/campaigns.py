@@ -177,7 +177,7 @@ def _campaign_alignment(campaign, task: dict[str, Any]) -> float:
 def _harness_fit(driver: str, lane: str) -> float:
     if driver == "codex":
         return 0.95 if lane in {"exploit", "maintenance"} else 0.7
-    if driver == "claude-code":
+    if driver in {"claude", "claude-code"}:
         return 0.95 if lane in {"explore", "review"} else 0.7
     if driver == "local":
         return 0.75
@@ -201,6 +201,7 @@ def _cost_penalty(driver: str) -> float:
         "manual": -0.05,
         "local": -0.1,
         "codex": -0.25,
+        "claude": -0.25,
         "claude-code": -0.25,
     }.get(driver, -0.15)
 
@@ -285,9 +286,7 @@ def _task_candidate(
             task,
         ),
         "learning_value": (
-            0.95
-            if lane == "explore"
-            else 0.65 if campaign.campaign_type == "research" else 0.4
+            0.95 if lane == "explore" else 0.65 if campaign.campaign_type == "research" else 0.4
         ),
         "estimated_cost_penalty": _cost_penalty(driver),
         "overlap_penalty": _task_overlap_penalty(active_runs, task, lane),
@@ -513,7 +512,9 @@ def campaign_status(path: str | Path | None, campaign_id: str) -> dict[str, Any]
     active_runs = [
         _annotate_run_lane(run) for run in runs if run.get("status") in RUN_ACTIVE_STATUSES
     ]
-    scoring_runs = [_annotate_run_lane(run) for run in _project_active_runs(root, campaign.project_ids)]
+    scoring_runs = [
+        _annotate_run_lane(run) for run in _project_active_runs(root, campaign.project_ids)
+    ]
     accepted_runs = [_annotate_run_lane(run) for run in runs if run.get("status") == "accepted"][:5]
     recommendation = _best_campaign_recommendation(root, campaign.project_ids)
     artifact_paths = _campaign_paths(root, campaign.id)
@@ -630,7 +631,9 @@ def tick_campaign(
     campaign = get_campaign(root, campaign_id)
     status = campaign_status(root, campaign_id)
     active_runs = list(status["active_runs"])
-    scoring_runs = [_annotate_run_lane(run) for run in _project_active_runs(root, campaign.project_ids)]
+    scoring_runs = [
+        _annotate_run_lane(run) for run in _project_active_runs(root, campaign.project_ids)
+    ]
     launches: list[dict[str, Any]] = []
     resumed_runs: list[dict[str, Any]] = []
     attention: list[dict[str, Any]] = []

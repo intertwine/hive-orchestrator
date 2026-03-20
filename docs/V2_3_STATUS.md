@@ -1,7 +1,7 @@
 # Hive v2.3 Status
 
-Status: active
-Last updated: 2026-03-19
+Status: ready for release
+Last updated: 2026-03-20
 Purpose: compact execution ledger for the current v2.3 release line
 
 This file is the maintainer-facing status ledger for v2.3. Update it when a v2.3
@@ -37,7 +37,7 @@ The following items are explicitly deferred from blocking the v2.3 release:
 | Campaign candidate and decision artifacts | Complete | `candidate-set.json`, `decision.json`, `src/hive/control/campaigns.py`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Observe-and-steer console at RFC depth | Complete | `frontend/console/src/routes/RunDetailPage.tsx`, `frontend/console/src/routes/InboxPage.tsx`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `tests/test_console_frontend_story.py`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Pi driver at acceptance bar | Deferred | `src/hive/drivers/pi.py`, `docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md` | Keep staged truthfulness intact and carry full RPC depth to the next release line |
-| Release docs, demo, and acceptance alignment | Complete | `README.md`, `docs/DEMO_WALKTHROUGH.md`, `docs/OPERATOR_FLOWS.md`, `docs/START_HERE.md`, `docs/RELEASING.md`, `docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md`, `tests/test_launch_collateral.py`, `tests/test_maintainer_surfaces.py`, `scripts/smoke_release_install.sh`, `tests/test_release_tooling.py` | Final release/demo validation only |
+| Release docs, demo, and acceptance alignment | Complete | `#148`, `README.md`, `docs/DEMO_WALKTHROUGH.md`, `docs/OPERATOR_FLOWS.md`, `docs/START_HERE.md`, `docs/RELEASING.md`, `docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md`, `tests/test_launch_collateral.py`, `tests/test_maintainer_surfaces.py`, `scripts/smoke_release_install.sh`, `tests/test_release_tooling.py` | Final release/demo validation only |
 
 ## Current Read
 
@@ -58,13 +58,15 @@ What is real now:
 
 What is still holding back a clean release call:
 
-- the actual v2.3 release decision, version/tag cut, and final demo/release verification against the now-closed gates
+- the literal `v2.3.0` tag push and release-automation verification on top of clean `main`
 
 ## Next Blocker
 
-Close the remaining acceptance-driven train against the scope-locked release:
+Cut `v2.3.0` from the now-green, scope-locked release branch:
 
-1. make the final v2.3 release call against the now-closed runtime, sandbox, retrieval, campaign, console, and docs gates
+1. tag and push `v2.3.0` from clean `main`
+2. watch the release workflow through PyPI publish, Homebrew verification, and tap update
+3. run the post-release public install/onboarding verification from a throwaway workspace
 
 ## Update Rule
 

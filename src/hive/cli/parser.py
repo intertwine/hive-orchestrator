@@ -19,7 +19,12 @@ def _add_bootstrap_parsers(subparsers: argparse._SubParsersAction[argparse.Argum
     )
     quickstart_parser.add_argument("slug", nargs="?", default="demo")
     quickstart_parser.add_argument("--title")
-    quickstart_parser.add_argument("--objective")
+    quickstart_parser.add_argument(
+        "--objective",
+        "--prompt",
+        dest="objective",
+        help="Plain-English project goal used to seed the starter project and task chain.",
+    )
 
     onboard_parser = subparsers.add_parser(
         "onboard",
@@ -27,12 +32,22 @@ def _add_bootstrap_parsers(subparsers: argparse._SubParsersAction[argparse.Argum
     )
     onboard_parser.add_argument("slug", nargs="?", default="demo")
     onboard_parser.add_argument("--title")
-    onboard_parser.add_argument("--objective")
+    onboard_parser.add_argument(
+        "--objective",
+        "--prompt",
+        dest="objective",
+        help="Plain-English project goal used to seed the starter project and task chain.",
+    )
 
     adopt_parser = subparsers.add_parser("adopt")
     adopt_parser.add_argument("slug", nargs="?")
     adopt_parser.add_argument("--title")
-    adopt_parser.add_argument("--objective")
+    adopt_parser.add_argument(
+        "--objective",
+        "--prompt",
+        dest="objective",
+        help="Plain-English project goal used to seed the starter project and task chain.",
+    )
 
     subparsers.add_parser(
         "init",
@@ -162,7 +177,12 @@ def _add_project_parsers(subparsers: argparse._SubParsersAction[argparse.Argumen
     project_create.add_argument("--project-id")
     project_create.add_argument("--status", default="active")
     project_create.add_argument("--priority", type=int, default=2)
-    project_create.add_argument("--objective")
+    project_create.add_argument(
+        "--objective",
+        "--prompt",
+        dest="objective",
+        help="Plain-English project goal used to seed the project mission.",
+    )
     project_create.add_argument("--tag", action="append")
     project_show = project_subparsers.add_parser("show")
     project_show.add_argument("project_id")
@@ -434,7 +454,7 @@ def _add_knowledge_parsers(subparsers: argparse._SubParsersAction[argparse.Argum
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the Hive CLI parser."""
-    parser = argparse.ArgumentParser(prog="hive", description="Hive 2.2 control-plane CLI")
+    parser = argparse.ArgumentParser(prog="hive", description="Hive v2.3 control-plane CLI")
     parser.add_argument("--path", default=str(Path.cwd()), help="Workspace base path")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")

@@ -1,7 +1,10 @@
 # Agent Hive v2.3 Runtime and Sandbox Spec
 
-Status: Proposed  
+Status: Historical design reference  
 Date: 2026-03-17
+
+Current scoped release truth lives in `docs/V2_3_STATUS.md`. This spec remains valuable as a searchable design
+reference even where the shipped v2.3 line intentionally narrowed scope or deferred parts of the proposal.
 
 ## 1. Purpose
 

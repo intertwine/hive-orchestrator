@@ -4,7 +4,8 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x   | yes       |
+| 2.2.x   | yes       |
+| 2.3.x   | yes       |
 
 ## Reporting a Vulnerability
 
@@ -27,7 +28,7 @@ We aim to acknowledge reports within 48 hours and provide a status update within
 
 ## Security Model
 
-Hive 2.0 is built around a local, file-backed substrate and explicit policy files.
+Hive is built around a local, file-backed substrate and explicit policy files.
 
 Core assumptions:
 

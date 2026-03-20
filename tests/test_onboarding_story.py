@@ -63,17 +63,28 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     demo_agency = (REPO_ROOT / "projects" / "demo" / "AGENCY.md").read_text(encoding="utf-8")
 
     assert "## Start Here" in readme
+    assert "## Try It In 90 Seconds" in readme
     assert "[Install Hive](docs/START_HERE.md)" in readme
+    assert "Keep your agent. Add a control plane." in readme
+    assert "one command center above many runs and many projects" in readme
+    assert "The console is not a toy dashboard." in readme
     assert "## Adopt Hive In An Existing Repo" in readme
     assert "## Maintainers" in readme
     assert "Do this in a fresh workspace, not inside this repository checkout." in readme
     assert "hive next --project-id demo" in readme
     assert "hive onboard demo" in readme
+    assert "Create a small React website about bees." in readme
+    assert "mkdir my-hive && cd my-hive" in readme
     assert "hive console serve" in readme
+    assert "healthy noop" in readme
     assert "[docs/MAINTAINING.md](docs/MAINTAINING.md)" in readme
 
     assert "Use a fresh directory for this walkthrough." in quickstart
     assert "If you are maintaining Hive itself" in quickstart
+    assert "Create a small React website about bees." in quickstart
+    assert "After `hive onboard demo`, you have three good next moves" in quickstart
+    assert "Make The First Finish Feel Real" in quickstart
+    assert "successful first promotion" in quickstart
     assert "Once you have more than one project and want the cross-project queue" in quickstart
     assert "hive program doctor demo" in quickstart
     assert "does not validate project behavior" in quickstart

@@ -13,6 +13,29 @@ from src.security import safe_dump_agency_md, safe_load_agency_md
 
 
 SLUG_PART_RE = re.compile(r"[^a-z0-9]+")
+_LEADING_OBJECTIVE_WORDS = {
+    "a",
+    "an",
+    "the",
+    "small",
+    "simple",
+    "tiny",
+    "basic",
+    "new",
+    "demo",
+}
+_LEADING_OBJECTIVE_VERBS = {
+    "build",
+    "create",
+    "design",
+    "draft",
+    "launch",
+    "make",
+    "plan",
+    "prototype",
+    "ship",
+    "write",
+}
 
 
 def _extract_title(content: str, fallback: str) -> str:
@@ -46,6 +69,25 @@ def _normalize_slug(value: str) -> str:
 def _title_from_slug(slug: str) -> str:
     label = slug.split("/")[-1].replace("-", " ").strip()
     return label.title() or "Untitled Project"
+
+
+def _title_from_objective(objective: str | None) -> str | None:
+    if not objective:
+        return None
+    cleaned = re.sub(r"\s+", " ", objective.strip()).strip(" .,:;!-")
+    if not cleaned:
+        return None
+    words = cleaned.split()
+    while words and words[0].lower() in _LEADING_OBJECTIVE_VERBS:
+        words.pop(0)
+    while words and words[0].lower() in _LEADING_OBJECTIVE_WORDS:
+        words.pop(0)
+    if not words:
+        words = cleaned.split()
+    candidate = " ".join(words[:6]).strip(" .,:;!-")
+    if not candidate:
+        return None
+    return candidate.title()
 
 
 def _project_id_from_slug(slug: str) -> str:
@@ -131,7 +173,9 @@ def create_project(
     """Create a new project scaffold with AGENCY.md and PROGRAM.md."""
     root = Path(path or Path.cwd())
     normalized_slug = _normalize_slug(slug)
-    resolved_title = title.strip() if title else _title_from_slug(normalized_slug)
+    resolved_title = title.strip() if title else (
+        _title_from_objective(objective) or _title_from_slug(normalized_slug)
+    )
     if project_id and project_id.strip():
         resolved_project_id = project_id.strip()
     else:

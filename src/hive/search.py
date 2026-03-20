@@ -52,12 +52,12 @@ COMMAND_DOCS = (
     {
         "title": "hive onboard",
         "summary": "Recommended fresh-workspace bootstrap with a starter project and task chain.",
-        "example": 'hive onboard demo --title "Demo project"',
+        "example": 'hive onboard demo --prompt "Create a small React website about bees."',
     },
     {
         "title": "hive quickstart",
         "summary": "Legacy compatibility alias for `hive onboard`; prefer `hive onboard`.",
-        "example": 'hive quickstart demo --title "Demo project"',
+        "example": 'hive quickstart demo --prompt "Create a small React website about bees."',
     },
     {
         "title": "hive init",

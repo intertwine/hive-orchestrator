@@ -432,7 +432,7 @@ def test_cloudflare_probe_detects_api_token_configuration(monkeypatch):
 
 def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):
     _bootstrap_workspace(temp_hive_dir, capsys)
-    create_task(
+    created_task = create_task(
         temp_hive_dir,
         "demo",
         "Sandbox policy evaluator guardrails",
@@ -440,7 +440,7 @@ def test_start_run_writes_v23_foundation_artifacts(temp_hive_dir, capsys):
         priority=1,
         summary_md="Update PROGRAM budget and sandbox approval rules.",
     )
-    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    task_id = created_task.id
     run = start_run(temp_hive_dir, task_id, driver_name="codex")
     run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
 
@@ -491,7 +491,7 @@ def test_start_run_materializes_claude_projection_and_selected_skills(temp_hive_
     script_path = skill_root / "scripts" / "policy-check.sh"
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text("#!/bin/sh\necho policy-check\n", encoding="utf-8")
-    create_task(
+    created_task = create_task(
         temp_hive_dir,
         "demo",
         "Sandbox policy evaluator guardrails",
@@ -507,7 +507,7 @@ def test_start_run_materializes_claude_projection_and_selected_skills(temp_hive_
         capture_output=True,
         text=True,
     )
-    task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+    task_id = created_task.id
     run = start_run(temp_hive_dir, task_id, driver_name="claude-code")
     run_root = Path(temp_hive_dir) / ".hive" / "runs" / run.id
 

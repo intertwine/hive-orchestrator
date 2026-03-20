@@ -66,6 +66,35 @@ def test_release_docs_require_scope_locked_v23_story_and_installed_search_proof(
     assert "If you want the latest unreleased checkout" in start_here
 
 
+def test_archive_and_rfc_docs_frame_historical_material_clearly():
+    """Historical notes and broader RFC bundles should point readers back to the live v2.3 ledger."""
+    archive_readme = (REPO_ROOT / "docs" / "archive" / "README.md").read_text(encoding="utf-8")
+    onboarding_note = (
+        REPO_ROOT / "docs" / "archive" / "V2_2_4_ONBOARDING_POLISH.md"
+    ).read_text(encoding="utf-8")
+    ux_sweep = (REPO_ROOT / "docs" / "archive" / "UX_SWEEP.md").read_text(encoding="utf-8")
+    rfc_readme = (REPO_ROOT / "docs" / "hive-v2.3-rfc" / "README.md").read_text(encoding="utf-8")
+    implementation_plan = (
+        REPO_ROOT / "docs" / "hive-v2.3-rfc" / "HIVE_V2_3_IMPLEMENTATION_PLAN.md"
+    ).read_text(encoding="utf-8")
+    acceptance_doc = (
+        REPO_ROOT / "docs" / "hive-v2.3-rfc" / "HIVE_V2_3_ACCEPTANCE_TESTS.md"
+    ).read_text(encoding="utf-8")
+    security_doc = (REPO_ROOT / "SECURITY.md").read_text(encoding="utf-8")
+
+    assert "# Archived Docs" in archive_readme
+    assert "no longer part of the primary user or maintainer path" in archive_readme
+    assert "Archived note" in onboarding_note
+    assert "Archived note" in ux_sweep
+    assert "historical planning and design reference" in rfc_readme
+    assert "Current scoped release truth lives in" in rfc_readme
+    assert "Status: Historical planning reference" in implementation_plan
+    assert "Status: Active scope-locked release-gate reference" in acceptance_doc
+    assert "| 2.2.x   | yes       |" in security_doc
+    assert "| 2.3.x   | yes       |" in security_doc
+    assert "Hive is built around a local, file-backed substrate" in security_doc
+
+
 def test_pull_request_template_enforces_slice_and_review_discipline():
     """The PR template should ask for blocker, validation, and review closure."""
     template = (REPO_ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
@@ -131,6 +160,7 @@ def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
     assert "local Claude review is an acceptable primary or fallback path" in maintaining_doc
     assert 'claude -p "/review <pr-number>"' in maintaining_doc
     assert "Use the explicit scope-lock notes there as the current release truth" in maintaining_doc
+    assert "/Users/bryanyoung/experiments/hive-orchestrator/.github/workflows/branch-hygiene.yml" not in maintaining_doc
     assert "An `eyes` reaction alone does not count as completion." in agents_doc
     assert "An `eyes` reaction alone does not count as completion." in claude_doc
     assert 'claude -p "/review <pr-number>"' in skill_doc

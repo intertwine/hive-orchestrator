@@ -11,7 +11,7 @@ Install Hive, then work from the root of the repo you want to manage:
 
 ```bash
 cd your-repo
-hive adopt app --title "App" --objective "Delegate the first governed slice safely."
+hive adopt app --prompt "Ship the first useful feature in this repo safely."
 ```
 
 If you want to stay closer to the primitives, you can still do the same thing in smaller steps:
@@ -48,6 +48,9 @@ obvious choice. If you want the observe-and-steer console, install `mellona-hive
 ```bash
 hive program doctor app
 ```
+
+If the first governed `hive finish` later says there was nothing to promote, that is usually a healthy noop. It means
+the run did not produce repo changes yet, not that the adoption path failed.
 
 If this repository is brand new or you want governed runs immediately after adding Hive, create a first commit for
 the workspace state:

@@ -1,7 +1,10 @@
 # Agent Hive v2.3 Implementation Plan
 
-Status: Proposed  
+Status: Historical planning reference  
 Date: 2026-03-17
+
+Current scoped release truth lives in `docs/V2_3_STATUS.md`. This plan captures the original implementation handoff
+and sequencing, including items later narrowed or deferred by the scoped v2.3 release line.
 
 ## 1. Overall approach
 

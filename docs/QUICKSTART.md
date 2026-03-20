@@ -19,6 +19,11 @@ hive --version
 hive doctor
 ```
 
+What you should see:
+
+- `hive --version` prints the installed CLI version
+- `hive doctor` confirms the workspace layout or tells you the next missing step in plain language
+
 ## Create A Workspace In One Command
 
 Make a clean directory and run:
@@ -27,7 +32,7 @@ Make a clean directory and run:
 mkdir my-hive
 cd my-hive
 git init
-hive onboard demo --title "Demo project" --objective "Ship one governed slice."
+hive onboard demo --prompt "Create a small React website about bees."
 ```
 
 Use a fresh directory for this walkthrough. If you run these commands inside the Hive repository checkout, `hive task ready` will also see the maintainer tasks that ship with this repo.
@@ -43,6 +48,12 @@ That command:
 - syncs projections and cache
 
 You do not need to hand-write any of that to begin.
+
+After `hive onboard demo`, you have three good next moves:
+
+- `hive next --project-id demo` if you want the shortest path to ready work
+- `hive console serve` if you installed `mellona-hive[console]` and want the live operator surface
+- `hive program doctor demo` if you want to inspect or strengthen the starter policy before a governed run
 
 The `git init` is worth doing up front. `hive onboard` leaves the repo in a state where the normal manager loop and
 console are ready to go. If you want an explicit checkpoint commit after onboarding, run:
@@ -70,6 +81,12 @@ bundle echoed to stdout.
 
 If you want the live observe-and-steer board, install `mellona-hive[console]` first and run `hive console serve` in a
 separate terminal.
+
+What you should expect here:
+
+- `hive next` points at the ready demo task
+- `hive work` claims it, starts a governed run, and can write a reusable context bundle
+- the context bundle is what you hand to Codex, Claude, or another worker session when you want Hive to supervise the loop
 
 If you want to see or save the bundle yourself, use the lower-level commands:
 
@@ -123,6 +140,18 @@ hive task update <task-id> \
 
 Use `--clear-labels`, `--clear-relevant-files`, `--clear-acceptance`, or `--clear-parent` when you want to replace
 those fields cleanly.
+
+## Make The First Finish Feel Real
+
+There are two healthy first outcomes when you call `hive finish`:
+
+- a successful promotion because the run made a real change and passed the configured evaluators
+- a clean noop rejection because the run did not modify anything worth promoting yet
+
+That second outcome usually means the control loop is wired up correctly. It does not usually mean Hive is broken.
+
+If you want to experience a successful first promotion on purpose in the demo workspace, make one tiny docs-only
+change while working the demo task, such as tightening a sentence in `projects/demo/AGENCY.md`, then finish the run.
 
 ## Governed Runs
 

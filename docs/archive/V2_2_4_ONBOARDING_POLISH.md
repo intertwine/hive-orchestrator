@@ -1,5 +1,9 @@
 # Hive v2.2.4 Onboarding Polish
 
+Archived note: kept as reference material after the v2.3 onboarding and release-doc cleanup. Prefer the active
+public docs in `README.md`, `docs/START_HERE.md`, `docs/QUICKSTART.md`, and `docs/V2_3_STATUS.md` for current
+guidance.
+
 Status: draft
 Date: 2026-03-18
 Source: Claude Code re-evaluation after v2.2.3

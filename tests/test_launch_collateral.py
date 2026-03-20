@@ -37,6 +37,7 @@ def test_readme_and_compare_docs_keep_the_control_plane_launch_story():
     assert "control plane" in readme.lower()
     assert "command center" in readme.lower()
     assert "docs/DEMO_WALKTHROUGH.md" in readme
+    assert "images/launch/console-home.png" in readme
     assert "current release line focused on a truthful v2.3 operator surface" in readme
     assert "control plane above the worker harness" in compare.lower()
 

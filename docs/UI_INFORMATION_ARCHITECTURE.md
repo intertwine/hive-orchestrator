@@ -1,6 +1,6 @@
 # UI Information Architecture
 
-The Hive 2.2 console is organized around exceptions and decisions, not folders.
+The Hive v2.3 console is organized around exceptions and decisions, not folders.
 
 ## Home
 
@@ -37,9 +37,12 @@ Unified search across docs, tasks, runs, memory, recipes, campaigns, and project
 The deep-inspection view for one run:
 
 - timeline
+- capability snapshot and effective driver truth
+- sandbox policy and backend metadata
 - acceptance rationale
 - evaluator results
 - diff and changed files
-- driver metadata and logs
-- compiled context and inclusion reasons
+- retrieval trace and inclusion reasons
+- pending approvals and approval actions
 - steering history and steering actions
+- driver metadata and logs

@@ -1,5 +1,8 @@
 # Hive UX Sweep
 
+Archived note: this is a historical usability findings log, not a canonical public or maintainer guide. Prefer the
+active onboarding docs and `docs/V2_3_STATUS.md` for current product truth.
+
 This file tracks real usability findings from hands-on Hive testing.
 
 The goal is simple: use Hive the way a new user, adopter, or maintainer would use it, then write down the rough edges while they are still fresh. We can fix these in focused polish passes instead of losing them in chat history.

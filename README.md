@@ -54,11 +54,12 @@ hive finish <run-id>
 What should happen:
 
 - `hive onboard demo` leaves you with a real workspace, starter project, safe `PROGRAM.md`, and one ready task
-- `hive work` starts a governed run and can write a handoff bundle for your worker harness
+- `hive work` starts a governed run, prints the run worktree path, and can write a handoff bundle for your worker harness
 - `hive finish` either promotes a real change or cleanly tells you there was nothing to promote yet
 
 If that first `hive finish` reports no changes, that is usually a healthy noop, not a broken setup. To intentionally
 see a successful first promotion, make one tiny docs-only change while working the demo task, then finish the run.
+Make that change inside the run worktree that `hive work` printed for you, usually `.hive/worktrees/run_<id>/`.
 
 ## Start Here
 
@@ -122,11 +123,18 @@ immediately. Replace it with a real repo-specific evaluator before you trust aut
 What a healthy first pass looks like:
 
 - `hive onboard demo` leaves you with one ready task and a safe starter `PROGRAM.md`
-- `hive work` starts a governed run and can write a handoff bundle for your worker harness
+- `hive work` starts a governed run, prints the run worktree path, and can write a handoff bundle for your worker harness
 - a first `hive finish` may either promote a real change or cleanly say there was nothing to promote yet
 
 If that first `hive finish` reports no changes, that is usually a healthy noop, not a broken setup. To intentionally
 see a successful first promotion, make one tiny docs-only change while working the demo task, then finish the run.
+Make that change inside the run worktree that `hive work` printed for you, usually `.hive/worktrees/run_<id>/`.
+
+If the promoted task lands in `review`, close it explicitly to unblock the next task in the starter chain:
+
+```bash
+hive task update <task-id> --status done
+```
 
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
 

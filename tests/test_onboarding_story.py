@@ -77,6 +77,8 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     assert "mkdir my-hive && cd my-hive" in readme
     assert "hive console serve" in readme
     assert "healthy noop" in readme
+    assert "run worktree" in readme
+    assert "hive task update <task-id> --status done" in readme
     assert "[docs/MAINTAINING.md](docs/MAINTAINING.md)" in readme
 
     assert "Use a fresh directory for this walkthrough." in quickstart
@@ -85,6 +87,8 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     assert "After `hive onboard demo`, you have three good next moves" in quickstart
     assert "Make The First Finish Feel Real" in quickstart
     assert "successful first promotion" in quickstart
+    assert "run worktree" in quickstart
+    assert "hive task update <task-id> --status done" in quickstart
     assert "Once you have more than one project and want the cross-project queue" in quickstart
     assert "hive program doctor demo" in quickstart
     assert "does not validate project behavior" in quickstart

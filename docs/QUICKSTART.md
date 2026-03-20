@@ -86,6 +86,7 @@ What you should expect here:
 
 - `hive next` points at the ready demo task
 - `hive work` claims it, starts a governed run, and can write a reusable context bundle
+- `hive work` also prints the dedicated run worktree path; make your edits there, not in the workspace root
 - the context bundle is what you hand to Codex, Claude, or another worker session when you want Hive to supervise the loop
 
 If you want to see or save the bundle yourself, use the lower-level commands:
@@ -152,6 +153,17 @@ That second outcome usually means the control loop is wired up correctly. It doe
 
 If you want to experience a successful first promotion on purpose in the demo workspace, make one tiny docs-only
 change while working the demo task, such as tightening a sentence in `projects/demo/AGENCY.md`, then finish the run.
+
+Important detail: governed edits happen inside the run worktree that `hive work` printed for you, usually
+`.hive/worktrees/run_<id>/`. If you edit files only in the workspace root, `hive finish` will correctly see no run
+changes to promote.
+
+If your run is promoted and the task lands in `review`, that is also healthy. Close it explicitly to unblock the next
+task in the starter chain:
+
+```bash
+hive task update <task-id> --status done
+```
 
 ## Governed Runs
 

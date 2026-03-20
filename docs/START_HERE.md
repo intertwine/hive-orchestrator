@@ -96,6 +96,13 @@ A healthy first `hive finish` can end in one of two ways:
 
 If you want the demo workspace to show a successful promotion on purpose, make one tiny docs-only change while working
 the first demo task before you run `hive finish`.
+Make that change inside the run worktree that `hive work` printed for you, usually `.hive/worktrees/run_<id>/`.
+
+If the promoted task lands in `review`, close it explicitly to unblock the next task in the starter chain:
+
+```bash
+hive task update <task-id> --status done
+```
 
 Once the workspace exists, the shortest manager-style loop is:
 

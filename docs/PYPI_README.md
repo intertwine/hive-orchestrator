@@ -81,6 +81,13 @@ it with a real repo-specific evaluator before you trust autonomous promotion.
 If the first `hive finish` later says there was nothing to promote, that is usually a healthy noop rather than a
 broken setup. To intentionally see a successful first promotion, make one tiny docs-only change while working the
 demo task, then finish the run.
+Make that change inside the run worktree that `hive work` printed for you, usually `.hive/worktrees/run_<id>/`.
+
+If the promoted task lands in `review`, close it explicitly to unblock the next task in the starter chain:
+
+```bash
+hive task update <task-id> --status done
+```
 
 Then use the normal loop:
 

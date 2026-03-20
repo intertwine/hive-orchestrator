@@ -13,6 +13,7 @@ __all__ = [
     "generate_brief",
     "portfolio_status",
     "recommend_next_task",
+    "release_task_flow",
     "steer_project",
     "tick_campaign",
     "tick_portfolio",
@@ -67,6 +68,13 @@ def recommend_next_task(*args: Any, **kwargs: Any):
     from .portfolio import recommend_next_task as _recommend_next_task
 
     return _recommend_next_task(*args, **kwargs)
+
+
+def release_task_flow(*args: Any, **kwargs: Any):
+    """Lazily load task-release helpers to avoid package import cycles."""
+    from .portfolio import release_task_flow as _release_task_flow
+
+    return _release_task_flow(*args, **kwargs)
 
 
 def steer_project(*args: Any, **kwargs: Any):

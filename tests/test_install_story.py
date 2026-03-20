@@ -56,12 +56,14 @@ def test_public_readmes_surface_three_clear_entry_points():
     assert "Maintainers" in start_here
     assert "Mellona" in start_here
     assert "Create a small React website about bees." in start_here
+    assert "run worktree" in start_here
 
     assert "make install-dev" not in pypi_readme
     assert "src.agent_dispatcher" not in pypi_readme
     assert "Mellona" in pypi_readme
     assert "Keep your agent. Add a control plane." in pypi_readme
     assert "Create a small React website about bees." in pypi_readme
+    assert "run worktree" in pypi_readme
 
 
 def test_public_docs_call_out_console_extra_before_console_serve():
@@ -116,6 +118,7 @@ def test_onboarding_docs_explain_local_smoke_is_only_a_placeholder():
     assert "does not validate project behavior" in quickstart
     assert "placeholder `local-smoke` evaluator" in pypi_readme
     assert "healthy noop" in pypi_readme
+    assert "hive task update <task-id> --status done" in pypi_readme
     assert "bootstrap placeholder" in recipe
 
 

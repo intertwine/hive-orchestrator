@@ -199,8 +199,8 @@ class TestHiveControlPlane:
         assert payload["action"] == "accept"
         assert payload["next_steps"] == [f"hive run promote {run['id']}"]
 
-    def test_cli_finish_json_next_steps_return_to_queue_after_promotion(self, tmp_path, capsys):
-        """Default finish flow should send the operator back to the queue after promotion."""
+    def test_cli_finish_json_next_steps_explain_review_closure_after_promotion(self, tmp_path, capsys):
+        """Default finish flow should explain how to close a review-gated task after promotion."""
         workspace = tmp_path / "finish-promote"
         workspace.mkdir(parents=True, exist_ok=True)
         init_git_repo(workspace)
@@ -246,7 +246,10 @@ class TestHiveControlPlane:
         )
 
         assert payload["action"] == "promote"
-        assert payload["next_steps"] == ["hive next"]
+        assert payload["next_steps"] == [
+            f"hive task update {payload['task']['id']} --status done",
+            "hive next --project-id demo",
+        ]
 
     def test_recommend_next_skips_paused_projects(self, temp_hive_dir, capsys):
         """Paused projects should drop out of manager recommendations."""

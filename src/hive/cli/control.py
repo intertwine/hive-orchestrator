@@ -23,8 +23,55 @@ from src.hive.codemode.execute import execute_code
 from src.hive.sandbox import sandbox_doctor
 from src.hive.search import search_workspace
 from src.hive.store.cache import CacheBusyError, rebuild_cache
+from src.hive.store.task_files import get_task, list_tasks
 from src.hive.workspace import WorkspaceBusyError, sync_workspace
 from src.hive.control import finish_run_flow, recommend_next_task, work_on_task
+
+
+def _sandbox_doctor_summary(payload: dict[str, object], backend: str | None = None) -> tuple[str, list[str]]:
+    probes = [dict(item) for item in payload.get("backends", []) if isinstance(item, dict)]
+    if backend and probes:
+        probe = probes[0]
+        blockers = [str(item) for item in probe.get("blockers", []) if str(item).strip()]
+        warnings = [str(item) for item in probe.get("warnings", []) if str(item).strip()]
+        notes = [str(item) for item in probe.get("notes", []) if str(item).strip()]
+        status = "available" if probe.get("available") and not blockers else "blocked"
+        headline = f"Sandbox backend {probe.get('backend')} is {status}."
+        lines: list[str] = []
+        if probe.get("supported_profiles"):
+            lines.append(
+                "profiles: " + ", ".join(str(item) for item in probe["supported_profiles"])
+            )
+        lines.extend(f"blocked: {item}" for item in blockers)
+        lines.extend(f"warning: {item}" for item in warnings)
+        lines.extend(f"note: {item}" for item in notes[:2])
+        return headline, lines
+
+    available = [
+        str(probe.get("backend"))
+        for probe in probes
+        if probe.get("available") and not probe.get("blockers")
+    ]
+    blocked = []
+    for probe in probes:
+        if probe.get("available") and not probe.get("blockers"):
+            continue
+        reason = next(
+            (str(item) for item in probe.get("blockers", []) if str(item).strip()),
+            None,
+        )
+        label = str(probe.get("backend"))
+        blocked.append(f"{label} ({reason})" if reason else label)
+    headline = (
+        f"Sandbox doctor found {len(available)} available backend(s) and "
+        f"{len(blocked)} blocked or incomplete backend(s)."
+    )
+    lines: list[str] = []
+    if available:
+        lines.append("available: " + ", ".join(available))
+    if blocked:
+        lines.append("blocked: " + ", ".join(blocked))
+    return headline, lines
 
 
 def dispatch(args, root: Path) -> int:
@@ -33,11 +80,21 @@ def dispatch(args, root: Path) -> int:
         if args.command == "next":
             recommendation = recommend_next_task(root, project_id=args.project_id)
             if recommendation is None:
+                review_tasks = [
+                    task
+                    for task in list_tasks(root)
+                    if task.status == "review"
+                    and (args.project_id is None or task.project_id == args.project_id)
+                ]
+                next_steps = []
+                if review_tasks:
+                    next_steps.append(f"hive task update {review_tasks[0].id} --status done")
                 return emit(
                     {
                         "ok": True,
                         "message": "No ready task is available right now.",
                         "recommendation": None,
+                        "next_steps": next_steps,
                     },
                     args.json,
                 )
@@ -97,6 +154,11 @@ def dispatch(args, root: Path) -> int:
                 "output_path": payload["output_path"],
                 "next_steps": [startup_step],
             }
+            worktree_path = payload["run"].get("worktree_path")
+            if worktree_path:
+                response["next_steps"].append(
+                    f"Make your changes inside the run worktree at {worktree_path}"
+                )
             response["next_steps"].append(f"hive finish {payload['run']['id']}")
             if args.print_context:
                 response["rendered_context"] = payload["rendered_context"]
@@ -110,6 +172,7 @@ def dispatch(args, root: Path) -> int:
                 actor=args.owner,
             )
             decision = dict(payload["promotion_decision"])
+            task = get_task(root, str(payload["run"]["task_id"]))
             reason_suffix = ""
             reasons = decision.get("reasons") or []
             if reasons:
@@ -120,19 +183,29 @@ def dispatch(args, root: Path) -> int:
             elif payload["action"] == "escalate":
                 next_steps = [f"hive run show {args.run_id}"]
             elif payload["action"] == "accept":
-                next_steps = (
-                    [f"hive run promote {args.run_id}"] if args.no_promote else ["hive next"]
-                )
+                next_steps = [f"hive run promote {args.run_id}"]
+            elif task.status == "review":
+                next_steps = [
+                    f"hive task update {task.id} --status done",
+                    f"hive next --project-id {task.project_id}",
+                ]
             else:
-                next_steps = ["hive next"]
+                next_steps = [f"hive next --project-id {task.project_id}"]
+            message = (
+                f"Finished run {args.run_id} with action {payload['action']!r}"
+                f"{reason_suffix}"
+            )
+            if task.status == "review":
+                message += (
+                    " The task now sits in review; mark it done when you want downstream work "
+                    "to unblock."
+                )
             return emit(
                 {
                     "ok": True,
-                    "message": (
-                        f"Finished run {args.run_id} with action {payload['action']!r}"
-                        f"{reason_suffix}"
-                    ),
+                    "message": message,
                     "run": payload["run"],
+                    "task": task.to_frontmatter() | {"path": str(task.path) if task.path else None},
                     "evaluation": payload["evaluation"],
                     "promotion_decision": decision,
                     "promotion": payload["promotion"],
@@ -237,7 +310,9 @@ def dispatch(args, root: Path) -> int:
             )
         if args.command == "sandbox" and args.sandbox_command == "doctor":
             payload = sandbox_doctor(args.backend)
-            payload["message"] = "Sandbox doctor inspected the configured backends."
+            headline, summary_lines = _sandbox_doctor_summary(payload, backend=args.backend)
+            payload["message"] = headline
+            payload["summary_lines"] = summary_lines
             return emit(payload, args.json)
     except (
         CacheBusyError,

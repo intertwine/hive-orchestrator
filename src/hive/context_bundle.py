@@ -9,6 +9,7 @@ from src.hive.memory.context import handoff_context, startup_context
 from src.hive.payloads import project_payload
 from src.hive.scheduler.query import ready_tasks
 from src.hive.store.projects import get_project
+from src.hive.store.task_files import get_task
 from src.hive.workspace import sync_workspace
 from src.security import safe_dump_agency_md
 
@@ -43,11 +44,27 @@ def generate_file_tree(
     return tree
 
 
-def _render_ready_task_lines(tasks: list[dict[str, object]]) -> str:
+def _render_ready_task_lines(
+    tasks: list[dict[str, object]],
+    *,
+    current_task_id: str | None = None,
+) -> str:
     if not tasks:
+        if current_task_id:
+            return "*No canonical ready tasks found right now. See CURRENT TASK below.*"
         return "*No canonical ready tasks found for this project.*"
     return "\n".join(
         f"- `{task['id']}` | p{task['priority']} | {task['title']}" for task in tasks
+    )
+
+
+def _render_current_task(task: dict[str, object] | None) -> str:
+    if not task:
+        return ""
+    owner = str(task.get("owner") or "unassigned")
+    return (
+        f"- `{task['id']}` | {task['status']} | p{task['priority']} | {task['title']}\n"
+        f"- owner: {owner}"
     )
 
 
@@ -94,6 +111,10 @@ def build_context_bundle(
         sync_workspace(root)
     project = get_project(root, project_ref)
     ready = ready_tasks(root, project_id=project.id, limit=5)
+    current_task = None
+    if task_id:
+        task = get_task(root, task_id)
+        current_task = task.to_frontmatter() | {"path": str(task.path) if task.path else None}
     context = (
         handoff_context(root, project_id=project.id)
         if mode == "handoff"
@@ -108,6 +129,16 @@ def build_context_bundle(
     mode_label = "HANDOFF" if context.get("handoff") else "STARTUP"
     project_dir = project.agency_path.parent
     agency_document = safe_dump_agency_md(project.metadata, project.content)
+    current_task_section = ""
+    rendered_current_task = _render_current_task(current_task)
+    if rendered_current_task:
+        current_task_section = f"""
+
+---
+
+## CURRENT TASK
+
+{rendered_current_task}"""
     rendered = f"""# HIVE {mode_label} CONTEXT
 # Project: {project.id}
 # Profile: {context.get('profile', profile)}
@@ -125,7 +156,8 @@ Use canonical tasks, `PROGRAM.md`, and the assembled context below as the source
 
 ## READY TASKS
 
-{_render_ready_task_lines(ready)}
+{_render_ready_task_lines(ready, current_task_id=task_id)}
+{current_task_section}
 
 ---
 
@@ -161,6 +193,7 @@ Before ending your session:
         "project": project,
         "project_payload": project_payload(project),
         "ready_tasks": ready,
+        "current_task": current_task,
         "context": context,
         "agency_document": agency_document,
         "project_dir": project_dir,

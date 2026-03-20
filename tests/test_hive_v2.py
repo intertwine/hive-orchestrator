@@ -22,6 +22,7 @@ from hive.cli.main import main as hive_main
 from src.hive.cli.render import render_payload
 from src.hive.codemode.execute import MAX_EXECUTE_BYTES
 from src.hive.context_bundle import build_context_bundle
+from src.hive.control import release_task_flow
 from src.hive.memory import observe_project, reflect_project, search_memory, startup_context
 from src.hive.migrate import migrate_v1_to_v2
 from src.hive.models.task import TaskRecord
@@ -30,6 +31,7 @@ from src.hive.projections.global_md import BEGIN as GLOBAL_BEGIN
 from src.hive.projections.global_md import END as GLOBAL_END
 from src.hive.runs import accept_run, eval_run, start_run
 from src.hive.runs.engine import cleanup_run, escalate_run, promote_run, reject_run
+from src.hive.runs.metadata import load_run
 from src.hive.search import search_workspace
 from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.cache import _memory_scope_parts, rebuild_cache
@@ -2055,6 +2057,60 @@ class TestHiveV2Cli:
         assert cleared.relevant_files == []
         assert cleared.acceptance == []
 
+    def test_cli_task_ready_marks_one_task_ready(self, tmp_path, capsys):
+        """`hive task ready <task-id>` should mark that task ready as a shortcut."""
+        workspace = tmp_path / "task-ready-shortcut"
+        hive_main(["--path", str(workspace), "--json", "init"])
+        capsys.readouterr()
+        hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "project",
+                "create",
+                "website",
+                "--title",
+                "Website",
+            ]
+        )
+        capsys.readouterr()
+        create_payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    str(workspace),
+                    "--json",
+                    "task",
+                    "create",
+                    "--project-id",
+                    "website",
+                    "--title",
+                    "Polish launch copy",
+                    "--status",
+                    "proposed",
+                ],
+            )
+        )
+
+        ready_payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    str(workspace),
+                    "--json",
+                    "task",
+                    "ready",
+                    create_payload["task"]["id"],
+                ],
+            )
+        )
+
+        assert ready_payload["task"]["status"] == "ready"
+        assert get_task(workspace, create_payload["task"]["id"]).status == "ready"
+
     def test_cli_workspace_checkpoint_commits_workspace(self, tmp_path, capsys):
         """Workspace checkpoint should create a Git commit for a bootstrapped repo."""
         workspace = tmp_path / "workspace-checkpoint"
@@ -2175,6 +2231,47 @@ class TestHiveV2Cli:
 
         assert exit_code == 0
         assert f"| {task_id} | claimed | 1 | codex |" in captured.out
+
+    def test_cli_context_startup_shows_current_task_section(self, tmp_path, capsys):
+        """Startup bundles should surface the claimed task, not just an empty ready queue."""
+        workspace = tmp_path / "context-current-task"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "launch/demo"])
+        capsys.readouterr()
+        task_id = ready_tasks(workspace, project_id="launch-demo")[0]["id"]
+
+        claim_exit = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "task",
+                "claim",
+                task_id,
+                "--owner",
+                "codex",
+            ]
+        )
+        capsys.readouterr()
+        assert claim_exit == 0
+
+        exit_code = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "context",
+                "startup",
+                "--project",
+                "launch-demo",
+                "--task",
+                task_id,
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "CURRENT TASK" in captured.out
+        assert f"`{task_id}` | claimed |" in captured.out
+        assert "See CURRENT TASK below." in captured.out
 
     def test_context_bundle_includes_serializable_project_payload(
         self, temp_hive_dir, temp_project
@@ -2598,6 +2695,225 @@ class TestHiveV2Cli:
             item["path"] == run.worktree_path and item["cleaned"] for item in payload["cleanups"]
         )
         assert not Path(run.worktree_path).exists()
+
+    def test_cli_finish_guides_review_closure_after_promotion(
+        self, temp_hive_dir, temp_project, commit_workspace, capsys
+    ):
+        """`hive finish` should explain how to unblock downstream work when a task lands in review."""
+        migrate_v1_to_v2(temp_hive_dir)
+        project = discover_projects(temp_hive_dir)[0]
+        project.program_path.write_text(
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
+            encoding="utf-8",
+        )
+        commit_workspace(temp_hive_dir, "prepare finish guidance workspace")
+        task_id = ready_tasks(temp_hive_dir, project_id=project.id)[0]["id"]
+        run = start_run(temp_hive_dir, task_id)
+
+        worktree = Path(run.worktree_path)
+        promoted_file = worktree / "docs" / "finish-guidance.md"
+        promoted_file.parent.mkdir(parents=True, exist_ok=True)
+        promoted_file.write_text("finish guidance\n", encoding="utf-8")
+        subprocess.run(["git", "add", "docs/finish-guidance.md"], cwd=worktree, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Add finish guidance change"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        eval_run(temp_hive_dir, run.id)
+        accept_run(temp_hive_dir, run.id)
+
+        payload = json.loads(
+            _invoke_cli_json(capsys, ["--path", temp_hive_dir, "--json", "finish", run.id])
+        )
+
+        assert payload["action"] == "promote"
+        assert payload["task"]["status"] == "review"
+        assert payload["next_steps"][0] == f"hive task update {task_id} --status done"
+        assert payload["next_steps"][1] == f"hive next --project-id {project.id}"
+
+    def test_cli_task_release_cancels_active_run_and_requeues_task(
+        self, tmp_path, commit_workspace, capsys
+    ):
+        """Releasing a task after `hive work` should cancel the active run and requeue the task."""
+        workspace = tmp_path / "task-release-active-run"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "demo"])
+        capsys.readouterr()
+        (workspace / "projects" / "demo" / "PROGRAM.md").write_text(
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
+            encoding="utf-8",
+        )
+        commit_workspace(workspace, "prepare release workspace")
+        task_id = ready_tasks(workspace, project_id="demo")[0]["id"]
+
+        work_payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    str(workspace),
+                    "--json",
+                    "work",
+                    task_id,
+                    "--owner",
+                    "codex",
+                ],
+            )
+        )
+        run_id = work_payload["run"]["id"]
+
+        release_payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    str(workspace),
+                    "--json",
+                    "task",
+                    "release",
+                    task_id,
+                ],
+            )
+        )
+
+        assert release_payload["task"]["status"] == "ready"
+        assert release_payload["cancelled_runs"] == [
+            {
+                "id": run_id,
+                "previous_status": "running",
+                "status": "cancelled",
+            }
+        ]
+        assert get_task(workspace, task_id).status == "ready"
+        assert load_run(workspace, run_id)["status"] == "cancelled"
+
+    def test_release_task_flow_preserves_non_cancelled_status_when_cancel_bridge_is_ambiguous(
+        self, tmp_path, commit_workspace, monkeypatch, capsys
+    ):
+        """Release bookkeeping should report the returned run status instead of assuming cancel succeeded."""
+        workspace = tmp_path / "task-release-ambiguous-cancel"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "demo"])
+        capsys.readouterr()
+        (workspace / "projects" / "demo" / "PROGRAM.md").write_text(
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
+            encoding="utf-8",
+        )
+        commit_workspace(workspace, "prepare ambiguous release workspace")
+        task_id = ready_tasks(workspace, project_id="demo")[0]["id"]
+
+        work_payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    str(workspace),
+                    "--json",
+                    "work",
+                    task_id,
+                    "--owner",
+                    "codex",
+                ],
+            )
+        )
+        run_id = work_payload["run"]["id"]
+
+        monkeypatch.setattr(
+            "src.hive.control.portfolio.steer_run",
+            lambda *_args, **_kwargs: {"run": {"id": run_id, "status": "finished"}},
+        )
+
+        payload = release_task_flow(workspace, task_id, actor="codex")
+
+        assert payload["cancelled_runs"] == [
+            {
+                "id": run_id,
+                "previous_status": "running",
+                "status": "finished",
+            }
+        ]
+        assert get_task(workspace, task_id).status == "ready"
+
+    def test_cli_work_human_output_calls_out_run_worktree(self, tmp_path, commit_workspace, capsys):
+        """Human `hive work` output should tell users where governed edits belong."""
+        workspace = tmp_path / "work-output-worktree"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "demo"])
+        capsys.readouterr()
+        (workspace / "projects" / "demo" / "PROGRAM.md").write_text(
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
+            encoding="utf-8",
+        )
+        commit_workspace(workspace, "prepare work output workspace")
+        task_id = ready_tasks(workspace, project_id="demo")[0]["id"]
+
+        exit_code = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "work",
+                task_id,
+                "--owner",
+                "codex",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert "Worktree:" in captured.out
+        assert "Make your changes inside the run worktree" in captured.out
+
+    def test_cli_sandbox_doctor_human_output_summarizes_backend_state(self, monkeypatch, capsys):
+        """Human `hive sandbox doctor` output should summarize available and blocked backends."""
+        monkeypatch.setattr(
+            importlib.import_module("src.hive.cli.control"),
+            "sandbox_doctor",
+            lambda backend=None: {
+                "ok": True,
+                "backends": [
+                    {
+                        "backend": "local-safe",
+                        "available": True,
+                        "blockers": [],
+                        "warnings": [],
+                        "notes": [],
+                        "supported_profiles": ["local-safe"],
+                    },
+                    {
+                        "backend": "daytona",
+                        "available": False,
+                        "blockers": ["Missing DAYTONA_API_KEY."],
+                        "warnings": [],
+                        "notes": [],
+                        "supported_profiles": ["team-self-hosted"],
+                    },
+                ],
+            },
+        )
+
+        exit_code = hive_main(["sandbox", "doctor"])
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert (
+            "Sandbox doctor found 1 available backend(s) and 1 blocked or incomplete backend(s)."
+            in captured.out
+        )
+        assert "available: local-safe" in captured.out
+        assert "blocked: daytona (Missing DAYTONA_API_KEY.)" in captured.out
 
     def test_cli_search_returns_json_hits(self, temp_hive_dir, temp_project, capsys):
         """Workspace search should emit stable JSON results."""

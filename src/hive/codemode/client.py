@@ -11,6 +11,7 @@ from typing import Any
 from src.hive.control import (
     finish_run_flow,
     portfolio_status,
+    release_task_flow,
     recommend_next_task,
     steer_project,
     tick_portfolio,
@@ -40,7 +41,6 @@ from src.hive.store.task_files import (
     get_task,
     link_tasks,
     list_tasks,
-    release_task,
     update_task,
 )
 from src.hive.workspace import sync_workspace
@@ -113,9 +113,8 @@ class TaskModule:
         return _task_payload(task)
 
     def release(self, payload: dict[str, Any]) -> dict[str, Any]:
-        task = release_task(self.root, payload["id"])
-        sync_workspace(self.root)
-        return _task_payload(task)
+        released = release_task_flow(self.root, payload["id"])
+        return dict(released["task"]) | {"cancelled_runs": list(released.get("cancelled_runs", []))}
 
     def update(self, payload: dict[str, Any]) -> dict[str, Any]:
         task = update_task(self.root, payload["id"], dict(payload.get("patch", {})))

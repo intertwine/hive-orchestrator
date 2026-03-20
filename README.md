@@ -3,24 +3,62 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/ci.yml?branch=main&label=CI)](https://github.com/intertwine/hive-orchestrator/actions/workflows/ci.yml)
 [![Hive Projection Sync](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/projection-sync.yml?branch=main&label=Projection%20Sync)](https://github.com/intertwine/hive-orchestrator/actions/workflows/projection-sync.yml)
 
-![Agent Hive](images/agent-hive-explainer-image-web.png)
+![Agent Hive observe-and-steer console](images/launch/console-home.png)
 
 Agent Hive is a repo-native control plane for autonomous work. Keep your favorite worker harness, whether that is Codex, Claude Code, or a local/manual loop, and use Hive to supervise tasks, runs, memory, approvals, and campaigns from one place.
 
-The center of gravity in this repository is the Hive v2 substrate, with the current release line focused on a truthful v2.3 operator surface:
+**Keep your agent. Add a control plane.**
 
-- `hive` is the primary interface.
-- `.hive/tasks/*.md` is the canonical task store.
-- `projects/*/AGENCY.md` stays human-readable.
-- `projects/*/PROGRAM.md` defines evaluator, path, and command policy.
-- `GLOBAL.md` and `AGENTS.md` are bounded projections, not the machine database.
+If you are already using coding agents and feeling the limits of isolated sessions, Agent Hive is the layer that makes them feel like part of one real system:
 
-## Why Hive
+- one command center above many runs and many projects
+- one governed loop instead of “the agent said it was done”
+- one inspectable substrate instead of hidden agent state
+- one place to steer Codex, Claude Code, local execution, and manual handoffs
 
-- It gives humans one command center above many runs and many projects.
-- It keeps machine state explicit. Tasks, runs, memory, events, briefs, and campaigns live in predictable files.
-- It keeps harness choices flexible. Hive sits above Codex, Claude Code, local execution, and manual handoffs instead of replacing them.
-- It makes autonomous work inspectable. You can see what context a run received, what policy applied, what changed, and why it was accepted or escalated.
+The center of gravity in this repository is the Hive v2 substrate, with the current release line focused on a truthful v2.3 operator surface.
+
+## Why It Feels Different
+
+- The console is not a toy dashboard. It is a real observe-and-steer command center with active runs, inbox items, campaign reasoning, retrieval traces, and run detail in one place.
+- Hive does not replace your worker harness. It sits above it, so you can keep using Codex, Claude Code, local execution, or manual loops.
+- Agents do not decide when they are done. `PROGRAM.md` evaluators and promotion policy do.
+- Machine state stays explicit. Tasks, runs, memory, events, briefs, and campaigns live in predictable files instead of hidden session state.
+- You can get to a real governed loop in minutes, not after wiring up a framework.
+
+## Try It In 90 Seconds
+
+The shortest honest path is:
+
+```bash
+uv tool install mellona-hive
+mkdir my-hive && cd my-hive
+git init
+hive onboard demo --prompt "Create a small React website about bees."
+hive next --project-id demo
+hive work --owner <your-name>
+```
+
+If you want the live operator view, install `mellona-hive[console]` first and run:
+
+```bash
+hive console serve
+```
+
+Then finish the run:
+
+```bash
+hive finish <run-id>
+```
+
+What should happen:
+
+- `hive onboard demo` leaves you with a real workspace, starter project, safe `PROGRAM.md`, and one ready task
+- `hive work` starts a governed run and can write a handoff bundle for your worker harness
+- `hive finish` either promotes a real change or cleanly tells you there was nothing to promote yet
+
+If that first `hive finish` reports no changes, that is usually a healthy noop, not a broken setup. To intentionally
+see a successful first promotion, make one tiny docs-only change while working the demo task, then finish the run.
 
 ## Start Here
 
@@ -29,6 +67,8 @@ There are three clean ways into Hive:
 - [Install Hive](docs/START_HERE.md) if you want a fresh workspace and the shortest path to real work
 - [Adopt Hive in an existing repo](docs/ADOPT_EXISTING_REPO.md) if you already have a codebase and want Hive inside it
 - [Maintain or publish Hive](docs/MAINTAINING.md) if you are working on this repository itself
+
+If you only read one more page after this README, make it [docs/START_HERE.md](docs/START_HERE.md).
 
 ## Install Hive
 
@@ -69,7 +109,7 @@ Start in an empty directory and let Hive onboard the workspace for you:
 mkdir my-hive
 cd my-hive
 git init
-hive onboard demo --title "Demo project" --objective "Ship one small, governed slice."
+hive onboard demo --prompt "Create a small React website about bees."
 ```
 
 That gives you a real workspace with `.hive/`, a starter project, a safe default `PROGRAM.md`, and the first task
@@ -79,13 +119,22 @@ chain. If you want the React observe-and-steer console, install `mellona-hive[co
 Fresh onboarded projects may start with the placeholder `local-smoke` evaluator so the first governed loop works
 immediately. Replace it with a real repo-specific evaluator before you trust autonomous promotion.
 
+What a healthy first pass looks like:
+
+- `hive onboard demo` leaves you with one ready task and a safe starter `PROGRAM.md`
+- `hive work` starts a governed run and can write a handoff bundle for your worker harness
+- a first `hive finish` may either promote a real change or cleanly say there was nothing to promote yet
+
+If that first `hive finish` reports no changes, that is usually a healthy noop, not a broken setup. To intentionally
+see a successful first promotion, make one tiny docs-only change while working the demo task, then finish the run.
+
 Do this in a fresh workspace, not inside this repository checkout. This repo carries its own real maintainer task queue, so `hive task ready` here will show Hive's work unless you filter to `--project-id demo`.
 
 Once the workspace exists, the normal loop is:
 
 ```bash
 hive next --project-id demo
-hive work <task-id> --owner <your-name>
+hive work --owner <your-name>
 hive finish <run-id>
 ```
 
@@ -101,11 +150,11 @@ If you already have a repository:
 
 ```bash
 cd your-repo
-hive init
+hive adopt app --title "App"
 ```
 
-From there, either create a first project with `hive project create` or import an older checklist-based Hive setup
-with `hive migrate v1-to-v2`. The full path is documented in
+From there, either keep the guided adoption path or import an older checklist-based Hive setup with
+`hive migrate v1-to-v2`. The full path is documented in
 [docs/ADOPT_EXISTING_REPO.md](docs/ADOPT_EXISTING_REPO.md).
 
 ## Everyday Loop

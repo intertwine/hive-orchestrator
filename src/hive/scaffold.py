@@ -65,37 +65,43 @@ def generate_program_stub(project_dir: Path) -> Path:
     return target
 
 
-def starter_task_specs(project_title: str) -> list[dict[str, object]]:
+def starter_task_specs(project_title: str, objective: str | None = None) -> list[dict[str, object]]:
     """Return a small, opinionated task chain for a fresh workspace."""
     subject = project_title.strip() or "the project"
+    goal = (objective or "").strip()
+    goal_sentence = f"Project goal: {goal}" if goal else ""
     return [
         {
-            "title": f"Define the first thin slice for {subject}",
+            "title": f"Plan the first milestone for {subject}",
             "status": "ready",
             "priority": 1,
             "acceptance": [
-                "Scope is small enough to review in one PR or session.",
+                "The project goal is translated into one small, reviewable milestone.",
                 "Acceptance criteria are written down in the task or AGENCY.md.",
-                "Relevant files or directories are identified.",
+                "Relevant files, directories, or open questions are identified.",
             ],
             "summary_md": (
-                "Turn the project goal into the smallest useful slice that is safe to hand to "
-                "a human or agent."
+                "Turn the plain-English project goal into the first useful milestone that is safe "
+                "to hand to a human or agent."
+                + (f"\n\n{goal_sentence}" if goal_sentence else "")
             ),
         },
         {
-            "title": f"Implement the first thin slice for {subject}",
+            "title": f"Build the first reviewable milestone for {subject}",
             "status": "proposed",
             "priority": 1,
             "acceptance": [
-                "The slice is implemented or documented in a reviewable form.",
+                "The milestone is implemented or documented in a reviewable form.",
                 "Run artifacts or handoff notes capture what changed.",
                 "The result is ready for review or explicit follow-up.",
             ],
-            "summary_md": "Build the first useful slice once scope and boundaries are clear.",
+            "summary_md": (
+                "Build the first useful milestone once scope and boundaries are clear."
+                + (f"\n\n{goal_sentence}" if goal_sentence else "")
+            ),
         },
         {
-            "title": f"Review, document, and hand off the first thin slice for {subject}",
+            "title": f"Review, document, and hand off the first milestone for {subject}",
             "status": "proposed",
             "priority": 2,
             "acceptance": [
@@ -106,6 +112,7 @@ def starter_task_specs(project_title: str) -> list[dict[str, object]]:
             "summary_md": (
                 "Close the loop with projections, notes, and the next clean handoff for the "
                 "workspace."
+                + (f"\n\n{goal_sentence}" if goal_sentence else "")
             ),
         },
     ]

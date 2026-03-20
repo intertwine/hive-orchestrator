@@ -48,15 +48,20 @@ def test_public_readmes_surface_three_clear_entry_points():
     assert "Maintain or publish Hive" in readme
     assert "control plane" in readme.lower()
     assert "Mellona" in readme
+    assert "Keep your agent. Add a control plane." in readme
+    assert "Try It In 90 Seconds" in readme
 
     assert "Fresh Workspace" in start_here
     assert "Existing Repo" in start_here
     assert "Maintainers" in start_here
     assert "Mellona" in start_here
+    assert "Create a small React website about bees." in start_here
 
     assert "make install-dev" not in pypi_readme
     assert "src.agent_dispatcher" not in pypi_readme
     assert "Mellona" in pypi_readme
+    assert "Keep your agent. Add a control plane." in pypi_readme
+    assert "Create a small React website about bees." in pypi_readme
 
 
 def test_public_docs_call_out_console_extra_before_console_serve():
@@ -110,7 +115,16 @@ def test_onboarding_docs_explain_local_smoke_is_only_a_placeholder():
     assert "placeholder `local-smoke` evaluator" in readme
     assert "does not validate project behavior" in quickstart
     assert "placeholder `local-smoke` evaluator" in pypi_readme
+    assert "healthy noop" in pypi_readme
     assert "bootstrap placeholder" in recipe
+
+
+def test_pypi_readme_keeps_mcp_as_an_optional_extra():
+    """The package README should not imply the thin MCP adapter is part of the base install."""
+    pypi_readme = (REPO_ROOT / "docs" / "PYPI_README.md").read_text(encoding="utf-8")
+
+    assert "The base install gives you the `hive` command." in pypi_readme
+    assert "Add `mellona-hive[mcp]` when you want the thin" in pypi_readme
 
 
 def test_start_here_install_matrix_covers_common_installers_and_homebrew_limit():

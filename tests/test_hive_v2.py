@@ -1773,11 +1773,42 @@ class TestHiveV2Cli:
         assert payload["tasks"][1]["status"] == "proposed"
         assert payload["tasks"][2]["status"] == "proposed"
         ready = ready_tasks(workspace, project_id="launch-demo")
-        assert [item["title"] for item in ready] == ["Define the first thin slice for Launch Demo"]
+        assert [item["title"] for item in ready] == ["Plan the first milestone for Launch Demo"]
         agency_content = Path(payload["project"]["path"]).read_text(encoding="utf-8")
         assert "Ship the launch-ready Hive demo workspace." in agency_content
         assert any("hive task claim" in step for step in payload["next_steps"])
         assert all("--json" not in step for step in payload["next_steps"])
+
+    def test_cli_onboard_prompt_alias_scaffolds_a_human_goal(self, tmp_path, capsys):
+        """Onboard should accept a plain-English prompt and turn it into a meaningful starter project."""
+        workspace = tmp_path / "prompt-hive"
+
+        exit_code = hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "onboard",
+                "demo",
+                "--prompt",
+                "Create a small React website about bees.",
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        payload = json.loads(captured.out)
+        assert payload["project"]["id"] == "demo"
+        assert payload["project"]["title"] == "React Website About Bees"
+        assert [task["title"] for task in payload["tasks"]] == [
+            "Plan the first milestone for React Website About Bees",
+            "Build the first reviewable milestone for React Website About Bees",
+            "Review, document, and hand off the first milestone for React Website About Bees",
+        ]
+        agency_content = Path(payload["project"]["path"]).read_text(encoding="utf-8")
+        assert "Create a small React website about bees." in agency_content
+        assert "hive next --project-id demo" in payload["next_steps"]
+        assert "hive work --project-id demo --owner <your-name>" in payload["next_steps"]
 
     def test_cli_quickstart_rejects_existing_project(self, tmp_path, capsys):
         """Quickstart should fail cleanly if the starter slug already exists."""
@@ -1801,7 +1832,7 @@ class TestHiveV2Cli:
         """Quickstart should surface scaffold failures as structured JSON errors."""
         workspace = tmp_path / "quickstart-empty"
 
-        monkeypatch.setattr(hive_cli_main, "starter_task_specs", lambda _title: [])
+        monkeypatch.setattr(hive_cli_main, "starter_task_specs", lambda *_args: [])
 
         exit_code = hive_main(["--path", str(workspace), "--json", "quickstart"])
         captured = capsys.readouterr()
@@ -2715,7 +2746,7 @@ class TestHiveV2Search:
         workspace = tmp_path / "search-priority"
         hive_main(["--path", str(workspace), "--json", "quickstart", "launch/demo"])
 
-        results = search_workspace(workspace, "thin slice", scopes=["workspace"], limit=5)
+        results = search_workspace(workspace, "first milestone", scopes=["workspace"], limit=5)
 
         assert results
         assert results[0]["kind"] == "task"

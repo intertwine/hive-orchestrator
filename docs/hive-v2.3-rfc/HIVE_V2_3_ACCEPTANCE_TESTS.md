@@ -1,7 +1,10 @@
 # Agent Hive v2.3 Acceptance Tests and Release Gates
 
-Status: Proposed  
+Status: Active scope-locked release-gate reference  
 Date: 2026-03-17
+
+This document is the active acceptance companion to `docs/V2_3_STATUS.md`. When older RFC language and the scoped
+release ledger disagree, follow the scope-locked truth in `docs/V2_3_STATUS.md`.
 
 ## 1. North-star release scenario
 

@@ -7,10 +7,10 @@ Start with the root [README](../README.md) for installation and first-run setup.
 ## Common Starting Point
 
 ```bash
-hive init --json
-hive project create demo --title "Demo project" --json
-hive task create --project-id demo --title "Define the first slice" --json
-hive context startup --project demo --json
+hive onboard demo --title "Demo project"
+hive next --project-id demo
+hive work --owner <your-name>
+hive finish <run-id>
 ```
 
 ## What Each Example Shows
@@ -30,7 +30,7 @@ hive context startup --project demo --json
 Each directory includes:
 
 - a `README.md` with the pattern and command flow
-- an `AGENCY.md` projection snapshot that shows how the human-facing document should read in Hive 2.0
+- an `AGENCY.md` projection snapshot that shows how the human-facing document should read in the current v2 substrate
 
 The important rule is the same in every example:
 

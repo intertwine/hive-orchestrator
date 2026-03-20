@@ -1,9 +1,12 @@
 # Agent Hive v2.3 RFC — Completing the World-Class Observe-and-Steer Vision
 
-Status: Proposed  
+Status: Historical design reference  
 Date: 2026-03-17  
 Audience: product, engineering, docs, release, design  
 Applies to: `intertwine/hive-orchestrator` / package `mellona-hive` / product `Agent Hive`
+
+Current scoped release truth lives in `docs/V2_3_STATUS.md`. This RFC remains packaged and searchable as the broader
+design bundle, including ideas later narrowed or deferred for the actual v2.3 release.
 
 ## 1. Executive summary
 

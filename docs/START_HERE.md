@@ -2,6 +2,9 @@
 
 Hive is a control plane for multi-agent software work. Use this page to pick the right path into it.
 
+Best first experience: install Hive, create a fresh workspace with `hive onboard demo`, then go straight into
+`hive next`, `hive work`, and `hive finish`.
+
 ## Choose Your Lane
 
 | If you want to... | Start here |
@@ -79,12 +82,20 @@ If you want the shortest path to a real Hive workspace:
 mkdir my-hive
 cd my-hive
 git init
-hive onboard demo --title "Demo project" --objective "Ship one governed slice."
+hive onboard demo --prompt "Create a small React website about bees."
 ```
 
 That path is covered in the full [Quickstart](./QUICKSTART.md). `hive onboard` is the recommended fresh-workspace
 bootstrap. `hive init` only creates the substrate layout. `hive onboard` bootstraps the workspace, detects the local
 driver situation, creates a starter project, runs Program Doctor, and leaves you with a safe first task chain.
+
+A healthy first `hive finish` can end in one of two ways:
+
+- accepted or promoted because the run made a real change
+- cleanly rejected because nothing changed yet
+
+If you want the demo workspace to show a successful promotion on purpose, make one tiny docs-only change while working
+the first demo task before you run `hive finish`.
 
 Once the workspace exists, the shortest manager-style loop is:
 

@@ -37,7 +37,12 @@ class TestObserveConsoleApi:
             ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
         )
         write_safe_program(temp_hive_dir, "demo")
-        create_task(temp_hive_dir, "demo", "Review-ready slice", status="ready", priority=1)
+        review_ready_task = create_task(
+            temp_hive_dir, "demo", "Review-ready slice", status="ready", priority=1
+        )
+        follow_up_task = create_task(
+            temp_hive_dir, "demo", "Follow-up review slice", status="ready", priority=1
+        )
         subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
         subprocess.run(
             ["git", "commit", "-m", "Bootstrap workspace"],
@@ -46,10 +51,8 @@ class TestObserveConsoleApi:
             capture_output=True,
             text=True,
         )
-        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
-        run = start_run(temp_hive_dir, task_id, driver_name="codex")
-        review_task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
-        local_run = start_run(temp_hive_dir, review_task_id, driver_name="local")
+        run = start_run(temp_hive_dir, review_ready_task.id, driver_name="codex")
+        local_run = start_run(temp_hive_dir, follow_up_task.id, driver_name="local")
         eval_run(temp_hive_dir, local_run.id)
 
         client = TestClient(app)

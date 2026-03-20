@@ -1,7 +1,10 @@
 # Agent Hive v2.3 Retrieval and Campaigns Spec
 
-Status: Proposed  
+Status: Historical design reference  
 Date: 2026-03-17
+
+Current scoped release truth lives in `docs/V2_3_STATUS.md`. This spec is kept as packaged design context even though
+the shipped v2.3 line deliberately narrowed parts of the proposed retrieval and campaign depth.
 
 ## 1. Purpose
 

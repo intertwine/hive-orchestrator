@@ -3,8 +3,11 @@
 Agent Hive is a repo-native control plane for autonomous work. Use Codex, Claude Code, or local/manual execution to
 do the work. Use Hive to supervise tasks, runs, memory, policy, and approvals from one place.
 
+**Keep your agent. Add a control plane.**
+
 `mellona-hive` is the distribution you install from PyPI or Homebrew. Mellona is the package family. Agent Hive is
-the current product. The install gives you the `hive` and `hive-mcp` commands.
+the current product. The base install gives you the `hive` command. Add `mellona-hive[mcp]` when you want the thin
+`hive-mcp` adapter.
 
 ## Install
 
@@ -65,7 +68,7 @@ Start in an empty directory:
 mkdir my-hive
 cd my-hive
 git init
-hive onboard demo --title "Demo project" --objective "Ship one governed slice."
+hive onboard demo --prompt "Create a small React website about bees."
 ```
 
 That gives you a real workspace, a starter project, a conservative `PROGRAM.md`, and a first task chain with one
@@ -74,6 +77,10 @@ ready task. If you want the observe-and-steer console, install `mellona-hive[con
 
 Fresh onboarded projects may start with the placeholder `local-smoke` evaluator so the loop works immediately. Replace
 it with a real repo-specific evaluator before you trust autonomous promotion.
+
+If the first `hive finish` later says there was nothing to promote, that is usually a healthy noop rather than a
+broken setup. To intentionally see a successful first promotion, make one tiny docs-only change while working the
+demo task, then finish the run.
 
 Then use the normal loop:
 

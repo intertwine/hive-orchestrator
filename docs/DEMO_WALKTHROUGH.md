@@ -6,6 +6,9 @@ It still builds on the existing multi-project launch fixture from the v2.2 line,
 and temp paths keep their `v22` names. The point of this walkthrough is to show the deeper v2.3
 operator surface on top of that stable fixture, not to replace the fixture itself.
 
+If you just want to see the current product story, start with the checked-in screenshots and clip under
+`images/launch/`. You only need the fixture builder when you want to regenerate the demo locally.
+
 It builds the same north-star shape we use in acceptance:
 
 - three projects
@@ -46,7 +49,7 @@ http://127.0.0.1:8787/console/?workspace=/tmp/hive-v22-demo
 
 The console will prefill the workspace path from the URL so the demo opens ready to use.
 
-## 3. Record screenshots and a short walkthrough clip
+## 3. Regenerate screenshots and a short walkthrough clip
 
 The capture helper lives with the React console package at
 `frontend/console/scripts/captureDemoAssets.mjs`:

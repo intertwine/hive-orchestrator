@@ -40,7 +40,9 @@ def _serializable_bootstrap(payload: dict[str, object]) -> dict[str, object]:
     }
 
 
-def _seed_starter_tasks(root: Path, project_id: str, project_title: str) -> list[dict[str, object]]:
+def _seed_starter_tasks(
+    root: Path, project_id: str, project_title: str, objective: str | None = None
+) -> list[dict[str, object]]:
     existing = [task for task in list_tasks(root) if task.project_id == project_id]
     if existing:
         return [
@@ -54,7 +56,7 @@ def _seed_starter_tasks(root: Path, project_id: str, project_title: str) -> list
             for task in existing
         ]
     tasks = []
-    for spec in starter_task_specs(project_title):
+    for spec in starter_task_specs(project_title, objective):
         task = create_task(
             root,
             project_id,
@@ -104,7 +106,7 @@ def onboard_workspace(
             break
     if project is None:
         project = create_project(root, slug, title=title, objective=objective)
-    tasks = _seed_starter_tasks(root, project.id, project.title)
+    tasks = _seed_starter_tasks(root, project.id, project.title, objective)
     diagnosis = _auto_fix_program(root, project.id)
     sync_workspace(root)
     return {
@@ -132,7 +134,7 @@ def adopt_repository(
     if project is None:
         resolved_slug = slug or root.name.replace("_", "-")
         project = create_project(root, resolved_slug, title=title, objective=objective)
-    tasks = _seed_starter_tasks(root, project.id, project.title)
+    tasks = _seed_starter_tasks(root, project.id, project.title, objective)
     diagnosis = _auto_fix_program(root, project.id)
     sync_workspace(root)
     return {

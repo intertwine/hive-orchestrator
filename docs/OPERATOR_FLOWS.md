@@ -22,15 +22,22 @@ For a new workspace:
 
 ```bash
 hive onboard demo --title "Demo project"
-hive console serve
+hive next --project-id demo
+hive work --owner <your-name>
+hive finish <run-id>
 ```
 
 For an existing repo:
 
 ```bash
 hive adopt app --title "App"
-hive console serve
+hive next --project-id app
+hive work --project-id app --owner <your-name>
+hive finish <run-id>
 ```
+
+Install `mellona-hive[console]` first and add `hive console serve` beside that loop when you want the live
+observe-and-steer view from the beginning.
 
 ## Steering loop
 

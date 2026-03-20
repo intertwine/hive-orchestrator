@@ -1,6 +1,9 @@
 # Agent Hive v2.3 Completion RFC Bundle
 
-This bundle is the implementation handoff for **Agent Hive / Mellona Agent Hive v2.3**.
+This bundle is the historical planning and design reference for **Agent Hive / Mellona Agent Hive v2.3**.
+
+Current scoped release truth lives in [`docs/V2_3_STATUS.md`](../V2_3_STATUS.md). Use that ledger for what is
+actually required, complete, deferred, or still blocking the release call.
 
 ## Files
 

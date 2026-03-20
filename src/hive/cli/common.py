@@ -101,7 +101,7 @@ def _doctor_payload(root: Path) -> dict[str, object]:
     next_steps: list[str] = []
     if not checks["layout"]:
         next_steps.append(
-            'Run `hive onboard demo --title "Demo project"` '
+            'Run `hive onboard demo --prompt "Create a small React website about bees."` '
             "to bootstrap a workspace with a starter project and ready task."
         )
         next_steps.append(
@@ -113,7 +113,7 @@ def _doctor_payload(root: Path) -> dict[str, object]:
         next_steps.append("Run `hive sync projections` to create `AGENTS.md`.")
     if checks["layout"] and not projects:
         next_steps.append(
-            'Run `hive onboard demo --title "Demo project"` '
+            'Run `hive onboard demo --prompt "Create a small React website about bees."` '
             "to scaffold a working project with starter tasks."
         )
         next_steps.append(

@@ -65,7 +65,7 @@ def dispatch(args, root: Path) -> int:
                 objective=args.objective,
             )
             starter_tasks = []
-            for spec in _starter_specs()(project.title):
+            for spec in _starter_specs()(project.title, args.objective):
                 starter_tasks.append(
                     create_task(
                         root,

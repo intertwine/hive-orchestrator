@@ -55,6 +55,15 @@ checks are closed:
 1. README, demo walkthrough, compare-harness, and operator docs match the shipped observe-and-steer story.
 2. Installed-package `hive search` is proven useful from a throwaway install, not only from a source checkout.
 
+For the actual v2.3.0 release cut from this repo state, the expected version bump is:
+
+```bash
+make bump-version BUMP=minor
+uv lock
+```
+
+Update [docs/V2_3_STATUS.md](/docs/V2_3_STATUS.md) at the same time so the ledger points at tag-and-publish as the only remaining blocker before you cut the tag.
+
 ## Cut A Release
 
 Bump the version:
@@ -147,7 +156,7 @@ Also check a real first-run flow in a clean workspace:
 workspace_dir=$(mktemp -d)
 cd "$workspace_dir"
 
-hive onboard demo --title "Demo project"
+hive onboard demo --prompt "Create a small React website about bees."
 hive doctor --json
 hive task ready --project-id demo --json
 ```

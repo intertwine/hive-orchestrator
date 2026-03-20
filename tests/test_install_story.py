@@ -182,4 +182,4 @@ def test_release_guide_uses_throwaway_dirs_for_public_install_verification():
     assert "workspace_dir=$(mktemp -d)" in release_doc
     assert "./pip-verify/bin/hive --version" in release_doc
     assert "./pip-verify/bin/hive doctor --json" in release_doc
-    assert 'hive onboard demo --title "Demo project"' in release_doc
+    assert 'hive onboard demo --prompt "Create a small React website about bees."' in release_doc

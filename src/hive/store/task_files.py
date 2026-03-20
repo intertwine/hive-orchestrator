@@ -242,7 +242,7 @@ def release_task(path: str | Path | None, task_id: str) -> TaskRecord:
     task = get_task(path, task_id)
     task.owner = None
     task.claimed_until = None
-    if task.status == "claimed":
+    if task.status in {"claimed", "in_progress"}:
         task.status = "ready"
     save_task(path, task)
     return task

@@ -9,10 +9,11 @@ import sqlite3
 from pathlib import Path
 
 from src.hive.cli.common import clean_string_list, emit, emit_error, project_payload
+from src.hive.control import release_task_flow
 from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.cache import CacheBusyError
 from src.hive.store.projects import create_project, get_project
-from src.hive.store.task_files import claim_task, create_task, get_task, link_tasks, list_tasks, release_task, update_task
+from src.hive.store.task_files import claim_task, create_task, get_task, link_tasks, list_tasks, update_task
 from src.hive.workspace import WorkspaceBusyError, sync_workspace
 from src.hive.runs.worktree import create_checkpoint_commit
 
@@ -147,14 +148,43 @@ def dispatch(args, root: Path) -> int:
                     args.json,
                 )
             if args.task_command == "release":
-                task = release_task(root, args.task_id)
-                sync_workspace(root)
-                return emit({"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json)
+                payload = release_task_flow(root, args.task_id)
+                payload.update(
+                    {
+                        "ok": True,
+                        "message": (
+                            f"Released task {args.task_id} back to the ready queue."
+                            if not payload["cancelled_runs"]
+                            else f"Released task {args.task_id} and cancelled its active runs."
+                        ),
+                    }
+                )
+                if payload["cancelled_runs"]:
+                    payload["next_steps"] = [
+                        f"hive next --project-id {payload['task']['project_id']}",
+                    ]
+                return emit(payload, args.json)
             if args.task_command == "link":
                 task = link_tasks(root, args.src_id, args.edge_type, args.dst_id)
                 sync_workspace(root)
                 return emit({"ok": True, "task": task.to_frontmatter() | {"path": str(task.path)}}, args.json)
             if args.task_command == "ready":
+                if args.task_id:
+                    if args.project_id or args.limit is not None:
+                        raise ValueError(
+                            "`hive task ready <task-id>` marks one task ready; do not combine it "
+                            "with `--project-id` or `--limit`."
+                        )
+                    task = update_task(root, args.task_id, {"status": "ready"})
+                    sync_workspace(root)
+                    return emit(
+                        {
+                            "ok": True,
+                            "message": f"Marked task {args.task_id} as ready.",
+                            "task": task.to_frontmatter() | {"path": str(task.path)},
+                        },
+                        args.json,
+                    )
                 return emit(
                     {"ok": True, "tasks": ready_tasks(root, project_id=args.project_id, limit=args.limit)},
                     args.json,

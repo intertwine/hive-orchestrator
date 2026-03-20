@@ -238,13 +238,28 @@ def _add_project_parsers(subparsers: argparse._SubParsersAction[argparse.Argumen
     task_claim.add_argument("task_id")
     task_claim.add_argument("--owner", required=True)
     task_claim.add_argument("--ttl-minutes", type=int, default=30)
-    task_release = task_subparsers.add_parser("release")
+    task_release = task_subparsers.add_parser(
+        "release",
+        help="Release a claim or governed run back to the ready queue.",
+        description=(
+            "Release a task back to the ready queue. If the task still has an active governed "
+            "run, Hive will cancel that run before releasing the task."
+        ),
+    )
     task_release.add_argument("task_id")
     task_link = task_subparsers.add_parser("link")
     task_link.add_argument("src_id")
     task_link.add_argument("edge_type")
     task_link.add_argument("dst_id")
-    task_ready = task_subparsers.add_parser("ready")
+    task_ready = task_subparsers.add_parser(
+        "ready",
+        help="List ready tasks, or mark one task ready when you pass a task id.",
+        description=(
+            "Without arguments, list the ranked ready queue. With `<task-id>`, mark that one "
+            "task ready as a shortcut for `hive task update <task-id> --status ready`."
+        ),
+    )
+    task_ready.add_argument("task_id", nargs="?")
     task_ready.add_argument("--project-id")
     task_ready.add_argument("--limit", type=int)
 

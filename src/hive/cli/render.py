@@ -132,6 +132,9 @@ def _render_run(run: dict[str, object]) -> str:
     run_dir = run.get("run_dir") or run.get("path")
     if run_dir:
         lines.append(f"Path: {run_dir}")
+    worktree_path = run.get("worktree_path")
+    if worktree_path:
+        lines.append(f"Worktree: {worktree_path}")
     return "\n".join(lines)
 
 

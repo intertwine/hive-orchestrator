@@ -11,6 +11,7 @@ import os
 
 from src.hive.constants import RUN_ACTIVE_STATUSES
 from src.hive.context_bundle import build_context_bundle
+from src.hive.drivers import SteeringRequest
 from src.hive.payloads import project_payload
 from src.hive.runs.engine import (
     accept_run,
@@ -21,12 +22,13 @@ from src.hive.runs.engine import (
     promote_run,
     reject_run,
     start_run,
+    steer_run,
 )
 from src.hive.runs.worktree import create_checkpoint_commit
 from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.events import emit_event, load_events
 from src.hive.store.projects import discover_projects, get_project, save_project
-from src.hive.store.task_files import claim_task, get_task
+from src.hive.store.task_files import claim_task, get_task, release_task
 from src.hive.workspace import resolve_workspace_path, sync_workspace
 
 
@@ -122,6 +124,10 @@ def _active_runs(root: Path) -> list[dict[str, Any]]:
         runs.append(metadata)
     runs.sort(key=lambda item: item.get("started_at") or item["id"])
     return runs
+
+
+def _active_runs_for_task(root: Path, task_id: str) -> list[dict[str, Any]]:
+    return [run for run in _active_runs(root) if str(run.get("task_id")) == task_id]
 
 
 def _evaluating_runs(root: Path) -> list[dict[str, Any]]:
@@ -379,6 +385,54 @@ def work_on_task(
         "context": bundle["context"],
         "rendered_context": rendered_context if written_output is None else None,
         "output_path": written_output,
+    }
+
+
+def release_task_flow(
+    path: str | Path | None,
+    task_id: str,
+    *,
+    actor: str | None = None,
+) -> dict[str, Any]:
+    """Release a task and cancel any still-active runs tied to it."""
+    root = Path(path or Path.cwd()).resolve()
+    resolved_actor = (actor or _default_owner()).strip() or "operator"
+
+    cancelled_runs: list[dict[str, Any]] = []
+    for run in _active_runs_for_task(root, task_id):
+        cancelled = steer_run(
+            root,
+            str(run["id"]),
+            SteeringRequest(
+                action="cancel",
+                reason=f"Task {task_id} was released by {resolved_actor}.",
+            ),
+            actor=resolved_actor,
+        )
+        cancelled_runs.append(
+            {
+                "id": str(run["id"]),
+                "previous_status": str(run.get("status") or "unknown"),
+                "status": str(cancelled.get("run", {}).get("status") or "cancelled"),
+            }
+        )
+
+    task = release_task(root, task_id)
+    sync_workspace(root)
+    emit_event(
+        root,
+        actor=resolved_actor,
+        entity_type="task",
+        entity_id=task.id,
+        event_type="task.released",
+        source="portfolio.release",
+        payload={"cancelled_runs": cancelled_runs},
+        task_id=task.id,
+        project_id=task.project_id,
+    )
+    return {
+        "task": task.to_frontmatter() | {"path": str(task.path) if task.path else None},
+        "cancelled_runs": cancelled_runs,
     }
 
 

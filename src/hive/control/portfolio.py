@@ -413,7 +413,9 @@ def release_task_flow(
             {
                 "id": str(run["id"]),
                 "previous_status": str(run.get("status") or "unknown"),
-                "status": str(cancelled.get("run", {}).get("status") or "cancelled"),
+                "status": str(
+                    cancelled.get("run", {}).get("status") or run.get("status") or "unknown"
+                ),
             }
         )
 

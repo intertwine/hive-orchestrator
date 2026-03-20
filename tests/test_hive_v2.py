@@ -22,6 +22,7 @@ from hive.cli.main import main as hive_main
 from src.hive.cli.render import render_payload
 from src.hive.codemode.execute import MAX_EXECUTE_BYTES
 from src.hive.context_bundle import build_context_bundle
+from src.hive.control import release_task_flow
 from src.hive.memory import observe_project, reflect_project, search_memory, startup_context
 from src.hive.migrate import migrate_v1_to_v2
 from src.hive.models.task import TaskRecord
@@ -2794,6 +2795,55 @@ class TestHiveV2Cli:
         ]
         assert get_task(workspace, task_id).status == "ready"
         assert load_run(workspace, run_id)["status"] == "cancelled"
+
+    def test_release_task_flow_preserves_non_cancelled_status_when_cancel_bridge_is_ambiguous(
+        self, tmp_path, commit_workspace, monkeypatch, capsys
+    ):
+        """Release bookkeeping should report the returned run status instead of assuming cancel succeeded."""
+        workspace = tmp_path / "task-release-ambiguous-cancel"
+        hive_main(["--path", str(workspace), "--json", "quickstart", "demo"])
+        capsys.readouterr()
+        (workspace / "projects" / "demo" / "PROGRAM.md").write_text(
+            _program_markdown(
+                "python -c \"print('ok')\"",
+                allow_accept_without_changes=True,
+            ),
+            encoding="utf-8",
+        )
+        commit_workspace(workspace, "prepare ambiguous release workspace")
+        task_id = ready_tasks(workspace, project_id="demo")[0]["id"]
+
+        work_payload = json.loads(
+            _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    str(workspace),
+                    "--json",
+                    "work",
+                    task_id,
+                    "--owner",
+                    "codex",
+                ],
+            )
+        )
+        run_id = work_payload["run"]["id"]
+
+        monkeypatch.setattr(
+            "src.hive.control.portfolio.steer_run",
+            lambda *_args, **_kwargs: {"run": {"id": run_id, "status": "finished"}},
+        )
+
+        payload = release_task_flow(workspace, task_id, actor="codex")
+
+        assert payload["cancelled_runs"] == [
+            {
+                "id": run_id,
+                "previous_status": "running",
+                "status": "finished",
+            }
+        ]
+        assert get_task(workspace, task_id).status == "ready"
 
     def test_cli_work_human_output_calls_out_run_worktree(self, tmp_path, commit_workspace, capsys):
         """Human `hive work` output should tell users where governed edits belong."""

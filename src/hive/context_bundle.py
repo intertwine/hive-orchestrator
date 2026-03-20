@@ -44,7 +44,11 @@ def generate_file_tree(
     return tree
 
 
-def _render_ready_task_lines(tasks: list[dict[str, object]], *, current_task_id: str | None = None) -> str:
+def _render_ready_task_lines(
+    tasks: list[dict[str, object]],
+    *,
+    current_task_id: str | None = None,
+) -> str:
     if not tasks:
         if current_task_id:
             return "*No canonical ready tasks found right now. See CURRENT TASK below.*"

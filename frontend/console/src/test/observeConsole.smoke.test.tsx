@@ -722,7 +722,7 @@ describe("Observe Console smoke", () => {
     renderConsole(["/campaigns"]);
 
     await screen.findByRole("heading", { name: "Campaigns" });
-    await user.click(screen.getByRole("link", { name: "North Star Daily Brief" }));
+    await user.click(await screen.findByRole("link", { name: "North Star Daily Brief" }));
 
     await screen.findByRole("heading", { name: "Decision Preview" });
     expect(screen.getByText("highest exploit score under current lane quotas")).toBeInTheDocument();

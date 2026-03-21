@@ -1,7 +1,7 @@
 # Hive v2.3 Status
 
-Status: ready for release
-Last updated: 2026-03-20
+Status: v2.3.1 released
+Last updated: 2026-03-21
 Purpose: compact execution ledger for the current v2.3 release line
 
 This file is the maintainer-facing status ledger for v2.3. Update it when a v2.3
@@ -56,17 +56,16 @@ What is real now:
 - the public README, demo walkthrough, operator flows, and acceptance/release docs now describe the scoped v2.3 operator story instead of the older v2.2 launch framing
 - the built-artifact release smoke path now proves installed-package `hive search` returns packaged API/RFC and recipe hits with explanations
 
-What is still holding back a clean release call:
+## Release History
 
-- the literal `v2.3.0` tag push and release-automation verification on top of clean `main`
+| Version | Date | Notes |
+|---|---|---|
+| `v2.3.0` | 2026-03-20 | Foundation hardening: driver correctness, executor policy, workflow reliability |
+| `v2.3.1` | 2026-03-21 | Console-first human onboarding UX redesign (`#158`): forgiving demo defaults, human mental model summary, getting-started empty state, console-first doc rewrite, better dead-end CLI guidance |
 
 ## Next Blocker
 
-Cut `v2.3.0` from the now-green, scope-locked release branch:
-
-1. tag and push `v2.3.0` from clean `main`
-2. watch the release workflow through PyPI publish, Homebrew verification, and tap update
-3. run the post-release public install/onboarding verification from a throwaway workspace
+None — v2.3.1 is released. Next work is product-market-fit iteration based on user feedback.
 
 ## Update Rule
 

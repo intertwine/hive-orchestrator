@@ -84,14 +84,13 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     assert "Use a fresh directory for this walkthrough." in quickstart
     assert "If you are maintaining Hive itself" in quickstart
     assert "Create a small React website about bees." in quickstart
-    assert "After `hive onboard demo`, you have three good next moves" in quickstart
+    assert "hive console serve" in quickstart
     assert "Make The First Finish Feel Real" in quickstart
-    assert "successful first promotion" in quickstart
     assert "run worktree" in quickstart
-    assert "hive task update <task-id> --status done" in quickstart
     assert "Once you have more than one project and want the cross-project queue" in quickstart
     assert "hive program doctor demo" in quickstart
     assert "does not validate project behavior" in quickstart
+    assert "mellona-hive[console]" in quickstart
 
     assert "hive task ready --project-id demo" in demo_agency
     assert "make session PROJECT=demo" in demo_agency

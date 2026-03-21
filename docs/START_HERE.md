@@ -15,26 +15,21 @@ Best first experience: install Hive, create a fresh workspace with `hive onboard
 
 ## Install Hive
 
-Install `mellona-hive`, then use the `hive` command. Mellona is the package family. Agent Hive is the current
-product.
+Install `mellona-hive` with the console extra, then use the `hive` command. Mellona is the package family.
+Agent Hive is the current product. The console gives you a live operator UI to observe and steer your agents.
 
 Pick the installer you already trust:
 
 ```bash
-uv tool install mellona-hive
+uv tool install 'mellona-hive[console]'
 ```
 
 ```bash
-pipx install mellona-hive
+pipx install 'mellona-hive[console]'
 ```
 
 ```bash
-python -m pip install mellona-hive
-```
-
-```bash
-brew tap intertwine/tap
-brew install intertwine/tap/mellona-hive
+python -m pip install 'mellona-hive[console]'
 ```
 
 Then verify:
@@ -44,21 +39,24 @@ hive --version
 hive doctor
 ```
 
+> **CLI-only install:** For headless servers, CI, or minimal setups, `uv tool install mellona-hive`
+> gives you the base CLI without the console web UI dependencies.
+
 If you want the latest unreleased checkout before the next tagged release or before package
 indexes catch up, use the git install instead:
 
 ```bash
-uv tool install --from git+https://github.com/intertwine/hive-orchestrator.git mellona-hive
+uv tool install --from 'git+https://github.com/intertwine/hive-orchestrator.git' 'mellona-hive[console]'
 ```
 
-## Optional Extras
+## Additional Extras
 
-| Installer | Base CLI | Observe console | MCP adapter | Notes |
-|---|---|---|---|---|
-| `uv tool` | `uv tool install mellona-hive` | `uv tool install --upgrade 'mellona-hive[console]'` | `uv tool install --upgrade 'mellona-hive[mcp]'` | Cleanest path for most users |
-| `pipx` | `pipx install mellona-hive` | `pipx install 'mellona-hive[console]'` | `pipx install 'mellona-hive[mcp]'` | Good if you already live in `pipx` |
-| `pip` | `python -m pip install mellona-hive` | `python -m pip install 'mellona-hive[console]'` | `python -m pip install 'mellona-hive[mcp]'` | Best when you manage your own virtualenv |
-| Homebrew | `brew install intertwine/tap/mellona-hive` | use one of the Python package installs above | use one of the Python package installs above | Homebrew currently ships the base CLI |
+| Extra | Install | Purpose |
+|---|---|---|
+| MCP adapter | `uv tool install --upgrade 'mellona-hive[console,mcp]'` | Thin `hive-mcp` search + execute surface |
+| E2B sandbox | `uv tool install --upgrade 'mellona-hive[console,sandbox-e2b]'` | Hosted sandbox execution |
+| Daytona sandbox | `uv tool install --upgrade 'mellona-hive[console,sandbox-daytona]'` | Self-hosted sandbox execution |
+| Homebrew | `brew install intertwine/tap/mellona-hive` | Base CLI only (no extras) |
 
 `mellona-hive[mcp]` keeps the adapter deliberately small: `search` and `execute` only. `execute` is a bounded local
 Python helper, not a full sandbox.
@@ -83,28 +81,16 @@ mkdir my-hive
 cd my-hive
 git init
 hive onboard demo --prompt "Create a small React website about bees."
+hive console serve
 ```
+
+Open `http://127.0.0.1:8787/console/` to see your workspace in the operator console.
 
 That path is covered in the full [Quickstart](./QUICKSTART.md). `hive onboard` is the recommended fresh-workspace
 bootstrap. `hive init` only creates the substrate layout. `hive onboard` bootstraps the workspace, detects the local
 driver situation, creates a starter project, runs Program Doctor, and leaves you with a safe first task chain.
 
-A healthy first `hive finish` can end in one of two ways:
-
-- accepted or promoted because the run made a real change
-- cleanly rejected because nothing changed yet
-
-If you want the demo workspace to show a successful promotion on purpose, make one tiny docs-only change while working
-the first demo task before you run `hive finish`.
-Make that change inside the run worktree that `hive work` printed for you, usually `.hive/worktrees/run_<id>/`.
-
-If the promoted task lands in `review`, close it explicitly to unblock the next task in the starter chain:
-
-```bash
-hive task update <task-id> --status done
-```
-
-Once the workspace exists, the shortest manager-style loop is:
+The manager loop from the CLI:
 
 ```bash
 hive next
@@ -112,11 +98,8 @@ hive work --owner <your-name>
 hive finish <run-id>
 ```
 
-Install `mellona-hive[console]` first when you want the observe-and-steer console on top of that loop:
-
-```bash
-hive console serve
-```
+Governed edits happen inside the run worktree that `hive work` creates, not in the workspace root.
+The console shows the same information in a live dashboard — use whichever interface fits your workflow.
 
 ## Existing Repo
 
@@ -125,16 +108,16 @@ If you already have a repository and want Hive inside it:
 ```bash
 cd your-repo
 hive adopt app --title "App"
+hive console serve
 ```
 
-After that, run the manager loop:
+The console shows your project, tasks, and governance policy. From the CLI:
 
 ```bash
 hive next
 hive work --owner <your-name>
+hive finish <run-id>
 ```
-
-Install `mellona-hive[console]` first if you want `hive console serve`.
 
 The full guide lives in [Adopt Hive In An Existing Repo](./ADOPT_EXISTING_REPO.md).
 

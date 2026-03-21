@@ -32,10 +32,14 @@ commands:
 evaluators: []
 promotion:
   allow_unsafe_without_evaluators: false
-  allow_accept_without_changes: false
+  # Starter default: accept no-op runs so the first hive-finish loop completes cleanly.
+  # Tighten to false once your project produces real changes on every run.
+  allow_accept_without_changes: true
   requires_all: []
   review_required_when_paths_match: []
-  auto_close_task: false
+  # Starter default: auto-close tasks on accept so downstream work unblocks immediately.
+  # Set to false when you want an explicit human review step between accept and done.
+  auto_close_task: true
 escalation:
   when_paths_match: []
   when_commands_match: []
@@ -52,8 +56,9 @@ Define the autonomous work contract for this project.
   `promotion.requires_all`.
 - If this project is intentionally manual or low-governance, set
   `promotion.allow_unsafe_without_evaluators: true` explicitly so reviewers can see that choice.
-- If you want report-only or no-change runs to promote, set
-  `promotion.allow_accept_without_changes: true` explicitly so that choice is visible too.
+- The starter defaults allow no-change runs and auto-close tasks so the first
+  `onboard → next → work → finish` loop completes cleanly. Tighten these once you
+  have real evaluators and want an explicit review gate.
 - Keep `commands.allow` aligned with the exact commands you expect Hive to run.
 """
 

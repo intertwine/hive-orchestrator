@@ -80,19 +80,51 @@ def dispatch(args, root: Path) -> int:
         if args.command == "next":
             recommendation = recommend_next_task(root, project_id=args.project_id)
             if recommendation is None:
-                review_tasks = [
+                all_tasks = [
                     task
                     for task in list_tasks(root)
-                    if task.status == "review"
-                    and (args.project_id is None or task.project_id == args.project_id)
+                    if args.project_id is None or task.project_id == args.project_id
                 ]
+                review_tasks = [t for t in all_tasks if t.status == "review"]
+                proposed_tasks = [t for t in all_tasks if t.status == "proposed"]
+                claimed_tasks = [t for t in all_tasks if t.status in ("claimed", "in_progress")]
+                done_tasks = [t for t in all_tasks if t.status == "done"]
+
+                # Build a human-readable explanation of why nothing is ready
+                explanations: list[str] = []
+                if review_tasks:
+                    explanations.append(
+                        f"{len(review_tasks)} task(s) in review — close them to unblock "
+                        "downstream work"
+                    )
+                if claimed_tasks:
+                    explanations.append(
+                        f"{len(claimed_tasks)} task(s) already claimed or in progress"
+                    )
+                if proposed_tasks:
+                    explanations.append(
+                        f"{len(proposed_tasks)} task(s) proposed but blocked by dependencies"
+                    )
+                if done_tasks and not review_tasks and not proposed_tasks and not claimed_tasks:
+                    explanations.append("All tasks are done — create new work to continue")
+
+                message = "No ready task is available right now."
+                if explanations:
+                    message += " " + "; ".join(explanations) + "."
+
                 next_steps = []
                 if review_tasks:
-                    next_steps.append(f"hive task update {review_tasks[0].id} --status done")
+                    next_steps.append(
+                        f"hive task update {review_tasks[0].id} --status done  "
+                        "(close the review task to unblock work)"
+                    )
+                if not all_tasks:
+                    next_steps.append("hive onboard demo  (bootstrap a starter project)")
+                next_steps.append("hive doctor  (diagnose workspace health)")
                 return emit(
                     {
                         "ok": True,
-                        "message": "No ready task is available right now.",
+                        "message": message,
                         "recommendation": None,
                         "next_steps": next_steps,
                     },
@@ -179,7 +211,25 @@ def dispatch(args, root: Path) -> int:
                 # Keep the headline compact; the full reason list still renders below.
                 reason_suffix = f": {reasons[0]}"
             if payload["action"] == "reject":
-                next_steps = [f"hive next --project-id {payload['run']['project_id']}"]
+                next_steps = []
+                reasons = decision.get("reasons") or []
+                # Provide targeted guidance for common rejection reasons
+                no_changes = any("did not produce workspace changes" in str(r) for r in reasons)
+                no_evaluator = any("No evaluator results" in str(r) for r in reasons)
+                if no_changes:
+                    worktree = payload["run"].get("worktree_path", "")
+                    next_steps.append(
+                        "This run had no file changes. Make a change inside the run worktree"
+                        + (f" at {worktree}" if worktree else "")
+                        + ", then run hive finish again."
+                    )
+                if no_evaluator:
+                    next_steps.append(
+                        f"hive program doctor {payload['run']['project_id']}  "
+                        "(add an evaluator to enable promotion)"
+                    )
+                next_steps.append(f"hive next --project-id {payload['run']['project_id']}")
+                next_steps.append("hive doctor  (diagnose workspace health)")
             elif payload["action"] == "escalate":
                 next_steps = [f"hive run show {args.run_id}"]
             elif payload["action"] == "accept":

@@ -89,6 +89,28 @@ def _auto_fix_program(root: Path, project_id: str) -> dict:
     return diagnosis
 
 
+def _onboarding_summary(project_id: str, project_title: str, task_count: int) -> list[str]:
+    """Build a human-readable mental model summary for post-onboard output."""
+    return [
+        f'Hive created a workspace with one project ("{project_id}") and {task_count} starter tasks.',
+        f"Your project policy lives in projects/{project_id}/PROGRAM.md — it controls what",
+        "agents are allowed to do and how their work gets reviewed.",
+        "",
+        "Your workspace:",
+        "  .hive/            Machine state (tasks, runs, events, cache)",
+        "  GLOBAL.md         Human-readable workspace overview",
+        f"  projects/{project_id}/",
+        "    AGENCY.md       Project context and notes for humans",
+        "    PROGRAM.md      Governance policy for autonomous runs",
+        "",
+        "The manager loop:",
+        "  1. hive console serve               Open the operator console (recommended)",
+        f"  2. hive next --project-id {project_id:<12s} See the first ready task",
+        "  3. hive work --owner <your-name>     Start a governed run",
+        "  4. hive finish <run-id>              Evaluate and close the run",
+    ]
+
+
 def onboard_workspace(
     path: str | Path | None,
     *,
@@ -116,6 +138,7 @@ def onboard_workspace(
         "tasks": tasks,
         "program": diagnosis,
         "git_ready": _has_git_head(root),
+        "onboarding_summary": _onboarding_summary(project.id, project.title, len(tasks)),
     }
 
 

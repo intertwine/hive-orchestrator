@@ -5,9 +5,30 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def program_stub_markdown() -> str:
-    """Return the default conservative PROGRAM.md stub."""
-    return """---
+def program_stub_markdown(*, forgiving: bool = False) -> str:
+    """Return a default PROGRAM.md stub.
+
+    When *forgiving* is False (the default), the stub is conservative: no-change
+    runs are rejected and tasks require explicit closure.  This is the right
+    default for ``hive project create`` and v1→v2 migration.
+
+    When *forgiving* is True, the stub flips ``allow_accept_without_changes``
+    and ``auto_close_task`` so the first ``onboard → next → work → finish``
+    loop completes cleanly even without real evaluators.  Only the onboarding
+    path should pass ``forgiving=True``.
+    """
+    accept_no_changes = "true" if forgiving else "false"
+    auto_close = "true" if forgiving else "false"
+
+    forgiving_comments = ""
+    if forgiving:
+        forgiving_comments = (
+            "- The starter defaults allow no-change runs and auto-close tasks so the first\n"
+            "  `onboard → next → work → finish` loop completes cleanly. Tighten these once you\n"
+            "  have real evaluators and want an explicit review gate.\n"
+        )
+
+    return f"""---
 program_version: 1
 mode: workflow
 default_executor: local
@@ -32,14 +53,10 @@ commands:
 evaluators: []
 promotion:
   allow_unsafe_without_evaluators: false
-  # Starter default: accept no-op runs so the first hive-finish loop completes cleanly.
-  # Tighten to false once your project produces real changes on every run.
-  allow_accept_without_changes: true
+  allow_accept_without_changes: {accept_no_changes}
   requires_all: []
   review_required_when_paths_match: []
-  # Starter default: auto-close tasks on accept so downstream work unblocks immediately.
-  # Set to false when you want an explicit human review step between accept and done.
-  auto_close_task: true
+  auto_close_task: {auto_close}
 escalation:
   when_paths_match: []
   when_commands_match: []
@@ -56,9 +73,8 @@ Define the autonomous work contract for this project.
   `promotion.requires_all`.
 - If this project is intentionally manual or low-governance, set
   `promotion.allow_unsafe_without_evaluators: true` explicitly so reviewers can see that choice.
-- The starter defaults allow no-change runs and auto-close tasks so the first
-  `onboard → next → work → finish` loop completes cleanly. Tighten these once you
-  have real evaluators and want an explicit review gate.
+{forgiving_comments}- If you want report-only or no-change runs to promote, set
+  `promotion.allow_accept_without_changes: true` explicitly so that choice is visible too.
 - Keep `commands.allow` aligned with the exact commands you expect Hive to run.
 """
 

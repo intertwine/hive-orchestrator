@@ -1878,7 +1878,11 @@ class TestHiveV2Cli:
         assert "Ship the public launch surface for Hive 2.0." in agency_content
         assert TASK_BEGIN in agency_content
         assert RUN_BEGIN in agency_content
-        assert "program_version: 1" in program_path.read_text(encoding="utf-8")
+        program_content = program_path.read_text(encoding="utf-8")
+        assert "program_version: 1" in program_content
+        # Non-onboarding project creation should use conservative defaults
+        assert "allow_accept_without_changes: false" in program_content
+        assert "auto_close_task: false" in program_content
         assert any(
             "hive task create --project-id launch-ready-website" in step
             for step in payload["next_steps"]

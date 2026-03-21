@@ -7,7 +7,7 @@ import subprocess
 
 from src.hive.payloads import project_payload
 from src.hive.program import add_evaluator_template, doctor_program
-from src.hive.scaffold import starter_task_specs
+from src.hive.scaffold import program_stub_markdown, starter_task_specs
 from src.hive.store.layout import bootstrap_workspace
 from src.hive.store.projects import create_project, discover_projects
 from src.hive.store.task_files import create_task, link_tasks, list_tasks
@@ -128,6 +128,11 @@ def onboard_workspace(
             break
     if project is None:
         project = create_project(root, slug, title=title, objective=objective)
+        # Overwrite with forgiving defaults so the first finish loop succeeds
+        # cleanly.  create_project writes a conservative stub; onboarding
+        # intentionally relaxes it for the demo/starter experience.
+        program_path = root / "projects" / project.slug / "PROGRAM.md"
+        program_path.write_text(program_stub_markdown(forgiving=True), encoding="utf-8")
     tasks = _seed_starter_tasks(root, project.id, project.title, objective)
     diagnosis = _auto_fix_program(root, project.id)
     sync_workspace(root)

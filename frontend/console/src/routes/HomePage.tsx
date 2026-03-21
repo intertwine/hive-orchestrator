@@ -103,9 +103,11 @@ export function HomePage() {
   const recentEvents = Array.isArray(home.recent_events) ? home.recent_events : [];
   const recentAccepts = Array.isArray(home.recent_accepts) ? home.recent_accepts : [];
 
-  // Show getting-started view when workspace has no activity yet
+  // Show getting-started view only when the workspace is truly empty — no runs,
+  // no inbox items, no blocked projects, no campaigns, no recent events.
   const hasActivity = activeRuns.length > 0 || evaluatingRuns.length > 0 ||
-    recentAccepts.length > 0 || recentEvents.length > 0;
+    recentAccepts.length > 0 || recentEvents.length > 0 ||
+    inbox.length > 0 || blocked.length > 0 || campaigns.length > 0;
 
   if (!loading && !error && !hasActivity) {
     return <GettingStarted recommended={recommended} />;

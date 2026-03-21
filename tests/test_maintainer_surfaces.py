@@ -32,9 +32,10 @@ def test_v23_status_doc_tracks_release_gates_and_next_blocker():
     assert "Explainable retrieval, packaged corpus, and traces | Complete" in status_doc
     assert "Release docs, demo, and acceptance alignment | Complete" in status_doc
     assert "built-artifact release smoke path now proves installed-package `hive search`" in status_doc
-    assert "Status: ready for release" in status_doc
-    assert "tag and push `v2.3.0` from clean `main`" in status_doc
-    assert "release-automation verification on top of clean `main`" in status_doc
+    assert "Status: v2.3.1 released" in status_doc
+    assert "## Release History" in status_doc
+    assert "`v2.3.0`" in status_doc
+    assert "`v2.3.1`" in status_doc
 
 
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():

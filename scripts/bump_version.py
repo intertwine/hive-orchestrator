@@ -82,6 +82,18 @@ def main() -> int:
         return 1
 
     old_version, new_version = update_pyproject_version(pyproject_path, bump_type)
+
+    # Also update HIVE_VERSION in common.py so __version__ stays in sync
+    common_py = pyproject_path.parent / "src" / "hive" / "common.py"
+    if common_py.exists():
+        common_content = common_py.read_text(encoding="utf-8")
+        updated = common_content.replace(
+            f'HIVE_VERSION = "{old_version}"',
+            f'HIVE_VERSION = "{new_version}"',
+        )
+        if updated != common_content:
+            common_py.write_text(updated, encoding="utf-8")
+
     print(f"{old_version} -> {new_version}")
     return 0
 

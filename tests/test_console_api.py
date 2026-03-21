@@ -65,7 +65,8 @@ class TestObserveConsoleApi:
 
         assert health.status_code == 200
         assert health.json()["workspace"] == str(Path(temp_hive_dir).resolve())
-        assert health.json()["version"] == "2.3.0"
+        from src.hive import __version__
+        assert health.json()["version"] == __version__
         assert status.status_code == 200
         assert status.json()["projects"] == 1
         assert home.status_code == 200

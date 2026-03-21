@@ -194,9 +194,6 @@ def _render_promotion_decision(decision: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
-def _render_onboarding_summary(lines: list[str]) -> str:
-    return "\n".join(lines)
-
 
 def _render_summary_lines(headline: object, summary_lines: list[object]) -> str:
     lines: list[str] = []
@@ -247,7 +244,7 @@ def render_payload(payload: dict[str, object]) -> str:
     if isinstance(payload.get("promotion_decision"), dict):
         sections.append(_render_promotion_decision(payload["promotion_decision"]))
     if isinstance(payload.get("onboarding_summary"), list) and payload["onboarding_summary"]:
-        sections.append(_render_onboarding_summary(payload["onboarding_summary"]))
+        sections.append("\n".join(payload["onboarding_summary"]))
     if isinstance(payload.get("summary_lines"), list) and payload["summary_lines"]:
         sections.append(_render_summary_lines(payload.get("headline"), payload["summary_lines"]))
     if isinstance(payload.get("next_steps"), list):

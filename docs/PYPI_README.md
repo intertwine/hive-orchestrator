@@ -44,6 +44,8 @@ Additional extras (`mellona-hive[mcp]`, `mellona-hive[sandbox-e2b]`, `mellona-hi
 - Self-hosted Daytona sandbox: `uv tool install --upgrade 'mellona-hive[console,sandbox-daytona]'`
 - Homebrew: `brew install intertwine/tap/mellona-hive` (base CLI only, add extras through pip/uv/pipx)
 
+If you install sandbox extras, verify the current machine with `hive sandbox doctor --json`.
+
 ## First Run
 
 Start in an empty directory:

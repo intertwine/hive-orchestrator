@@ -185,6 +185,14 @@ select {
   font-size: 0.92rem;
 }
 
+.getting-started {
+  grid-template-columns: 1fr;
+}
+
+.getting-started__link {
+  text-decoration: underline;
+}
+
 .list-card__header,
 .run-card__meta,
 .timeline__meta {

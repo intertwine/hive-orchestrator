@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Any, cast
 
 from src.hive.cli.common import (
     emit,
@@ -212,7 +211,6 @@ def dispatch(args, root: Path) -> int:
                 reason_suffix = f": {reasons[0]}"
             if payload["action"] == "reject":
                 next_steps = []
-                reasons = decision.get("reasons") or []
                 # Provide targeted guidance for common rejection reasons
                 no_changes = any("did not produce workspace changes" in str(r) for r in reasons)
                 no_evaluator = any("No evaluator results" in str(r) for r in reasons)

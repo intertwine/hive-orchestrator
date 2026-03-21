@@ -16,7 +16,7 @@ function GettingStarted({ recommended }: {
     : "demo";
 
   return (
-    <div className="page-grid" style={{ gridTemplateColumns: "1fr" }}>
+    <div className="page-grid getting-started">
       <Panel eyebrow="Welcome" title="Getting Started with Agent Hive">
         <div className="stack">
           <div className="hero-card">
@@ -42,7 +42,7 @@ function GettingStarted({ recommended }: {
                 <strong>hive finish</strong> — evaluates the run against your policy and promotes or rejects
               </li>
             </ol>
-            <p style={{ marginTop: "0.8rem", color: "#75634a", fontSize: "0.92rem" }}>
+            <p className="hero-card__subtle">
               This console updates live as runs progress. Use it to observe, steer, approve, and
               understand why Hive made each decision.
             </p>
@@ -64,17 +64,17 @@ hive finish <run-id>`}</pre>
                 {String(recommended.task.project_id ?? "unknown project")}
               </p>
               <ul className="reason-list">
-                {(recommended.reasons ?? []).map((reason) => (
-                  <li key={reason}>{reason}</li>
+                {(recommended.reasons ?? []).map((reason, index) => (
+                  <li key={`reason-${index}`}>{reason}</li>
                 ))}
               </ul>
             </div>
           ) : null}
 
-          <p style={{ color: "#75634a", fontSize: "0.88rem" }}>
-            Explore the <Link to="/projects" style={{ textDecoration: "underline" }}>Projects</Link> page
+          <p className="hero-card__subtle">
+            Explore the <Link to="/projects" className="getting-started__link">Projects</Link> page
             to see your tasks and governance policy, or check the{" "}
-            <Link to="/inbox" style={{ textDecoration: "underline" }}>Inbox</Link> for items
+            <Link to="/inbox" className="getting-started__link">Inbox</Link> for items
             that need your attention.
           </p>
         </div>

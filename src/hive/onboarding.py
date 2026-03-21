@@ -104,10 +104,10 @@ def _onboarding_summary(project_id: str, project_title: str, task_count: int) ->
         "    PROGRAM.md      Governance policy for autonomous runs",
         "",
         "The manager loop:",
-        "  1. hive console serve               Open the operator console (recommended)",
-        f"  2. hive next --project-id {project_id:<12s} See the first ready task",
-        "  3. hive work --owner <your-name>     Start a governed run",
-        "  4. hive finish <run-id>              Evaluate and close the run",
+        "  1. hive console serve    — open the operator console (recommended)",
+        f"  2. hive next             — see the first ready task (--project-id {project_id})",
+        "  3. hive work             — start a governed run (--owner <your-name>)",
+        "  4. hive finish <run-id>  — evaluate and close the run",
     ]
 
 

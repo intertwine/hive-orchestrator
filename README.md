@@ -28,38 +28,29 @@ The center of gravity in this repository is the Hive v2 substrate, with the curr
 
 ## Try It In 90 Seconds
 
-The shortest honest path is:
-
 ```bash
-uv tool install mellona-hive
+uv tool install 'mellona-hive[console]'
 mkdir my-hive && cd my-hive
 git init
 hive onboard demo --prompt "Create a small React website about bees."
-hive next --project-id demo
-hive work --owner <your-name>
-```
-
-If you want the live operator view, install `mellona-hive[console]` first and run:
-
-```bash
 hive console serve
 ```
 
-Then finish the run:
+That gives you a live operator console at `http://127.0.0.1:8787/console/` and a workspace with
+one project, three starter tasks, and a safe governance policy. From there:
 
 ```bash
+hive next --project-id demo
+hive work --owner <your-name>
+# make changes inside the run worktree that hive work printed
 hive finish <run-id>
 ```
 
-What should happen:
+The console shows you what just happened, what is running, and what needs attention. The CLI
+stays available for power users and agent integrations.
 
-- `hive onboard demo` leaves you with a real workspace, starter project, safe `PROGRAM.md`, and one ready task
-- `hive work` starts a governed run, prints the run worktree path, and can write a handoff bundle for your worker harness
-- `hive finish` either promotes a real change or cleanly tells you there was nothing to promote yet
-
-If that first `hive finish` reports no changes, that is usually a healthy noop, not a broken setup. To intentionally
-see a successful first promotion, make one tiny docs-only change while working the demo task, then finish the run.
-Make that change inside the run worktree that `hive work` printed for you, usually `.hive/worktrees/run_<id>/`.
+> **CLI-only install:** If you do not need the console, `uv tool install mellona-hive` gives you
+> the base CLI without the web UI dependencies.
 
 ## Start Here
 
@@ -80,7 +71,7 @@ Use [docs/START_HERE.md](docs/START_HERE.md) for the canonical install matrix, o
 fallback. The fastest base install for most users is:
 
 ```bash
-uv tool install mellona-hive
+uv tool install 'mellona-hive[console]'
 ```
 
 ```bash
@@ -88,13 +79,16 @@ hive --version
 hive doctor
 ```
 
-Add `mellona-hive[console]` when you want `hive console serve`, and add `mellona-hive[mcp]` when you want the thin
-`hive-mcp` adapter.
+The `[console]` extra gives you `hive console serve`, the live operator UI. For CLI-only environments
+(CI, headless servers), `uv tool install mellona-hive` works without web dependencies.
 
-If you plan to use hosted or self-hosted sandbox execution, add the backend extras you need:
+Add `mellona-hive[mcp]` when you want the thin `hive-mcp` adapter for MCP integration.
 
-- `uv tool install --upgrade 'mellona-hive[sandbox-e2b]'`
-- `uv tool install --upgrade 'mellona-hive[sandbox-daytona]'`
+If you plan to use hosted or self-hosted sandbox execution, add `mellona-hive[sandbox-e2b]`
+or `mellona-hive[sandbox-daytona]` extras:
+
+- `uv tool install --upgrade 'mellona-hive[console,sandbox-e2b]'`
+- `uv tool install --upgrade 'mellona-hive[console,sandbox-daytona]'`
 
 Then verify what this machine can really support:
 
@@ -111,11 +105,12 @@ mkdir my-hive
 cd my-hive
 git init
 hive onboard demo --prompt "Create a small React website about bees."
+hive console serve
 ```
 
 That gives you a real workspace with `.hive/`, a starter project, a safe default `PROGRAM.md`, and the first task
-chain. If you want the React observe-and-steer console, install `mellona-hive[console]` first, then run
-`hive console serve`. The longer walkthrough lives in [docs/QUICKSTART.md](docs/QUICKSTART.md).
+chain. Open `http://127.0.0.1:8787/console/` to see the operator console. The longer walkthrough lives in
+[docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 Fresh onboarded projects may start with the placeholder `local-smoke` evaluator so the first governed loop works
 immediately. Replace it with a real repo-specific evaluator before you trust autonomous promotion.

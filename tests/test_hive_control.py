@@ -90,8 +90,8 @@ class TestHiveControlPlane:
         assert "# AGENTS" in captured.out
         assert "Next steps:" not in captured.out
 
-    def test_cli_finish_human_output_includes_reject_reason(self, tmp_path, capsys):
-        """Human-facing finish output should explain why a run was rejected."""
+    def test_cli_finish_human_output_onboard_defaults_accept_no_changes(self, tmp_path, capsys):
+        """Onboard starter defaults accept no-change runs so the first loop completes cleanly."""
         workspace = tmp_path / "finish-human"
         workspace.mkdir(parents=True, exist_ok=True)
         init_git_repo(workspace)
@@ -119,8 +119,7 @@ class TestHiveControlPlane:
         captured = capsys.readouterr()
 
         assert exit_code == 0
-        assert "Promotion decision: reject" in captured.out
-        assert "Run did not produce workspace changes" in captured.out
+        assert "Promotion decision: accept" in captured.out
 
     def test_cli_work_next_steps_preserve_requested_profile(self, temp_hive_dir, capsys):
         """Suggested context rebuild commands should keep the work profile the operator chose."""

@@ -138,8 +138,9 @@ def dispatch(args, root: Path) -> int:
                 {
                     "ok": True,
                     "message": f"Onboarded Hive workspace at {root}",
+                    "onboarding_summary": payload.get("onboarding_summary", []),
                     "next_steps": _guided_next_steps(payload),
-                    **payload,
+                    **{k: v for k, v in payload.items() if k != "onboarding_summary"},
                 },
                 args.json,
             )

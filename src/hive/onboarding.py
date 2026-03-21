@@ -7,7 +7,7 @@ import subprocess
 
 from src.hive.payloads import project_payload
 from src.hive.program import add_evaluator_template, doctor_program
-from src.hive.scaffold import starter_task_specs
+from src.hive.scaffold import program_stub_markdown, starter_task_specs
 from src.hive.store.layout import bootstrap_workspace
 from src.hive.store.projects import create_project, discover_projects
 from src.hive.store.task_files import create_task, link_tasks, list_tasks
@@ -89,6 +89,28 @@ def _auto_fix_program(root: Path, project_id: str) -> dict:
     return diagnosis
 
 
+def _onboarding_summary(project_id: str, project_title: str, task_count: int) -> list[str]:
+    """Build a human-readable mental model summary for post-onboard output."""
+    return [
+        f'Hive created a workspace with one project ("{project_id}") and {task_count} starter tasks.',
+        f"Your project policy lives in projects/{project_id}/PROGRAM.md — it controls what",
+        "agents are allowed to do and how their work gets reviewed.",
+        "",
+        "Your workspace:",
+        "  .hive/            Machine state (tasks, runs, events, cache)",
+        "  GLOBAL.md         Human-readable workspace overview",
+        f"  projects/{project_id}/",
+        "    AGENCY.md       Project context and notes for humans",
+        "    PROGRAM.md      Governance policy for autonomous runs",
+        "",
+        "The manager loop:",
+        "  1. hive console serve    — open the operator console (recommended)",
+        f"  2. hive next             — see the first ready task (--project-id {project_id})",
+        "  3. hive work             — start a governed run (--owner <your-name>)",
+        "  4. hive finish <run-id>  — evaluate and close the run",
+    ]
+
+
 def onboard_workspace(
     path: str | Path | None,
     *,
@@ -106,6 +128,11 @@ def onboard_workspace(
             break
     if project is None:
         project = create_project(root, slug, title=title, objective=objective)
+        # Overwrite with forgiving defaults so the first finish loop succeeds
+        # cleanly.  create_project writes a conservative stub; onboarding
+        # intentionally relaxes it for the demo/starter experience.
+        program_path = root / "projects" / project.slug / "PROGRAM.md"
+        program_path.write_text(program_stub_markdown(forgiving=True), encoding="utf-8")
     tasks = _seed_starter_tasks(root, project.id, project.title, objective)
     diagnosis = _auto_fix_program(root, project.id)
     sync_workspace(root)
@@ -116,6 +143,7 @@ def onboard_workspace(
         "tasks": tasks,
         "program": diagnosis,
         "git_ready": _has_git_head(root),
+        "onboarding_summary": _onboarding_summary(project.id, project.title, len(tasks)),
     }
 
 

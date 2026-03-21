@@ -9,22 +9,24 @@ maintainer docs instead. This page is about getting from install to first useful
 
 ## Before You Start
 
-Install the base CLI first. Use [docs/START_HERE.md](./START_HERE.md) for the canonical install matrix, optional
-extras, and git-install fallback.
+Install Hive with the console extra. Use [docs/START_HERE.md](./START_HERE.md) for the full install matrix and
+alternatives.
 
-Then verify the CLI you installed:
+```bash
+uv tool install 'mellona-hive[console]'
+```
+
+Then verify:
 
 ```bash
 hive --version
 hive doctor
 ```
 
-What you should see:
-
 - `hive --version` prints the installed CLI version
 - `hive doctor` confirms the workspace layout or tells you the next missing step in plain language
 
-## Create A Workspace In One Command
+## Create A Workspace And Open The Console
 
 Make a clean directory and run:
 
@@ -35,35 +37,27 @@ git init
 hive onboard demo --prompt "Create a small React website about bees."
 ```
 
-Use a fresh directory for this walkthrough. If you run these commands inside the Hive repository checkout, `hive task ready` will also see the maintainer tasks that ship with this repo.
+Use a fresh directory for this walkthrough. If you run these commands inside the Hive repository checkout,
+`hive task ready` will also see the maintainer tasks that ship with this repo.
 
-That command:
+That command creates your workspace — a `.hive/` directory with machine state, a starter project with governance
+policy, and three sequenced tasks. You do not need to hand-write any of that to begin.
 
-- bootstraps `.hive/`
-- creates `GLOBAL.md` and `AGENTS.md`
-- scaffolds `projects/demo/AGENCY.md`
-- scaffolds `projects/demo/PROGRAM.md`
-- creates a small starter task chain
-- runs Program Doctor and applies a safe starter evaluator when there is one obvious choice
-- syncs projections and cache
-
-You do not need to hand-write any of that to begin.
-
-After `hive onboard demo`, you have three good next moves:
-
-- `hive next --project-id demo` if you want the shortest path to ready work
-- `hive console serve` if you installed `mellona-hive[console]` and want the live operator surface
-- `hive program doctor demo` if you want to inspect or strengthen the starter policy before a governed run
-
-The `git init` is worth doing up front. `hive onboard` leaves the repo in a state where the normal manager loop and
-console are ready to go. If you want an explicit checkpoint commit after onboarding, run:
+Now open the operator console:
 
 ```bash
-hive workspace checkpoint --message "Bootstrap Hive workspace"
+hive console serve
 ```
 
-Hive can manage tasks without Git, but governed runs and promotion work much more smoothly once the workspace has an
-initial commit.
+Open `http://127.0.0.1:8787/console/` in your browser. The console shows your projects, tasks, governance
+health, and — once you start running work — live run status, approvals, and reasoning.
+
+> **CLI-only alternative:** If you prefer staying in the terminal, skip `hive console serve` and use
+> `hive next --project-id demo` to see the first ready task directly.
+
+The `git init` is worth doing up front. `hive onboard` leaves the repo in a state where the normal manager loop
+and console are ready to go. Hive can manage tasks without Git, but governed runs and promotion work much more
+smoothly once the workspace has an initial commit.
 
 ## Find Work
 
@@ -79,8 +73,7 @@ startup context. If you pass `--output`, Hive writes a reusable bundle for Codex
 session. Without `--output`, the plain-text path stays summary-first. Use `--print-context` if you want the full
 bundle echoed to stdout.
 
-If you want the live observe-and-steer board, install `mellona-hive[console]` first and run `hive console serve` in a
-separate terminal.
+If `hive console serve` is running in another terminal, the console updates live as you work.
 
 What you should expect here:
 
@@ -144,26 +137,21 @@ those fields cleanly.
 
 ## Make The First Finish Feel Real
 
-There are two healthy first outcomes when you call `hive finish`:
+The starter defaults allow no-change runs to promote cleanly, so your first `hive finish` should succeed even
+if you have not made any edits yet. This lets you verify the full loop works before adding real evaluators.
 
-- a successful promotion because the run made a real change and passed the configured evaluators
-- a clean noop rejection because the run did not modify anything worth promoting yet
+To see a more meaningful promotion, make one small change inside the run worktree that `hive work` printed
+(usually `.hive/worktrees/run_<id>/`), then run `hive finish`. The evaluator runs, the change promotes, and the
+task auto-closes.
 
-That second outcome usually means the control loop is wired up correctly. It does not usually mean Hive is broken.
+Important detail: governed edits happen inside the run worktree, not in the workspace root. If you edit files
+only in the workspace root, `hive finish` will correctly see no run changes.
 
-If you want to experience a successful first promotion on purpose in the demo workspace, make one tiny docs-only
-change while working the demo task, such as tightening a sentence in `projects/demo/AGENCY.md`, then finish the run.
+Once you are ready for production governance, tighten the defaults in `projects/demo/PROGRAM.md`:
 
-Important detail: governed edits happen inside the run worktree that `hive work` printed for you, usually
-`.hive/worktrees/run_<id>/`. If you edit files only in the workspace root, `hive finish` will correctly see no run
-changes to promote.
-
-If your run is promoted and the task lands in `review`, that is also healthy. Close it explicitly to unblock the next
-task in the starter chain:
-
-```bash
-hive task update <task-id> --status done
-```
+- Set `promotion.allow_accept_without_changes: false` to require real changes
+- Set `promotion.auto_close_task: false` to add an explicit review step
+- Replace the `local-smoke` evaluator with repo-specific checks
 
 ## Governed Runs
 
@@ -220,12 +208,11 @@ The short version is:
 
 ## Optional Next Steps
 
-- Use `hive next`, `hive work`, and `hive finish` if you want the manager-style happy path
+- Keep `hive console serve` running in a terminal while you work — it updates live
 - Use `hive memory observe --note "..."` to preserve useful decisions
 - Use `hive sync projections` after task, run, or memory changes
-- Install `mellona-hive[console]` and run `hive console serve` if you want the visual observe-and-steer command center
-- Install `mellona-hive[mcp]` and run `hive-mcp` if you want the thin `search` + bounded local `execute` adapter
-- If you installed through Homebrew and want the console or MCP support, add those extras through `uv tool`, `pipx`,
+- Add `mellona-hive[mcp]` if you want the thin `search` + bounded local `execute` adapter for MCP
+- If you installed through Homebrew, add console and MCP extras through `uv tool`, `pipx`,
   or `pip` as described in [docs/START_HERE.md](./START_HERE.md)
 
 ## Troubleshooting

@@ -66,19 +66,21 @@ def test_public_readmes_surface_three_clear_entry_points():
     assert "run worktree" in pypi_readme
 
 
-def test_public_docs_call_out_console_extra_before_console_serve():
-    """Console docs should make the optional extra explicit before teaching the command."""
+def test_public_docs_recommend_console_extra_in_install():
+    """Install docs should recommend the console extra as the default install path."""
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     start_here = (REPO_ROOT / "docs" / "START_HERE.md").read_text(encoding="utf-8")
     quickstart = (REPO_ROOT / "docs" / "QUICKSTART.md").read_text(encoding="utf-8")
-    adopt = (REPO_ROOT / "docs" / "ADOPT_EXISTING_REPO.md").read_text(encoding="utf-8")
     pypi_readme = (REPO_ROOT / "docs" / "PYPI_README.md").read_text(encoding="utf-8")
 
-    assert "install `mellona-hive[console]` first" in readme.lower()
-    assert "install `mellona-hive[console]` first" in start_here.lower()
-    assert "install `mellona-hive[console]` first" in quickstart.lower()
-    assert "install `mellona-hive[console]` first" in adopt.lower()
-    assert "install `mellona-hive[console]` first" in pypi_readme.lower()
+    # Console should be in the primary install command, not relegated to optional extras
+    assert "mellona-hive[console]" in readme
+    assert "mellona-hive[console]" in start_here
+    assert "mellona-hive[console]" in quickstart
+    assert "mellona-hive[console]" in pypi_readme
+    # CLI-only install should still be documented as an alternative
+    assert "cli-only" in readme.lower()
+    assert "cli-only" in start_here.lower()
 
 
 def test_public_docs_cover_sandbox_extras_and_doctor_recipe():
@@ -117,8 +119,6 @@ def test_onboarding_docs_explain_local_smoke_is_only_a_placeholder():
     assert "placeholder `local-smoke` evaluator" in readme
     assert "does not validate project behavior" in quickstart
     assert "placeholder `local-smoke` evaluator" in pypi_readme
-    assert "healthy noop" in pypi_readme
-    assert "hive task update <task-id> --status done" in pypi_readme
     assert "bootstrap placeholder" in recipe
 
 
@@ -126,19 +126,19 @@ def test_pypi_readme_keeps_mcp_as_an_optional_extra():
     """The package README should not imply the thin MCP adapter is part of the base install."""
     pypi_readme = (REPO_ROOT / "docs" / "PYPI_README.md").read_text(encoding="utf-8")
 
-    assert "The base install gives you the `hive` command." in pypi_readme
-    assert "Add `mellona-hive[mcp]` when you want the thin" in pypi_readme
+    assert "mellona-hive[console]" in pypi_readme
+    assert "mellona-hive[mcp]" in pypi_readme
 
 
 def test_start_here_install_matrix_covers_common_installers_and_homebrew_limit():
     """Everyday users should see the real install choices and the Homebrew boundary."""
     start_here = (REPO_ROOT / "docs" / "START_HERE.md").read_text(encoding="utf-8")
 
-    assert "uv tool install mellona-hive" in start_here
-    assert "pipx install mellona-hive" in start_here
-    assert "python -m pip install mellona-hive" in start_here
+    assert "uv tool install" in start_here
+    assert "pipx install" in start_here
+    assert "python -m pip install" in start_here
     assert "brew install intertwine/tap/mellona-hive" in start_here
-    assert "Homebrew currently ships the base CLI" in start_here
+    assert "Base CLI only" in start_here or "base CLI" in start_here.lower()
 
 
 def test_existing_repo_guide_surfaces_init_and_migration_paths():

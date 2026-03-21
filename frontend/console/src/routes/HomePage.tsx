@@ -8,6 +8,81 @@ import { StatusPill } from "../components/StatusPill";
 import { useConsoleConfig } from "../components/ConsoleLayout";
 import { useConsoleQuery } from "../hooks/useConsoleQuery";
 
+function GettingStarted({ recommended }: {
+  recommended: { task?: Record<string, unknown>; reasons?: string[] } | null;
+}) {
+  const projectId = recommended?.task
+    ? String(recommended.task.project_id ?? "demo")
+    : "demo";
+
+  return (
+    <div className="page-grid getting-started">
+      <Panel eyebrow="Welcome" title="Getting Started with Agent Hive">
+        <div className="stack">
+          <div className="hero-card">
+            <h3>What is this?</h3>
+            <p>
+              Agent Hive is a control plane for autonomous work. You keep your coding agent
+              (Codex, Claude Code, or any local tool) and Hive governs what it works on,
+              isolates its changes, and gates its output.
+            </p>
+          </div>
+
+          <div className="hero-card">
+            <h3>The manager loop</h3>
+            <p>Everything in Hive runs through three steps:</p>
+            <ol className="reason-list">
+              <li>
+                <strong>hive next</strong> — picks the highest-priority ready task
+              </li>
+              <li>
+                <strong>hive work</strong> — claims it, creates an isolated worktree, starts a governed run
+              </li>
+              <li>
+                <strong>hive finish</strong> — evaluates the run against your policy and promotes or rejects
+              </li>
+            </ol>
+            <p className="hero-card__subtle">
+              This console updates live as runs progress. Use it to observe, steer, approve, and
+              understand why Hive made each decision.
+            </p>
+          </div>
+
+          <div className="hero-card">
+            <h3>Quick start from your terminal</h3>
+            <pre className="inline-json">{`hive next --project-id ${projectId}
+hive work --owner <your-name>
+# make changes inside the run worktree
+hive finish <run-id>`}</pre>
+          </div>
+
+          {recommended?.task ? (
+            <div className="hero-card">
+              <p className="hero-card__eyebrow">Recommended first task</p>
+              <h3>{String(recommended.task.title ?? recommended.task.id ?? "Next task")}</h3>
+              <p className="hero-card__subtle">
+                {String(recommended.task.project_id ?? "unknown project")}
+              </p>
+              <ul className="reason-list">
+                {(recommended.reasons ?? []).map((reason, index) => (
+                  <li key={`reason-${index}`}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <p className="hero-card__subtle">
+            Explore the <Link to="/projects" className="getting-started__link">Projects</Link> page
+            to see your tasks and governance policy, or check the{" "}
+            <Link to="/inbox" className="getting-started__link">Inbox</Link> for items
+            that need your attention.
+          </p>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 export function HomePage() {
   const { apiBase, workspacePath } = useConsoleConfig();
   const client = createConsoleClient(apiBase, workspacePath);
@@ -27,6 +102,16 @@ export function HomePage() {
   const campaigns = Array.isArray(home.campaigns) ? home.campaigns : [];
   const recentEvents = Array.isArray(home.recent_events) ? home.recent_events : [];
   const recentAccepts = Array.isArray(home.recent_accepts) ? home.recent_accepts : [];
+
+  // Show getting-started view only when the workspace is truly empty — no runs,
+  // no inbox items, no blocked projects, no campaigns, no recent events.
+  const hasActivity = activeRuns.length > 0 || evaluatingRuns.length > 0 ||
+    recentAccepts.length > 0 || recentEvents.length > 0 ||
+    inbox.length > 0 || blocked.length > 0 || campaigns.length > 0;
+
+  if (!loading && !error && !hasActivity) {
+    return <GettingStarted recommended={recommended} />;
+  }
 
   return (
     <div className="page-grid">

@@ -26,7 +26,7 @@ def test_v23_status_doc_tracks_release_gates_and_next_blocker():
     assert "One real hosted sandbox path" in status_doc
     assert "One real hosted sandbox path | Complete" in status_doc
     assert "One real self-hosted sandbox path | Complete" in status_doc
-    assert "Pi driver at acceptance bar | Deferred" in status_doc
+    assert "Pi driver at acceptance bar | Removed" in status_doc
     assert "full hybrid retrieval stack" in status_doc
     assert "the Daytona self-hosted proof now passed in a credentialed environment" in status_doc
     assert "Explainable retrieval, packaged corpus, and traces | Complete" in status_doc

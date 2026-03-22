@@ -241,6 +241,85 @@ class TestCampaignsAndOnboarding:
         assert delivery_status["decision_preview"]["selected_lane"] == "exploit"
         assert research_status["decision_preview"]["selected_lane"] == "explore"
 
+    def test_campaign_tick_propagates_sandbox_profile_to_work_on_task(
+        self, temp_hive_dir, capsys
+    ):
+        """When a campaign has sandbox_profile set, tick must pass it through
+        to work_on_task instead of hardcoding 'default'."""
+        from unittest.mock import patch, MagicMock
+
+        init_git_repo(temp_hive_dir)
+        (Path(temp_hive_dir) / "pyproject.toml").write_text(
+            "[project]\nname = 'demo'\nversion = '0.1.0'\n",
+            encoding="utf-8",
+        )
+        (Path(temp_hive_dir) / "tests").mkdir()
+
+        onboard = _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "onboard", "demo", "--title", "Demo"],
+        )
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        campaign = _invoke_cli_json(
+            capsys,
+            [
+                "--path",
+                temp_hive_dir,
+                "--json",
+                "campaign",
+                "create",
+                "--title",
+                "Sandboxed campaign",
+                "--goal",
+                "Verify sandbox propagation.",
+                "--project-id",
+                onboard["project"]["id"],
+                "--driver",
+                "local",
+                "--sandbox-profile",
+                "docker-strict",
+            ],
+        )
+        assert campaign["campaign"]["sandbox_profile"] == "docker-strict"
+
+        fake_run = {
+            "id": "run-fake-001",
+            "task_id": "fake-task",
+            "campaign_id": campaign["campaign"]["id"],
+            "lane": "exploit",
+            "status": "running",
+        }
+        mock_wot = MagicMock(return_value={"run": fake_run})
+
+        with patch("src.hive.control.campaigns.work_on_task", mock_wot):
+            tick = _invoke_cli_json(
+                capsys,
+                [
+                    "--path",
+                    temp_hive_dir,
+                    "--json",
+                    "campaign",
+                    "tick",
+                    campaign["campaign"]["id"],
+                    "--owner",
+                    "manager",
+                ],
+            )
+
+        assert mock_wot.called, "work_on_task should have been called during tick"
+        _, kwargs = mock_wot.call_args
+        assert kwargs["profile"] == "docker-strict", (
+            f"Expected profile='docker-strict', got profile='{kwargs.get('profile')}'"
+        )
+
     def test_claude_driver_alias_keeps_campaign_weights_canonical(self):
         assert _harness_fit("claude", "review") == _harness_fit("claude-code", "review")
         assert _harness_fit("claude", "review") == 0.95

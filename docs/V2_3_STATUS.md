@@ -19,7 +19,7 @@ to release quality:
 
 The following items are explicitly deferred from blocking the v2.3 release:
 
-- Pi remains available as an honest staged driver, but full RPC depth moves to a later release.
+- Pi driver removed; full RPC harness integration (Pi, Hermes, OpenClaw) deferred to a focused design sprint.
 - The full hybrid retrieval stack from the proposed RFC (for example LanceDB, FastEmbed,
   and Qdrant-backed retrieval) moves to a later release.
 
@@ -36,7 +36,7 @@ The following items are explicitly deferred from blocking the v2.3 release:
 | Explainable retrieval, packaged corpus, and traces | Complete | `retrieval/trace.json`, `retrieval/hits.json`, `src/hive/runs/paths.py`, `src/hive/console/state.py`, `scripts/smoke_release_install.sh`, `tests/test_install_story.py`, `tests/test_release_tooling.py` | Final release/demo validation only |
 | Campaign candidate and decision artifacts | Complete | `candidate-set.json`, `decision.json`, `src/hive/control/campaigns.py`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Observe-and-steer console at RFC depth | Complete | `frontend/console/src/routes/RunDetailPage.tsx`, `frontend/console/src/routes/InboxPage.tsx`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `tests/test_console_frontend_story.py`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
-| Pi driver at acceptance bar | Deferred | `src/hive/drivers/pi.py`, `docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md` | Keep staged truthfulness intact and carry full RPC depth to the next release line |
+| Pi driver at acceptance bar | Removed | `src/hive/drivers/pi.py`, `docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md` | Driver demoted; RPC harness integration deferred to focused design sprint for Pi/Hermes/OpenClaw |
 | Release docs, demo, and acceptance alignment | Complete | `#148`, `README.md`, `docs/DEMO_WALKTHROUGH.md`, `docs/OPERATOR_FLOWS.md`, `docs/START_HERE.md`, `docs/RELEASING.md`, `docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md`, `tests/test_launch_collateral.py`, `tests/test_maintainer_surfaces.py`, `scripts/smoke_release_install.sh`, `tests/test_release_tooling.py` | Final release/demo validation only |
 
 ## Current Read
@@ -48,7 +48,7 @@ What is real now:
 - approval truthfulness and runtime event/artifact plumbing are no longer just scaffolding
 - local, hosted, and self-hosted sandbox paths all exist in code and tests
 - the shipped operator console now surfaces capability truth, sandbox policy, retrieval traces, approval actions, and campaign decision reasoning
-- Pi no longer blocks the v2.3 release; the current staged driver remains available and honest
+- Pi driver removed from registry; RPC harness integration (Pi, Hermes, OpenClaw) deferred to a focused design sprint
 - the release retrieval bar is now explainability, provenance, packaged corpus coverage, and trace persistence rather than the full hybrid backend stack
 - sandbox doctor and install docs now describe the real backend shapes and optional extras instead of leaving them buried in the RFC
 - the local-safe sandbox path now has a real Podman-backed CI proof instead of only mocked contract coverage
@@ -62,10 +62,11 @@ What is real now:
 |---|---|---|
 | `v2.3.0` | 2026-03-20 | Foundation hardening: driver correctness, executor policy, workflow reliability |
 | `v2.3.1` | 2026-03-21 | Console-first human onboarding UX redesign (`#158`): forgiving demo defaults, human mental model summary, getting-started empty state, console-first doc rewrite, better dead-end CLI guidance |
+| `v2.3.2` | 2026-03-22 | Truthfulness closure sprint: campaign sandbox propagation wired end-to-end, Pi driver demoted (RPC harness design sprint planned for Pi/Hermes/OpenClaw), stale Codex/Claude driver docstrings and probe notes updated to reflect live modes |
 
 ## Next Blocker
 
-None — v2.3.1 is released. Next work is product-market-fit iteration based on user feedback.
+None — v2.3.2 is released. Hybrid retrieval and sandbox parity deferred to future releases.
 
 ## Update Rule
 

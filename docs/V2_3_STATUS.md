@@ -62,11 +62,9 @@ What is real now:
 |---|---|---|
 | `v2.3.0` | 2026-03-20 | Foundation hardening: driver correctness, executor policy, workflow reliability |
 | `v2.3.1` | 2026-03-21 | Console-first human onboarding UX redesign (`#158`): forgiving demo defaults, human mental model summary, getting-started empty state, console-first doc rewrite, better dead-end CLI guidance |
-| `v2.3.2` | 2026-03-22 | Truthfulness closure sprint: campaign sandbox propagation wired end-to-end, Pi driver demoted (RPC harness design sprint planned for Pi/Hermes/OpenClaw), stale Codex/Claude driver docstrings and probe notes updated to reflect live modes |
-
 ## Next Blocker
 
-None — v2.3.2 is released. Hybrid retrieval and sandbox parity deferred to future releases.
+v2.3.2 release pending: truthfulness closure sprint landed (`#161`) — campaign sandbox propagation, Pi demotion, stale probe/docstring fixes. Version bump and tag still needed.
 
 ## Update Rule
 

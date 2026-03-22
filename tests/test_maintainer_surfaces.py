@@ -154,7 +154,7 @@ def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
     agents_doc = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     claude_doc = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     skill_doc = (
-        REPO_ROOT / ".agents" / "skills" / "hive-v23-execution-discipline" / "SKILL.md"
+        REPO_ROOT / "skills" / "hive-maintainer" / "SKILL.md"
     ).read_text(encoding="utf-8")
 
     assert not (REPO_ROOT / ".github" / "workflows" / "claude.yml").exists()
@@ -170,7 +170,7 @@ def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
     assert "An `eyes` reaction alone does not count as completion." in agents_doc
     assert "An `eyes` reaction alone does not count as completion." in claude_doc
     assert 'claude -p "/review <pr-number>"' in skill_doc
-    assert "an `eyes` reaction or acknowledgement on the request comment is not completion" in skill_doc
+    assert "An `eyes` reaction alone is not completion" in skill_doc
 
 
 def test_scheduled_uv_installers_use_setup_action():

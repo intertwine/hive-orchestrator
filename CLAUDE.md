@@ -11,24 +11,29 @@ This repository is CLI-first. If you are operating here, use the commands and fi
 - Human project context lives in `projects/*/AGENCY.md`.
 - Autonomy policy lives in `projects/*/PROGRAM.md`.
 - If repo-local docs, skills, memory, and current git state disagree, trust current repo state and tests first, then repo-local docs and `PROGRAM.md`.
-- For the current v2.3 line, keep `docs/V2_3_STATUS.md` current as the compact release ledger.
+- For the current release line, keep `docs/V2_3_STATUS.md` current as the compact release ledger.
 - Before substantial repo work, prefer `make workspace-status`, or check `git status --short`, `git worktree list`, `gh pr status`, and `hive doctor --json` directly.
 - Build context with `hive context startup --project <project-id> --task <task-id> --json`.
 - Use `make session PROJECT=<project-id>` only from a repo checkout when you want a saved startup bundle.
 - Refresh projections with `hive sync projections --json` after substrate changes.
-- Use `hive driver doctor <driver>` and `hive sandbox doctor <backend>` when debugging v2.3 runtime or sandbox behavior.
+- Use `hive driver doctor <driver>` and `hive sandbox doctor <backend>` when debugging runtime or sandbox behavior.
 - Run `make check` before you hand work back. Before you ask for PR review on a broad slice, make sure the relevant local validation is green.
 - If you request Claude review, treat it as pending until GitHub shows a new Claude comment or review artifact on the latest PR head. An `eyes` reaction alone does not count as completion.
 - For maintainer-critical PRs, local Claude review is an acceptable primary or fallback review path when GitHub-managed review is delayed or ambiguous. The built-in `claude -p "/review <pr-number>"` flow works well for this. Summarize the resulting findings in the PR thread.
 - After merging, watch the `push` CI run on `main`. A red merge commit is new blocking work, even if the PR checks were green.
 
-## Specialized Skills
+## Skills
 
-For heavier workflows, follow the repo skills instead of inventing your own process:
+Skills live in `skills/` (symlinked from both `.agents/skills/` and `.claude/skills/`).
 
-- `.agents/skills/deep-work-session/SKILL.md` for task-first Hive sessions
-- `.agents/skills/multi-agent-coordination/SKILL.md` for multi-agent claims, blockers, and handoffs
-- `.agents/skills/hive-v23-execution-discipline/SKILL.md` for long-running v2.3/RFC work, mergeable slice planning, review discipline, delegation, and cleanup hygiene
+Read `hive-essentials` first — it gives you the mental model. Then use the skill that matches your workflow:
+
+- `skills/hive-essentials/SKILL.md` — mental model, entity hierarchy, orientation (read first)
+- `skills/hive-work-loop/SKILL.md` — core agent work cycle: claim → work → finish → promote
+- `skills/hive-project-setup/SKILL.md` — workspace bootstrap, project/task CRUD, evaluator policy
+- `skills/hive-coordination/SKILL.md` — multi-agent coordination, campaigns, portfolio, briefs, memory
+- `skills/hive-mcp/SKILL.md` — MCP server integration for host applications
+- `skills/hive-maintainer/SKILL.md` — for developing Hive itself: PR discipline, reviews, releases
 
 ## Fast Path
 

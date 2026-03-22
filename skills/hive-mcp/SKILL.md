@@ -5,10 +5,10 @@ description: Use the Hive MCP server for the thin v2 search and execute tool sur
 
 # Hive MCP Server
 
-The shipped MCP surface is intentionally small:
+The MCP surface is intentionally small — two tools for agent integration:
 
-- `search`
-- `execute`
+- `search` — query workspace state
+- `execute` — run bounded Python code
 
 Everything durable still goes through the `hive` CLI and the `.hive/` substrate.
 
@@ -31,7 +31,7 @@ Example MCP config:
 
 `HIVE_BASE_PATH` should point at the workspace you want the server to search and execute against.
 
-If you are running from a local checkout instead of an installed package, `uv run hive-mcp` is the equivalent launch command.
+If running from a local checkout instead of an installed package, `uv run hive-mcp` is the equivalent launch command.
 
 ## Available Tools
 
@@ -42,7 +42,7 @@ Search workspace state, API docs, examples, schemas, and project summaries.
 Arguments:
 
 - `query` required
-- `scopes` optional
+- `scopes` optional — filter to specific indexes (api, examples, project, workspace)
 - `limit` optional, defaults to `8`
 
 Example:
@@ -85,18 +85,20 @@ Example:
 ## Important Limits
 
 - `execute` is intentionally bounded and time-limited
-- oversized execute payloads are rejected
-- the Python runner is the only supported language today
-- this MCP surface is not a substitute for `hive task`, `hive run`, or `hive sync projections`
+- Oversized execute payloads are rejected
+- The Python runner is the only supported language today
+- This MCP surface is not a substitute for the CLI
 
 ## When To Prefer The CLI
 
 Use the CLI for:
 
-- task creation and task updates
-- claims and releases
-- run lifecycle actions
-- projection sync
-- migration
+- Task creation, updates, claims, and releases
+- Run lifecycle actions (start, finish, promote, steer)
+- Evaluator configuration and PROGRAM.md management
+- Projection sync and cache management
+- Campaign and portfolio operations
+- Memory observe, reflect, and search
+- Migration and workspace bootstrap
 
 Use MCP when an agent needs fast search or a local execution sandbox inside a host application.

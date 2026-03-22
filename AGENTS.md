@@ -4,6 +4,10 @@ Hive is a v2-first repository.
 
 Start with the `hive` CLI, not ad hoc markdown edits or compatibility shims.
 
+## First Steps
+
+Read `skills/hive-essentials/SKILL.md` before doing anything else. It explains what Hive is, how entities relate, and the key conventions.
+
 ## Working Rules
 
 - If you are just using Hive, prefer an installed `hive` CLI in a clean workspace. Checkout-only helpers in this repo are for maintainers.
@@ -11,24 +15,29 @@ Start with the `hive` CLI, not ad hoc markdown edits or compatibility shims.
 - Treat `projects/*/AGENCY.md` as the narrative project document.
 - Read `projects/*/PROGRAM.md` before autonomous edits or evaluator runs.
 - If repo-local docs, skills, memory, and current git state disagree, trust current repo state and tests first, then repo-local docs and `PROGRAM.md`.
-- For the current v2.3 line, keep `docs/V2_3_STATUS.md` current as the compact release ledger.
+- For the current release line, keep `docs/V2_3_STATUS.md` current as the compact release ledger.
 - Before substantial repo work, prefer `make workspace-status`, or check `git status --short`, `git worktree list`, `gh pr status`, and `hive doctor --json` directly.
 - Build startup context with `hive context startup --project <project-id> --task <task-id> --json`.
 - Use `make session PROJECT=<project-id>` only from a repo checkout when you want a saved context file.
 - After task, run, or memory changes, refresh projections with `hive sync projections --json`.
-- Use `hive driver doctor <driver>` and `hive sandbox doctor <backend>` when debugging v2.3 runtime or sandbox behavior.
+- Use `hive driver doctor <driver>` and `hive sandbox doctor <backend>` when debugging runtime or sandbox behavior.
 - Before you commit, run `make check`. Before you ask for PR review on a broad slice, make sure the relevant local validation is green.
 - If you request Claude review, treat it as pending until GitHub shows a new Claude comment or review artifact on the latest PR head. An `eyes` reaction alone does not count as completion.
 - For maintainer-critical PRs, local Claude review is an acceptable primary or fallback review path when GitHub-managed review is delayed or ambiguous. The built-in `claude -p "/review <pr-number>"` flow works well for this. Summarize the resulting findings in the PR thread.
 - After merging, watch the `push` CI run on `main`. A red merge commit is new blocking work, even if the PR checks were green.
 
-## Specialized Skills
+## Skills
 
-For heavier workflows, follow the repo skills instead of inventing your own process:
+Skills live in `skills/` (symlinked from both `.agents/skills/` and `.claude/skills/`).
 
-- `.agents/skills/deep-work-session/SKILL.md` for task-first Hive sessions
-- `.agents/skills/multi-agent-coordination/SKILL.md` for multi-agent claims, blockers, and handoffs
-- `.agents/skills/hive-v23-execution-discipline/SKILL.md` for long-running v2.3/RFC work, mergeable slice planning, review discipline, delegation, and cleanup hygiene
+| Skill | When to use |
+|-------|-------------|
+| `hive-essentials` | Read first — mental model, entities, conventions |
+| `hive-work-loop` | Doing task work: claim → run → finish → promote |
+| `hive-project-setup` | Bootstrap, project/task CRUD, evaluator policy |
+| `hive-coordination` | Multi-agent work, campaigns, portfolio, memory |
+| `hive-mcp` | MCP server integration |
+| `hive-maintainer` | Developing Hive itself: PRs, reviews, releases |
 
 ## Fast Path
 
@@ -41,6 +50,7 @@ hive work <task-id> --owner <your-name> --json
 hive driver doctor codex
 hive sandbox doctor local-safe
 hive finish <run-id> --json
+hive run promote <run-id> --cleanup-worktree --json
 make check
 ```
 

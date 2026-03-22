@@ -378,6 +378,7 @@ class CodexAppServerBroker:
                     self._pump_messages(0.2)
                     self._check_driver_channel()
                     if process.poll() is not None:
+                        self._pump_messages(0.0)
                         break
                     if self.state.get("turn_status") in TERMINAL_TURN_STATUSES:
                         if completed_at is None:

@@ -11,7 +11,7 @@ This is the core cycle for getting work done in Hive. It covers the full path fr
 
 ```
 find ready work → build context → claim → launch run → monitor
-    → handle approvals → finish → evaluate → promote → release
+    → handle approvals → finish (evaluates + promotes) → release
 ```
 
 ## 1. Find Ready Work
@@ -118,19 +118,31 @@ hive steer reroute <run-id> --driver claude --json  # transfer to different driv
 
 A human may also steer through the console. Watch for state changes.
 
-## 7. Finish and Evaluate
+## 7. Finish
 
 ```bash
 hive finish <run-id> --json
 ```
 
-`hive finish` consults the evaluator policy from PROGRAM.md. Depending on the result:
+`hive finish` evaluates the run against PROGRAM.md policy **and promotes by default** — it merges the worktree branch back and cleans up. Depending on the evaluator result:
 
-- **Accepted:** Task can be promoted and closed.
+- **Accepted + promoted:** Run merged to current branch, worktree cleaned up, task closeable.
 - **Rejected:** Task returns to the ready queue. Fix and re-run.
 - **Escalated:** Needs human review. Run enters `awaiting_review`.
 
-For manual evaluation control:
+To accept without promoting (e.g., to inspect the worktree first):
+
+```bash
+hive finish <run-id> --no-promote --json
+```
+
+Then promote later when ready:
+
+```bash
+hive run promote <run-id> --cleanup-worktree --json
+```
+
+For manual evaluation control outside the finish flow:
 
 ```bash
 hive run eval <run-id> --json                               # run evaluator
@@ -139,17 +151,7 @@ hive run reject <run-id> --reason "tests failed" --json     # manually reject
 hive run escalate <run-id> --reason "needs human" --json    # escalate to human
 ```
 
-## 8. Promote to Main
-
-After acceptance, merge the worktree branch back:
-
-```bash
-hive run promote <run-id> --cleanup-worktree --json
-```
-
-This merges the run's branch into the current branch and cleans up the git worktree.
-
-## 9. Clean Up and Release
+## 8. Clean Up and Release
 
 ```bash
 hive task update <task-id> --status done --json     # mark task complete
@@ -190,8 +192,9 @@ This compiles a handoff bundle with current state, open work, and context for th
 | Launch | `hive work <id> --owner <name> --json` |
 | Monitor | `hive run status <run-id> --json` |
 | Approve | `hive steer approve <run-id> --json` |
-| Finish | `hive finish <run-id> --json` |
-| Promote | `hive run promote <run-id> --cleanup-worktree --json` |
+| Finish + promote | `hive finish <run-id> --json` |
+| Finish only | `hive finish <run-id> --no-promote --json` |
+| Promote later | `hive run promote <run-id> --cleanup-worktree --json` |
 | Release | `hive task release <id> --json` |
 | Handoff | `hive context handoff --project <id> --json` |
 

@@ -73,7 +73,7 @@ Each project gets:
 hive task create --project-id <id> --title "Task title" --json
 hive task create --project-id <id> --title "..." --status ready --json
 hive task list --project-id <id> --json
-hive task list --status ready,review --json
+hive task list --status ready --status review --json
 hive task show <task-id> --json
 hive task update <task-id> --status in_progress --priority 1 --json
 hive task update <task-id> --title "New title" --label "bug" --json
@@ -193,9 +193,9 @@ Run this after task, run, or memory changes so GLOBAL.md, AGENCY.md task rollups
 ### Health check
 
 ```bash
-hive doctor --json              # full workspace health
-hive doctor workspace --json    # workspace structure only
-hive doctor program --json      # PROGRAM.md policy check
+hive doctor --json                          # full workspace health
+hive doctor workspace --json                # workspace structure only
+hive doctor program <project-id> --json     # PROGRAM.md policy check
 ```
 
 ## Rules of Thumb

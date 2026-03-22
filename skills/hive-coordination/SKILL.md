@@ -129,12 +129,13 @@ hive portfolio steer <project-id> --force-review --json   # force review cycle
 ### Portfolio tick
 
 ```bash
-hive portfolio tick --json                      # full state machine tick
-hive portfolio tick --mode recommend --json     # recommendation phase only
-hive portfolio tick --mode start --json         # launch phase only
-hive portfolio tick --mode review --json        # review phase only
-hive portfolio tick --mode cleanup --json       # cleanup phase only
+hive portfolio tick --json                      # recommend next task (default mode)
+hive portfolio tick --mode start --json         # claim + start work on recommended task
+hive portfolio tick --mode review --json        # finish the next evaluating run
+hive portfolio tick --mode cleanup --json       # clean up terminal runs
 ```
+
+Each tick runs one bounded phase. The default `--mode recommend` only returns a recommendation — it does not start work.
 
 ## Briefs
 

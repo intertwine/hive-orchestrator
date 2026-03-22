@@ -50,7 +50,6 @@ hive work <task-id> --owner <your-name> --json
 hive driver doctor codex
 hive sandbox doctor local-safe
 hive finish <run-id> --json
-hive run promote <run-id> --cleanup-worktree --json
 make check
 ```
 

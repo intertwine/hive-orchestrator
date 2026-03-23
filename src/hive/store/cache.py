@@ -89,23 +89,23 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
             if temp_db_path.exists():
                 temp_db_path.unlink()
 
-    # Build the optional dense vector index outside the lock so FTS search
-    # is never blocked by embedding latency.
-    try:
-        from src.hive.retrieval.dense import DenseDoc, build_dense_index, is_dense_available
+        # Build the optional dense vector index under the same lock so
+        # concurrent rebuilds cannot overwrite the LanceDB table mid-write.
+        try:
+            from src.hive.retrieval.dense import DenseDoc, build_dense_index, is_dense_available
 
-        if is_dense_available() and search_docs:
-            dense_docs = [
-                DenseDoc(
-                    doc_id=f"{doc_type}:{file_path}",
-                    doc_type=doc_type,
-                    title=title,
-                    body=body,
-                )
-                for doc_type, file_path, title, body, _metadata in search_docs
-            ]
-            build_dense_index(target_dir, dense_docs)
-    except Exception:  # pylint: disable=broad-except
-        pass  # Dense index failure must never block search
+            if is_dense_available() and search_docs:
+                dense_docs = [
+                    DenseDoc(
+                        doc_id=f"{doc_type}:{file_path}",
+                        doc_type=doc_type,
+                        title=title,
+                        body=body,
+                    )
+                    for doc_type, file_path, title, body, _metadata in search_docs
+                ]
+                build_dense_index(target_dir, dense_docs)
+        except Exception:  # pylint: disable=broad-except
+            pass  # Dense index failure must never block search
 
     return db_path

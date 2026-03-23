@@ -9,9 +9,14 @@ import sqlite3
 from pathlib import Path
 from typing import Iterable
 
+import logging
+
 from src.hive.scheduler.query import dependency_summary, project_summary
 from src.hive.store.cache import rebuild_cache
+from src.hive.store.layout import cache_dir
 from src.hive.retrieval_trace import classify_retrieval_intent, retrieval_explanation
+
+logger = logging.getLogger(__name__)
 
 # "doc" keeps explicit doc-only searches aligned with the broader "workspace" umbrella.
 # The greenfield brief-search miss was caused by cache indexing, not scope expansion here.
@@ -299,6 +304,7 @@ def _cache_result(
     fts_rank: float,
     query: str,
     intent: str,
+    dense_distance: float | None = None,
 ) -> dict[str, object]:
     terms = _query_terms(query)
     title_hits = _count_term_hits(title, terms)
@@ -306,6 +312,12 @@ def _cache_result(
     phrase_bonus = 12 if query.casefold() in body.casefold() else 0
     score = DOC_TYPE_BOOST.get(doc_type, 6) + (title_hits * 14) + (body_hits * 3) + phrase_bonus
     score += max(0.0, 12.0 - min(abs(fts_rank), 12.0))
+    # Dense-only results (no FTS match) use a flat base score instead of DOC_TYPE_BOOST,
+    # since they were found purely via semantic similarity and need high similarity to
+    # compete with FTS-matched results that have term-level evidence.
+    if dense_distance is not None and fts_rank == 0.0:
+        dense_similarity = max(0.0, 1.0 - min(dense_distance, 1.5) / 1.5)
+        score = 20.0 + dense_similarity * 30.0  # 20-50 range, below typical FTS scores
     if intent == "policy" and doc_type == "program":
         score += 18
     elif intent == "history" and doc_type == "run_summary":
@@ -321,12 +333,14 @@ def _cache_result(
         query=query,
         metadata=metadata,
     )
+    if dense_distance is not None:
+        reasons.append(f"semantic similarity (distance: {dense_distance:.3f})")
     if intent == "policy" and doc_type == "program":
         reasons.append("policy intent boosted PROGRAM.md over general docs")
     elif intent == "history" and doc_type == "run_summary":
         reasons.append("history intent boosted accepted run summaries")
     scope = str(metadata.get("scope") or ("project" if doc_type in {"task", "run_summary"} else ""))
-    return {
+    result: dict[str, object] = {
         "kind": doc_type,
         "title": title,
         "path": path,
@@ -336,8 +350,12 @@ def _cache_result(
         "matches": reasons,
         "explanation": retrieval_explanation({"kind": doc_type, "why": reasons}),
         "metadata": metadata,
-        **({"scope": scope} if scope else {}),
     }
+    if scope:
+        result["scope"] = scope
+    if dense_distance is not None:
+        result["dense_match"] = True
+    return result
 
 
 def _matches_project_filter(metadata: dict[str, object], project_id: str | None) -> bool:
@@ -356,7 +374,7 @@ def _matches_task_filter(metadata: dict[str, object], task_id: str | None) -> bo
     return metadata.get("task_id") == task_id or metadata.get("entity_id") == task_id
 
 
-# pylint: disable-next=too-many-arguments,too-many-locals
+# pylint: disable-next=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
 def search_cache_documents(
     root: Path,
     query: str,
@@ -366,7 +384,7 @@ def search_cache_documents(
     project_id: str | None = None,
     task_id: str | None = None,
 ) -> list[dict[str, object]]:
-    """Search cache-backed workspace documents using SQLite FTS."""
+    """Search cache-backed workspace documents using SQLite FTS and optional dense vectors."""
     normalized_scopes = _normalized_scopes(scopes)
     db_path = rebuild_cache(root)
 
@@ -395,6 +413,18 @@ def search_cache_documents(
     where_clause = f"d.doc_type IN ({','.join('?' for _ in sorted(doc_types))})"
     params: list[object] = [fts_query, *sorted(doc_types)]
 
+    # ---- Dense vector search (optional) ----
+    dense_hits: dict[str, float] = {}
+    try:
+        from src.hive.retrieval.dense import is_dense_available, search_dense
+
+        if is_dense_available():
+            for hit in search_dense(cache_dir(root), query, limit=max(limit * 3, 24)):
+                dense_hits[hit.doc_id] = hit.distance
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+    # ---- FTS5 lexical search ----
     connection = sqlite3.connect(db_path)
     try:
         rows = list(
@@ -417,33 +447,79 @@ def search_cache_documents(
                 (*params, max(limit * 8, 24)),
             )
         )
+
+        # ---- Fuse lexical + dense results ----
+        deduped: list[dict[str, object]] = []
+        seen_keys: set[str] = set()
+        seen_ids: set[str] = set()
+        for doc_type, path, title, body, metadata_json, fts_rank in rows:
+            metadata = json.loads(metadata_json or "{}")
+            if not _matches_project_filter(metadata, project_id):
+                continue
+            if not _matches_task_filter(metadata, task_id):
+                continue
+            entity_key = str(metadata.get("entity_key") or f"{doc_type}:{path}")
+            if entity_key in seen_keys:
+                continue
+            seen_keys.add(entity_key)
+            doc_id = f"{doc_type}:{path}"
+            seen_ids.add(doc_id)
+            deduped.append(
+                _cache_result(
+                    doc_type=doc_type,
+                    path=path,
+                    title=title,
+                    body=body,
+                    metadata=metadata,
+                    fts_rank=float(fts_rank),
+                    query=query,
+                    intent=intent,
+                    dense_distance=dense_hits.get(doc_id),
+                )
+            )
+
+        # ---- Add dense-only hits that FTS missed ----
+        # Only include results with strong semantic similarity.  For BGE-small L2
+        # distances, < 0.5 is very relevant, 0.5-0.8 is moderately relevant.
+        for doc_id, distance in dense_hits.items():
+            if doc_id in seen_ids:
+                continue
+            if distance >= 0.5:
+                continue
+            row = connection.execute(
+                "SELECT doc_type, path, title, body, metadata_json FROM search_docs WHERE id = ?",
+                (doc_id,),
+            ).fetchone()
+            if not row:
+                continue
+            d_doc_type, d_path, d_title, d_body, d_metadata_json = row
+            if d_doc_type not in doc_types:
+                continue
+            d_metadata = json.loads(d_metadata_json or "{}")
+            if not _matches_project_filter(d_metadata, project_id):
+                continue
+            if not _matches_task_filter(d_metadata, task_id):
+                continue
+            d_entity_key = str(d_metadata.get("entity_key") or f"{d_doc_type}:{d_path}")
+            if d_entity_key in seen_keys:
+                continue
+            seen_keys.add(d_entity_key)
+            seen_ids.add(doc_id)
+            deduped.append(
+                _cache_result(
+                    doc_type=d_doc_type,
+                    path=d_path,
+                    title=d_title,
+                    body=d_body,
+                    metadata=d_metadata,
+                    fts_rank=0.0,
+                    query=query,
+                    intent=intent,
+                    dense_distance=distance,
+                )
+            )
     finally:
         connection.close()
-
-    deduped: list[dict[str, object]] = []
-    seen_keys: set[str] = set()
-    for doc_type, path, title, body, metadata_json, fts_rank in rows:
-        metadata = json.loads(metadata_json or "{}")
-        if not _matches_project_filter(metadata, project_id):
-            continue
-        if not _matches_task_filter(metadata, task_id):
-            continue
-        entity_key = str(metadata.get("entity_key") or f"{doc_type}:{path}")
-        if entity_key in seen_keys:
-            continue
-        seen_keys.add(entity_key)
-        deduped.append(
-            _cache_result(
-                doc_type=doc_type,
-                path=path,
-                title=title,
-                body=body,
-                metadata=metadata,
-                fts_rank=float(fts_rank),
-                query=query,
-                intent=intent,
-            )
-        )
 
     deduped.sort(
         key=lambda item: (-float(item["score"]), str(item["title"]).lower(), str(item["path"]))

@@ -73,11 +73,23 @@ def retrieval_explanation(hit: dict[str, Any]) -> str:
     return f"matched {str(hit.get('kind') or 'workspace')} search content"
 
 
+def _candidate_sources(hit: dict[str, Any]) -> list[str]:
+    """Derive retrieval source tags for a candidate hit."""
+    kind = str(hit.get("kind") or "")
+    if kind == "project":
+        return ["graph"]
+    sources = ["lexical"]
+    if hit.get("dense_match"):
+        sources.append("dense")
+    return sources
+
+
 def build_retrieval_artifacts(
     query: str,
     *,
     selected_hits: list[dict[str, Any]],
     candidate_hits: list[dict[str, Any]] | None = None,
+    dense_candidate_count: int = 0,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Build normalized retrieval hits and trace payloads for a run."""
     candidates = list(candidate_hits or selected_hits)
@@ -112,14 +124,14 @@ def build_retrieval_artifacts(
         "intent": intent,
         "candidate_counts": {
             "lexical": len(normalized_candidates),
-            "dense": 0,
+            "dense": dense_candidate_count,
             "graph": graph_candidates,
         },
         "fused": [
             {
                 "chunk_id": item["chunk_id"],
                 "kind": item["kind"],
-                "sources": ["graph" if item["kind"] == "project" else "lexical"],
+                "sources": _candidate_sources(candidates[index] if index < len(candidates) else {}),
                 "pre_rerank_rank": index + 1,
                 "explanation": item["explanation"],
                 "provenance": item["provenance"],

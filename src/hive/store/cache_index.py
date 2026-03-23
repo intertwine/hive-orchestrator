@@ -866,6 +866,14 @@ class CacheBuilder:
         self.write_events()
 
 
-def populate_cache_database(root: Path, connection: sqlite3.Connection) -> None:
-    """Populate the derived cache database from canonical workspace files."""
-    CacheBuilder(root=root, connection=connection).populate()
+def populate_cache_database(
+    root: Path, connection: sqlite3.Connection
+) -> list[tuple[str, Path, str, str, dict]]:
+    """Populate the derived cache database from canonical workspace files.
+
+    Returns the accumulated search_docs list so callers can pass it to the
+    dense index builder without re-reading the database.
+    """
+    builder = CacheBuilder(root=root, connection=connection)
+    builder.populate()
+    return list(builder.search_docs)

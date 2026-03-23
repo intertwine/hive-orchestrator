@@ -27,7 +27,7 @@ from src.hive.clock import utc_now_iso
 
 
 class CodexDriver(HarnessDriver):
-    """Driver that stages runs for Codex."""
+    """Driver for Codex with live app-server, exec, and staged fallback modes."""
 
     name = "codex"
     binary_names = ("codex",)
@@ -484,8 +484,8 @@ class CodexDriver(HarnessDriver):
             )
         if probed["app_server_available"]:
             notes.append(
-                "Codex CLI exposes `app-server`, but Hive still stages runs until the protocol "
-                "adapter is implemented."
+                "Codex CLI exposes `app-server`; Hive bridges it through "
+                "codex_app_server_worker when HIVE_CODEX_LIVE_APP_SERVER is enabled."
             )
         evidence = {
             "codex_exec": (
@@ -494,8 +494,8 @@ class CodexDriver(HarnessDriver):
                 else "Codex CLI help did not expose `exec` on this machine."
             ),
             "codex_app_server": (
-                "Codex CLI help exposes `app-server`; the effective mode stays staged until Hive "
-                "speaks that protocol."
+                "Codex CLI help exposes `app-server`; Hive wires a live bridge when "
+                "HIVE_CODEX_LIVE_APP_SERVER is enabled, otherwise stages."
                 if probed["app_server_available"]
                 else "Codex CLI help did not expose `app-server` on this machine."
             ),

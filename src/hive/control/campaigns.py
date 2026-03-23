@@ -689,7 +689,7 @@ def tick_campaign(
                 driver=str(selected.get("recommended_driver") or campaign.driver),
                 model=campaign.model,
                 campaign_id=campaign.id,
-                profile="default",
+                profile=str(selected.get("recommended_sandbox") or "default"),
                 checkpoint=True,
                 checkpoint_message=f"Checkpoint campaign {campaign.title}",
             )

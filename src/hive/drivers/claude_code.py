@@ -26,7 +26,7 @@ from src.hive.runtime.capabilities import capability_surface
 
 
 class ClaudeCodeDriver(HarnessDriver):
-    """Driver that stages or launches Claude runs."""
+    """Driver for Claude Code with live exec and staged fallback modes."""
 
     name = "claude"
     binary_names = ("claude", "claude-code")
@@ -284,8 +284,8 @@ class ClaudeCodeDriver(HarnessDriver):
             notes.append("Claude is currently detected through the `claude` executable.")
         if probed["resume"] and probed["session_id"]:
             notes.append(
-                "Claude CLI exposes resume/session flags, which supports truthful session "
-                "continuity claims while the Hive adapter remains staged."
+                "Claude CLI exposes resume/session flags; Hive launches live exec sessions "
+                "when HIVE_CLAUDE_LIVE_EXEC is enabled, otherwise stages."
             )
         evidence = {
             "claude_cli_surface": (

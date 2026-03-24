@@ -325,10 +325,13 @@ def start_run(
             sandbox_policy=sandbox_policy,
         )
     )
+    candidates = list(context_bundle.get("retrieval_candidates") or [])
+    dense_count = sum(1 for c in candidates if c.get("dense_match"))
     retrieval_hits, retrieval_trace = build_retrieval_artifacts(
         str(context_bundle.get("query_text") or ""),
         selected_hits=list(context_bundle.get("search_hits") or []),
-        candidate_hits=list(context_bundle.get("retrieval_candidates") or []),
+        candidate_hits=candidates,
+        dense_candidate_count=dense_count,
     )
     paths["retrieval_hits_path"].write_text(
         json.dumps(retrieval_hits, indent=2, sort_keys=True),

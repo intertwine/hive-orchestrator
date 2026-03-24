@@ -78,7 +78,7 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
         try:
             connection = sqlite3.connect(temp_db_path)
             connection.executescript(_schema_sql())
-            populate_cache_database(root, connection)
+            search_docs = populate_cache_database(root, connection)
             connection.commit()
             connection.close()
             connection = None
@@ -88,4 +88,24 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
                 connection.close()
             if temp_db_path.exists():
                 temp_db_path.unlink()
+
+        # Build the optional dense vector index under the same lock so
+        # concurrent rebuilds cannot overwrite the LanceDB table mid-write.
+        try:
+            from src.hive.retrieval.dense import DenseDoc, build_dense_index, is_dense_available
+
+            if is_dense_available() and search_docs:
+                dense_docs = [
+                    DenseDoc(
+                        doc_id=f"{doc_type}:{file_path}",
+                        doc_type=doc_type,
+                        title=title,
+                        body=body,
+                    )
+                    for doc_type, file_path, title, body, _metadata in search_docs
+                ]
+                build_dense_index(target_dir, dense_docs)
+        except Exception:  # pylint: disable=broad-except
+            pass  # Dense index failure must never block search
+
     return db_path

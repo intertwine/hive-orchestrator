@@ -195,6 +195,12 @@ def test_pyproject_runtime_extras_cover_console_and_optional_surfaces():
         "fastapi>=0.115.0,<1.0.0",
         "uvicorn>=0.32.0,<1.0.0",
         "weave>=0.51.0,<1.0.0",
+        "lancedb>=0.20.0,<1.0.0",
+        "fastembed>=0.5.0,<1.0.0",
+    ]
+    assert extras["retrieval"] == [
+        "lancedb>=0.20.0,<1.0.0",
+        "fastembed>=0.5.0,<1.0.0",
     ]
 
 

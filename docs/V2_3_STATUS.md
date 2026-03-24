@@ -20,8 +20,7 @@ to release quality:
 The following items are explicitly deferred from blocking the v2.3 release:
 
 - Pi driver removed; full RPC harness integration (Pi, Hermes, OpenClaw) deferred to a focused design sprint.
-- The full hybrid retrieval stack from the proposed RFC (for example LanceDB, FastEmbed,
-  and Qdrant-backed retrieval) moves to a later release.
+- Hybrid retrieval (LanceDB + FastEmbed) is now available as the optional `[retrieval]` extra. Qdrant remote backend deferred to a later release.
 
 ## Release Gate Ledger
 
@@ -34,6 +33,7 @@ The following items are explicitly deferred from blocking the v2.3 release:
 | One real hosted sandbox path | Complete | `#124`, `#132`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md`, `docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md`, `tests/test_remote_sandbox_acceptance.py` | Final release/demo validation only |
 | One real self-hosted sandbox path | Complete | `#125`, `#127`, `#133`, `src/hive/runs/executors.py`, `docs/recipes/sandbox-doctor.md`, `tests/test_remote_sandbox_acceptance.py`, `2026-03-19 live Daytona proof (1 passed)` | Final release/demo validation only |
 | Explainable retrieval, packaged corpus, and traces | Complete | `retrieval/trace.json`, `retrieval/hits.json`, `src/hive/runs/paths.py`, `src/hive/console/state.py`, `scripts/smoke_release_install.sh`, `tests/test_install_story.py`, `tests/test_release_tooling.py` | Final release/demo validation only |
+| Hybrid dense retrieval (LanceDB + FastEmbed) | Complete | `src/hive/retrieval/dense.py`, `pyproject.toml[retrieval]`, `tests/test_hive_retrieval_dense.py` | Optional `[retrieval]` extra; Qdrant remote backend deferred |
 | Campaign candidate and decision artifacts | Complete | `candidate-set.json`, `decision.json`, `src/hive/control/campaigns.py`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Observe-and-steer console at RFC depth | Complete | `frontend/console/src/routes/RunDetailPage.tsx`, `frontend/console/src/routes/InboxPage.tsx`, `frontend/console/src/routes/CampaignDetailPage.tsx`, `tests/test_console_frontend_story.py`, `frontend/console/src/test/observeConsole.smoke.test.tsx` | Final release/demo validation only |
 | Pi driver at acceptance bar | Removed | `src/hive/drivers/pi.py`, `docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md` | Driver demoted; RPC harness integration deferred to focused design sprint for Pi/Hermes/OpenClaw |
@@ -49,7 +49,8 @@ What is real now:
 - local, hosted, and self-hosted sandbox paths all exist in code and tests
 - the shipped operator console now surfaces capability truth, sandbox policy, retrieval traces, approval actions, and campaign decision reasoning
 - Pi driver removed from registry; RPC harness integration (Pi, Hermes, OpenClaw) deferred to a focused design sprint
-- the release retrieval bar is now explainability, provenance, packaged corpus coverage, and trace persistence rather than the full hybrid backend stack
+- hybrid dense retrieval (LanceDB + FastEmbed) is available as the optional `[retrieval]` extra, with graceful degradation to FTS5-only when not installed
+- retrieval traces now report real dense candidate counts instead of hardcoded zeros
 - sandbox doctor and install docs now describe the real backend shapes and optional extras instead of leaving them buried in the RFC
 - the local-safe sandbox path now has a real Podman-backed CI proof instead of only mocked contract coverage
 - the Daytona self-hosted proof now passed in a credentialed environment using `DAYTONA_API_URL` + `DAYTONA_API_KEY`
@@ -64,7 +65,7 @@ What is real now:
 | `v2.3.1` | 2026-03-21 | Console-first human onboarding UX redesign (`#158`): forgiving demo defaults, human mental model summary, getting-started empty state, console-first doc rewrite, better dead-end CLI guidance |
 ## Next Blocker
 
-v2.3.2 release pending: truthfulness closure sprint landed (`#161`) — campaign sandbox propagation, Pi demotion, stale probe/docstring fixes. Version bump and tag still needed.
+v2.3.2 release pending: truthfulness closure sprint (`#161`) and hybrid retrieval landed. Version bump and tag still needed.
 
 ## Update Rule
 

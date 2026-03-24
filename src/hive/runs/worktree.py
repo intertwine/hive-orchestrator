@@ -53,7 +53,16 @@ def ensure_git_repo(path: str | Path | None) -> Path:
 
 def _matches_any(path: str, patterns: tuple[str, ...]) -> bool:
     normalized = path.strip().strip('"')
-    return any(fnmatch(normalized, pattern) for pattern in patterns)
+    # fnmatch treats ** as a single-segment wildcard, so fall back to prefix
+    # matching for patterns like ".hive/cache/**" that need recursive depth.
+    for pattern in patterns:
+        if pattern.endswith("/**"):
+            prefix = pattern[:-3]
+            if normalized == prefix or normalized.startswith(prefix + "/"):
+                return True
+        elif fnmatch(normalized, pattern):
+            return True
+    return False
 
 
 def _has_committed_head(root: Path) -> bool:
@@ -103,22 +112,41 @@ def restore_derived_state(path: str | Path | None) -> list[str]:
     if status.returncode != 0:
         raise ValueError(status.stderr.strip() or "Unable to inspect derived Hive state")
 
-    restore_paths = sorted(
-        {
-            candidate
-            for line in status.stdout.splitlines()
-            if line.strip()
-            for candidate in [_status_path(line)]
-            if _matches_any(candidate, IGNORED_PATTERNS)
-        }
-    )
-    if not restore_paths:
+    tracked_paths = []
+    untracked_paths = []
+    for line in status.stdout.splitlines():
+        if not line.strip():
+            continue
+        candidate = _status_path(line)
+        if not _matches_any(candidate, IGNORED_PATTERNS):
+            continue
+        # Lines starting with "?" are untracked files (need rm, not restore).
+        if line.startswith("?"):
+            untracked_paths.append(candidate)
+        else:
+            tracked_paths.append(candidate)
+
+    tracked_paths = sorted(set(tracked_paths))
+    untracked_paths = sorted(set(untracked_paths))
+
+    if not tracked_paths and not untracked_paths:
         return []
 
-    restore = _run_git(root, "restore", "--staged", "--worktree", "--", *restore_paths)
-    if restore.returncode != 0:
-        raise ValueError(restore.stderr.strip() or "Unable to restore derived Hive state")
-    return restore_paths
+    restored: list[str] = []
+    if tracked_paths:
+        restore = _run_git(root, "restore", "--staged", "--worktree", "--", *tracked_paths)
+        if restore.returncode != 0:
+            raise ValueError(restore.stderr.strip() or "Unable to restore derived Hive state")
+        restored.extend(tracked_paths)
+    if untracked_paths:
+        for upath in untracked_paths:
+            full = root / upath
+            if full.is_file():
+                full.unlink()
+            elif full.is_dir():
+                shutil.rmtree(full, ignore_errors=True)
+        restored.extend(untracked_paths)
+    return restored
 
 
 def ensure_clean_repo(path: str | Path | None) -> None:

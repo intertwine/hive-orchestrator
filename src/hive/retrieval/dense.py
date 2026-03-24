@@ -6,6 +6,7 @@ All imports are lazy so the module can be loaded even without the dependencies.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -82,18 +83,51 @@ def _get_reranker() -> Any:
 # ---------------------------------------------------------------------------
 
 
+CORPUS_HASH_FILE = ".corpus_hash"
+
+
+def _corpus_fingerprint(documents: list[DenseDoc]) -> str:
+    """Compute a lightweight fingerprint of the document set.
+
+    Uses sorted doc_ids so the fingerprint is stable regardless of insertion order.
+    """
+    hasher = hashlib.sha256()
+    for doc_id in sorted(doc.doc_id for doc in documents):
+        hasher.update(doc_id.encode())
+    return hasher.hexdigest()
+
+
+def _read_stored_fingerprint(cache_dir: Path) -> str | None:
+    marker = cache_dir / VECTORS_DIR / CORPUS_HASH_FILE
+    if marker.exists():
+        return marker.read_text(encoding="utf-8").strip()
+    return None
+
+
+def _write_fingerprint(cache_dir: Path, fingerprint: str) -> None:
+    marker = cache_dir / VECTORS_DIR / CORPUS_HASH_FILE
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(fingerprint, encoding="utf-8")
+
+
 def build_dense_index(
     cache_dir: Path,
     documents: list[DenseDoc],
 ) -> int:
     """Embed *documents* and write a LanceDB table to *cache_dir*/*VECTORS_DIR*.
 
-    Returns the number of documents indexed.  Uses ``mode="overwrite"`` so the
-    table is rebuilt from scratch on every cache rebuild (matching SQLite behaviour).
+    Returns the number of documents indexed, or 0 if the index is already fresh.
+    Skips the expensive embedding step when the document set has not changed
+    (detected via a SHA-256 fingerprint of sorted doc IDs).
     """
     import lancedb
 
     if not documents:
+        return 0
+
+    fingerprint = _corpus_fingerprint(documents)
+    if _read_stored_fingerprint(cache_dir) == fingerprint:
+        logger.debug("Dense index is fresh (fingerprint unchanged), skipping rebuild")
         return 0
 
     model = _get_embed_model()
@@ -113,6 +147,7 @@ def build_dense_index(
     vectors_path = cache_dir / VECTORS_DIR
     db = lancedb.connect(str(vectors_path))
     db.create_table(TABLE_NAME, data, mode="overwrite")
+    _write_fingerprint(cache_dir, fingerprint)
     logger.info("Dense index built: %d documents in %s", len(documents), vectors_path)
     return len(documents)
 

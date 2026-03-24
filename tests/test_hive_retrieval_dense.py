@@ -159,3 +159,26 @@ class TestDenseWithDeps:
 
         count = build_dense_index(tmp_path, [])
         assert count == 0
+
+    def test_build_dense_index_skips_when_corpus_unchanged(self, tmp_path):
+        from src.hive.retrieval.dense import build_dense_index
+
+        docs = [
+            DenseDoc("task:t1", "task", "Fix auth bug", "The auth module has a null check issue"),
+            DenseDoc("task:t2", "task", "Add search", "Implement full-text search with SQLite"),
+        ]
+        first = build_dense_index(tmp_path, docs)
+        assert first == 2
+        # Second build with same docs should skip (returns 0)
+        second = build_dense_index(tmp_path, docs)
+        assert second == 0
+
+    def test_build_dense_index_rebuilds_when_corpus_changes(self, tmp_path):
+        from src.hive.retrieval.dense import build_dense_index
+
+        docs = [DenseDoc("task:t1", "task", "Fix auth bug", "Null check issue")]
+        build_dense_index(tmp_path, docs)
+        # Add a new doc — corpus changed, should rebuild
+        docs.append(DenseDoc("task:t2", "task", "Add search", "Full-text search"))
+        count = build_dense_index(tmp_path, docs)
+        assert count == 2

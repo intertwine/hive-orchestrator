@@ -121,7 +121,7 @@ def build_dense_index(
 
     Returns the number of documents indexed, or 0 if the index is already fresh.
     Skips the expensive embedding step when the document set has not changed
-    (detected via a SHA-256 fingerprint of sorted doc IDs).
+    (detected via a SHA-256 fingerprint of doc IDs, titles, and bodies).
     """
     import lancedb
 

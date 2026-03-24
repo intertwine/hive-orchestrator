@@ -87,13 +87,16 @@ CORPUS_HASH_FILE = ".corpus_hash"
 
 
 def _corpus_fingerprint(documents: list[DenseDoc]) -> str:
-    """Compute a lightweight fingerprint of the document set.
+    """Compute a fingerprint covering both document identity and content.
 
-    Uses sorted doc_ids so the fingerprint is stable regardless of insertion order.
+    Hashes ``doc_id + title + body`` for every document (sorted by doc_id)
+    so that adds, removes, *and* content edits all invalidate the index.
     """
     hasher = hashlib.sha256()
-    for doc_id in sorted(doc.doc_id for doc in documents):
-        hasher.update(doc_id.encode())
+    for doc in sorted(documents, key=lambda d: d.doc_id):
+        hasher.update(doc.doc_id.encode())
+        hasher.update(doc.title.encode())
+        hasher.update(doc.body.encode())
     return hasher.hexdigest()
 
 

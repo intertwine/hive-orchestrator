@@ -173,7 +173,7 @@ class TestDenseWithDeps:
         second = build_dense_index(tmp_path, docs)
         assert second == 0
 
-    def test_build_dense_index_rebuilds_when_corpus_changes(self, tmp_path):
+    def test_build_dense_index_rebuilds_when_doc_added(self, tmp_path):
         from src.hive.retrieval.dense import build_dense_index
 
         docs = [DenseDoc("task:t1", "task", "Fix auth bug", "Null check issue")]
@@ -182,3 +182,18 @@ class TestDenseWithDeps:
         docs.append(DenseDoc("task:t2", "task", "Add search", "Full-text search"))
         count = build_dense_index(tmp_path, docs)
         assert count == 2
+
+    def test_build_dense_index_rebuilds_when_doc_content_changes(self, tmp_path):
+        """Editing a doc's title or body must invalidate the dense index."""
+        from src.hive.retrieval.dense import build_dense_index
+
+        docs = [DenseDoc("task:t1", "task", "Fix auth bug", "Null check issue")]
+        assert build_dense_index(tmp_path, docs) == 1
+        # Same doc_id, different body — must rebuild
+        edited = [DenseDoc("task:t1", "task", "Fix auth bug", "The session token is expired")]
+        assert build_dense_index(tmp_path, edited) == 1
+        # Same doc_id, different title — must rebuild
+        retitled = [DenseDoc("task:t1", "task", "Fix session expiry", "The session token is expired")]
+        assert build_dense_index(tmp_path, retitled) == 1
+        # Unchanged — must skip
+        assert build_dense_index(tmp_path, retitled) == 0

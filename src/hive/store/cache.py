@@ -92,9 +92,17 @@ def rebuild_cache(path: str | Path | None = None) -> Path:
         # Build the optional dense vector index under the same lock so
         # concurrent rebuilds cannot overwrite the LanceDB table mid-write.
         try:
-            from src.hive.retrieval.dense import DenseDoc, build_dense_index, is_dense_available
+            from src.hive.retrieval.dense import (
+                DenseDoc,
+                build_dense_index,
+                is_dense_available,
+            )
 
-            if is_dense_available() and search_docs:
+            if (
+                is_dense_available()
+                and search_docs
+                and not os.environ.get("HIVE_SKIP_DENSE_INDEX")
+            ):
                 dense_docs = [
                     DenseDoc(
                         doc_id=f"{doc_type}:{file_path}",

@@ -1,6 +1,7 @@
 """Shared pytest fixtures for Agent Hive tests."""
 
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -12,10 +13,24 @@ import frontmatter
 from src.hive.store.projects import discover_projects
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _skip_dense_index_in_tests():
+    """Disable dense vector indexing during tests to avoid slow embedding model loads.
+
+    Tests that specifically target the dense retrieval module import and call
+    ``build_dense_index`` / ``search_dense`` directly, bypassing this gate.
+    """
+    os.environ["HIVE_SKIP_DENSE_INDEX"] = "1"
+    yield
+    os.environ.pop("HIVE_SKIP_DENSE_INDEX", None)
+
+
 def init_git_repo(path: str | Path) -> None:
     """Initialize a test Git repository with a stable identity."""
     subprocess.run(["git", "init", "-q"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.email", "tests@example.com"], cwd=path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "tests@example.com"], cwd=path, check=True
+    )
     subprocess.run(["git", "config", "user.name", "Hive Tests"], cwd=path, check=True)
 
 
@@ -68,7 +83,9 @@ def write_safe_program(
     command: str = "python -c \"print('ok')\"",
 ):
     """Write the shared safe PROGRAM.md test contract into a project."""
-    project = next(project for project in discover_projects(root) if project.id == project_id)
+    project = next(
+        project for project in discover_projects(root) if project.id == project_id
+    )
     project.program_path.write_text(safe_program(command), encoding="utf-8")
     return project
 
@@ -116,9 +133,13 @@ def commit_workspace():
         if not (root / ".git").exists():
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
             subprocess.run(
-                ["git", "config", "user.email", "tests@example.com"], cwd=root, check=True
+                ["git", "config", "user.email", "tests@example.com"],
+                cwd=root,
+                check=True,
             )
-            subprocess.run(["git", "config", "user.name", "Agent Hive Tests"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.name", "Agent Hive Tests"], cwd=root, check=True
+            )
         subprocess.run(["git", "add", "-A"], cwd=root, check=True)
         status = subprocess.run(
             ["git", "status", "--short"],

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from importlib.resources import files
 import json
+import os
 import re
 import sqlite3
 from pathlib import Path
@@ -20,7 +21,16 @@ logger = logging.getLogger(__name__)
 
 # "doc" keeps explicit doc-only searches aligned with the broader "workspace" umbrella.
 # The greenfield brief-search miss was caused by cache indexing, not scope expansion here.
-WORKSPACE_SCOPES = {"workspace", "task", "run", "memory", "program", "agency", "global", "doc"}
+WORKSPACE_SCOPES = {
+    "workspace",
+    "task",
+    "run",
+    "memory",
+    "program",
+    "agency",
+    "global",
+    "doc",
+}
 API_DOC_FILES = (
     ("api", "START_HERE", "docs/START_HERE.md"),
     ("api", "QUICKSTART", "docs/QUICKSTART.md"),
@@ -122,7 +132,16 @@ COMMAND_DOCS = (
         "example": "hive context startup --project demo --profile light",
     },
 )
-EXAMPLE_TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".py", ".sql", ".txt", ".yaml", ".yml"}
+EXAMPLE_TEXT_SUFFIXES = {
+    ".json",
+    ".jsonl",
+    ".md",
+    ".py",
+    ".sql",
+    ".txt",
+    ".yaml",
+    ".yml",
+}
 DOC_TYPE_BOOST = {
     "task": 60,
     "memory": 36,
@@ -165,9 +184,14 @@ def _iter_text_resources(relative_dir: str):
     source_root = _repo_root() / relative_dir
     if source_root.exists():
         for file_path in sorted(source_root.rglob("*")):
-            if file_path.is_file() and file_path.suffix.lower() in EXAMPLE_TEXT_SUFFIXES:
-                yield str(file_path), str(file_path.relative_to(source_root)), file_path.read_text(
-                    encoding="utf-8"
+            if (
+                file_path.is_file()
+                and file_path.suffix.lower() in EXAMPLE_TEXT_SUFFIXES
+            ):
+                yield (
+                    str(file_path),
+                    str(file_path.relative_to(source_root)),
+                    file_path.read_text(encoding="utf-8"),
                 )
         return
 
@@ -176,7 +200,9 @@ def _iter_text_resources(relative_dir: str):
         stack = [(packaged_root, "")]
         while stack:
             current, prefix = stack.pop()
-            children = sorted(current.iterdir(), key=lambda item: item.name, reverse=True)
+            children = sorted(
+                current.iterdir(), key=lambda item: item.name, reverse=True
+            )
             for child in children:
                 relative_name = f"{prefix}{child.name}"
                 if child.is_dir():
@@ -185,8 +211,10 @@ def _iter_text_resources(relative_dir: str):
                 suffix = Path(child.name).suffix.lower()
                 if suffix not in EXAMPLE_TEXT_SUFFIXES:
                     continue
-                yield f"package:{relative_dir}/{relative_name}", relative_name, child.read_text(
-                    encoding="utf-8"
+                yield (
+                    f"package:{relative_dir}/{relative_name}",
+                    relative_name,
+                    child.read_text(encoding="utf-8"),
                 )
         return
 
@@ -214,7 +242,9 @@ def _normalized_scopes(scopes: Iterable[str] | None) -> set[str]:
 
 
 def _query_terms(query: str) -> list[str]:
-    return [term.casefold() for term in re.findall(r"[A-Za-z0-9_-]+", query) if term.strip()]
+    return [
+        term.casefold() for term in re.findall(r"[A-Za-z0-9_-]+", query) if term.strip()
+    ]
 
 
 def _fts_query(query: str) -> str:
@@ -232,7 +262,9 @@ def _count_term_hits(text: str, terms: list[str]) -> int:
 def _snippet(text: str, query: str, width: int = 220) -> str:
     lowered = text.casefold()
     terms = _query_terms(query)
-    first_index = min((lowered.find(term) for term in terms if lowered.find(term) >= 0), default=0)
+    first_index = min(
+        (lowered.find(term) for term in terms if lowered.find(term) >= 0), default=0
+    )
     start = max(0, first_index - 40)
     end = min(len(text), start + width)
     return text[start:end].strip()
@@ -248,7 +280,9 @@ def _match_reasons(
 ) -> list[str]:
     terms = _query_terms(query)
     title_hits = [term for term in terms if term in title.casefold()]
-    body_hits = [term for term in terms if term in body.casefold() and term not in title_hits]
+    body_hits = [
+        term for term in terms if term in body.casefold() and term not in title_hits
+    ]
     reasons: list[str] = []
     if doc_type == "task":
         reasons.append("canonical task record")
@@ -263,14 +297,16 @@ def _match_reasons(
     acceptance_hits = [
         term
         for term in terms
-        if term in " ".join(str(item) for item in metadata.get("acceptance", [])).casefold()
+        if term
+        in " ".join(str(item) for item in metadata.get("acceptance", [])).casefold()
     ]
     if acceptance_hits:
         reasons.append("matched acceptance criteria")
     file_hits = [
         term
         for term in terms
-        if term in " ".join(str(item) for item in metadata.get("relevant_files", [])).casefold()
+        if term
+        in " ".join(str(item) for item in metadata.get("relevant_files", [])).casefold()
     ]
     if file_hits:
         reasons.append("matched relevant files")
@@ -310,7 +346,12 @@ def _cache_result(
     title_hits = _count_term_hits(title, terms)
     body_hits = _count_term_hits(body, terms)
     phrase_bonus = 12 if query.casefold() in body.casefold() else 0
-    score = DOC_TYPE_BOOST.get(doc_type, 6) + (title_hits * 14) + (body_hits * 3) + phrase_bonus
+    score = (
+        DOC_TYPE_BOOST.get(doc_type, 6)
+        + (title_hits * 14)
+        + (body_hits * 3)
+        + phrase_bonus
+    )
     score += max(0.0, 12.0 - min(abs(fts_rank), 12.0))
     # Dense-only results (no FTS match) use a flat base score instead of DOC_TYPE_BOOST,
     # since they were found purely via semantic similarity and need high similarity to
@@ -339,7 +380,10 @@ def _cache_result(
         reasons.append("policy intent boosted PROGRAM.md over general docs")
     elif intent == "history" and doc_type == "run_summary":
         reasons.append("history intent boosted accepted run summaries")
-    scope = str(metadata.get("scope") or ("project" if doc_type in {"task", "run_summary"} else ""))
+    scope = str(
+        metadata.get("scope")
+        or ("project" if doc_type in {"task", "run_summary"} else "")
+    )
     result: dict[str, object] = {
         "kind": doc_type,
         "title": title,
@@ -358,7 +402,9 @@ def _cache_result(
     return result
 
 
-def _matches_project_filter(metadata: dict[str, object], project_id: str | None) -> bool:
+def _matches_project_filter(
+    metadata: dict[str, object], project_id: str | None
+) -> bool:
     if not project_id:
         return True
     if metadata.get("scope") == "global":
@@ -418,7 +464,7 @@ def search_cache_documents(
     try:
         from src.hive.retrieval.dense import is_dense_available, search_dense
 
-        if is_dense_available():
+        if is_dense_available() and not os.environ.get("HIVE_SKIP_DENSE_INDEX"):
             for hit in search_dense(cache_dir(root), query, limit=max(limit * 3, 24)):
                 dense_hits[hit.doc_id] = hit.distance
     except Exception:  # pylint: disable=broad-except
@@ -522,7 +568,11 @@ def search_cache_documents(
         connection.close()
 
     deduped.sort(
-        key=lambda item: (-float(item["score"]), str(item["title"]).lower(), str(item["path"]))
+        key=lambda item: (
+            -float(item["score"]),
+            str(item["title"]).lower(),
+            str(item["path"]),
+        )
     )
     return deduped[:limit]
 
@@ -535,7 +585,9 @@ def _score(text: str, query: str) -> int:
     return sum(haystack.count(term) for term in terms)
 
 
-def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str, object]]:
+def _search_api_docs(
+    query: str, scopes: set[str], limit: int
+) -> list[dict[str, object]]:
     if "api" not in scopes and "schema" not in scopes:
         return []
     results: list[dict[str, object]] = []
@@ -581,10 +633,14 @@ def _search_api_docs(query: str, scopes: set[str], limit: int) -> list[dict[str,
             }
         )
 
-    return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[:limit]
+    return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[
+        :limit
+    ]
 
 
-def _search_examples(query: str, scopes: set[str], limit: int) -> list[dict[str, object]]:
+def _search_examples(
+    query: str, scopes: set[str], limit: int
+) -> list[dict[str, object]]:
     if "examples" not in scopes:
         return []
     results: list[dict[str, object]] = []
@@ -608,7 +664,9 @@ def _search_examples(query: str, scopes: set[str], limit: int) -> list[dict[str,
                     "explanation": reason,
                 }
             )
-    return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[:limit]
+    return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[
+        :limit
+    ]
 
 
 def _search_project_summary(
@@ -655,7 +713,9 @@ def _search_project_summary(
             }
         )
 
-    return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[:limit]
+    return sorted(results, key=lambda item: (-int(item["score"]), str(item["title"])))[
+        :limit
+    ]
 
 
 # pylint: disable-next=too-many-arguments

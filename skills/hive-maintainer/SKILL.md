@@ -140,14 +140,58 @@ After delegation:
 
 ## Release Workflow
 
+### Version bump
+
+`make bump-version BUMP=patch|minor|major` updates `pyproject.toml` and `src/hive/common.py` automatically. You must also update manually:
+
+- **`docs/V2_3_STATUS.md`** — bump the `Status:` line, `Last updated:` date, add a row to the Release History table, and rewrite the Next Blocker section.
+- **`tests/test_maintainer_surfaces.py`** — the `test_v23_status_doc_tracks_release_gates_and_next_blocker` test asserts the current version string in the status doc. Update the assertion and add one for the new version in the release history.
+- **`uv.lock`** — run `uv sync` or `uv lock` after the pyproject.toml bump so the lockfile stays in sync (or let `uv run` do it implicitly).
+
+### Validation
+
 ```bash
-make check                              # lint + tests
+make check                              # lint + tests (must pass before commit)
 make release-check                      # build, validate, smoke-test artifacts
-make bump-version BUMP=patch|minor|major
-make publish                            # publish to PyPI
 ```
 
-Keep `docs/V2_3_STATUS.md` current as the compact release ledger.
+### Commit, tag, and push
+
+```bash
+git add pyproject.toml src/hive/common.py docs/V2_3_STATUS.md tests/test_maintainer_surfaces.py uv.lock
+git commit -m "chore: bump version to X.Y.Z"
+git tag vX.Y.Z
+git push && git push --tags
+```
+
+### Publish to PyPI
+
+`uv publish` does **not** read `~/.pypirc`. Use twine, which does:
+
+```bash
+uv build                                # creates dist/mellona_hive-X.Y.Z.*
+uv run twine upload dist/mellona_hive-X.Y.Z*   # reads ~/.pypirc [pypi] token
+```
+
+Alternatively, pass the token directly: `UV_PUBLISH_TOKEN=pypi-... uv publish`.
+
+The `make publish` target wraps twine but has an interactive confirmation prompt and refuses to run in CI.
+
+### GitHub release
+
+After PyPI publish, create a GitHub release with the built artifacts:
+
+```bash
+gh release create vX.Y.Z dist/mellona_hive-X.Y.Z* \
+  --title "vX.Y.Z" \
+  --notes "release notes here"
+```
+
+### Post-release
+
+- Watch the post-push CI run on `main` — a red merge commit is immediate blocking work.
+- Verify the new version is installable: `uv tool install 'mellona-hive[console]'` (allow CDN propagation time).
+- Keep `docs/V2_3_STATUS.md` current as the compact release ledger.
 
 ## Context Protection
 

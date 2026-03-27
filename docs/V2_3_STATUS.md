@@ -1,7 +1,7 @@
 # Hive v2.3 Status
 
-Status: v2.3.1 released
-Last updated: 2026-03-21
+Status: v2.3.2 released
+Last updated: 2026-03-26
 Purpose: compact execution ledger for the current v2.3 release line
 
 This file is the maintainer-facing status ledger for v2.3. Update it when a v2.3
@@ -63,9 +63,11 @@ What is real now:
 |---|---|---|
 | `v2.3.0` | 2026-03-20 | Foundation hardening: driver correctness, executor policy, workflow reliability |
 | `v2.3.1` | 2026-03-21 | Console-first human onboarding UX redesign (`#158`): forgiving demo defaults, human mental model summary, getting-started empty state, console-first doc rewrite, better dead-end CLI guidance |
+| `v2.3.2` | 2026-03-26 | Truthfulness closure sprint (`#161`): campaign sandbox propagation, Pi demotion, stale probe fixes. Hybrid dense retrieval (`#162`): LanceDB + FastEmbed alongside SQLite FTS5. |
+
 ## Next Blocker
 
-v2.3.2 release pending: truthfulness closure sprint (`#161`) and hybrid retrieval landed. Version bump and tag still needed.
+No current blocker. Next planned work: cross-encoder reranking weight tuning, RPC harness design sprint (Pi/Hermes/OpenClaw), sandbox parity (E2B artifact download, allowlists).
 
 ## Update Rule
 

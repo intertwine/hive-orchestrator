@@ -123,6 +123,8 @@ def _artifact_paths(run_root: Path, run: dict) -> dict[str, str | None]:
         "context_compiled_dir": run.get("context_compiled_dir"),
         "transcript": run.get("transcript_path"),
         "transcript_ndjson": run.get("transcript_ndjson_path"),
+        "trajectory": run.get("trajectory_path"),
+        "steering": run.get("steering_path"),
         "patch": run.get("workspace_patch_path") or run.get("patch_path"),
         "changed_files": run.get("workspace_changed_files_path"),
         "summary": run.get("summary_path"),

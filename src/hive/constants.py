@@ -50,8 +50,8 @@ RUN_TERMINAL_STATUSES = {
     "aborted",
 }
 EXECUTOR_NAMES = {"local", "github-actions"}
-DRIVER_NAMES = {"local", "manual", "codex", "claude", "claude-code"}
-DRIVER_ORDER = ("local", "manual", "codex", "claude")
+DRIVER_NAMES = {"local", "manual", "codex", "claude", "claude-code", "pi"}
+DRIVER_ORDER = ("local", "manual", "codex", "claude", "pi")
 EDGE_TYPES = {"blocks", "parent_of", "relates_to", "duplicates", "supersedes"}
 PRIORITY_MAP = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 RUN_EVENT_TYPES = (

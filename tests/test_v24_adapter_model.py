@@ -81,6 +81,19 @@ def test_capability_snapshot_to_dict_includes_adapter_fields():
     assert d["adapter_family"] == "worker_session"
 
 
+def test_capability_snapshot_from_dict_ignores_unknown_surface_fields():
+    snap = CapabilitySnapshot.from_dict(
+        {
+            "driver": "pi",
+            "declared": {"launch_mode": "sdk", "unexpected": "ignored"},
+            "effective": {"managed_supported": True, "also_unexpected": 1},
+        }
+    )
+
+    assert snap.declared.launch_mode == "sdk"
+    assert snap.effective.managed_supported is True
+
+
 # ---------------------------------------------------------------------------
 # WorkerSessionAdapter contract
 # ---------------------------------------------------------------------------
@@ -279,11 +292,14 @@ def test_existing_drivers_probe_with_adapter_metadata():
     """All legacy drivers should return adapter metadata in to_dict()."""
     for driver in list_drivers():
         info = driver.probe()
+        if info.capability_snapshot is None:
+            continue
+        if info.capability_snapshot.adapter_family != "legacy_driver":
+            continue
         d = info.to_dict()
-        if info.capability_snapshot is not None:
-            assert d.get("governance_mode") == "governed"
-            assert d.get("integration_level") == "managed"
-            assert d.get("adapter_family") == "legacy_driver"
+        assert d.get("governance_mode") == "governed"
+        assert d.get("integration_level") == "managed"
+        assert d.get("adapter_family") == "legacy_driver"
 
 
 def test_existing_driver_capability_snapshots_expose_backward_compat_defaults():
@@ -291,6 +307,8 @@ def test_existing_driver_capability_snapshots_expose_backward_compat_defaults():
     for driver in list_drivers():
         info = driver.probe()
         if info.capability_snapshot is None:
+            continue
+        if info.capability_snapshot.adapter_family != "legacy_driver":
             continue
         effective = info.capability_snapshot.effective.to_dict()
         assert effective["attach_supported"] is False
@@ -301,7 +319,7 @@ def test_existing_driver_capability_snapshots_expose_backward_compat_defaults():
 
 
 def test_get_driver_still_works():
-    for name in ("local", "manual", "codex", "claude"):
+    for name in ("local", "manual", "codex", "claude", "pi"):
         driver = get_driver(name)
         info = driver.probe()
         assert info.driver == name or info.driver in ("claude",)

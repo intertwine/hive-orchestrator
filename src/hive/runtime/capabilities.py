@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any
 
 from src.hive.clock import utc_now_iso
@@ -32,6 +32,15 @@ class CapabilitySurface:
     def to_dict(self) -> dict[str, Any]:
         """Serialize the capability surface."""
         return asdict(self)
+
+
+_CAPABILITY_SURFACE_FIELDS = {field.name for field in fields(CapabilitySurface)}
+
+
+def _surface_from_dict(payload: dict[str, Any] | None) -> CapabilitySurface:
+    raw = dict(payload or {})
+    filtered = {key: value for key, value in raw.items() if key in _CAPABILITY_SURFACE_FIELDS}
+    return CapabilitySurface(**filtered)
 
 
 @dataclass
@@ -66,6 +75,26 @@ class CapabilitySnapshot:
             "integration_level": self.integration_level,
             "adapter_family": self.adapter_family,
         }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> CapabilitySnapshot:
+        """Hydrate a snapshot from serialized JSON data."""
+        return cls(
+            driver=str(payload.get("driver", "")),
+            driver_version=str(payload.get("driver_version", "0.0.0")),
+            captured_at=str(payload.get("captured_at", utc_now_iso())),
+            declared=_surface_from_dict(payload.get("declared")),
+            probed=dict(payload.get("probed") or {}),
+            effective=_surface_from_dict(payload.get("effective")),
+            confidence={
+                str(key): str(value)
+                for key, value in dict(payload.get("confidence") or {}).items()
+            },
+            evidence={str(key): str(value) for key, value in dict(payload.get("evidence") or {}).items()},
+            governance_mode=str(payload.get("governance_mode", "governed")),
+            integration_level=str(payload.get("integration_level", "managed")),
+            adapter_family=str(payload.get("adapter_family", "legacy_driver")),
+        )
 
 
 def capability_surface(**kwargs: Any) -> CapabilitySurface:

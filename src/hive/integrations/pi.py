@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -164,8 +165,9 @@ class PiEnvironment:
             else:
                 self.next_steps.extend(
                     [
-                        "Run `hive integrate pi` in the workspace to verify setup and supported levels.",
-                        "Use `pi-hive connect` from Pi to confirm the workspace handshake before live attach.",
+                        "Run `pi-hive open <task-id>` inside a Hive workspace to launch managed Pi mode.",
+                        "Run `pi-hive attach <native-session-ref> --task-id <task-id>` to bind a live Pi session as advisory.",
+                        "Use `hive run status <run-id>` or `pi-hive status <run-id>` to inspect the live session state.",
                     ]
                 )
         return self
@@ -217,6 +219,48 @@ def detect_pi_environment(workspace_root: Path | None = None) -> PiEnvironment:
     return environment.ensure_defaults()
 
 
+def _safe_native_session_ref(native_session_ref: str) -> str:
+    return "".join(
+        character if character.isalnum() or character in {"-", "_", "."} else "_"
+        for character in native_session_ref
+    )
+
+
+def _native_sessions_dir(workspace_root: Path) -> Path:
+    return workspace_root / ".hive" / "pi-native" / "sessions"
+
+
+def _native_session_dir(workspace_root: Path, native_session_ref: str) -> Path:
+    return _native_sessions_dir(workspace_root) / _safe_native_session_ref(native_session_ref)
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, sort_keys=True) + "\n")
+
+
+def _jsonl_count(path: Path) -> int:
+    if not path.exists():
+        return 0
+    return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+
+
 class PiWorkerAdapter(WorkerSessionAdapter):
     """Bundled Pi integration with truthful doctor/setup scaffolding."""
 
@@ -230,13 +274,94 @@ class PiWorkerAdapter(WorkerSessionAdapter):
     ) -> None:
         self.workspace_root = Path(workspace_root).resolve() if workspace_root else None
         self._detector = detector or detect_pi_environment
-        self._sessions: dict[str, SessionHandle] = {}
-        self._steers: list[dict[str, Any]] = []
-        self._events: dict[str, list[dict[str, Any]]] = {}
-        self._streamed_sessions: set[str] = set()
 
     def _environment(self, workspace_root: Path | None = None) -> PiEnvironment:
         return self._detector(workspace_root or self.workspace_root).ensure_defaults()
+
+    def _session_snapshot(
+        self,
+        env: PiEnvironment,
+        *,
+        governance: GovernanceMode,
+        integration_level: IntegrationLevel,
+    ) -> CapabilitySnapshot:
+        launch_mode = "sdk" if integration_level == IntegrationLevel.MANAGED else "session"
+        return CapabilitySnapshot(
+            driver=self.name,
+            driver_version=env.package_version or "0.0.0",
+            declared=capability_surface(
+                launch_mode="sdk",
+                session_persistence="session",
+                event_stream="structured_deltas",
+                attach_supported=True,
+                managed_supported=True,
+                steering="queued",
+                approvals=["hive-mediated"],
+                artifacts=["trajectory", "session-history", "logs"],
+                native_sandbox="pi",
+                context_projection="filesystem",
+                outer_sandbox_owned_by_hive=False,
+            ),
+            probed={
+                "workspace_root": str(env.workspace_root),
+                "install_path": env.install_path,
+                "cli_path": str(env.cli_path) if env.cli_path is not None else None,
+                "runner_path": str(env.runner_path) if env.runner_path is not None else None,
+            },
+            effective=capability_surface(
+                launch_mode=launch_mode,
+                session_persistence="session",
+                event_stream="structured_deltas",
+                attach_supported=True,
+                managed_supported=integration_level == IntegrationLevel.MANAGED,
+                steering="queued",
+                approvals=["hive-mediated"] if governance == GovernanceMode.GOVERNED else [],
+                artifacts=["trajectory", "session-history", "logs"],
+                native_sandbox="pi",
+                context_projection="filesystem",
+                outer_sandbox_owned_by_hive=governance == GovernanceMode.GOVERNED,
+            ),
+            confidence={
+                "install_path": "high" if env.install_path else "none",
+                "runner_path": "high" if env.runner_path else "none",
+            },
+            evidence={
+                "install_path": env.install_path or "missing",
+                "runner_path": str(env.runner_path) if env.runner_path is not None else "missing",
+            },
+            governance_mode=str(governance),
+            integration_level=str(integration_level),
+            adapter_family=str(self.adapter_family),
+        )
+
+    def _append_run_event(
+        self,
+        workspace_root: Path,
+        *,
+        run_id: str,
+        native_session_ref: str,
+        project_id: str | None,
+        task_id: str | None,
+        kind: str,
+        payload: dict[str, Any],
+        raw_ref: str | None = None,
+    ) -> None:
+        path = trajectory_file(workspace_root, run_id=run_id)
+        append_trajectory_event(
+            workspace_root,
+            trajectory_event(
+                seq=_jsonl_count(path),
+                kind=kind,
+                harness="pi",
+                adapter_family=str(self.adapter_family),
+                native_session_ref=native_session_ref,
+                run_id=run_id,
+                project_id=project_id,
+                task_id=task_id,
+                payload=payload,
+                raw_ref=raw_ref,
+            ),
+        )
 
     def probe(self) -> IntegrationInfo:
         env = self._environment()
@@ -333,16 +458,90 @@ class PiWorkerAdapter(WorkerSessionAdapter):
             raise FileNotFoundError(
                 "Pi managed mode requires Node.js and a pi-hive-runner entrypoint."
             )
+        run_root = trajectory_file(env.workspace_root, run_id=request.run_id).parent
+        logs_dir = run_root / "logs"
+        artifacts_dir = run_root / "artifacts"
+        state_path = run_root / "pi-session-state.json"
+        steering_path = run_root / "steering.ndjson"
+        runner_manifest_path = run_root / "pi-runner-manifest.json"
+        stdout_path = logs_dir / "pi-runner.stdout.txt"
+        stderr_path = logs_dir / "pi-runner.stderr.txt"
+        last_message_path = artifacts_dir / "pi-last-message.txt"
+        for directory in (logs_dir, artifacts_dir):
+            directory.mkdir(parents=True, exist_ok=True)
+        steering_path.touch(exist_ok=True)
+        snapshot = self._session_snapshot(
+            env,
+            governance=GovernanceMode.GOVERNED,
+            integration_level=IntegrationLevel.MANAGED,
+        )
+        native_session_ref = f"pi-managed:{request.run_id}"
+        _write_json(
+            state_path,
+            {
+                "state": "running",
+                "health": "healthy",
+                "message": "Launching Pi managed session.",
+                "updated_at": utc_now_iso(),
+            },
+        )
+        self._append_run_event(
+            env.workspace_root,
+            run_id=request.run_id,
+            native_session_ref=native_session_ref,
+            project_id=request.project_id,
+            task_id=request.task_id,
+            kind="session_start",
+            payload={"mode": "managed"},
+        )
+        self._append_run_event(
+            env.workspace_root,
+            run_id=request.run_id,
+            native_session_ref=native_session_ref,
+            project_id=request.project_id,
+            task_id=request.task_id,
+            kind="assistant_delta",
+            payload={"text": "Pi managed session connected to the Hive run."},
+        )
+        self._append_run_event(
+            env.workspace_root,
+            run_id=request.run_id,
+            native_session_ref=native_session_ref,
+            project_id=request.project_id,
+            task_id=request.task_id,
+            kind="artifact_written",
+            payload={"path": request.compiled_context_path, "kind": "compiled-context"},
+        )
         runner_command = build_pi_runner_command(
             request,
             node_path=env.node_path,
             runner_path=env.runner_path,
+            state_path=state_path,
+            steering_path=steering_path,
+            trajectory_path=trajectory_file(env.workspace_root, run_id=request.run_id),
+            last_message_path=last_message_path,
+            native_session_ref=native_session_ref,
         )
+        pid = None
+        with open(stdout_path, "a", encoding="utf-8") as stdout_handle, open(
+            stderr_path, "a", encoding="utf-8"
+        ) as stderr_handle:
+            process = subprocess.Popen(
+                runner_command,
+                cwd=(
+                    request.workspace.worktree_path
+                    if Path(request.workspace.worktree_path).exists()
+                    else str(env.workspace_root)
+                ),
+                stdout=stdout_handle,
+                stderr=stderr_handle,
+            )
+        pid = process.pid
         session = SessionHandle(
             session_id=new_id("sess"),
             adapter_name=self.name,
             adapter_family=self.adapter_family,
-            native_session_ref=f"pi-managed:{request.run_id}",
+            native_session_ref=native_session_ref,
             governance_mode=GovernanceMode.GOVERNED,
             integration_level=IntegrationLevel.MANAGED,
             run_id=request.run_id,
@@ -350,7 +549,7 @@ class PiWorkerAdapter(WorkerSessionAdapter):
             task_id=request.task_id,
             status="active",
             metadata={
-                "workspace_root": request.workspace.repo_root,
+                "workspace_root": str(env.workspace_root),
                 "worktree_path": request.workspace.worktree_path,
                 "compiled_context_path": request.compiled_context_path,
                 "artifacts_path": request.artifacts_path,
@@ -358,44 +557,17 @@ class PiWorkerAdapter(WorkerSessionAdapter):
                 "runner_path": str(env.runner_path),
                 "runner_command": runner_command,
                 "link_transport": "stdio",
+                "state_path": str(state_path),
+                "steering_path": str(steering_path),
+                "trajectory_path": str(trajectory_file(env.workspace_root, run_id=request.run_id)),
+                "runner_manifest_path": str(runner_manifest_path),
+                "stdout_path": str(stdout_path),
+                "stderr_path": str(stderr_path),
+                "last_message_path": str(last_message_path),
+                "capability_snapshot": snapshot.to_dict(),
+                "pid": pid,
             },
         )
-        self._sessions[session.session_id] = session
-        self._events[session.session_id] = [
-            trajectory_event(
-                seq=0,
-                kind="session_start",
-                harness="pi",
-                adapter_family=str(self.adapter_family),
-                native_session_ref=session.native_session_ref,
-                run_id=session.run_id,
-                project_id=session.project_id,
-                task_id=session.task_id,
-                payload={"mode": "managed"},
-            ).to_dict(),
-            trajectory_event(
-                seq=1,
-                kind="assistant_delta",
-                harness="pi",
-                adapter_family=str(self.adapter_family),
-                native_session_ref=session.native_session_ref,
-                run_id=session.run_id,
-                project_id=session.project_id,
-                task_id=session.task_id,
-                payload={"text": "Pi managed runner scaffold prepared."},
-            ).to_dict(),
-            trajectory_event(
-                seq=2,
-                kind="artifact_written",
-                harness="pi",
-                adapter_family=str(self.adapter_family),
-                native_session_ref=session.native_session_ref,
-                run_id=session.run_id,
-                project_id=session.project_id,
-                task_id=session.task_id,
-                payload={"path": request.artifacts_path, "kind": "runner-plan"},
-            ).to_dict(),
-        ]
         return session
 
     def attach_session(
@@ -407,6 +579,38 @@ class PiWorkerAdapter(WorkerSessionAdapter):
         env = self._environment()
         if env.package_dir is None or env.cli_path is None:
             raise FileNotFoundError("Pi attach mode requires the pi-hive companion package.")
+        native_session_root = _native_session_dir(env.workspace_root, native_session_ref)
+        native_manifest_path = native_session_root / "manifest.json"
+        native_state_path = native_session_root / "state.json"
+        native_transcript_path = native_session_root / "transcript.jsonl"
+        native_steering_path = native_session_root / "steering.ndjson"
+        if not native_manifest_path.exists():
+            raise FileNotFoundError(
+                f"Pi native session not found: {native_session_ref}. "
+                "Start a live Pi session before attaching it to Hive."
+            )
+        run_root = trajectory_file(env.workspace_root, run_id=run_id).parent if run_id else None
+        state_path = run_root / "pi-session-state.json" if run_root else native_state_path
+        steering_path = run_root / "steering.ndjson" if run_root else native_steering_path
+        last_message_path = run_root / "artifacts" / "pi-last-message.txt" if run_root else None
+        if run_root:
+            (run_root / "artifacts").mkdir(parents=True, exist_ok=True)
+            steering_path.touch(exist_ok=True)
+        snapshot = self._session_snapshot(
+            env,
+            governance=governance,
+            integration_level=IntegrationLevel.ATTACH,
+        )
+        _write_json(
+            state_path,
+            {
+                "state": "running",
+                "health": "healthy",
+                "message": "Attached live Pi session to Hive.",
+                "updated_at": utc_now_iso(),
+                "native_session_root": str(native_session_root),
+            },
+        )
         session = SessionHandle(
             session_id=new_id("sess"),
             adapter_name=self.name,
@@ -420,40 +624,61 @@ class PiWorkerAdapter(WorkerSessionAdapter):
                 "workspace_root": str(env.workspace_root),
                 "package_path": env.install_path,
                 "link_transport": "stdio",
+                "state_path": str(state_path),
+                "steering_path": str(steering_path),
+                "trajectory_path": str(trajectory_file(env.workspace_root, run_id=run_id))
+                if run_id
+                else None,
+                "last_message_path": str(last_message_path) if last_message_path else None,
+                "native_session_root": str(native_session_root),
+                "native_manifest_path": str(native_manifest_path),
+                "native_state_path": str(native_state_path),
+                "native_transcript_path": str(native_transcript_path),
+                "native_steering_path": str(native_steering_path),
+                "capability_snapshot": snapshot.to_dict(),
             },
         )
-        self._sessions[session.session_id] = session
-        self._events[session.session_id] = [
-            trajectory_event(
-                seq=0,
+        if run_id:
+            self._append_run_event(
+                env.workspace_root,
+                run_id=run_id,
+                native_session_ref=native_session_ref,
+                project_id=session.project_id,
+                task_id=session.task_id,
                 kind="session_start",
-                harness="pi",
-                adapter_family=str(self.adapter_family),
-                native_session_ref=session.native_session_ref,
-                run_id=session.run_id,
                 payload={"mode": "attach", "governance_mode": str(governance)},
-            ).to_dict(),
-            trajectory_event(
-                seq=1,
+                raw_ref=str(native_transcript_path),
+            )
+            self._append_run_event(
+                env.workspace_root,
+                run_id=run_id,
+                native_session_ref=native_session_ref,
+                project_id=session.project_id,
+                task_id=session.task_id,
                 kind="assistant_delta",
-                harness="pi",
-                adapter_family=str(self.adapter_family),
-                native_session_ref=session.native_session_ref,
-                run_id=session.run_id,
-                payload={"text": "Attached live Pi session to Hive scaffolding."},
-            ).to_dict(),
-        ]
+                payload={"text": "Attached live Pi session to Hive."},
+                raw_ref=str(native_transcript_path),
+            )
         return session
 
     def stream_events(self, session: SessionHandle) -> Iterator[dict[str, Any]]:
-        events = list(self._events.get(session.session_id, []))
-        if session.session_id not in self._streamed_sessions:
-            self._streamed_sessions.add(session.session_id)
-            workspace_root = session.metadata.get("workspace_root")
-            if workspace_root and session.run_id:
-                for event in events:
-                    append_trajectory_event(Path(workspace_root), trajectory_event(**event))
-        yield from events
+        trajectory_path = str(session.metadata.get("trajectory_path") or "")
+        if trajectory_path:
+            path = Path(trajectory_path)
+        else:
+            path = Path(str(session.metadata.get("native_transcript_path") or ""))
+        if not path.exists():
+            return
+        for line in path.read_text(encoding="utf-8").splitlines():
+            raw = line.strip()
+            if not raw:
+                continue
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                yield payload
 
     def send_steer(
         self, session: SessionHandle, request: SteeringRequest
@@ -465,42 +690,86 @@ class PiWorkerAdapter(WorkerSessionAdapter):
             "note": request.note,
             "ts": utc_now_iso(),
         }
-        self._steers.append(record)
-        workspace_root = session.metadata.get("workspace_root")
+        steering_path_value = str(session.metadata.get("steering_path") or "")
+        if steering_path_value:
+            _append_jsonl(Path(steering_path_value), record)
+        native_steering_path_value = str(session.metadata.get("native_steering_path") or "")
+        if native_steering_path_value:
+            _append_jsonl(Path(native_steering_path_value), record)
+        workspace_root = str(session.metadata.get("workspace_root") or "")
         if workspace_root and session.run_id:
-            append_trajectory_event(
+            self._append_run_event(
                 Path(workspace_root),
-                trajectory_event(
-                    seq=len(self._events.get(session.session_id, [])) + len(self._steers) - 1,
-                    kind="steering_received",
-                    harness="pi",
-                    adapter_family=str(self.adapter_family),
-                    native_session_ref=session.native_session_ref,
-                    run_id=session.run_id,
-                    payload={
-                        "action": request.action,
-                        "reason": request.reason,
-                        "note": request.note,
-                    },
-                ),
+                run_id=session.run_id,
+                native_session_ref=session.native_session_ref,
+                project_id=session.project_id,
+                task_id=session.task_id,
+                kind="steering_received",
+                payload={
+                    "action": request.action,
+                    "reason": request.reason,
+                    "note": request.note,
+                },
+                raw_ref=native_steering_path_value or None,
             )
         return {"ok": True, **record}
 
     def collect_artifacts(self, session: SessionHandle) -> dict[str, Any]:
-        trajectory_path = None
-        workspace_root = session.metadata.get("workspace_root")
-        if workspace_root and session.run_id:
-            trajectory_path = str(trajectory_file(Path(workspace_root), run_id=session.run_id))
+        artifacts = []
+        for key in (
+            "trajectory_path",
+            "steering_path",
+            "state_path",
+            "runner_manifest_path",
+            "stdout_path",
+            "stderr_path",
+            "native_manifest_path",
+            "native_state_path",
+            "native_transcript_path",
+            "native_steering_path",
+        ):
+            path_value = str(session.metadata.get(key) or "").strip()
+            if path_value and Path(path_value).exists():
+                artifacts.append({"name": key, "path": path_value})
         return {
             "adapter": self.name,
             "session_id": session.session_id,
-            "trajectory_path": trajectory_path,
+            "trajectory_path": session.metadata.get("trajectory_path"),
+            "steering_path": session.metadata.get("steering_path"),
             "runner_command": session.metadata.get("runner_command"),
-            "artifacts": [],
+            "artifacts": artifacts,
         }
 
     def close_session(self, session: SessionHandle, reason: str) -> dict[str, Any]:
         session.status = "closed"
+        state_path_value = str(session.metadata.get("state_path") or "")
+        if state_path_value:
+            _write_json(
+                Path(state_path_value),
+                {
+                    "state": "cancelled" if reason == "cancel" else "completed_candidate",
+                    "health": "cancelled" if reason == "cancel" else "healthy",
+                    "message": reason,
+                    "updated_at": utc_now_iso(),
+                    "finished_at": utc_now_iso(),
+                },
+            )
+        if session.run_id and session.metadata.get("workspace_root"):
+            self._append_run_event(
+                Path(str(session.metadata["workspace_root"])),
+                run_id=session.run_id,
+                native_session_ref=session.native_session_ref,
+                project_id=session.project_id,
+                task_id=session.task_id,
+                kind="session_end",
+                payload={"reason": reason},
+            )
+        pid = session.metadata.get("pid")
+        if session.governance_mode == GovernanceMode.GOVERNED and pid:
+            try:
+                os.kill(int(pid), signal.SIGTERM)
+            except (OSError, ValueError):
+                pass
         return {"ok": True, "session_id": session.session_id, "reason": reason}
 
 

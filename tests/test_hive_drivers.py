@@ -527,6 +527,7 @@ class TestHiveDrivers:
             "manual",
             "codex",
             "claude",
+            "pi",
         ]
 
     def test_run_start_for_external_harness_drivers_writes_normalized_artifacts(

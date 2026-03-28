@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 
 from src.hive.drivers.types import RunBudget, RunLaunchRequest, RunWorkspace, SteeringRequest
 from src.hive.cli.main import main as hive_main
@@ -37,10 +38,12 @@ def _make_pi_package(root: Path) -> Path:
 
 
 def _pi_env(workspace_root: Path, package_dir: Path | None) -> PiEnvironment:
+    node_path = shutil.which("node") or "/usr/bin/node"
+    npm_path = shutil.which("npm") or "/usr/bin/npm"
     return PiEnvironment(
         workspace_root=workspace_root,
-        node_path="/usr/bin/node",
-        npm_path="/usr/bin/npm",
+        node_path=node_path,
+        npm_path=npm_path,
         node_version="v22.0.0",
         npm_version="10.0.0",
         package_dir=package_dir,
@@ -48,6 +51,33 @@ def _pi_env(workspace_root: Path, package_dir: Path | None) -> PiEnvironment:
         cli_path=(package_dir / "bin" / "pi-hive.js") if package_dir else None,
         runner_path=(package_dir / "bin" / "pi-hive-runner.js") if package_dir else None,
     )
+
+
+def _make_native_pi_session(workspace_root: Path, native_session_ref: str) -> None:
+    session_dir = (
+        workspace_root
+        / ".hive"
+        / "pi-native"
+        / "sessions"
+        / native_session_ref
+    )
+    session_dir.mkdir(parents=True, exist_ok=True)
+    (session_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "native_session_ref": native_session_ref,
+                "status": "running",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (session_dir / "state.json").write_text(
+        json.dumps({"state": "running", "health": "healthy"}) + "\n",
+        encoding="utf-8",
+    )
+    (session_dir / "transcript.jsonl").write_text("", encoding="utf-8")
+    (session_dir / "steering.ndjson").write_text("", encoding="utf-8")
 
 
 def _invoke_cli_json(capsys, argv: list[str]) -> dict:
@@ -144,6 +174,7 @@ def test_pi_managed_session_builds_runner_command_and_persists_trajectory(tmp_pa
 
 def test_pi_attach_session_persists_attach_trajectory(tmp_path):
     package_dir = _make_pi_package(tmp_path)
+    _make_native_pi_session(tmp_path, "pi-live-42")
     env = _pi_env(tmp_path, package_dir)
     adapter = PiWorkerAdapter(workspace_root=tmp_path, detector=lambda _root: env)
 

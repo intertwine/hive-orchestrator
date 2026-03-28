@@ -168,7 +168,11 @@ def write_runtime_scaffold(
         path = paths[key]
         path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
 
-    for empty_path_key in ("events_ndjson_path", "approvals_path", "transcript_ndjson_path"):
+    for empty_path_key in (
+        "events_ndjson_path",
+        "approvals_path",
+        "transcript_ndjson_path",
+    ):
         paths[empty_path_key].write_text("", encoding="utf-8")
 
     return paths

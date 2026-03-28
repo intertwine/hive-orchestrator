@@ -1,21 +1,28 @@
 # @mellona/pi-hive
 
-Native Pi companion scaffolding for [Agent Hive](https://github.com/intertwine/hive-orchestrator) v2.4.
+Native Pi companion commands for [Agent Hive](https://github.com/intertwine/hive-orchestrator) v2.4.
 
-## What this slice includes
+## What this package includes
 
 - `pi-hive connect` to inspect workspace readiness through `hive integrate pi`
 - `pi-hive doctor` to run `hive integrate doctor pi`
-- thin CLI wrappers for `next`, `search`, `finish`, `note`, and `status`
-- a `pi-hive-runner` entrypoint that accepts managed-run metadata and writes a local manifest
+- native wrappers for `next`, `search`, `open`, `attach`, `finish`, `note`, and `status`
+- a `pi-hive-runner` entrypoint that Hive launches for governed Pi runs
+- a lightweight local native-session helper for attach-mode development and tests
 
 ## Truthful status
 
-This package is the M2 foundation slice, not the completed Pi milestone.
+This package now covers the v2.4 Pi milestone in-repo:
 
-- attach and managed runner entrypoints are scaffolded
-- the live Pi SDK session binding flow is still forthcoming
-- `open` and `attach` intentionally return a clear "not yet wired" error for now
+- `open` launches a real Hive-managed Pi run through the `pi` driver
+- `attach` binds an existing live Pi session to a real advisory Hive run
+- managed and attach modes both persist normalized `trajectory.jsonl` and `steering.ndjson`
+- steering notes round-trip into the live Pi session surfaces
+
+It is still intentionally dependency-light:
+
+- the companion shells out to stable `hive` CLI surfaces
+- the managed runner is a lightweight Node process, not a separate daemon
 
 ## Install
 
@@ -37,11 +44,15 @@ pi-hive connect
 pi-hive doctor --json
 pi-hive next --project-id hive-v24
 pi-hive search "PiWorkerAdapter"
+pi-hive open task_123 --json
+pi-hive attach pi-live-42 --task-id task_456 --json
 pi-hive status run_123
 pi-hive note run_123 "Steering note from Pi"
 ```
 
 ## Development
 
-The companion is intentionally dependency-light right now. It shells out to the stable `hive`
-CLI surfaces instead of reading workspace files directly.
+The companion is intentionally dependency-light. It shells out to the stable `hive`
+CLI surfaces instead of reading workspace files directly, and the bundled `session-start`
+helper exists mainly so attach-mode tests can stand up a live native session without an
+external Pi install.

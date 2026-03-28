@@ -5,11 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.hive.cli.common import emit, emit_error
+from src.hive.runs.engine import load_run, start_run
 from src.hive.integrations.registry import (
     get_integration,
     list_all_backends,
     list_integrations,
 )
+from src.hive.workspace import sync_workspace
 
 
 def dispatch(args, root: Path) -> int:
@@ -113,11 +115,42 @@ def _integrate_openclaw(args, root: Path) -> int:
 
 def _attach_session(args, root: Path) -> int:
     """Manually attach a native session to Hive as a delegate."""
-    from src.hive.integrations.base import DelegateGatewayAdapter
+    from src.hive.integrations.base import DelegateGatewayAdapter, WorkerSessionAdapter
     from src.hive.integrations.models import GovernanceMode
     from src.hive.integrations.openclaw import OpenClawGatewayAdapter
 
     adapter = get_integration(args.harness)
+
+    if isinstance(adapter, WorkerSessionAdapter):
+        task_id = str(getattr(args, "task_id", "") or "").strip()
+        if not task_id:
+            return emit_error(
+                ValueError(f"{args.harness} attach requires --task-id so Hive can create a run."),
+                args.json,
+            )
+        run = start_run(
+            root,
+            task_id,
+            driver_name=args.harness,
+            attach_native_session_ref=args.native_session_ref,
+        )
+        sync_workspace(root)
+        run_metadata = load_run(root, run.id)
+        session = dict(
+            (run_metadata.get("metadata_json", {}).get("driver_status", {}) or {}).get("session", {})
+        )
+        return emit(
+            {
+                "ok": True,
+                "message": (
+                    f"Attached {args.native_session_ref} as an advisory "
+                    f"{args.harness}-backed run."
+                ),
+                "run": run.to_dict(),
+                "session": session,
+            },
+            args.json,
+        )
 
     if not isinstance(adapter, DelegateGatewayAdapter):
         return emit_error(

@@ -44,7 +44,7 @@ def dispatch(args, root: Path) -> int:
                     "ok": True,
                     "message": "Pi setup assistant inspected the local companion and workspace readiness.",
                     "integration": info.to_dict(),
-                    "next_steps": info.next_steps,
+                    "next_steps": list(getattr(info, "next_steps", [])),
                 },
                 args.json,
             )

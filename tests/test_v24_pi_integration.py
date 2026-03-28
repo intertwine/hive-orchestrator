@@ -5,9 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from hive.cli.main import main as hive_main
-
 from src.hive.drivers.types import RunBudget, RunLaunchRequest, RunWorkspace, SteeringRequest
+from src.hive.cli.main import main as hive_main
 from src.hive.integrations.models import GovernanceMode, IntegrationLevel
 from src.hive.integrations.pi import PiEnvironment, PiWorkerAdapter
 from src.hive.integrations.registry import get_integration, register_integration

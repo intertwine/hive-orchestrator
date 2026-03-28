@@ -54,6 +54,12 @@ def dispatch(args, root: Path) -> int:
         if args.integrate_command == "openclaw":
             return _integrate_openclaw(args, root)
 
+        if args.integrate_command == "hermes":
+            return _integrate_hermes(args, root)
+
+        if args.integrate_command == "import-trajectory":
+            return _import_trajectory(args, root)
+
         if args.integrate_command == "attach":
             return _attach_session(args, root)
 
@@ -125,7 +131,9 @@ def _attach_session(args, root: Path) -> int:
         task_id = str(getattr(args, "task_id", "") or "").strip()
         if not task_id:
             return emit_error(
-                ValueError(f"{args.harness} attach requires --task-id so Hive can create a run."),
+                ValueError(
+                    f"{args.harness} attach requires --task-id so Hive can create a run."
+                ),
                 args.json,
             )
         run = start_run(
@@ -137,7 +145,9 @@ def _attach_session(args, root: Path) -> int:
         sync_workspace(root)
         run_metadata = load_run(root, run.id)
         session = dict(
-            (run_metadata.get("metadata_json", {}).get("driver_status", {}) or {}).get("session", {})
+            (run_metadata.get("metadata_json", {}).get("driver_status", {}) or {}).get(
+                "session", {}
+            )
         )
         return emit(
             {
@@ -159,8 +169,12 @@ def _attach_session(args, root: Path) -> int:
         )
 
     # Re-instantiate with base_path for delegate persistence.
+    from src.hive.integrations.hermes import HermesGatewayAdapter
+
     if isinstance(adapter, OpenClawGatewayAdapter):
         adapter = OpenClawGatewayAdapter(base_path=root)
+    elif isinstance(adapter, HermesGatewayAdapter):
+        adapter = HermesGatewayAdapter(base_path=root)
 
     session = adapter.attach_delegate_session(
         args.native_session_ref,
@@ -221,6 +235,67 @@ def _detach_session(args, root: Path) -> int:
             "ok": True,
             "message": f"Detached delegate session {args.session_id}.",
             "session_id": args.session_id,
+        },
+        args.json,
+    )
+
+
+def _integrate_hermes(args, root: Path) -> int:
+    """Run the Hermes integration setup/check flow."""
+    from src.hive.integrations.hermes import HermesGatewayAdapter
+
+    adapter = HermesGatewayAdapter(base_path=root)
+    info = adapter.probe()
+    probe_dict = info.to_dict()
+    snapshot = info.capability_snapshot
+    probed = snapshot.probed if snapshot else {}
+
+    hermes_found = bool(probed.get("hermes_found"))
+    gateway_ok = bool(probed.get("gateway_reachable"))
+
+    next_steps: list[str] = []
+    if not hermes_found:
+        status_msg = "Hermes not found"
+        next_steps.append("Install Hermes or set HERMES_HOME.")
+        next_steps.append("Then re-run: hive integrate hermes")
+    elif not gateway_ok:
+        status_msg = "Hermes found, gateway not reachable"
+        next_steps.append("Set HERMES_GATEWAY_URL and re-run: hive integrate hermes")
+    else:
+        status_msg = "ready"
+        if not probed.get("skill_installed"):
+            next_steps.append(
+                "Load the agent-hive skill in Hermes from packages/hermes-skill/"
+            )
+        next_steps.append("Attach a session: hive integrate attach hermes <session-id>")
+        next_steps.append("hive integrate doctor hermes --json")
+
+    return emit(
+        {
+            "ok": True,
+            "message": f"Hermes integration: {status_msg}.",
+            "integration": probe_dict,
+            "next_steps": next_steps,
+        },
+        args.json,
+    )
+
+
+def _import_trajectory(args, root: Path) -> int:
+    """Import a Hermes trajectory export into Hive."""
+    from src.hive.integrations.hermes import import_hermes_trajectory
+
+    result = import_hermes_trajectory(
+        root,
+        args.source_path,
+        project_id=getattr(args, "project_id", None),
+        task_id=getattr(args, "task_id", None),
+    )
+    return emit(
+        {
+            "ok": True,
+            "message": f"Imported {result['event_count']} events from {args.source_path}.",
+            **result,
         },
         args.json,
     )

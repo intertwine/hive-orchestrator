@@ -188,6 +188,19 @@ def _add_control_parsers(
     integrate_subparsers.add_parser(
         "openclaw", help="Prepare or verify OpenClaw Gateway bridge integration."
     )
+    integrate_subparsers.add_parser(
+        "hermes", help="Prepare or verify Hermes skill/toolset integration."
+    )
+
+    integrate_import = integrate_subparsers.add_parser(
+        "import-trajectory",
+        help="Import a Hermes trajectory export into Hive.",
+    )
+    integrate_import.add_argument(
+        "source_path", help="Path to the Hermes trajectory JSONL export."
+    )
+    integrate_import.add_argument("--project-id", dest="project_id")
+    integrate_import.add_argument("--task-id", dest="task_id")
 
     integrate_attach = integrate_subparsers.add_parser(
         "attach", help="Attach a native harness session to Hive as a delegate."

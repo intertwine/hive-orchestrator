@@ -6,6 +6,7 @@ import io
 import json
 from typing import Any, Iterator
 
+import pytest
 
 from src.hive.clock import utc_now_iso
 from src.hive.drivers.types import SteeringRequest
@@ -520,3 +521,60 @@ class TestOpenClawHiveLink:
         output_stream.seek(0)
         responses = [json.loads(line) for line in output_stream if line.strip()]
         assert responses[0]["effective_governance"] == "advisory"
+
+
+# ---------------------------------------------------------------------------
+# Review fix coverage
+# ---------------------------------------------------------------------------
+
+
+class TestReviewFixes:
+    """Tests covering P1/P2 fixes from Codex review."""
+
+    def test_attach_fails_when_bridge_unreachable(self):
+        """P1-2: attach must fail when bridge is not reachable."""
+        stub = StubBridgeClient(reachable=False)
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        with pytest.raises(ConnectionError, match="not reachable"):
+            adapter.attach_delegate_session("oc-sess-001", GovernanceMode.ADVISORY)
+
+    def test_stream_events_persists_trajectory(self, tmp_path):
+        """P1-3: stream_events must write trajectory to disk."""
+        stub = StubBridgeClient()
+        adapter = OpenClawGatewayAdapter(bridge=stub, base_path=tmp_path)
+        session = adapter.attach_delegate_session(
+            "oc-sess-001", GovernanceMode.ADVISORY
+        )
+        events = list(adapter.stream_events(session))
+        assert len(events) == 3
+
+        traj_path = (
+            tmp_path
+            / ".hive"
+            / "delegates"
+            / session.delegate_session_id
+            / "trajectory.jsonl"
+        )
+        lines = [
+            json.loads(line)
+            for line in traj_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert len(lines) == 3
+        assert [l["kind"] for l in lines] == [
+            "session_start",
+            "user_message",
+            "assistant_delta",
+        ]
+
+    def test_collect_artifacts_includes_nonempty_trajectory(self, tmp_path):
+        """P1-3: collect_artifacts should surface the trajectory after streaming."""
+        stub = StubBridgeClient()
+        adapter = OpenClawGatewayAdapter(bridge=stub, base_path=tmp_path)
+        session = adapter.attach_delegate_session(
+            "oc-sess-001", GovernanceMode.ADVISORY
+        )
+        list(adapter.stream_events(session))  # populate trajectory
+        artifacts = adapter.collect_artifacts(session)
+        names = [a["name"] for a in artifacts["artifacts"]]
+        assert "trajectory.jsonl" in names

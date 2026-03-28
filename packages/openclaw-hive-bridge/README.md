@@ -42,7 +42,7 @@ hive integrate openclaw
 Then attach a live Gateway session:
 
 ```bash
-hive attach openclaw <session-key>
+hive integrate attach openclaw <session-key>
 ```
 
 ## Environment variables

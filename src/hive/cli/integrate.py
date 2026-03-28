@@ -133,9 +133,12 @@ def _attach_session(args, root: Path) -> int:
 
 
 def _detach_session(args, root: Path) -> int:
-    """Detach a delegate session."""
+    """Detach a delegate session, updating both manifest and final state."""
+    import json as _json
+
     from src.hive.clock import utc_now_iso
     from src.hive.integrations.openclaw import (
+        _delegates_dir,
         finalize_delegate_session,
         load_delegate_session,
     )
@@ -147,12 +150,22 @@ def _detach_session(args, root: Path) -> int:
             args.json,
         )
 
+    ts = utc_now_iso()
+
+    # Update manifest.json to reflect detached status.
+    manifest_path = _delegates_dir(root) / args.session_id / "manifest.json"
+    if manifest_path.exists():
+        manifest["status"] = "detached"
+        manifest_path.write_text(
+            _json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+
     finalize_delegate_session(
         root,
         args.session_id,
         {
             "status": "detached",
-            "detached_at": utc_now_iso(),
+            "detached_at": ts,
             "reason": "operator-initiated",
         },
     )

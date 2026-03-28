@@ -20,12 +20,17 @@ def _bootstrap_bundled() -> None:
     from src.hive.integrations.dummy_gateway import DummyGatewayAdapter
     from src.hive.integrations.dummy_worker import DummyWorkerAdapter
     from src.hive.integrations.openclaw import OpenClawGatewayAdapter
-    from src.hive.integrations.pi import PiWorkerAdapter
 
     _INTEGRATIONS.setdefault("dummy-worker", DummyWorkerAdapter())
     _INTEGRATIONS.setdefault("dummy-gateway", DummyGatewayAdapter())
     _INTEGRATIONS.setdefault("openclaw", OpenClawGatewayAdapter())
-    _INTEGRATIONS.setdefault("pi", PiWorkerAdapter())
+
+    try:
+        from src.hive.integrations.pi import PiWorkerAdapter
+
+        _INTEGRATIONS.setdefault("pi", PiWorkerAdapter())
+    except ImportError:
+        pass
 
 
 def register_integration(name: str, adapter: AdapterBase) -> None:

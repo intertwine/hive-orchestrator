@@ -313,6 +313,18 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
         project_id: str | None = None,
         task_id: str | None = None,
     ) -> SessionHandle:
+        # Fail fast if the bridge is not reachable.
+        bridge_probe = self._bridge.probe()
+        if not bridge_probe.reachable:
+            raise ConnectionError(
+                "Cannot attach: openclaw-hive-bridge is not reachable. "
+                + (
+                    bridge_probe.blockers[0]
+                    if bridge_probe.blockers
+                    else "Install the bridge first."
+                )
+            )
+
         # OpenClaw sessions are always advisory — Hive never owns the sandbox.
         effective_governance = GovernanceMode.ADVISORY
 
@@ -343,9 +355,12 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
         return session
 
     def stream_events(self, session: SessionHandle) -> Iterator[dict[str, Any]]:
+        from src.hive.trajectory.schema import trajectory_event
+        from src.hive.trajectory.writer import append_trajectory_event
+
         seq = 0
         for raw_event in self._bridge.stream_events(session.native_session_ref):
-            yield {
+            event = {
                 "seq": seq,
                 "kind": raw_event.get("kind", "assistant_delta"),
                 "ts": raw_event.get("ts", utc_now_iso()),
@@ -357,6 +372,23 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
                 "task_id": session.task_id,
                 "payload": raw_event.get("payload", {}),
             }
+            # Persist to trajectory file.
+            if self._base_path and session.delegate_session_id:
+                append_trajectory_event(
+                    self._base_path,
+                    trajectory_event(
+                        seq=seq,
+                        kind=event["kind"],
+                        harness="openclaw",
+                        adapter_family="delegate_gateway",
+                        native_session_ref=session.native_session_ref,
+                        delegate_session_id=session.delegate_session_id,
+                        project_id=session.project_id,
+                        task_id=session.task_id,
+                        payload=event.get("payload", {}),
+                    ),
+                )
+            yield event
             seq += 1
 
     def send_steer(

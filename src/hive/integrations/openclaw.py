@@ -382,7 +382,7 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
             governance_mode=GovernanceMode.ADVISORY,
             integration_level=IntegrationLevel.ATTACH,
             version=bridge_probe.version or "0.0.0",
-            available=bridge_probe.reachable,
+            available=bridge_probe.reachable and bridge_probe.gateway_reachable,
             capability_snapshot=self._capability_snapshot(bridge_probe),
             notes=[
                 *bridge_probe.notes,
@@ -416,7 +416,10 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
         # OpenClaw sessions are always advisory — Hive never owns the sandbox.
         effective_governance = GovernanceMode.ADVISORY
 
-        self._bridge.attach(native_session_ref, project_id=project_id)
+        attach_result = self._bridge.attach(native_session_ref, project_id=project_id)
+        if not attach_result.get("ok", False):
+            error_msg = attach_result.get("error", "Bridge attach failed.")
+            raise ConnectionError(f"Cannot attach {native_session_ref}: {error_msg}")
 
         delegate_id = new_id("del")
         session = SessionHandle(

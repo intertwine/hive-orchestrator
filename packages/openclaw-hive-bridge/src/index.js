@@ -40,20 +40,31 @@ class Bridge {
 
   async attachSession(sessionKey, { projectId } = {}) {
     // TODO: POST gatewayUrl/api/sessions/:key/attach
+    // Stateless: the Python client owns session state via SessionHandle
+    // and delegate persistence. The bridge just validates the request
+    // against the Gateway.
+    if (!this.gatewayUrl) {
+      return { ok: false, error: "OPENCLAW_GATEWAY_URL is not configured." };
+    }
     this.sessions.set(sessionKey, {
       projectId,
       attachedAt: new Date().toISOString(),
-      events: [
-        { kind: "session_start", ts: new Date().toISOString(), payload: {} },
-      ],
     });
     return { ok: true, session_key: sessionKey, status: "attached" };
   }
 
   async streamEvents(sessionKey) {
-    const session = this.sessions.get(sessionKey);
     // TODO: GET gatewayUrl/api/sessions/:key/history (streaming)
-    return session ? session.events : [];
+    // Stateless: each call fetches from the Gateway directly using the
+    // session key. Does not depend on in-memory attach state.
+    if (!this.gatewayUrl) {
+      return [];
+    }
+    // Until real Gateway HTTP is wired, return a minimal session_start
+    // so the protocol round-trip is testable.
+    return [
+      { kind: "session_start", ts: new Date().toISOString(), payload: {} },
+    ];
   }
 
   async detachSession(sessionKey) {

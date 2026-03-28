@@ -579,6 +579,27 @@ class TestReviewFixes:
         names = [a["name"] for a in artifacts["artifacts"]]
         assert "trajectory.jsonl" in names
 
+    def test_attach_fails_when_bridge_attach_returns_error(self):
+        """P1-1 (PR #167): adapter must check bridge attach response ok field."""
+        stub = StubBridgeClient()
+        # Override attach to return an error.
+        stub.attach = lambda key, **kw: {
+            "ok": False,
+            "error": "Gateway rejected session.",
+        }
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        with pytest.raises(ConnectionError, match="Gateway rejected session"):
+            adapter.attach_delegate_session("oc-sess-001", GovernanceMode.ADVISORY)
+
+    def test_probe_not_available_when_gateway_unreachable(self):
+        """P1-3 (PR #167): probe must not claim available when gateway is down."""
+        stub = StubBridgeClient(gateway_reachable=False)
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        info = adapter.probe()
+        assert info.available is False
+        assert info.capability_snapshot is not None
+        assert info.capability_snapshot.probed["gateway_reachable"] is False
+
 
 # ---------------------------------------------------------------------------
 # Bridge client protocol tests

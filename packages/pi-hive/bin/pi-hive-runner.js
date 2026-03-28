@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 
 function usage() {
@@ -33,12 +33,7 @@ function writeJson(pathValue, payload) {
 
 function appendJsonl(pathValue, payload) {
   ensureDir(pathValue)
-  const current = readJsonl(pathValue)
-  writeFileSync(
-    pathValue,
-    [...current, JSON.stringify(payload)].join("\n").concat("\n"),
-    "utf8"
-  )
+  appendFileSync(pathValue, `${JSON.stringify(payload)}\n`, "utf8")
 }
 
 function readJsonl(pathValue) {
@@ -145,6 +140,18 @@ updateState("running", "Pi managed session is active.")
 updateManifest("running", { state_path: statePath })
 
 let steeringCursor = 0
+let interval = null
+let autoFinish = null
+
+function stopAndFinish(state, message) {
+  if (interval !== null) {
+    clearInterval(interval)
+  }
+  if (autoFinish !== null) {
+    clearTimeout(autoFinish)
+  }
+  finish(state, message)
+}
 
 function processSteering() {
   const lines = readJsonl(steeringPath)
@@ -163,7 +170,7 @@ function processSteering() {
     const action = String(payload.action ?? "")
     const note = String(payload.note ?? "")
     if (action === "cancel") {
-      finish("cancelled", "Pi managed session cancelled by Hive.")
+      stopAndFinish("cancelled", "Pi managed session cancelled by Hive.")
     }
     if (action === "pause") {
       updateState("running", "Pi managed session paused by Hive.")
@@ -180,21 +187,17 @@ function processSteering() {
       continue
     }
     if (note) {
-      finish("completed_candidate", `Pi received Hive steering: ${note}`)
+      stopAndFinish("completed_candidate", `Pi received Hive steering: ${note}`)
     }
   }
 }
 
-const interval = setInterval(processSteering, 100)
-const autoFinish = setTimeout(() => {
-  clearInterval(interval)
-  finish("completed_candidate", "Pi managed session finished without additional steering.")
+interval = setInterval(processSteering, 100)
+autoFinish = setTimeout(() => {
+  stopAndFinish("completed_candidate", "Pi managed session finished without additional steering.")
 }, 5000)
 
-process.on("SIGTERM", () => {
-  clearInterval(interval)
-  clearTimeout(autoFinish)
-  finish("cancelled", "Pi managed session terminated.")
-})
+process.on("SIGINT", () => stopAndFinish("cancelled", "Pi managed session interrupted."))
+process.on("SIGTERM", () => stopAndFinish("cancelled", "Pi managed session terminated."))
 
 console.log(JSON.stringify({ ok: true, manifest: manifestPath, state: statePath }))

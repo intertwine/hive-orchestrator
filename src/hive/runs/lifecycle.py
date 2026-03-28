@@ -476,6 +476,10 @@ def start_run(
         else capability_snapshot
     )
     manifest["driver_mode"] = capability_snapshot.effective.launch_mode
+    paths["manifest_path"].write_text(
+        json.dumps(manifest, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     paths["launch_path"].write_text(
         json.dumps(launch_request.to_dict(), indent=2, sort_keys=True),
         encoding="utf-8",

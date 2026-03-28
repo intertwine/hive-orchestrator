@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process"
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 
 function printUsage() {
@@ -81,12 +81,7 @@ function readJsonl(pathValue) {
 
 function appendJsonl(pathValue, payload) {
   mkdirSync(dirname(pathValue), { recursive: true })
-  const current = readJsonl(pathValue)
-  writeFileSync(
-    pathValue,
-    [...current, JSON.stringify(payload)].join("\n").concat("\n"),
-    "utf8"
-  )
+  appendFileSync(pathValue, `${JSON.stringify(payload)}\n`, "utf8")
 }
 
 function nextSeq(pathValue) {

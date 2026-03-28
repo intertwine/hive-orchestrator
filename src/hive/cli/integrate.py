@@ -143,7 +143,8 @@ def _attach_session(args, root: Path) -> int:
             {
                 "ok": True,
                 "message": (
-                    f"Attached {args.native_session_ref} as an advisory Pi-backed run."
+                    f"Attached {args.native_session_ref} as an advisory "
+                    f"{args.harness}-backed run."
                 ),
                 "run": run.to_dict(),
                 "session": session,

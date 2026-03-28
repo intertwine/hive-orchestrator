@@ -95,6 +95,9 @@ def test_pi_managed_run_launches_real_runner_and_round_trips_steering(temp_hive_
     )
     metadata = load_run(temp_hive_dir, run.id)
     driver_status = metadata["metadata_json"]["driver_status"]
+    runtime_manifest = json.loads(
+        Path(metadata["runtime_manifest_path"]).read_text(encoding="utf-8")
+    )
     trajectory_path = Path(metadata["trajectory_path"])
     trajectory_kinds = [
         json.loads(line)["kind"]
@@ -104,6 +107,7 @@ def test_pi_managed_run_launches_real_runner_and_round_trips_steering(temp_hive_
 
     assert driver_status["session"]["governance_mode"] == "governed"
     assert driver_status["session"]["integration_level"] == "managed"
+    assert runtime_manifest["driver_mode"] == "sdk"
     assert "steering_received" in trajectory_kinds
     assert trajectory_kinds[-1] == "session_end"
 
@@ -149,6 +153,9 @@ def test_pi_attach_creates_advisory_run_and_delivers_notes_to_native_session(
             ],
         )
         run_id = payload["run"]["id"]
+        assert payload["message"] == (
+            f"Attached {native_session_ref} as an advisory pi-backed run."
+        )
 
         steer_run(
             temp_hive_dir,

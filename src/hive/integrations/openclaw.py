@@ -337,9 +337,15 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
                 reroute_export="none",
             ),
             effective=capability_surface(
-                launch_mode="gateway_bridge" if bridge_probe.reachable else "none",
-                session_persistence="persistent" if bridge_probe.reachable else "none",
-                event_stream="structured_deltas" if bridge_probe.reachable else "none",
+                launch_mode="gateway_bridge"
+                if bridge_probe.gateway_reachable
+                else "none",
+                session_persistence="persistent"
+                if bridge_probe.gateway_reachable
+                else "none",
+                event_stream="structured_deltas"
+                if bridge_probe.gateway_reachable
+                else "none",
                 approvals=[],
                 skills="file_projection",
                 worktrees="host_managed",
@@ -347,7 +353,7 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
                 native_sandbox="external",
                 outer_sandbox_required=False,
                 artifacts=["transcript", "session-history"]
-                if bridge_probe.reachable
+                if bridge_probe.gateway_reachable
                 else [],
                 reroute_export="none",
             ),
@@ -360,13 +366,21 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
                 "steering_supported": bridge_probe.steering_supported,
             },
             confidence={
-                "launch_mode": "verified" if bridge_probe.reachable else "unavailable",
-                "event_stream": "verified" if bridge_probe.reachable else "unavailable",
+                "launch_mode": "verified"
+                if bridge_probe.gateway_reachable
+                else ("bridge_only" if bridge_probe.reachable else "unavailable"),
+                "event_stream": "verified"
+                if bridge_probe.gateway_reachable
+                else ("bridge_only" if bridge_probe.reachable else "unavailable"),
             },
             evidence={
                 "launch_mode": "OpenClaw Gateway bridge provides session access."
-                if bridge_probe.reachable
-                else "Bridge not detected — install openclaw-hive-bridge.",
+                if bridge_probe.gateway_reachable
+                else (
+                    "Bridge detected but gateway not reachable."
+                    if bridge_probe.reachable
+                    else "Bridge not detected — install openclaw-hive-bridge."
+                ),
                 "sandbox": "Sandbox is owned by OpenClaw, not Hive.",
             },
             governance_mode="advisory",

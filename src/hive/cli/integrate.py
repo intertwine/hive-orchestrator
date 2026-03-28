@@ -73,15 +73,28 @@ def _integrate_openclaw(args, root: Path) -> int:
     snapshot = info.capability_snapshot
     probed = snapshot.probed if snapshot else {}
 
+    bridge_found = bool(
+        probed.get(
+            "bridge_reachable",
+            snapshot.probed.get("bridge_reachable") if snapshot else False,
+        )
+    )
+    gateway_ok = bool(probed.get("gateway_reachable"))
+
     next_steps: list[str] = []
-    if not info.available:
+    if not bridge_found:
+        status_msg = "bridge not found"
         next_steps.append("npm install -g openclaw-hive-bridge")
         next_steps.append("Then re-run: hive integrate openclaw")
+    elif not gateway_ok:
+        status_msg = "bridge found, gateway not reachable"
+        next_steps.append(
+            "Set OPENCLAW_GATEWAY_URL and start the bridge: "
+            "openclaw-hive-bridge --gateway <url> --stdio"
+        )
+        next_steps.append("Then re-run: hive integrate openclaw")
     else:
-        if not probed.get("gateway_reachable"):
-            next_steps.append(
-                "Start the bridge: openclaw-hive-bridge --gateway <url> --stdio"
-            )
+        status_msg = "ready"
         next_steps.append(
             "Attach a session: hive integrate attach openclaw <session-key>"
         )
@@ -90,7 +103,7 @@ def _integrate_openclaw(args, root: Path) -> int:
     return emit(
         {
             "ok": True,
-            "message": f"OpenClaw integration: {'ready' if info.available else 'bridge not found'}.",
+            "message": f"OpenClaw integration: {status_msg}.",
             "integration": probe_dict,
             "next_steps": next_steps,
         },

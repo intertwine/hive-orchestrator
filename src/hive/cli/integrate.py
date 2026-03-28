@@ -82,6 +82,11 @@ def _integrate_openclaw(args, root: Path) -> int:
         )
     )
     gateway_ok = bool(probed.get("gateway_reachable"))
+    sessions_ok = bool(probed.get("sessions_accessible"))
+    steering_ok = bool(probed.get("steering_supported", False))
+    connection_scope = str(
+        probed.get("connection_scope") or probed.get("connection_mode") or ""
+    )
 
     next_steps: list[str] = []
     if not bridge_found:
@@ -95,12 +100,22 @@ def _integrate_openclaw(args, root: Path) -> int:
             "openclaw-hive-bridge --gateway <url> --stdio"
         )
         next_steps.append("Then re-run: hive integrate openclaw")
+    elif not sessions_ok:
+        status_msg = "gateway reachable, session listing unavailable"
+        next_steps.append("Verify OpenClaw gateway auth and permissions for session tools.")
+        next_steps.append("Then re-run: hive integrate doctor openclaw --json")
+    elif not steering_ok:
+        status_msg = "gateway reachable, steering unavailable"
+        next_steps.append("Verify OpenClaw gateway auth and permissions for chat tools.")
+        next_steps.append("Then re-run: hive integrate doctor openclaw --json")
     else:
         status_msg = "ready"
         next_steps.append(
             "Attach a session: hive integrate attach openclaw <session-key>"
         )
         next_steps.append("hive integrate doctor openclaw --json")
+    if connection_scope:
+        next_steps.append(f"Connection scope detected: {connection_scope}")
 
     return emit(
         {
@@ -179,15 +194,14 @@ def _attach_session(args, root: Path) -> int:
 
 
 def _detach_session(args, root: Path) -> int:
-    """Detach a delegate session, updating both manifest and final state."""
-    import json as _json
-
-    from src.hive.clock import utc_now_iso
-    from src.hive.integrations.openclaw import (
-        _delegates_dir,
-        finalize_delegate_session,
-        load_delegate_session,
+    """Detach a delegate session through the owning adapter."""
+    from src.hive.integrations.models import (
+        AdapterFamily,
+        GovernanceMode,
+        IntegrationLevel,
+        SessionHandle,
     )
+    from src.hive.integrations.openclaw import OpenClawGatewayAdapter, load_delegate_session
 
     manifest = load_delegate_session(root, args.session_id)
     if manifest is None:
@@ -196,31 +210,43 @@ def _detach_session(args, root: Path) -> int:
             args.json,
         )
 
-    ts = utc_now_iso()
-
-    # Update manifest.json to reflect detached status.
-    manifest_path = _delegates_dir(root) / args.session_id / "manifest.json"
-    if manifest_path.exists():
-        manifest["status"] = "detached"
-        manifest_path.write_text(
-            _json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    adapter_name = str(manifest.get("adapter_name") or "")
+    if adapter_name != "openclaw":
+        return emit_error(
+            ValueError(f"Unsupported delegate adapter for detach: {adapter_name or '(unknown)'}"),
+            args.json,
         )
 
-    finalize_delegate_session(
-        root,
-        args.session_id,
-        {
-            "status": "detached",
-            "detached_at": ts,
-            "reason": "operator-initiated",
-        },
+    adapter = OpenClawGatewayAdapter(base_path=root)
+    session = SessionHandle(
+        session_id=str(manifest.get("session_id") or manifest["delegate_session_id"]),
+        adapter_name=adapter_name,
+        adapter_family=AdapterFamily(str(manifest.get("adapter_family") or "delegate_gateway")),
+        native_session_ref=str(manifest["native_session_ref"]),
+        governance_mode=GovernanceMode(
+            str(manifest.get("governance_mode") or GovernanceMode.ADVISORY)
+        ),
+        integration_level=IntegrationLevel(
+            str(manifest.get("integration_level") or IntegrationLevel.ATTACH)
+        ),
+        delegate_session_id=str(manifest["delegate_session_id"]),
+        project_id=manifest.get("project_id"),
+        task_id=manifest.get("task_id"),
+        status=str(manifest.get("status") or "attached"),
+        attached_at=str(manifest.get("attached_at") or ""),
+        metadata=dict(manifest.get("metadata") or {}),
     )
+    try:
+        result = adapter.detach_delegate_session(session)
+    except ConnectionError as exc:
+        return emit_error(exc, args.json)
 
     return emit(
         {
             "ok": True,
             "message": f"Detached delegate session {args.session_id}.",
             "session_id": args.session_id,
+            "result": result,
         },
         args.json,
     )

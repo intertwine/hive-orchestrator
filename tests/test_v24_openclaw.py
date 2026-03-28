@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from argparse import Namespace
 import io
 import json
 from typing import Any, Iterator
 
 import pytest
 
+from src.hive.cli.integrate import _detach_session
 from src.hive.clock import utc_now_iso
 from src.hive.drivers.types import SteeringRequest
 from src.hive.integrations.base import DelegateGatewayAdapter
@@ -44,10 +46,20 @@ class StubBridgeClient(OpenClawBridgeClient):
         *,
         reachable: bool = True,
         gateway_reachable: bool = True,
+        sessions_accessible: bool | None = None,
+        steering_supported: bool = True,
+        connection_scope: str = "local",
+        attach_metadata: dict[str, Any] | None = None,
         sessions: list[dict[str, Any]] | None = None,
     ) -> None:
         self._reachable = reachable
         self._gateway_reachable = gateway_reachable
+        self._sessions_accessible = (
+            gateway_reachable if sessions_accessible is None else sessions_accessible
+        )
+        self._steering_supported = steering_supported
+        self._connection_scope = connection_scope
+        self._attach_metadata = dict(attach_metadata or {})
         self._sessions = sessions or [
             {"session_key": "oc-sess-001", "status": "active", "owner": "agent-alpha"},
             {"session_key": "oc-sess-002", "status": "idle", "owner": "agent-beta"},
@@ -80,11 +92,14 @@ class StubBridgeClient(OpenClawBridgeClient):
         return BridgeProbe(
             reachable=True,
             version="0.1.0-stub",
+            gateway_version="1.2.3-stub",
             gateway_url="http://localhost:3000",
             gateway_reachable=self._gateway_reachable,
-            sessions_accessible=self._gateway_reachable,
+            sessions_accessible=self._sessions_accessible,
             attach_supported=True,
-            steering_supported=True,
+            steering_supported=self._steering_supported,
+            connection_scope=self._connection_scope,
+            session_count=len(self._sessions),
             notes=["Stub bridge for testing."],
         )
 
@@ -98,7 +113,12 @@ class StubBridgeClient(OpenClawBridgeClient):
             "project_id": project_id,
             "attached_at": utc_now_iso(),
         }
-        return {"ok": True, "session_key": session_key, "status": "attached"}
+        return {
+            "ok": True,
+            "session_key": session_key,
+            "status": "attached",
+            **self._attach_metadata,
+        }
 
     def stream_events(self, session_key: str) -> Iterator[dict[str, Any]]:
         return iter(self._events.get(session_key, []))
@@ -176,6 +196,14 @@ class TestOC1InstallAndConnect:
         assert len(sessions) == 2
         assert sessions[0]["session_key"] == "oc-sess-001"
 
+    def test_probe_not_available_when_sessions_inaccessible(self):
+        stub = StubBridgeClient(gateway_reachable=True, sessions_accessible=False)
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        info = adapter.probe()
+        assert info.available is False
+        assert "session listing is not accessible" in info.configuration_problems[0]
+        assert any("permissions" in step or "auth" in step for step in info.next_steps)
+
     def test_is_delegate_gateway_adapter(self):
         adapter = OpenClawGatewayAdapter(bridge=StubBridgeClient())
         assert isinstance(adapter, DelegateGatewayAdapter)
@@ -217,6 +245,22 @@ class TestOC2AttachLiveSession:
         )
         # Must downgrade to advisory.
         assert session.governance_mode == GovernanceMode.ADVISORY
+
+    def test_attach_persists_bridge_metadata(self, tmp_path):
+        stub = StubBridgeClient(
+            attach_metadata={
+                "session_owner": "agent-alpha",
+                "connection_scope": "remote",
+            }
+        )
+        adapter = OpenClawGatewayAdapter(bridge=stub, base_path=tmp_path)
+        session = adapter.attach_delegate_session(
+            "oc-sess-001", GovernanceMode.ADVISORY
+        )
+        assert session.metadata["session_owner"] == "agent-alpha"
+        manifest = load_delegate_session(tmp_path, session.delegate_session_id)
+        assert manifest is not None
+        assert manifest["metadata"]["connection_scope"] == "remote"
 
     def test_stream_events_normalized(self):
         stub = StubBridgeClient()
@@ -416,6 +460,7 @@ class TestDelegateSessionPersistence:
         assert loaded is not None
         assert loaded["native_session_ref"] == "oc-sess-001"
         assert loaded["governance_mode"] == "advisory"
+        assert loaded["metadata"]["sandbox_owner"] == "openclaw"
 
     def test_adapter_persists_steering(self, tmp_path):
         stub = StubBridgeClient()
@@ -607,6 +652,53 @@ class TestReviewFixes:
         with pytest.raises(ConnectionError, match="gateway is not reachable"):
             adapter.attach_delegate_session("oc-sess-001", GovernanceMode.ADVISORY)
 
+    def test_attach_fails_when_sessions_inaccessible(self):
+        stub = StubBridgeClient(gateway_reachable=True, sessions_accessible=False)
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        with pytest.raises(ConnectionError, match="session listing is not accessible"):
+            adapter.attach_delegate_session("oc-sess-001", GovernanceMode.ADVISORY)
+
+    def test_send_steer_raises_on_bridge_failure(self):
+        stub = StubBridgeClient()
+        stub.send_steer = lambda *args, **kwargs: {"ok": False, "error": "steer denied"}
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        session = adapter.attach_delegate_session(
+            "oc-sess-001", GovernanceMode.ADVISORY
+        )
+        with pytest.raises(ConnectionError, match="steer denied"):
+            adapter.send_steer(session, SteeringRequest(action="pause", reason="test"))
+
+    def test_publish_note_raises_on_bridge_failure(self):
+        stub = StubBridgeClient()
+        stub.publish_note = lambda *args, **kwargs: {
+            "ok": False,
+            "error": "note denied",
+        }
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        session = adapter.attach_delegate_session(
+            "oc-sess-001", GovernanceMode.ADVISORY
+        )
+        with pytest.raises(ConnectionError, match="note denied"):
+            adapter.publish_note(session, "hold position")
+
+    def test_detach_raises_on_bridge_failure(self, tmp_path):
+        stub = StubBridgeClient()
+        stub.detach = lambda *args, **kwargs: {"ok": False, "error": "detach denied"}
+        adapter = OpenClawGatewayAdapter(bridge=stub, base_path=tmp_path)
+        session = adapter.attach_delegate_session(
+            "oc-sess-001", GovernanceMode.ADVISORY
+        )
+        with pytest.raises(ConnectionError, match="detach denied"):
+            adapter.detach_delegate_session(session)
+        final_path = (
+            tmp_path
+            / ".hive"
+            / "delegates"
+            / session.delegate_session_id
+            / "final.json"
+        )
+        assert not final_path.exists()
+
 
 # ---------------------------------------------------------------------------
 # Bridge client protocol tests
@@ -751,3 +843,197 @@ class TestBridgeClientProtocol:
                 assert len(events) == 2
                 assert events[0]["kind"] == "session_start"
                 assert events[1]["payload"]["text"] == "hi"
+
+
+class TestRealBridgePackage:
+    def _bridge_client(self, monkeypatch, tmp_path):
+        import shutil
+        from pathlib import Path
+        from unittest.mock import patch
+
+        node_path = shutil.which("node")
+        if node_path is None:
+            pytest.skip("Node.js not available")
+
+        fake_openclaw = tmp_path / "openclaw"
+        fake_log = tmp_path / "fake-openclaw-log.jsonl"
+        fake_openclaw.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os, sys\n"
+            "args = sys.argv[1:]\n"
+            "log_path = os.environ.get('FAKE_OPENCLAW_LOG', '')\n"
+            "if log_path:\n"
+            "    with open(log_path, 'a', encoding='utf-8') as fh:\n"
+            "        fh.write(json.dumps(args) + '\\n')\n"
+            "if args and args[0] == 'health':\n"
+            "    print(json.dumps({'version': '1.2.3-test'}))\n"
+            "    raise SystemExit(0)\n"
+            "if args[:3] != ['gateway', 'call', args[2] if len(args) > 2 else '']:\n"
+            "    pass\n"
+            "method = args[2] if len(args) > 2 else ''\n"
+            "params = {}\n"
+            "if '--params' in args:\n"
+            "    params = json.loads(args[args.index('--params') + 1])\n"
+            "if method == 'sessions.list':\n"
+            "    print(json.dumps({'items': [\n"
+            "        {'sessionKey': 'oc-sess-001', 'owner': 'agent-alpha'},\n"
+            "        {'sessionKey': 'oc-sess-002', 'owner': 'agent-beta'}\n"
+            "    ]}))\n"
+            "elif method == 'sessions.history':\n"
+            "    print(json.dumps({'history': [\n"
+            "        {'kind': 'session_start', 'ts': '2026-03-28T00:00:00Z', 'payload': {}},\n"
+            "        {'kind': 'assistant_delta', 'ts': '2026-03-28T00:00:01Z', 'payload': {'text': 'bridge hi'}, 'id': 'evt-1'}\n"
+            "    ]}))\n"
+            "elif method == 'chat.send':\n"
+            "    print(json.dumps({'ok': True, 'echo': params}))\n"
+            "elif method == 'chat.inject':\n"
+            "    print(json.dumps({'ok': True, 'echo': params}))\n"
+            "else:\n"
+            "    print(json.dumps({'ok': False, 'error': f'unsupported method: {method}'}))\n"
+            "    raise SystemExit(1)\n",
+            encoding="utf-8",
+        )
+        fake_openclaw.chmod(0o755)
+
+        monkeypatch.setenv("OPENCLAW_CLI", str(fake_openclaw))
+        monkeypatch.setenv("OPENCLAW_GATEWAY_TOKEN", "test-token")
+        monkeypatch.setenv("FAKE_OPENCLAW_LOG", str(fake_log))
+
+        bridge_bin = Path(__file__).resolve().parents[1] / "packages" / "openclaw-hive-bridge" / "bin" / "openclaw-hive-bridge.js"
+        client = OpenClawBridgeClient(gateway_url="http://localhost:3000")
+        patcher = patch.object(
+            client,
+            "_bridge_command",
+            return_value=[
+                node_path,
+                str(bridge_bin),
+                "--gateway",
+                "http://localhost:3000",
+                "--token",
+                "test-token",
+                "--stdio",
+            ],
+        )
+        patcher.start()
+        monkeypatch.setattr(client, "detect_binary", lambda: str(bridge_bin))
+        return client, fake_log, patcher
+
+    def test_real_bridge_client_uses_actual_package(self, monkeypatch, tmp_path):
+        client, fake_log, patcher = self._bridge_client(monkeypatch, tmp_path)
+        try:
+            probe = client.probe()
+            assert probe.gateway_reachable is True
+            assert probe.sessions_accessible is True
+            assert probe.connection_scope == "local"
+
+            sessions = client.list_sessions()
+            assert [item["sessionKey"] for item in sessions] == [
+                "oc-sess-001",
+                "oc-sess-002",
+            ]
+
+            attached = client.attach("oc-sess-001", project_id="proj-1")
+            assert attached["ok"] is True
+            assert attached["gateway_session"]["owner"] == "agent-alpha"
+
+            events = list(client.stream_events("oc-sess-001"))
+            assert [event["kind"] for event in events] == [
+                "session_start",
+                "assistant_delta",
+            ]
+
+            steer = client.send_steer("oc-sess-001", "pause", {"reason": "operator"})
+            assert steer["ok"] is True
+            note = client.publish_note("oc-sess-001", "observe only")
+            assert note["ok"] is True
+        finally:
+            patcher.stop()
+
+        log_lines = [
+            json.loads(line)
+            for line in fake_log.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        methods = [line[2] for line in log_lines if len(line) > 2 and line[:2] == ["gateway", "call"]]
+        assert "sessions.list" in methods
+        assert "sessions.history" in methods
+        assert "chat.send" in methods
+        assert "chat.inject" in methods
+
+    def test_adapter_streams_and_persists_via_real_bridge(self, monkeypatch, tmp_path):
+        client, _fake_log, patcher = self._bridge_client(monkeypatch, tmp_path)
+        try:
+            adapter = OpenClawGatewayAdapter(bridge=client, base_path=tmp_path)
+            session = adapter.attach_delegate_session(
+                "oc-sess-001", GovernanceMode.ADVISORY, project_id="proj-1"
+            )
+            events = list(adapter.stream_events(session))
+            assert len(events) == 2
+            assert events[1]["raw_ref"] == "evt-1"
+            manifest = load_delegate_session(tmp_path, session.delegate_session_id)
+            assert manifest is not None
+            assert manifest["metadata"]["gateway_session"]["owner"] == "agent-alpha"
+        finally:
+            patcher.stop()
+
+
+class TestDetachCli:
+    def test_detach_routes_through_adapter(self, tmp_path, monkeypatch, capsys):
+        session = SessionHandle(
+            session_id="sess-001",
+            adapter_name="openclaw",
+            adapter_family=AdapterFamily.DELEGATE_GATEWAY,
+            native_session_ref="oc-sess-001",
+            governance_mode=GovernanceMode.ADVISORY,
+            integration_level=IntegrationLevel.ATTACH,
+            delegate_session_id="del-cli",
+            status="attached",
+        )
+        persist_delegate_session(tmp_path, session)
+
+        seen: dict[str, Any] = {}
+
+        def _fake_detach(self, handle):
+            seen["native_session_ref"] = handle.native_session_ref
+            return {"ok": True, "status": "detached"}
+
+        monkeypatch.setattr(
+            "src.hive.integrations.openclaw.OpenClawGatewayAdapter.detach_delegate_session",
+            _fake_detach,
+        )
+
+        rc = _detach_session(Namespace(session_id="del-cli", json=True), tmp_path)
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert payload["ok"] is True
+        assert seen["native_session_ref"] == "oc-sess-001"
+
+    def test_detach_surfaces_adapter_failure(self, tmp_path, monkeypatch, capsys):
+        session = SessionHandle(
+            session_id="sess-001",
+            adapter_name="openclaw",
+            adapter_family=AdapterFamily.DELEGATE_GATEWAY,
+            native_session_ref="oc-sess-001",
+            governance_mode=GovernanceMode.ADVISORY,
+            integration_level=IntegrationLevel.ATTACH,
+            delegate_session_id="del-cli-fail",
+            status="attached",
+        )
+        persist_delegate_session(tmp_path, session)
+
+        def _fake_detach(self, handle):
+            raise ConnectionError("gateway refused detach")
+
+        monkeypatch.setattr(
+            "src.hive.integrations.openclaw.OpenClawGatewayAdapter.detach_delegate_session",
+            _fake_detach,
+        )
+
+        rc = _detach_session(
+            Namespace(session_id="del-cli-fail", json=True),
+            tmp_path,
+        )
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 1
+        assert payload["ok"] is False
+        assert payload["error"] == "gateway refused detach"

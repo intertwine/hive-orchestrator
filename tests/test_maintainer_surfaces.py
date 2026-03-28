@@ -47,6 +47,21 @@ def test_v23_status_doc_tracks_release_gates_and_next_blocker():
     assert "`v2.3.2`" in status_doc
 
 
+def test_v24_status_doc_tracks_scope_and_next_blocker():
+    """The v2.4 ledger should point maintainers at the active scope and current blocker."""
+    status_doc = (REPO_ROOT / "docs" / "V2_4_STATUS.md").read_text(encoding="utf-8")
+
+    assert "# Hive v2.4 Status" in status_doc
+    assert "Status: in progress" in status_doc
+    assert "## Scope Lock" in status_doc
+    assert "## Release Gate Ledger" in status_doc
+    assert "Hive Link and normalized trajectory capture" in status_doc
+    assert "the v2.4 RFC bundle and status ledger now live at stable repo paths" in status_doc
+    assert "## Next Blocker" in status_doc
+    assert "Land Milestone 1 foundation work" in status_doc
+    assert "DelegateGatewayAdapter" in status_doc
+
+
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():
     """The v2.3 acceptance doc should narrow remote sandbox expectations to shipped truth."""
     acceptance_doc = (
@@ -94,6 +109,29 @@ def test_release_docs_require_scope_locked_v23_story_and_installed_search_proof(
     assert "truthful v2.3 operator surface" in readme
     assert "Hive v2.3 assumes the operator mostly supervises" in operator_doc
     assert "If you want the latest unreleased checkout" in start_here
+
+
+def test_maintainer_docs_link_the_v24_ledger_and_bundle():
+    """Maintainer docs should point at the live v2.4 planning surfaces."""
+    maintaining = (REPO_ROOT / "docs" / "MAINTAINING.md").read_text(encoding="utf-8")
+    release_doc = (REPO_ROOT / "docs" / "RELEASING.md").read_text(encoding="utf-8")
+
+    assert "[docs/V2_4_STATUS.md](./V2_4_STATUS.md)" in maintaining
+    assert "[docs/hive-v2.4-rfc/README.md](./hive-v2.4-rfc/README.md)" in maintaining
+    assert "[docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md)" in release_doc
+    assert "[docs/hive-v2.4-rfc/README.md](/docs/hive-v2.4-rfc/README.md)" in release_doc
+
+
+def test_v24_bundle_uses_repo_paths_without_overlay_duplicates():
+    """The checked-in v2.4 bundle should be the shipped docs set, not an overlay-within-an-overlay."""
+    bundle_dir = REPO_ROOT / "docs" / "hive-v2.4-rfc"
+
+    assert (bundle_dir / "README.md").exists()
+    assert (bundle_dir / "HANDOFF_TO_CODEX.md").exists()
+    assert (bundle_dir / "MILESTONE_ISSUE_TREE.md").exists()
+    assert not (bundle_dir / "PACKAGE_INCLUDE_NOTES.md").exists()
+    assert not (bundle_dir / "PULL_REQUEST_BODY.md").exists()
+    assert not (bundle_dir / "docs").exists()
 
 
 def test_archive_and_rfc_docs_frame_historical_material_clearly():

@@ -55,6 +55,10 @@ checks are closed:
 1. README, demo walkthrough, compare-harness, and operator docs match the shipped observe-and-steer story.
 2. Installed-package `hive search` is proven useful from a throwaway install, not only from a source checkout.
 
+For the active v2.4 implementation line, keep [docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md) aligned with the
+planning bundle in [docs/hive-v2.4-rfc/README.md](/docs/hive-v2.4-rfc/README.md) before calling any milestone
+ready for broader review.
+
 For the actual v2.3.0 release cut from this repo state, the expected version bump is:
 
 ```bash

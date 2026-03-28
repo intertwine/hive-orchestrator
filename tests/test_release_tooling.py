@@ -260,6 +260,8 @@ def test_wheel_force_include_uses_repo_docs_as_the_only_markdown_source():
         force_include["docs/ADOPT_EXISTING_REPO.md"]
         == "src/hive/resources/docs/ADOPT_EXISTING_REPO.md"
     )
+    assert force_include["docs/V2_4_STATUS.md"] == "src/hive/resources/docs/V2_4_STATUS.md"
+    assert force_include["docs/hive-v2.4-rfc"] == "src/hive/resources/docs/hive-v2.4-rfc"
     assert mirror_files == []
 
 
@@ -322,8 +324,10 @@ def test_release_smoke_script_proves_installed_search_usefulness():
     assert "run_installed_search_smoke()" in script
     assert "assert_search_payload()" in script
     assert '"$hive_bin" --path "$workspace" search "runtime contract" --scope api --limit 5 --json' in script
+    assert '"$hive_bin" --path "$workspace" search "DelegateGatewayAdapter" --scope api --limit 5 --json' in script
     assert '"$hive_bin" --path "$workspace" search "sandbox doctor" --scope examples --limit 5 --json' in script
     assert "package:docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md" in script
+    assert "package:docs/hive-v2.4-rfc/HIVE_V2_4_ADAPTER_MODEL_AND_LINK_SPEC.md" in script
     assert "package:docs/recipes/sandbox-doctor.md" in script
 
 

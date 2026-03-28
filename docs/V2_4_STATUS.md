@@ -1,7 +1,7 @@
 # Hive v2.4 Status
 
-Status: proposed  
-Last updated: 2026-03-27  
+Status: in progress
+Last updated: 2026-03-28
 Purpose: compact execution ledger for the current v2.4 release line
 
 This file is the maintainer-facing status ledger for v2.4.
@@ -50,11 +50,12 @@ What is real now:
 - v2.3 closed the major Codex/Claude/runtime/retrieval/campaign/operator gaps
 - Pi/Hermes/OpenClaw remain intentionally deferred from that line
 - the next product opportunity is native ecosystem presence, not another generic RPC adapter
+- the v2.4 RFC bundle and status ledger now live at stable repo paths and are wired into packaged-doc search surfaces
 
 ## Next Blocker
 
-Create the initial repo wiring:
-- add `docs/hive-v2.4-rfc`
-- add `docs/V2_4_STATUS.md`
-- add package include entries
-- open implementation issues from the v2.4 issue tree
+Land Milestone 1 foundation work:
+- add the adapter-family split (`WorkerSessionAdapter` vs `DelegateGatewayAdapter`)
+- define Hive Link protocol/types and normalized trajectory helpers
+- prove packaged/searchable dummy integration coverage
+- surface advisory vs governed truth in the console and doctor flows

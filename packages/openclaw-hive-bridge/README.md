@@ -13,7 +13,7 @@ npm install -g openclaw-hive-bridge
 ### Local stdio mode (recommended for `hive integrate openclaw`)
 
 ```bash
-openclaw-hive-bridge --gateway http://localhost:3000 --stdio
+openclaw-hive-bridge --gateway http://localhost:3000 --token <token> --stdio
 ```
 
 ### HTTP mode (for remote bridge access)
@@ -22,12 +22,14 @@ openclaw-hive-bridge --gateway http://localhost:3000 --stdio
 openclaw-hive-bridge --gateway http://localhost:3000 --http 8800
 ```
 
+HTTP bridge mode is still deferred for v2.4. Stdio mode is the supported path.
+
 ## What it does
 
 1. Connects to the OpenClaw Gateway API
 2. Lists active sessions and delegates
 3. Maps Gateway `sessionKey` to Hive delegate session IDs
-4. Subscribes to session history and live transcript streams
+4. Fetches session history through the official Gateway CLI
 5. Normalizes events into the Hive Link NDJSON protocol
 6. Forwards steering and notes from Hive back to the Gateway
 
@@ -53,4 +55,4 @@ hive integrate attach openclaw <session-key>
 
 ## Status
 
-This is a v2.4 scaffold. The bridge protocol is stable; Gateway API integration is in progress.
+This is a v2.4 bridge. Stdio mode is gateway-backed; HTTP mode remains deferred.

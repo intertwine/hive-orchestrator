@@ -182,6 +182,7 @@ def _add_control_parsers(
         "doctor", help="Probe one or all integrations."
     )
     integrate_doctor.add_argument("name", nargs="?", help="Integration name to probe.")
+    integrate_subparsers.add_parser("pi", help="Prepare or verify Pi companion integration.")
 
 
 def _add_project_parsers(

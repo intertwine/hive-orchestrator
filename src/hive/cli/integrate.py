@@ -36,6 +36,18 @@ def dispatch(args, root: Path) -> int:
                 },
                 args.json,
             )
+        if args.integrate_command == "pi":
+            adapter = get_integration("pi")
+            info = adapter.probe()
+            return emit(
+                {
+                    "ok": True,
+                    "message": "Pi setup assistant inspected the local companion and workspace readiness.",
+                    "integration": info.to_dict(),
+                    "next_steps": info.next_steps,
+                },
+                args.json,
+            )
     except (FileNotFoundError, ValueError) as exc:
         return emit_error(exc, args.json)
     return 0

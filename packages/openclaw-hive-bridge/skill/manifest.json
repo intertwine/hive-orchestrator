@@ -1,0 +1,60 @@
+{
+  "name": "agent-hive",
+  "version": "0.1.0",
+  "description": "Connect OpenClaw to Agent Hive for observe-and-steer orchestration",
+  "author": "Mellona / Intertwine",
+  "homepage": "https://github.com/intertwine/hive-orchestrator",
+  "actions": [
+    {
+      "id": "hive_next",
+      "label": "Next work",
+      "description": "Ask Hive for the next recommended task",
+      "intent": "hive_next"
+    },
+    {
+      "id": "hive_search",
+      "label": "Search Hive",
+      "description": "Search Hive workspace for tasks, memory, docs, or runs",
+      "intent": "hive_search",
+      "parameters": {
+        "query": { "type": "string", "required": true }
+      }
+    },
+    {
+      "id": "hive_attach",
+      "label": "Attach this session to Hive",
+      "description": "Bind the current Gateway session to Hive as an advisory delegate",
+      "intent": "hive_attach"
+    },
+    {
+      "id": "hive_finish",
+      "label": "Finish / escalate",
+      "description": "Mark the current task as finished or escalate for review",
+      "intent": "hive_finish"
+    },
+    {
+      "id": "hive_note",
+      "label": "Post a steering note",
+      "description": "Send a note to the Hive steering history for this session",
+      "intent": "hive_note",
+      "parameters": {
+        "note": { "type": "string", "required": true }
+      }
+    },
+    {
+      "id": "hive_status",
+      "label": "Hive status",
+      "description": "Show current Hive workspace and session status",
+      "intent": "hive_status"
+    }
+  ],
+  "setup": {
+    "description": "Connect this OpenClaw Gateway to Agent Hive",
+    "steps": [
+      "Install openclaw-hive-bridge: npm install -g openclaw-hive-bridge",
+      "Run: hive integrate openclaw",
+      "Point the bridge at your Gateway URL",
+      "Attach a session: hive integrate attach openclaw <session-key>"
+    ]
+  }
+}

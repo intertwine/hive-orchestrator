@@ -182,7 +182,27 @@ def _add_control_parsers(
         "doctor", help="Probe one or all integrations."
     )
     integrate_doctor.add_argument("name", nargs="?", help="Integration name to probe.")
-    integrate_subparsers.add_parser("pi", help="Prepare or verify Pi companion integration.")
+    integrate_subparsers.add_parser(
+        "pi", help="Prepare or verify Pi companion integration."
+    )
+    integrate_subparsers.add_parser(
+        "openclaw", help="Prepare or verify OpenClaw Gateway bridge integration."
+    )
+
+    integrate_attach = integrate_subparsers.add_parser(
+        "attach", help="Attach a native harness session to Hive as a delegate."
+    )
+    integrate_attach.add_argument("harness", help="Integration name (e.g. openclaw).")
+    integrate_attach.add_argument(
+        "native_session_ref", help="Native session key or ID."
+    )
+    integrate_attach.add_argument("--project-id", dest="project_id")
+    integrate_attach.add_argument("--task-id", dest="task_id")
+
+    integrate_detach = integrate_subparsers.add_parser(
+        "detach", help="Detach a delegate session."
+    )
+    integrate_detach.add_argument("session_id", help="Delegate session ID to detach.")
 
 
 def _add_project_parsers(

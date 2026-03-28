@@ -1,0 +1,25 @@
+{
+  "name": "openclaw-hive-bridge",
+  "version": "0.1.0",
+  "description": "Bridge between OpenClaw Gateway and Agent Hive for session attach and steering",
+  "license": "MIT",
+  "bin": {
+    "openclaw-hive-bridge": "./bin/openclaw-hive-bridge.js"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node bin/openclaw-hive-bridge.js"
+  },
+  "keywords": [
+    "openclaw",
+    "agent-hive",
+    "mellona",
+    "hive-link",
+    "gateway-bridge"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intertwine/hive-orchestrator",
+    "directory": "packages/openclaw-hive-bridge"
+  }
+}

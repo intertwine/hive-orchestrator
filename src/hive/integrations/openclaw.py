@@ -1,0 +1,468 @@
+"""OpenClaw DelegateGatewayAdapter — gateway-first integration for v2.4.
+
+OpenClaw's Gateway owns sessions. Hive attaches as an advisory observer/steerer
+via an external bridge (``openclaw-hive-bridge``). Managed mode is deferred.
+"""
+
+from __future__ import annotations
+
+import json
+import shutil
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Iterator
+
+from src.hive.clock import utc_now_iso
+from src.hive.drivers.types import SteeringRequest
+from src.hive.ids import new_id
+from src.hive.integrations.base import DelegateGatewayAdapter
+from src.hive.integrations.models import (
+    AdapterFamily,
+    GovernanceMode,
+    IntegrationInfo,
+    IntegrationLevel,
+    SessionHandle,
+)
+from src.hive.runtime.capabilities import CapabilitySnapshot, capability_surface
+
+
+# ---------------------------------------------------------------------------
+# Bridge client abstraction
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class BridgeProbe:
+    """Result of probing the openclaw-hive-bridge."""
+
+    reachable: bool = False
+    version: str = ""
+    gateway_url: str = ""
+    gateway_reachable: bool = False
+    sessions_accessible: bool = False
+    attach_supported: bool = False
+    steering_supported: bool = False
+    blockers: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+class OpenClawBridgeClient:
+    """Client for communicating with the openclaw-hive-bridge process.
+
+    The default implementation detects the bridge binary and probes via
+    subprocess. Tests can subclass or replace this with an in-memory stub.
+    """
+
+    BINARY_NAMES = ("openclaw-hive-bridge",)
+
+    def detect_binary(self) -> str | None:
+        for name in self.BINARY_NAMES:
+            path = shutil.which(name)
+            if path:
+                return str(Path(path).resolve())
+        return None
+
+    def probe(self) -> BridgeProbe:
+        binary = self.detect_binary()
+        if not binary:
+            return BridgeProbe(
+                reachable=False,
+                blockers=["openclaw-hive-bridge not found on PATH."],
+                notes=[
+                    "Install: npm install -g openclaw-hive-bridge",
+                    "Or run the bridge from packages/openclaw-hive-bridge/.",
+                ],
+            )
+        return BridgeProbe(
+            reachable=True,
+            version="0.1.0",
+            notes=[f"Bridge detected at {binary}."],
+        )
+
+    def list_sessions(self) -> list[dict[str, Any]]:
+        return []
+
+    def attach(
+        self, session_key: str, *, project_id: str | None = None
+    ) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "session_key": session_key,
+            "status": "attached",
+        }
+
+    def stream_events(self, session_key: str) -> Iterator[dict[str, Any]]:
+        return iter(())
+
+    def send_steer(
+        self, session_key: str, action: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {"ok": True, "session_key": session_key, "action": action}
+
+    def publish_note(self, session_key: str, note: str) -> dict[str, Any]:
+        return {"ok": True, "session_key": session_key, "note": note}
+
+    def detach(self, session_key: str) -> dict[str, Any]:
+        return {"ok": True, "session_key": session_key, "status": "detached"}
+
+
+# ---------------------------------------------------------------------------
+# Delegate session persistence
+# ---------------------------------------------------------------------------
+
+
+def _delegates_dir(base_path: str | Path) -> Path:
+    return Path(base_path).resolve() / ".hive" / "delegates"
+
+
+def persist_delegate_session(
+    base_path: str | Path,
+    session: SessionHandle,
+    capability_snapshot: CapabilitySnapshot | None = None,
+) -> Path:
+    """Write delegate session artifacts to disk."""
+    session_dir = _delegates_dir(base_path) / (
+        session.delegate_session_id or session.session_id
+    )
+    session_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest = {
+        "delegate_session_id": session.delegate_session_id or session.session_id,
+        "adapter_name": session.adapter_name,
+        "adapter_family": str(session.adapter_family),
+        "native_session_ref": session.native_session_ref,
+        "governance_mode": str(session.governance_mode),
+        "integration_level": str(session.integration_level),
+        "project_id": session.project_id,
+        "task_id": session.task_id,
+        "status": session.status,
+        "attached_at": session.attached_at,
+    }
+    (session_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    if capability_snapshot:
+        (session_dir / "capability-snapshot.json").write_text(
+            json.dumps(capability_snapshot.to_dict(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    # Ensure trajectory and steering files exist.
+    for name in ("trajectory.jsonl", "steering.ndjson"):
+        path = session_dir / name
+        if not path.exists():
+            path.touch()
+
+    return session_dir
+
+
+def finalize_delegate_session(
+    base_path: str | Path,
+    delegate_session_id: str,
+    final: dict[str, Any],
+) -> None:
+    """Write final.json for a completed delegate session."""
+    session_dir = _delegates_dir(base_path) / delegate_session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    (session_dir / "final.json").write_text(
+        json.dumps(final, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def load_delegate_session(
+    base_path: str | Path, delegate_session_id: str
+) -> dict[str, Any] | None:
+    """Load a persisted delegate session manifest."""
+    manifest_path = _delegates_dir(base_path) / delegate_session_id / "manifest.json"
+    if not manifest_path.exists():
+        return None
+    return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+
+def list_delegate_sessions(base_path: str | Path) -> list[dict[str, Any]]:
+    """List all persisted delegate sessions."""
+    delegates_root = _delegates_dir(base_path)
+    if not delegates_root.exists():
+        return []
+    sessions = []
+    for session_dir in sorted(delegates_root.iterdir()):
+        manifest_path = session_dir / "manifest.json"
+        if manifest_path.exists():
+            sessions.append(json.loads(manifest_path.read_text(encoding="utf-8")))
+    return sessions
+
+
+def append_delegate_steering(
+    base_path: str | Path,
+    delegate_session_id: str,
+    record: dict[str, Any],
+) -> None:
+    """Append a steering record to the delegate session's NDJSON log."""
+    session_dir = _delegates_dir(base_path) / delegate_session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+    steering_path = session_dir / "steering.ndjson"
+    with open(steering_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# OpenClaw adapter
+# ---------------------------------------------------------------------------
+
+
+class OpenClawGatewayAdapter(DelegateGatewayAdapter):
+    """Gateway-first adapter for OpenClaw.
+
+    Communicates with the external ``openclaw-hive-bridge`` process to
+    list, attach, steer, and detach Gateway sessions. All attached sessions
+    are advisory — Hive never owns the OpenClaw sandbox.
+    """
+
+    name = "openclaw"
+    adapter_family = AdapterFamily.DELEGATE_GATEWAY
+
+    def __init__(
+        self,
+        bridge: OpenClawBridgeClient | None = None,
+        base_path: str | Path | None = None,
+    ) -> None:
+        self._bridge = bridge or OpenClawBridgeClient()
+        self._base_path = base_path
+        self._sessions: dict[str, SessionHandle] = {}
+
+    def _capability_snapshot(self, bridge_probe: BridgeProbe) -> CapabilitySnapshot:
+        return CapabilitySnapshot(
+            driver=self.name,
+            driver_version=bridge_probe.version or "0.0.0",
+            declared=capability_surface(
+                launch_mode="gateway_bridge",
+                session_persistence="persistent",
+                event_stream="structured_deltas",
+                approvals=[],
+                skills="file_projection",
+                worktrees="host_managed",
+                subagents="none",
+                native_sandbox="external",
+                outer_sandbox_required=False,
+                artifacts=["transcript", "session-history"],
+                reroute_export="none",
+            ),
+            effective=capability_surface(
+                launch_mode="gateway_bridge" if bridge_probe.reachable else "none",
+                session_persistence="persistent" if bridge_probe.reachable else "none",
+                event_stream="structured_deltas" if bridge_probe.reachable else "none",
+                approvals=[],
+                skills="file_projection",
+                worktrees="host_managed",
+                subagents="none",
+                native_sandbox="external",
+                outer_sandbox_required=False,
+                artifacts=["transcript", "session-history"]
+                if bridge_probe.reachable
+                else [],
+                reroute_export="none",
+            ),
+            probed={
+                "bridge_reachable": bridge_probe.reachable,
+                "gateway_url": bridge_probe.gateway_url,
+                "gateway_reachable": bridge_probe.gateway_reachable,
+                "sessions_accessible": bridge_probe.sessions_accessible,
+                "attach_supported": bridge_probe.attach_supported,
+                "steering_supported": bridge_probe.steering_supported,
+            },
+            confidence={
+                "launch_mode": "verified" if bridge_probe.reachable else "unavailable",
+                "event_stream": "verified" if bridge_probe.reachable else "unavailable",
+            },
+            evidence={
+                "launch_mode": "OpenClaw Gateway bridge provides session access."
+                if bridge_probe.reachable
+                else "Bridge not detected — install openclaw-hive-bridge.",
+                "sandbox": "Sandbox is owned by OpenClaw, not Hive.",
+            },
+            governance_mode="advisory",
+            integration_level="attach",
+            adapter_family="delegate_gateway",
+        )
+
+    def probe(self) -> IntegrationInfo:
+        bridge_probe = self._bridge.probe()
+        return IntegrationInfo(
+            adapter=self.name,
+            adapter_family=self.adapter_family,
+            governance_mode=GovernanceMode.ADVISORY,
+            integration_level=IntegrationLevel.ATTACH,
+            version=bridge_probe.version or "0.0.0",
+            available=bridge_probe.reachable,
+            capability_snapshot=self._capability_snapshot(bridge_probe),
+            notes=[
+                *bridge_probe.notes,
+                *[f"blocker: {b}" for b in bridge_probe.blockers],
+                "Managed mode is deferred from v2.4.",
+            ],
+        )
+
+    def list_sessions(self) -> list[dict[str, Any]]:
+        return self._bridge.list_sessions()
+
+    def attach_delegate_session(
+        self,
+        native_session_ref: str,
+        governance: GovernanceMode,
+        project_id: str | None = None,
+        task_id: str | None = None,
+    ) -> SessionHandle:
+        # Fail fast if the bridge is not reachable.
+        bridge_probe = self._bridge.probe()
+        if not bridge_probe.reachable:
+            raise ConnectionError(
+                "Cannot attach: openclaw-hive-bridge is not reachable. "
+                + (
+                    bridge_probe.blockers[0]
+                    if bridge_probe.blockers
+                    else "Install the bridge first."
+                )
+            )
+
+        # OpenClaw sessions are always advisory — Hive never owns the sandbox.
+        effective_governance = GovernanceMode.ADVISORY
+
+        self._bridge.attach(native_session_ref, project_id=project_id)
+
+        delegate_id = new_id("del")
+        session = SessionHandle(
+            session_id=new_id("dsess"),
+            adapter_name=self.name,
+            adapter_family=self.adapter_family,
+            native_session_ref=native_session_ref,
+            governance_mode=effective_governance,
+            integration_level=IntegrationLevel.ATTACH,
+            delegate_session_id=delegate_id,
+            project_id=project_id,
+            task_id=task_id,
+            status="attached",
+        )
+        self._sessions[native_session_ref] = session
+
+        if self._base_path:
+            persist_delegate_session(
+                self._base_path,
+                session,
+                capability_snapshot=self._capability_snapshot(self._bridge.probe()),
+            )
+
+        return session
+
+    def stream_events(self, session: SessionHandle) -> Iterator[dict[str, Any]]:
+        from src.hive.trajectory.schema import trajectory_event
+        from src.hive.trajectory.writer import append_trajectory_event
+
+        seq = 0
+        for raw_event in self._bridge.stream_events(session.native_session_ref):
+            event = {
+                "seq": seq,
+                "kind": raw_event.get("kind", "assistant_delta"),
+                "ts": raw_event.get("ts", utc_now_iso()),
+                "harness": "openclaw",
+                "adapter_family": "delegate_gateway",
+                "native_session_ref": session.native_session_ref,
+                "delegate_session_id": session.delegate_session_id,
+                "project_id": session.project_id,
+                "task_id": session.task_id,
+                "payload": raw_event.get("payload", {}),
+            }
+            # Persist to trajectory file.
+            if self._base_path and session.delegate_session_id:
+                append_trajectory_event(
+                    self._base_path,
+                    trajectory_event(
+                        seq=seq,
+                        kind=event["kind"],
+                        harness="openclaw",
+                        adapter_family="delegate_gateway",
+                        native_session_ref=session.native_session_ref,
+                        delegate_session_id=session.delegate_session_id,
+                        project_id=session.project_id,
+                        task_id=session.task_id,
+                        payload=event.get("payload", {}),
+                    ),
+                )
+            yield event
+            seq += 1
+
+    def send_steer(
+        self, session: SessionHandle, request: SteeringRequest
+    ) -> dict[str, Any]:
+        result = self._bridge.send_steer(
+            session.native_session_ref,
+            request.action,
+            {"reason": request.reason, "note": request.note},
+        )
+        if self._base_path and session.delegate_session_id:
+            append_delegate_steering(
+                self._base_path,
+                session.delegate_session_id,
+                {
+                    "ts": utc_now_iso(),
+                    "action": request.action,
+                    "reason": request.reason,
+                    "note": request.note,
+                    "result": result,
+                },
+            )
+        return {"ok": True, "adapter": self.name, **result}
+
+    def publish_note(self, session: SessionHandle, note: str) -> dict[str, Any]:
+        result = self._bridge.publish_note(session.native_session_ref, note)
+        if self._base_path and session.delegate_session_id:
+            append_delegate_steering(
+                self._base_path,
+                session.delegate_session_id,
+                {"ts": utc_now_iso(), "action": "note", "note": note, "result": result},
+            )
+        return {"ok": True, "adapter": self.name, **result}
+
+    def collect_artifacts(self, session: SessionHandle) -> dict[str, Any]:
+        artifacts = []
+        if self._base_path and session.delegate_session_id:
+            session_dir = _delegates_dir(self._base_path) / session.delegate_session_id
+            for name in ("trajectory.jsonl", "steering.ndjson", "manifest.json"):
+                path = session_dir / name
+                if path.exists() and path.stat().st_size > 0:
+                    artifacts.append({"name": name, "path": str(path)})
+        return {
+            "adapter": self.name,
+            "session_id": session.session_id,
+            "artifacts": artifacts,
+        }
+
+    def detach_delegate_session(self, session: SessionHandle) -> dict[str, Any]:
+        self._bridge.detach(session.native_session_ref)
+        session.status = "detached"
+        self._sessions.pop(session.native_session_ref, None)
+
+        if self._base_path and session.delegate_session_id:
+            finalize_delegate_session(
+                self._base_path,
+                session.delegate_session_id,
+                {
+                    "status": "detached",
+                    "detached_at": utc_now_iso(),
+                    "reason": "operator-initiated",
+                },
+            )
+
+        return {"ok": True, "session_id": session.session_id}
+
+
+__all__ = [
+    "BridgeProbe",
+    "OpenClawBridgeClient",
+    "OpenClawGatewayAdapter",
+    "append_delegate_steering",
+    "finalize_delegate_session",
+    "list_delegate_sessions",
+    "load_delegate_session",
+    "persist_delegate_session",
+]

@@ -82,11 +82,13 @@ run_installed_search_smoke() {
     local workspace="$2"
     local python_bin
     local api_json="$TEMP_ROOT/installed-api-search.json"
+    local v24_json="$TEMP_ROOT/installed-v24-search.json"
     local examples_json="$TEMP_ROOT/installed-examples-search.json"
 
     python_bin="$(resolve_release_python_bin)"
 
     "$hive_bin" --path "$workspace" search "runtime contract" --scope api --limit 5 --json >"$api_json"
+    "$hive_bin" --path "$workspace" search "DelegateGatewayAdapter" --scope api --limit 5 --json >"$v24_json"
     "$hive_bin" --path "$workspace" search "sandbox doctor" --scope examples --limit 5 --json >"$examples_json"
 
     assert_search_payload \
@@ -94,6 +96,11 @@ run_installed_search_smoke() {
         "$api_json" \
         "api" \
         "package:docs/hive-v2.3-rfc/HIVE_V2_3_RUNTIME_AND_SANDBOX_SPEC.md"
+    assert_search_payload \
+        "$python_bin" \
+        "$v24_json" \
+        "api" \
+        "package:docs/hive-v2.4-rfc/HIVE_V2_4_ADAPTER_MODEL_AND_LINK_SPEC.md"
     assert_search_payload \
         "$python_bin" \
         "$examples_json" \

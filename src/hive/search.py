@@ -61,6 +61,28 @@ API_DOC_FILES = (
         "HIVE_V2_3_ACCEPTANCE_TESTS",
         "docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md",
     ),
+    ("api", "V2_4_STATUS", "docs/V2_4_STATUS.md"),
+    ("api", "HIVE_V2_4_RFC", "docs/hive-v2.4-rfc/HIVE_V2_4_RFC.md"),
+    (
+        "api",
+        "HIVE_V2_4_ADAPTER_MODEL_AND_LINK_SPEC",
+        "docs/hive-v2.4-rfc/HIVE_V2_4_ADAPTER_MODEL_AND_LINK_SPEC.md",
+    ),
+    (
+        "api",
+        "HIVE_V2_4_HARNESS_PACKAGES_AND_ONBOARDING",
+        "docs/hive-v2.4-rfc/HIVE_V2_4_HARNESS_PACKAGES_AND_ONBOARDING.md",
+    ),
+    (
+        "api",
+        "HIVE_V2_4_IMPLEMENTATION_PLAN",
+        "docs/hive-v2.4-rfc/HIVE_V2_4_IMPLEMENTATION_PLAN.md",
+    ),
+    (
+        "api",
+        "HIVE_V2_4_ACCEPTANCE_TESTS",
+        "docs/hive-v2.4-rfc/HIVE_V2_4_ACCEPTANCE_TESTS.md",
+    ),
     ("schema", "SCHEMA", "docs/hive-v2-spec/SCHEMA.sql"),
 )
 COMMAND_DOCS = (
@@ -585,6 +607,74 @@ def _score(text: str, query: str) -> int:
     return sum(haystack.count(term) for term in terms)
 
 
+def _result_key(item: dict[str, object]) -> str:
+    metadata = item.get("metadata")
+    key = str(metadata.get("entity_key") if isinstance(metadata, dict) else "")
+    if key:
+        return key
+    return str(item.get("path") or f"{item.get('kind')}:{item.get('title')}")
+
+
+def _result_family_kinds(scopes: set[str]) -> list[set[str]]:
+    families: list[set[str]] = []
+    if "api" in scopes:
+        families.append({"api", "command"})
+    if "schema" in scopes:
+        families.append({"schema"})
+    if "examples" in scopes:
+        families.append({"example"})
+    if "project" in scopes:
+        families.append({"project"})
+    return families
+
+
+def _ensure_scope_diversity(
+    ranked_results: list[dict[str, object]], scopes: set[str], limit: int
+) -> list[dict[str, object]]:
+    if limit <= 0 or len(ranked_results) <= limit:
+        return ranked_results[:limit]
+
+    selected = list(ranked_results[:limit])
+    selected_keys = {_result_key(item) for item in selected}
+    rank_by_key = {_result_key(item): index for index, item in enumerate(ranked_results)}
+
+    representative_keys: set[str] = set()
+    representatives: list[dict[str, object]] = []
+    for family in _result_family_kinds(scopes):
+        candidate = next(
+            (item for item in ranked_results if str(item.get("kind")) in family),
+            None,
+        )
+        if candidate is None:
+            continue
+        key = _result_key(candidate)
+        representatives.append(candidate)
+        representative_keys.add(key)
+
+    missing = [item for item in representatives if _result_key(item) not in selected_keys]
+    if not missing:
+        return selected
+
+    for candidate in missing:
+        replacement_index = next(
+            (
+                index
+                for index in range(len(selected) - 1, -1, -1)
+                if _result_key(selected[index]) not in representative_keys
+            ),
+            None,
+        )
+        if replacement_index is None:
+            break
+        dropped_key = _result_key(selected[replacement_index])
+        selected_keys.discard(dropped_key)
+        selected[replacement_index] = candidate
+        selected_keys.add(_result_key(candidate))
+
+    selected.sort(key=lambda item: rank_by_key[_result_key(item)])
+    return selected
+
+
 def _search_api_docs(
     query: str, scopes: set[str], limit: int
 ) -> list[dict[str, object]]:
@@ -752,15 +842,12 @@ def search_workspace(
         results,
         key=lambda result: (-float(result["score"]), str(result["title"])),
     ):
-        metadata = item.get("metadata")
-        key = str(metadata.get("entity_key") if isinstance(metadata, dict) else "")
-        if not key:
-            key = str(item.get("path") or f"{item.get('kind')}:{item.get('title')}")
+        key = _result_key(item)
         if key in seen:
             continue
         seen.add(key)
         deduped.append(item)
-    return deduped[:limit]
+    return _ensure_scope_diversity(deduped, normalized_scopes, limit)
 
 
 # pylint: disable-next=too-many-arguments

@@ -3130,11 +3130,16 @@ class TestHiveV2Search:
         monkeypatch.setattr("src.hive.search._repo_root", lambda: Path(temp_hive_dir) / "missing")
 
         api_results = search_workspace(temp_hive_dir, "Driver interface", scopes=["api"], limit=20)
+        v24_results = search_workspace(temp_hive_dir, "Hive Link", scopes=["api"], limit=20)
         example_results = search_workspace(
             temp_hive_dir, "observe and steer", scopes=["examples"], limit=20
         )
 
         assert any("package:" in str(item.get("path", "")) for item in api_results)
+        assert any(
+            str(item.get("path", "")).startswith("package:docs/hive-v2.4-rfc/")
+            for item in v24_results
+        )
         assert any(item["kind"] == "example" for item in example_results)
 
 

@@ -37,6 +37,18 @@ def test_packaged_docs_include_v23_rfc_corpus():
     assert "docs/hive-v2.3-rfc" in sdist_only_include
 
 
+def test_packaged_docs_include_v24_status_and_rfc_corpus():
+    """Installed search should retain the v2.4 ledger and RFC bundle."""
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    sdist_only_include = pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["only-include"]
+
+    assert "docs/V2_4_STATUS.md" in force_include
+    assert "docs/hive-v2.4-rfc" in force_include
+    assert "docs/V2_4_STATUS.md" in sdist_only_include
+    assert "docs/hive-v2.4-rfc" in sdist_only_include
+
+
 def test_public_readmes_surface_three_clear_entry_points():
     """User-facing docs should separate fresh installs, existing repos, and maintainers."""
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")

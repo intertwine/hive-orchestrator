@@ -45,6 +45,8 @@ Useful local commands:
 
 For the current release train, keep [docs/V2_3_STATUS.md](./V2_3_STATUS.md) up to date as the compact v2.3 execution ledger.
 Use the explicit scope-lock notes there as the current release truth if they narrow older proposed RFC items.
+For the v2.4 implementation line, use [docs/V2_4_STATUS.md](./V2_4_STATUS.md) as the compact execution ledger and
+[docs/hive-v2.4-rfc/README.md](./hive-v2.4-rfc/README.md) as the bundled planning reference.
 
 ## Install Paths While Developing
 

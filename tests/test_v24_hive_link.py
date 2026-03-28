@@ -199,3 +199,70 @@ def test_link_server_poll_actions():
     assert len(responses) == 1
     assert responses[0]["type"] == "actions"
     assert responses[0]["items"] == []
+
+
+# ---------------------------------------------------------------------------
+# P1 fix: multi-session close targets the correct session
+# ---------------------------------------------------------------------------
+
+
+def test_link_server_close_targets_correct_session():
+    """Attach sess-1 and sess-2, then close sess-1 — sess-2 must survive."""
+    adapter = DummyGatewayAdapter()
+    messages = [
+        json.dumps(
+            LinkAttach(
+                native_session_ref="sess-1",
+                requested_governance="advisory",
+            ).to_dict()
+        ),
+        json.dumps(
+            LinkAttach(
+                native_session_ref="sess-2",
+                requested_governance="advisory",
+            ).to_dict()
+        ),
+        json.dumps(LinkClose(native_session_ref="sess-1", reason="done").to_dict()),
+    ]
+    input_stream = io.StringIO("\n".join(messages) + "\n")
+    output_stream = io.StringIO()
+
+    server = LinkServer(adapter, input_stream, output_stream)
+    server.serve()
+
+    # sess-1 should be gone, sess-2 should still be tracked
+    assert "sess-1" not in server._sessions
+    assert "sess-2" in server._sessions
+    assert server._sessions["sess-2"].native_session_ref == "sess-2"
+
+
+# ---------------------------------------------------------------------------
+# P2 fix: invalid governance emits error, doesn't crash server
+# ---------------------------------------------------------------------------
+
+
+def test_link_server_invalid_governance_emits_error():
+    """An attach with bogus governance should emit an error, not crash."""
+    adapter = DummyWorkerAdapter()
+    messages = [
+        json.dumps(
+            LinkAttach(
+                native_session_ref="sess-1",
+                requested_governance="bogus",
+            ).to_dict()
+        ),
+        json.dumps(LinkPollActions(native_session_ref="sess-1", since_seq=0).to_dict()),
+    ]
+    input_stream = io.StringIO("\n".join(messages) + "\n")
+    output_stream = io.StringIO()
+
+    server = LinkServer(adapter, input_stream, output_stream)
+    server.serve()
+
+    output_stream.seek(0)
+    responses = [json.loads(line) for line in output_stream if line.strip()]
+    # First response should be an error for the bad governance
+    assert responses[0]["type"] == "error"
+    assert "bogus" in responses[0]["message"]
+    # Server should continue — second message gets a valid response
+    assert responses[1]["type"] == "actions"

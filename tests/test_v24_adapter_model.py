@@ -237,6 +237,23 @@ def test_registry_list_all_backends_includes_legacy_drivers():
     assert "codex" in driver_names
 
 
+def test_registry_auto_registers_bundled_dummy_adapters():
+    """Bundled dummy adapters should be discoverable without manual registration."""
+    from src.hive.integrations.registry import get_integration
+
+    worker = get_integration("dummy-worker")
+    gateway = get_integration("dummy-gateway")
+    assert worker.name == "dummy-worker"
+    assert gateway.name == "dummy-gateway"
+    # Also verify they appear in list_all_backends
+    backends = list_all_backends()
+    adapter_names = {
+        b.get("adapter") for b in backends if b.get("adapter_type") != "legacy_driver"
+    }
+    assert "dummy-worker" in adapter_names
+    assert "dummy-gateway" in adapter_names
+
+
 def test_registry_with_registered_adapters():
     worker = DummyWorkerAdapter()
     gateway = DummyGatewayAdapter()

@@ -11,7 +11,7 @@ from src.hive.integrations.base import (
     DelegateGatewayAdapter,
     WorkerSessionAdapter,
 )
-from src.hive.integrations.models import GovernanceMode
+from src.hive.integrations.models import GovernanceMode, SessionHandle
 from src.hive.link.protocol import (
     LinkActions,
     LinkAttach,
@@ -42,7 +42,7 @@ class LinkServer:
         self._in = input_stream
         self._out = output_stream
         self._hello_received = False
-        self._session = None
+        self._sessions: dict[str, SessionHandle] = {}
 
     def serve(self) -> None:
         """Read NDJSON messages from input, dispatch, write responses."""
@@ -56,7 +56,11 @@ class LinkServer:
             except (json.JSONDecodeError, ValueError):
                 self._send_error(f"Invalid message: {line[:120]}")
                 continue
-            response = self._handle_message(msg)
+            try:
+                response = self._handle_message(msg)
+            except Exception as exc:
+                self._send_error(str(exc))
+                continue
             if response is not None:
                 self._write(response)
 
@@ -103,7 +107,7 @@ class LinkServer:
                 effective_governance=str(governance),
                 capabilities={},
             )
-        self._session = session
+        self._sessions[msg.native_session_ref] = session
         return LinkAttachOk(
             run_id=session.run_id,
             delegate_session_id=session.delegate_session_id,
@@ -118,12 +122,12 @@ class LinkServer:
         return None
 
     def _handle_close(self, msg: LinkClose) -> None:
-        if self._session is not None:
+        session = self._sessions.pop(msg.native_session_ref, None)
+        if session is not None:
             if isinstance(self.adapter, WorkerSessionAdapter):
-                self.adapter.close_session(self._session, msg.reason)
+                self.adapter.close_session(session, msg.reason)
             elif isinstance(self.adapter, DelegateGatewayAdapter):
-                self.adapter.detach_delegate_session(self._session)
-            self._session = None
+                self.adapter.detach_delegate_session(session)
         return None
 
     def _write(self, msg: LinkMessage) -> None:

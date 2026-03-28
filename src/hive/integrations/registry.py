@@ -8,6 +8,20 @@ from src.hive.integrations.base import AdapterBase
 
 
 _INTEGRATIONS: dict[str, AdapterBase] = {}
+_BOOTSTRAPPED = False
+
+
+def _bootstrap_bundled() -> None:
+    """Auto-register the bundled dummy adapters on first access."""
+    global _BOOTSTRAPPED
+    if _BOOTSTRAPPED:
+        return
+    _BOOTSTRAPPED = True
+    from src.hive.integrations.dummy_gateway import DummyGatewayAdapter
+    from src.hive.integrations.dummy_worker import DummyWorkerAdapter
+
+    _INTEGRATIONS.setdefault("dummy-worker", DummyWorkerAdapter())
+    _INTEGRATIONS.setdefault("dummy-gateway", DummyGatewayAdapter())
 
 
 def register_integration(name: str, adapter: AdapterBase) -> None:
@@ -22,11 +36,13 @@ def unregister_integration(name: str) -> None:
 
 def list_integrations() -> list[AdapterBase]:
     """Return all registered v2.4 adapters in insertion order."""
+    _bootstrap_bundled()
     return list(_INTEGRATIONS.values())
 
 
 def get_integration(name: str) -> AdapterBase:
     """Return a named integration or raise ValueError."""
+    _bootstrap_bundled()
     try:
         return _INTEGRATIONS[name]
     except KeyError as exc:
@@ -42,6 +58,7 @@ def list_all_backends() -> list[dict[str, Any]]:
     Each entry includes an ``adapter_type`` discriminator:
     ``"legacy_driver"``, ``"worker_session"``, or ``"delegate_gateway"``.
     """
+    _bootstrap_bundled()
     from src.hive.drivers.registry import list_drivers
 
     entries: list[dict[str, Any]] = []

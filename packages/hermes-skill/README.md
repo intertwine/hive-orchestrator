@@ -23,6 +23,10 @@ Or reference it directly:
 hive integrate hermes
 ```
 
+**Note:** The action wrappers in `actions.py` shell out to the `hive` CLI on PATH.
+If running from a repo checkout, use `uv run hive` or ensure the installed `hive`
+matches the repo version. From an installed `mellona-hive`, the actions work directly.
+
 ## Actions
 
 | Intent | Description | CLI equivalent |

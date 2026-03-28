@@ -91,6 +91,20 @@ def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
     skill_dir = root / "packages" / "hermes-skill"
     skill_installed = (skill_dir / "manifest.json").exists()
 
+    # gateway_reachable is False until a real health check confirms it.
+    # Having a URL configured is necessary but not sufficient.
+    gateway_configured = bool(gateway_url)
+    blockers: list[str] = []
+    if not gateway_configured:
+        blockers.append(
+            "HERMES_GATEWAY_URL not set — gateway attach will be unavailable."
+        )
+    else:
+        blockers.append(
+            f"Gateway at {gateway_url} is configured but reachability is not verified. "
+            "Set up the Hermes gateway and re-run: hive integrate hermes"
+        )
+
     return HermesProbe(
         hermes_found=True,
         hermes_home=hermes_home or str(Path(hermes_binary).parent.parent)
@@ -98,22 +112,18 @@ def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
         else "",
         hermes_version="",  # Populated by actual version probe when available.
         gateway_url=gateway_url,
-        gateway_reachable=bool(
-            gateway_url
-        ),  # Real check deferred to bridge/gateway probe.
+        gateway_reachable=False,  # Cannot verify without an actual health check.
         skill_installed=skill_installed,
         agents_context_intact=agents_intact,
         trajectory_export_available=True,
         notes=[
             f"Hermes detected at {hermes_binary or hermes_home}.",
         ]
-        + ([f"Gateway URL: {gateway_url}"] if gateway_url else [])
+        + ([f"Gateway URL configured: {gateway_url}"] if gateway_configured else [])
         + (
             ["Skill bundle found in packages/hermes-skill/."] if skill_installed else []
         ),
-        blockers=[]
-        if gateway_url
-        else ["HERMES_GATEWAY_URL not set — gateway attach will be unavailable."],
+        blockers=blockers,
     )
 
 

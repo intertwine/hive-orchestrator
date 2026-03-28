@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import threading
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 from pathlib import Path
 
@@ -27,6 +30,37 @@ from src.hive.integrations.openclaw import (
     load_delegate_session,
 )
 from src.hive.integrations.registry import get_integration
+
+
+# ---------------------------------------------------------------------------
+# Probe helpers
+# ---------------------------------------------------------------------------
+
+
+@contextmanager
+def _serve_json(payload: dict[str, object]):
+    body = json.dumps(payload).encode("utf-8")
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format, *args):  # pragma: no cover - test noise only
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        yield f"http://{host}:{port}"
+    finally:
+        server.shutdown()
+        thread.join(timeout=3)
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +145,44 @@ class TestHE1InstallAndConnect:
         assert snap is not None
         assert snap.probed["gateway_reachable"] is False
         assert snap.confidence["launch_mode"] == "hermes_only"
+
+    def test_real_probe_rejects_generic_http_server(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
+        with _serve_json({"ok": True}) as gateway_url:
+            monkeypatch.setenv("HERMES_GATEWAY_URL", gateway_url)
+            adapter = HermesGatewayAdapter(base_path=tmp_path)
+            info = adapter.probe()
+
+        assert info.available is False
+        snap = info.capability_snapshot
+        assert snap is not None
+        assert snap.probed["gateway_reachable"] is False
+        assert snap.probed["gateway_responding"] is True
+        assert any(
+            "Hive-compatible Hermes attach support" in note for note in info.notes
+        )
+
+    def test_real_probe_accepts_hive_compatible_gateway(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
+        with _serve_json(
+            {
+                "gateway": "hermes",
+                "capabilities": {
+                    "hive_attach": True,
+                    "event_stream": True,
+                    "steering": True,
+                },
+            }
+        ) as gateway_url:
+            monkeypatch.setenv("HERMES_GATEWAY_URL", gateway_url)
+            adapter = HermesGatewayAdapter(base_path=tmp_path)
+            info = adapter.probe()
+
+        assert info.available is True
+        snap = info.capability_snapshot
+        assert snap is not None
+        assert snap.probed["gateway_reachable"] is True
+        assert snap.probed["gateway_responding"] is True
 
     def test_probe_capability_snapshot_truthful(self):
         adapter = _make_adapter()

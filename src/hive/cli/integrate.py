@@ -252,12 +252,21 @@ def _integrate_hermes(args, root: Path) -> int:
 
     hermes_found = bool(probed.get("hermes_found"))
     gateway_ok = bool(probed.get("gateway_reachable"))
+    gateway_responding = bool(probed.get("gateway_responding"))
 
     next_steps: list[str] = []
     if not hermes_found:
         status_msg = "Hermes not found"
         next_steps.append("Install Hermes or set HERMES_HOME.")
         next_steps.append("Then re-run: hive integrate hermes")
+    elif gateway_responding and not gateway_ok:
+        status_msg = "Hermes found, gateway not Hive-compatible"
+        next_steps.append(
+            "Enable Hive-compatible attach support in the Hermes gateway and re-run: hive integrate hermes"
+        )
+        next_steps.append(
+            "Or import an export instead: hive integrate import-trajectory hermes <path>"
+        )
     elif not gateway_ok:
         status_msg = "Hermes found, gateway not reachable"
         next_steps.append("Set HERMES_GATEWAY_URL and re-run: hive integrate hermes")

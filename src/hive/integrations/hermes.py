@@ -59,6 +59,7 @@ class HermesProbe:
     hermes_version: str = ""
     gateway_url: str = ""
     gateway_reachable: bool = False
+    gateway_responding: bool = False
     skill_installed: bool = False
     agents_context_intact: bool = False
     trajectory_export_available: bool = False
@@ -66,10 +67,52 @@ class HermesProbe:
     notes: list[str] = field(default_factory=list)
 
 
-def _check_gateway_health(gateway_url: str) -> bool:
-    """Attempt an HTTP health check against the Hermes gateway."""
+@dataclass
+class HermesGatewayHealth:
+    """Status of the configured Hermes gateway endpoint."""
+
+    hive_attach_ready: bool = False
+    responding: bool = False
+    detail: str = ""
+
+
+def _gateway_advertises_hive_attach(payload: Any) -> bool:
+    """Return True when a health payload looks like a Hive-aware Hermes gateway."""
+    if not isinstance(payload, dict):
+        return False
+
+    gateway_name = str(
+        payload.get("gateway") or payload.get("service") or payload.get("name") or ""
+    ).strip().lower()
+    if gateway_name not in {"hermes", "hermes-gateway"}:
+        return False
+
+    feature_names: set[str] = set()
+    capabilities = payload.get("capabilities") or payload.get("features") or {}
+    if isinstance(capabilities, dict):
+        feature_names = {
+            str(name).strip().lower()
+            for name, enabled in capabilities.items()
+            if enabled
+        }
+    elif isinstance(capabilities, list):
+        feature_names = {str(name).strip().lower() for name in capabilities}
+
+    return bool(
+        payload.get("hive_attach")
+        or payload.get("hive_link")
+        or "hive_attach" in feature_names
+        or "hive_link" in feature_names
+    )
+
+
+def _check_gateway_health(gateway_url: str) -> HermesGatewayHealth:
+    """Attempt an HTTP health check against a Hive-compatible Hermes gateway."""
     import urllib.request
     import urllib.error
+
+    best_detail = ""
+    saw_response = False
 
     # Try common health endpoints.
     for path in ("/health", "/api/health", "/"):
@@ -77,11 +120,55 @@ def _check_gateway_health(gateway_url: str) -> bool:
             url = gateway_url.rstrip("/") + path
             req = urllib.request.Request(url, method="GET")
             with urllib.request.urlopen(req, timeout=3) as resp:
-                if resp.status < 500:
-                    return True
+                if resp.status >= 500:
+                    continue
+
+                saw_response = True
+                try:
+                    payload = json.loads(resp.read().decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    best_detail = (
+                        f"Gateway at {gateway_url} responded on {path} but did not "
+                        "return JSON health metadata."
+                    )
+                    continue
+
+                if _gateway_advertises_hive_attach(payload):
+                    return HermesGatewayHealth(
+                        hive_attach_ready=True,
+                        responding=True,
+                        detail=(
+                            f"Gateway at {gateway_url} advertises Hive-compatible "
+                            "Hermes attach support."
+                        ),
+                    )
+
+                best_detail = (
+                    f"Gateway at {gateway_url} responded on {path} but did not "
+                    "advertise Hive-compatible Hermes attach support."
+                )
         except (urllib.error.URLError, OSError, ValueError):
             continue
-    return False
+
+    if saw_response:
+        return HermesGatewayHealth(
+            hive_attach_ready=False,
+            responding=True,
+            detail=best_detail
+            or (
+                f"Gateway at {gateway_url} responded but did not advertise "
+                "Hive-compatible Hermes attach support."
+            ),
+        )
+
+    return HermesGatewayHealth(
+        hive_attach_ready=False,
+        responding=False,
+        detail=(
+            f"Gateway at {gateway_url} is not reachable. "
+            "Start the Hermes gateway and re-run: hive integrate hermes"
+        ),
+    )
 
 
 def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
@@ -116,9 +203,10 @@ def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
 
     # Gateway reachability: actually probe when a URL is configured.
     gateway_configured = bool(gateway_url)
-    gateway_reachable = False
+    gateway_health = HermesGatewayHealth()
     if gateway_configured:
-        gateway_reachable = _check_gateway_health(gateway_url)
+        gateway_health = _check_gateway_health(gateway_url)
+    gateway_reachable = gateway_health.hive_attach_ready
 
     blockers: list[str] = []
     if not gateway_configured:
@@ -126,10 +214,7 @@ def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
             "HERMES_GATEWAY_URL not set — gateway attach will be unavailable."
         )
     elif not gateway_reachable:
-        blockers.append(
-            f"Gateway at {gateway_url} is not reachable. "
-            "Start the Hermes gateway and re-run: hive integrate hermes"
-        )
+        blockers.append(gateway_health.detail)
 
     return HermesProbe(
         hermes_found=True,
@@ -137,6 +222,7 @@ def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
         hermes_version="",  # Populated by actual version probe when available.
         gateway_url=gateway_url,
         gateway_reachable=gateway_reachable,
+        gateway_responding=gateway_health.responding,
         skill_installed=skill_installed,
         agents_context_intact=agents_intact,
         trajectory_export_available=True,
@@ -144,10 +230,10 @@ def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
             f"Hermes detected at {hermes_binary or resolved_home}.",
         ]
         + (
-            [f"Gateway at {gateway_url} is reachable."]
+            [gateway_health.detail]
             if gateway_reachable
             else (
-                [f"Gateway URL configured: {gateway_url}"] if gateway_configured else []
+                [gateway_health.detail] if gateway_configured else []
             )
         )
         + (
@@ -373,6 +459,7 @@ class HermesGatewayAdapter(DelegateGatewayAdapter):
                 "hermes_home": hermes_probe.hermes_home,
                 "gateway_url": hermes_probe.gateway_url,
                 "gateway_reachable": hermes_probe.gateway_reachable,
+                "gateway_responding": hermes_probe.gateway_responding,
                 "skill_installed": hermes_probe.skill_installed,
                 "agents_context_intact": hermes_probe.agents_context_intact,
                 "trajectory_export_available": hermes_probe.trajectory_export_available,
@@ -386,10 +473,14 @@ class HermesGatewayAdapter(DelegateGatewayAdapter):
                 else ("hermes_only" if hermes_probe.hermes_found else "unavailable"),
             },
             evidence={
-                "launch_mode": "Hermes gateway provides session access."
+                "launch_mode": "Hermes gateway advertises Hive-compatible attach support."
                 if available
                 else (
-                    "Hermes detected but gateway not reachable."
+                    (
+                        "Hermes detected but the configured gateway is not Hive-compatible."
+                        if hermes_probe.gateway_responding
+                        else "Hermes detected but gateway not reachable."
+                    )
                     if hermes_probe.hermes_found
                     else "Hermes not detected."
                 ),

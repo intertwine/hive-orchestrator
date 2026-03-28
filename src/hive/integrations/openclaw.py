@@ -415,7 +415,7 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
         project_id: str | None = None,
         task_id: str | None = None,
     ) -> SessionHandle:
-        # Fail fast if the bridge is not reachable.
+        # Fail fast if the bridge is not reachable or the gateway is unavailable.
         bridge_probe = self._bridge.probe()
         if not bridge_probe.reachable:
             raise ConnectionError(
@@ -424,6 +424,15 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
                     bridge_probe.blockers[0]
                     if bridge_probe.blockers
                     else "Install the bridge first."
+                )
+            )
+        if not bridge_probe.gateway_reachable:
+            raise ConnectionError(
+                "Cannot attach: OpenClaw gateway is not reachable. "
+                + (
+                    bridge_probe.blockers[0]
+                    if bridge_probe.blockers
+                    else "Configure OPENCLAW_GATEWAY_URL and restart the bridge."
                 )
             )
 

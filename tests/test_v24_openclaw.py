@@ -600,6 +600,13 @@ class TestReviewFixes:
         assert info.capability_snapshot is not None
         assert info.capability_snapshot.probed["gateway_reachable"] is False
 
+    def test_attach_fails_when_gateway_unreachable(self):
+        """P1-1 (follow-up): attach must fail when gateway is configured but down."""
+        stub = StubBridgeClient(gateway_reachable=False)
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        with pytest.raises(ConnectionError, match="gateway is not reachable"):
+            adapter.attach_delegate_session("oc-sess-001", GovernanceMode.ADVISORY)
+
 
 # ---------------------------------------------------------------------------
 # Bridge client protocol tests

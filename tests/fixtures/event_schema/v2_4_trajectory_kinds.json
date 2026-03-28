@@ -1,0 +1,27 @@
+{
+  "schema_version": "2.4.0",
+  "required_kinds": [
+    "session_start",
+    "session_end",
+    "turn_start",
+    "turn_end",
+    "assistant_delta",
+    "user_message",
+    "tool_call_start",
+    "tool_call_update",
+    "tool_call_end",
+    "approval_request",
+    "approval_decision",
+    "steering_received",
+    "artifact_written",
+    "compaction",
+    "error"
+  ],
+  "optional_kinds": [
+    "context_loaded",
+    "skill_loaded",
+    "subagent_spawned",
+    "memory_mutation",
+    "sandbox_notice"
+  ]
+}

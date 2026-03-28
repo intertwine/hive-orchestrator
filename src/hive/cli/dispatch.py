@@ -26,6 +26,7 @@ def dispatch(args, root: Path) -> int:
         "drivers",
         "driver",
         "sandbox",
+        "integrate",
     }:
         return control.dispatch(args, root)
     if args.command in {"project", "workspace", "task"}:

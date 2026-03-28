@@ -36,7 +36,10 @@ def list_runs(
         run = refresh_run_driver_state(base_path, metadata_path.parent.name)
         if project_id and run.get("project_id") != project_id:
             continue
-        if requested_driver and normalize_driver_name(str(run.get("driver") or "")) != requested_driver:
+        if (
+            requested_driver
+            and normalize_driver_name(str(run.get("driver") or "")) != requested_driver
+        ):
             continue
         if health and run.get("health") != health:
             continue
@@ -77,9 +80,13 @@ def _read_preview(path_value: str | None, *, limit: int = 12000) -> str | None:
     return path.read_text(encoding="utf-8")[:limit]
 
 
-def _compiled_context_details(run_root: Path, context_manifest: dict) -> dict[str, object]:
+def _compiled_context_details(
+    run_root: Path, context_manifest: dict
+) -> dict[str, object]:
     compiled_entries = list(context_manifest.get("entries") or [])
-    memory_entries = [entry for entry in compiled_entries if entry.get("source_type") == "memory"]
+    memory_entries = [
+        entry for entry in compiled_entries if entry.get("source_type") == "memory"
+    ]
     search_entries = [
         entry for entry in compiled_entries if entry.get("source_type") == "search-hit"
     ]
@@ -88,9 +95,12 @@ def _compiled_context_details(run_root: Path, context_manifest: dict) -> dict[st
         for entry in compiled_entries
         if entry.get("source_type") in {"skill", "skill-meta", "skills"}
     ]
-    search_hits = _load_json(str(run_root / "context" / "compiled" / "search-hits.json")) or {}
+    search_hits = (
+        _load_json(str(run_root / "context" / "compiled" / "search-hits.json")) or {}
+    )
     skills_manifest = (
-        _load_json(str(run_root / "context" / "compiled" / "skills-manifest.json")) or {}
+        _load_json(str(run_root / "context" / "compiled" / "skills-manifest.json"))
+        or {}
     )
     return {
         "compiled_entries": compiled_entries,
@@ -131,14 +141,18 @@ def _artifact_paths(run_root: Path, run: dict) -> dict[str, str | None]:
         "final": run.get("final_path"),
         "logs": run.get("logs_dir"),
         "run_brief": str(run_root / "context" / "compiled" / "run-brief.md"),
-        "skills_manifest": str(run_root / "context" / "compiled" / "skills-manifest.json"),
+        "skills_manifest": str(
+            run_root / "context" / "compiled" / "skills-manifest.json"
+        ),
         "search_hits": str(run_root / "context" / "compiled" / "search-hits.json"),
         "stdout": str(run_root / "logs" / "stdout.txt"),
         "stderr": str(run_root / "logs" / "stderr.txt"),
     }
 
 
-def _artifact_preview(artifacts: dict[str, str | None], run: dict) -> dict[str, str | None]:
+def _artifact_preview(
+    artifacts: dict[str, str | None], run: dict
+) -> dict[str, str | None]:
     return {
         "run_brief": _read_preview(artifacts["run_brief"]),
         "review_summary": _read_preview(run.get("summary_path")),
@@ -166,8 +180,12 @@ def build_inbox(base_path: Path) -> list[dict]:
                     "run_id": run["id"],
                     "project_id": run.get("project_id"),
                     "approval_id": approval.get("approval_id"),
-                    "title": str(approval.get("title") or f"Approval needed for {run['id']}"),
-                    "reason": str(approval.get("summary") or "Driver requested approval."),
+                    "title": str(
+                        approval.get("title") or f"Approval needed for {run['id']}"
+                    ),
+                    "reason": str(
+                        approval.get("summary") or "Driver requested approval."
+                    ),
                 }
             )
         status = str(run.get("status", ""))
@@ -226,9 +244,13 @@ def build_home_view(base_path: Path) -> dict:
     status = portfolio_status(base_path)
     deps = dependency_summary(base_path)
     inbox = build_inbox(base_path)
-    accepted = [run for run in list_runs(base_path) if run.get("status") == "accepted"][:5]
+    accepted = [run for run in list_runs(base_path) if run.get("status") == "accepted"][
+        :5
+    ]
     blocked_projects = [
-        project for project in deps.get("projects", []) if project.get("effectively_blocked")
+        project
+        for project in deps.get("projects", [])
+        if project.get("effectively_blocked")
     ]
     return {
         "workspace": str(base_path),
@@ -278,7 +300,9 @@ def load_run_detail(base_path: Path, run_id: str) -> dict:
     context_details = _compiled_context_details(run_root, context_manifest)
     artifacts = _artifact_paths(run_root, run)
     steering_history = [
-        event for event in timeline if str(event.get("type", "")).startswith("steering.")
+        event
+        for event in timeline
+        if str(event.get("type", "")).startswith("steering.")
     ]
     promotion_decision = run.get("metadata_json", {}).get("promotion_decision")
     approvals = list_approvals(base_path, run_id)
@@ -322,4 +346,8 @@ def load_run_detail(base_path: Path, run_id: str) -> dict:
         "promotion_decision": promotion_decision,
         "artifact_preview": _artifact_preview(artifacts, run),
         "evaluations": run.get("metadata_json", {}).get("evaluations", []),
+        # v2.4 adapter-family truth — extracted from capability snapshot with safe defaults.
+        "governance_mode": capability_snapshot.get("governance_mode", "governed"),
+        "integration_level": capability_snapshot.get("integration_level", "managed"),
+        "adapter_family": capability_snapshot.get("adapter_family", "legacy_driver"),
     }

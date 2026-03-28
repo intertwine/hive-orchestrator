@@ -27,19 +27,28 @@ from src.hive.workspace import WorkspaceBusyError, sync_workspace
 from src.hive.control import finish_run_flow, recommend_next_task, work_on_task
 
 
-def _sandbox_doctor_summary(payload: dict[str, object], backend: str | None = None) -> tuple[str, list[str]]:
-    probes = [dict(item) for item in payload.get("backends", []) if isinstance(item, dict)]
+def _sandbox_doctor_summary(
+    payload: dict[str, object], backend: str | None = None
+) -> tuple[str, list[str]]:
+    probes = [
+        dict(item) for item in payload.get("backends", []) if isinstance(item, dict)
+    ]
     if backend and probes:
         probe = probes[0]
-        blockers = [str(item) for item in probe.get("blockers", []) if str(item).strip()]
-        warnings = [str(item) for item in probe.get("warnings", []) if str(item).strip()]
+        blockers = [
+            str(item) for item in probe.get("blockers", []) if str(item).strip()
+        ]
+        warnings = [
+            str(item) for item in probe.get("warnings", []) if str(item).strip()
+        ]
         notes = [str(item) for item in probe.get("notes", []) if str(item).strip()]
         status = "available" if probe.get("available") and not blockers else "blocked"
         headline = f"Sandbox backend {probe.get('backend')} is {status}."
         lines: list[str] = []
         if probe.get("supported_profiles"):
             lines.append(
-                "profiles: " + ", ".join(str(item) for item in probe["supported_profiles"])
+                "profiles: "
+                + ", ".join(str(item) for item in probe["supported_profiles"])
             )
         lines.extend(f"blocked: {item}" for item in blockers)
         lines.extend(f"warning: {item}" for item in warnings)
@@ -86,7 +95,9 @@ def dispatch(args, root: Path) -> int:
                 ]
                 review_tasks = [t for t in all_tasks if t.status == "review"]
                 proposed_tasks = [t for t in all_tasks if t.status == "proposed"]
-                claimed_tasks = [t for t in all_tasks if t.status in ("claimed", "in_progress")]
+                claimed_tasks = [
+                    t for t in all_tasks if t.status in ("claimed", "in_progress")
+                ]
                 done_tasks = [t for t in all_tasks if t.status == "done"]
 
                 # Build a human-readable explanation of why nothing is ready
@@ -104,8 +115,15 @@ def dispatch(args, root: Path) -> int:
                     explanations.append(
                         f"{len(proposed_tasks)} task(s) proposed but blocked by dependencies"
                     )
-                if done_tasks and not review_tasks and not proposed_tasks and not claimed_tasks:
-                    explanations.append("All tasks are done — create new work to continue")
+                if (
+                    done_tasks
+                    and not review_tasks
+                    and not proposed_tasks
+                    and not claimed_tasks
+                ):
+                    explanations.append(
+                        "All tasks are done — create new work to continue"
+                    )
 
                 message = "No ready task is available right now."
                 if explanations:
@@ -118,7 +136,9 @@ def dispatch(args, root: Path) -> int:
                         "(close the review task to unblock work)"
                     )
                 if not all_tasks:
-                    next_steps.append("hive onboard demo  (bootstrap a starter project)")
+                    next_steps.append(
+                        "hive onboard demo  (bootstrap a starter project)"
+                    )
                 next_steps.append("hive doctor  (diagnose workspace health)")
                 return emit(
                     {
@@ -212,7 +232,9 @@ def dispatch(args, root: Path) -> int:
             if payload["action"] == "reject":
                 next_steps = []
                 # Provide targeted guidance for common rejection reasons
-                no_changes = any("did not produce workspace changes" in str(r) for r in reasons)
+                no_changes = any(
+                    "did not produce workspace changes" in str(r) for r in reasons
+                )
                 no_evaluator = any("No evaluator results" in str(r) for r in reasons)
                 if no_changes:
                     worktree = payload["run"].get("worktree_path", "")
@@ -226,7 +248,9 @@ def dispatch(args, root: Path) -> int:
                         f"hive program doctor {payload['run']['project_id']}  "
                         "(add an evaluator to enable promotion)"
                     )
-                next_steps.append(f"hive next --project-id {payload['run']['project_id']}")
+                next_steps.append(
+                    f"hive next --project-id {payload['run']['project_id']}"
+                )
                 next_steps.append("hive doctor  (diagnose workspace health)")
             elif payload["action"] == "escalate":
                 next_steps = [f"hive run show {args.run_id}"]
@@ -253,7 +277,8 @@ def dispatch(args, root: Path) -> int:
                     "ok": True,
                     "message": message,
                     "run": payload["run"],
-                    "task": task.to_frontmatter() | {"path": str(task.path) if task.path else None},
+                    "task": task.to_frontmatter()
+                    | {"path": str(task.path) if task.path else None},
                     "evaluation": payload["evaluation"],
                     "promotion_decision": decision,
                     "promotion": payload["promotion"],
@@ -293,7 +318,10 @@ def dispatch(args, root: Path) -> int:
                 )
             if args.console_command == "run":
                 sync_workspace(root)
-                return emit({"ok": True, "detail": load_run_detail(root, args.run_id)}, args.json)
+                return emit(
+                    {"ok": True, "detail": load_run_detail(root, args.run_id)},
+                    args.json,
+                )
         if args.command == "search":
             return emit(
                 {
@@ -333,7 +361,9 @@ def dispatch(args, root: Path) -> int:
                 return emit(
                     {
                         "ok": True,
-                        "drivers": [driver.probe().to_dict() for driver in list_drivers()],
+                        "drivers": [
+                            driver.probe().to_dict() for driver in list_drivers()
+                        ],
                     },
                     args.json,
                 )
@@ -358,10 +388,16 @@ def dispatch(args, root: Path) -> int:
             )
         if args.command == "sandbox" and args.sandbox_command == "doctor":
             payload = sandbox_doctor(args.backend)
-            headline, summary_lines = _sandbox_doctor_summary(payload, backend=args.backend)
+            headline, summary_lines = _sandbox_doctor_summary(
+                payload, backend=args.backend
+            )
             payload["message"] = headline
             payload["summary_lines"] = summary_lines
             return emit(payload, args.json)
+        if args.command == "integrate":
+            from src.hive.cli import integrate
+
+            return integrate.dispatch(args, root)
     except (
         CacheBusyError,
         WorkspaceBusyError,

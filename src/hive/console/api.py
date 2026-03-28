@@ -14,7 +14,12 @@ from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 
 from src.hive import __version__
-from src.hive.console.state import build_home_view, build_inbox, list_runs, load_run_detail
+from src.hive.console.state import (
+    build_home_view,
+    build_inbox,
+    list_runs,
+    load_run_detail,
+)
 from src.hive.control import campaign_status
 from src.hive.context_bundle import build_context_bundle
 from src.hive.drivers import SteeringRequest
@@ -91,7 +96,9 @@ def _console_asset_root() -> Path | None:
     source_root = Path(__file__).resolve().parent.parent / "resources" / "console"
     if source_root.exists():
         return source_root
-    resource_package = f"{(__package__ or 'src.hive.console').rsplit('.', 1)[0]}.resources"
+    resource_package = (
+        f"{(__package__ or 'src.hive.console').rsplit('.', 1)[0]}.resources"
+    )
     packaged = files(resource_package).joinpath("console")
     candidate = Path(str(packaged))
     if candidate.exists():
@@ -189,7 +196,11 @@ def events_stream(
             if run_id:
                 events = [event for event in events if event.get("run_id") == run_id]
             selected = events[-limit:]
-            marker = str(selected[-1]["event_id"]) if selected else f"empty:{run_id or 'workspace'}"
+            marker = (
+                str(selected[-1]["event_id"])
+                if selected
+                else f"empty:{run_id or 'workspace'}"
+            )
             if marker != last_marker:
                 last_marker = marker
                 yield _encode_sse(
@@ -331,7 +342,9 @@ def reject_run_approval(
 
 
 @app.post("/runs/{run_id}/steer")
-def run_steer(run_id: str, request: SteeringInput, path: str | None = Query(default=None)) -> dict:
+def run_steer(
+    run_id: str, request: SteeringInput, path: str | None = Query(default=None)
+) -> dict:
     """Apply a typed steering action to a run."""
     root = _workspace_root(path)
     sync_workspace(root)
@@ -435,7 +448,9 @@ def search(
 
 
 @app.get("/projects/{project_ref}/doctor")
-def project_program_doctor(project_ref: str, path: str | None = Query(default=None)) -> dict:
+def project_program_doctor(
+    project_ref: str, path: str | None = Query(default=None)
+) -> dict:
     """Return a structured program doctor report for one project."""
     root = _workspace_root(path)
     sync_workspace(root)
@@ -458,7 +473,9 @@ def project_context(
     sync_workspace(root)
     try:
         project = get_project(root, project_ref)
-        bundle = build_context_bundle(root, project_ref=project.id, mode=mode, profile=profile)
+        bundle = build_context_bundle(
+            root, project_ref=project.id, mode=mode, profile=profile
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {
@@ -472,3 +489,28 @@ def project_context(
         "rendered": str(bundle["rendered"]),
         "context": bundle["context"],
     }
+
+
+# ---------------------------------------------------------------------------
+# v2.4 integration surfaces
+# ---------------------------------------------------------------------------
+
+
+@app.get("/integrations")
+def list_integrations_view(path: str | None = Query(default=None)) -> dict:
+    """List all backends — legacy drivers and v2.4 adapter integrations."""
+    from src.hive.integrations.registry import list_all_backends
+
+    return {"ok": True, "backends": list_all_backends()}
+
+
+@app.get("/integrations/{name}")
+def integration_detail(name: str, path: str | None = Query(default=None)) -> dict:
+    """Probe a single v2.4 integration by name."""
+    from src.hive.integrations.registry import get_integration
+
+    try:
+        adapter = get_integration(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"ok": True, "integration": adapter.probe().to_dict()}

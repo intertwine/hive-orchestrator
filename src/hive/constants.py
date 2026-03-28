@@ -41,7 +41,14 @@ RUN_ACTIVE_STATUSES = {
     "completed_candidate",
     "evaluating",
 }
-RUN_TERMINAL_STATUSES = {"accepted", "rejected", "escalated", "cancelled", "failed", "aborted"}
+RUN_TERMINAL_STATUSES = {
+    "accepted",
+    "rejected",
+    "escalated",
+    "cancelled",
+    "failed",
+    "aborted",
+}
 EXECUTOR_NAMES = {"local", "github-actions"}
 DRIVER_NAMES = {"local", "manual", "codex", "claude", "claude-code"}
 DRIVER_ORDER = ("local", "manual", "codex", "claude")
@@ -82,7 +89,12 @@ STEERING_EVENT_TYPES = (
     "steering.rollback",
     "steering.sidequest_created",
 )
-MEMORY_EVENT_TYPES = ("context.compiled", "memory.proposed", "memory.accepted", "memory.rejected")
+MEMORY_EVENT_TYPES = (
+    "context.compiled",
+    "memory.proposed",
+    "memory.accepted",
+    "memory.rejected",
+)
 CAMPAIGN_EVENT_TYPES = (
     "campaign.created",
     "campaign.tick",
@@ -90,3 +102,33 @@ CAMPAIGN_EVENT_TYPES = (
     "campaign.completed",
 )
 EVENT_SCHEMA_VERSION = "2.2.0"
+
+# v2.4 adapter-family constants.
+ADAPTER_FAMILIES = ("legacy_driver", "worker_session", "delegate_gateway")
+INTEGRATION_LEVELS = ("pack", "companion", "attach", "managed")
+GOVERNANCE_MODES = ("advisory", "governed")
+TRAJECTORY_REQUIRED_KINDS = (
+    "session_start",
+    "session_end",
+    "turn_start",
+    "turn_end",
+    "assistant_delta",
+    "user_message",
+    "tool_call_start",
+    "tool_call_update",
+    "tool_call_end",
+    "approval_request",
+    "approval_decision",
+    "steering_received",
+    "artifact_written",
+    "compaction",
+    "error",
+)
+TRAJECTORY_OPTIONAL_KINDS = (
+    "context_loaded",
+    "skill_loaded",
+    "subagent_spawned",
+    "memory_mutation",
+    "sandbox_notice",
+)
+TRAJECTORY_SCHEMA_VERSION = "2.4.0"

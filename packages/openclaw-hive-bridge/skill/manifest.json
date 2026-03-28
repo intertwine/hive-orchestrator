@@ -54,7 +54,7 @@
       "Install openclaw-hive-bridge: npm install -g openclaw-hive-bridge",
       "Run: hive integrate openclaw",
       "Point the bridge at your Gateway URL",
-      "Attach a session: hive attach openclaw <session-key>"
+      "Attach a session: hive integrate attach openclaw <session-key>"
     ]
   }
 }

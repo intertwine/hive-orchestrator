@@ -183,9 +183,6 @@ def _add_control_parsers(
     )
     integrate_doctor.add_argument("name", nargs="?", help="Integration name to probe.")
     integrate_subparsers.add_parser(
-        "pi", help="Prepare or verify Pi companion integration."
-    )
-    integrate_subparsers.add_parser(
         "openclaw", help="Prepare or verify OpenClaw Gateway bridge integration."
     )
 

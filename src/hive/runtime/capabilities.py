@@ -15,11 +15,16 @@ class CapabilitySurface:
     launch_mode: str = "staged"
     session_persistence: str = "none"
     event_stream: str = "none"
+    attach_supported: bool = False
+    managed_supported: bool = False
+    steering: str = "none"
     approvals: list[str] = field(default_factory=list)
     skills: str = "file_projection"
     worktrees: str = "host_managed"
     subagents: str = "none"
     native_sandbox: str = "none"
+    context_projection: str = "none"
+    outer_sandbox_owned_by_hive: bool = False
     outer_sandbox_required: bool = True
     artifacts: list[str] = field(default_factory=list)
     reroute_export: str = "none"

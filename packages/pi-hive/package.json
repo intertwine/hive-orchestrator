@@ -1,0 +1,28 @@
+{
+  "name": "@mellona/pi-hive",
+  "version": "0.1.0",
+  "description": "Native Pi companion scaffolding for Agent Hive v2.4",
+  "type": "module",
+  "bin": {
+    "pi-hive": "./bin/pi-hive.js",
+    "pi-hive-runner": "./bin/pi-hive-runner.js"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "pi",
+    "agent-hive",
+    "hive",
+    "orchestration"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intertwine/hive-orchestrator"
+  }
+}

@@ -286,6 +286,20 @@ def test_existing_drivers_probe_with_adapter_metadata():
             assert d.get("adapter_family") == "legacy_driver"
 
 
+def test_existing_driver_capability_snapshots_expose_backward_compat_defaults():
+    """New v2.4 capability fields should stay safely defaulted for legacy drivers."""
+    for driver in list_drivers():
+        info = driver.probe()
+        if info.capability_snapshot is None:
+            continue
+        effective = info.capability_snapshot.effective.to_dict()
+        assert effective["attach_supported"] is False
+        assert effective["managed_supported"] is False
+        assert effective["steering"] == "none"
+        assert effective["context_projection"] == "none"
+        assert effective["outer_sandbox_owned_by_hive"] is False
+
+
 def test_get_driver_still_works():
     for name in ("local", "manual", "codex", "claude"):
         driver = get_driver(name)

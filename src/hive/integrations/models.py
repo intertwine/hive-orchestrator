@@ -45,6 +45,11 @@ class IntegrationInfo:
     version: str = "0.0.0"
     available: bool = True
     capability_snapshot: CapabilitySnapshot | None = None
+    supported_levels: list[IntegrationLevel] = field(default_factory=list)
+    supported_governance_modes: list[GovernanceMode] = field(default_factory=list)
+    install_path: str | None = None
+    configuration_problems: list[str] = field(default_factory=list)
+    next_steps: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -56,8 +61,18 @@ class IntegrationInfo:
             "integration_level": str(self.integration_level),
             "version": self.version,
             "available": self.available,
+            "configuration_problems": list(self.configuration_problems),
+            "next_steps": list(self.next_steps),
             "notes": list(self.notes),
         }
+        if self.supported_levels:
+            payload["supported_levels"] = [str(level) for level in self.supported_levels]
+        if self.supported_governance_modes:
+            payload["supported_governance_modes"] = [
+                str(mode) for mode in self.supported_governance_modes
+            ]
+        if self.install_path is not None:
+            payload["install_path"] = self.install_path
         if self.capability_snapshot is not None:
             payload["capability_snapshot"] = self.capability_snapshot.to_dict()
         return payload

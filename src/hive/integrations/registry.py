@@ -12,16 +12,18 @@ _BOOTSTRAPPED = False
 
 
 def _bootstrap_bundled() -> None:
-    """Auto-register the bundled dummy adapters on first access."""
+    """Auto-register bundled adapters on first access."""
     global _BOOTSTRAPPED
     if _BOOTSTRAPPED:
         return
     _BOOTSTRAPPED = True
     from src.hive.integrations.dummy_gateway import DummyGatewayAdapter
     from src.hive.integrations.dummy_worker import DummyWorkerAdapter
+    from src.hive.integrations.pi import PiWorkerAdapter
 
     _INTEGRATIONS.setdefault("dummy-worker", DummyWorkerAdapter())
     _INTEGRATIONS.setdefault("dummy-gateway", DummyGatewayAdapter())
+    _INTEGRATIONS.setdefault("pi", PiWorkerAdapter())
 
 
 def register_integration(name: str, adapter: AdapterBase) -> None:

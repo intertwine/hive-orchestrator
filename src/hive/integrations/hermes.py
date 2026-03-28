@@ -13,6 +13,7 @@ Key constraints from the RFC:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -21,6 +22,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - unavailable on non-POSIX platforms
+    fcntl = None
 
 from src.hive.clock import utc_now_iso
 from src.hive.drivers.types import SteeringRequest
@@ -89,6 +95,15 @@ def _resolve_hermes_home(hermes_binary: str | None, hermes_home: str) -> str:
     if hermes_home:
         return str(Path(hermes_home).expanduser())
     if hermes_binary:
+        binary_path = Path(hermes_binary).expanduser()
+        try:
+            candidate = binary_path.resolve().parent.parent
+        except OSError:
+            candidate = binary_path.parent.parent
+        if (_hermes_state_db_path(str(candidate))).exists() or (
+            _hermes_sessions_dir(str(candidate))
+        ).exists():
+            return str(candidate)
         return str((Path.home() / ".hermes").expanduser())
     return ""
 
@@ -143,34 +158,33 @@ def _load_sqlite_records(
     if not path.exists():
         return []
     try:
-        conn = _connect_state_db_readonly(path)
+        with contextlib.closing(_connect_state_db_readonly(path)) as conn:
+            rows = conn.execute(
+                """
+                SELECT id, role, content, tool_call_id, tool_calls, tool_name,
+                       timestamp, reasoning, reasoning_details, codex_reasoning_items
+                FROM messages
+                WHERE session_id = ?
+                ORDER BY timestamp, id
+                """,
+                (native_session_ref,),
+            ).fetchall()
     except sqlite3.Error:
-        return []
-
-    try:
-        rows = conn.execute(
-            """
-            SELECT id, role, content, tool_call_id, tool_calls, tool_name,
-                   timestamp, reasoning, reasoning_details, codex_reasoning_items
-            FROM messages
-            WHERE session_id = ?
-            ORDER BY timestamp, id
-            """,
-            (native_session_ref,),
-        ).fetchall()
-    except sqlite3.Error:
-        conn.close()
         return []
 
     records: list[tuple[int, dict[str, Any]]] = []
     for row in rows:
         payload = {
-            "role": row["role"],
-            "content": row["content"],
-            "tool_call_id": row["tool_call_id"],
-            "tool_name": row["tool_name"],
-            "timestamp": row["timestamp"],
-            "reasoning": row["reasoning"],
+            key: value
+            for key, value in {
+                "role": row["role"],
+                "content": row["content"],
+                "tool_call_id": row["tool_call_id"],
+                "tool_name": row["tool_name"],
+                "timestamp": row["timestamp"],
+                "reasoning": row["reasoning"],
+            }.items()
+            if value is not None
         }
         if row["tool_calls"]:
             try:
@@ -191,7 +205,6 @@ def _load_sqlite_records(
                 payload["codex_reasoning_items"] = row["codex_reasoning_items"]
         records.append((int(row["id"]), payload))
 
-    conn.close()
     return records
 
 
@@ -200,13 +213,12 @@ def _sqlite_session_exists(path: Path, native_session_ref: str) -> bool:
     if not path.exists():
         return False
     try:
-        conn = _connect_state_db_readonly(path)
-        row = conn.execute(
-            "SELECT 1 FROM sessions WHERE id = ? LIMIT 1",
-            (native_session_ref,),
-        ).fetchone()
-        conn.close()
-        return row is not None
+        with contextlib.closing(_connect_state_db_readonly(path)) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM sessions WHERE id = ? LIMIT 1",
+                (native_session_ref,),
+            ).fetchone()
+            return row is not None
     except sqlite3.Error:
         return False
 
@@ -216,23 +228,22 @@ def _list_sqlite_sessions(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     try:
-        conn = _connect_state_db_readonly(path)
-        rows = conn.execute(
-            """
-            SELECT s.id,
-                   s.source,
-                   s.title,
-                   s.started_at,
-                   s.ended_at,
-                   s.message_count,
-                   COALESCE(MAX(m.timestamp), s.started_at) AS updated_at
-            FROM sessions s
-            LEFT JOIN messages m ON m.session_id = s.id
-            GROUP BY s.id
-            ORDER BY updated_at DESC
-            """
-        ).fetchall()
-        conn.close()
+        with contextlib.closing(_connect_state_db_readonly(path)) as conn:
+            rows = conn.execute(
+                """
+                SELECT s.id,
+                       s.source,
+                       s.title,
+                       s.started_at,
+                       s.ended_at,
+                       s.message_count,
+                       COALESCE(MAX(m.timestamp), s.started_at) AS updated_at
+                FROM sessions s
+                LEFT JOIN messages m ON m.session_id = s.id
+                GROUP BY s.id
+                ORDER BY updated_at DESC
+                """
+            ).fetchall()
     except sqlite3.Error:
         return []
 
@@ -266,14 +277,20 @@ def _append_pending_action(
 ) -> dict[str, Any]:
     """Append a pending companion action and return the queued payload."""
     queue_path = _pending_actions_path(base_path, delegate_session_id)
-    seq = 0
-    if queue_path.exists():
-        with queue_path.open("r", encoding="utf-8") as handle:
+    with queue_path.open("a+", encoding="utf-8") as handle:
+        if fcntl is not None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            handle.seek(0)
             seq = sum(1 for line in handle if line.strip())
-    entry = {"seq": seq, **record}
-    with queue_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry, sort_keys=True) + "\n")
-    return entry
+            entry = {"seq": seq, **record}
+            handle.seek(0, os.SEEK_END)
+            handle.write(json.dumps(entry, sort_keys=True) + "\n")
+            handle.flush()
+            return entry
+        finally:
+            if fcntl is not None:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def load_pending_actions(
@@ -694,6 +711,25 @@ def _coerce_iso_timestamp(value: Any) -> str:
     return utc_now_iso()
 
 
+def _coerce_sort_timestamp(value: Any) -> float:
+    """Normalize session ordering timestamps into comparable epoch seconds."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return 0.0
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
 def _normalize_session_message(
     message: dict[str, Any],
     *,
@@ -919,11 +955,14 @@ class HermesGatewayAdapter(DelegateGatewayAdapter):
                 )
                 row["transcript_path"] = str(transcript_path)
                 row["size_bytes"] = stat.st_size
-                row["updated_at"] = max(float(row.get("updated_at", 0) or 0), stat.st_mtime)
+                row["updated_at"] = max(
+                    _coerce_sort_timestamp(row.get("updated_at")),
+                    stat.st_mtime,
+                )
 
         return sorted(
             sessions.values(),
-            key=lambda item: float(item.get("updated_at", 0) or 0),
+            key=lambda item: _coerce_sort_timestamp(item.get("updated_at")),
             reverse=True,
         )
 

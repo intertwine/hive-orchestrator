@@ -18,6 +18,11 @@ from src.hive.integrations.hermes import (
     PRIVATE_MEMORY_FILES,
     HermesGatewayAdapter,
     HermesProbe,
+    _append_pending_action,
+    _coerce_sort_timestamp,
+    _load_sqlite_records,
+    _resolve_hermes_home,
+    load_pending_actions,
     filter_importable_files,
     import_hermes_trajectory,
     is_private_memory_path,
@@ -359,6 +364,66 @@ class TestHE1InstallAndConnect:
         assert snap.probed["state_db_available"] is True
         assert snap.probed["attach_supported"] is True
         assert snap.probed["gateway_reachable"] is False
+
+    def test_resolve_hermes_home_preserves_binary_adjacent_store(self, tmp_path):
+        install_root = tmp_path / "opt" / "hermes"
+        bin_dir = install_root / "bin"
+        bin_dir.mkdir(parents=True)
+        binary = bin_dir / "hermes"
+        binary.write_text("#!/bin/sh\n", encoding="utf-8")
+        _write_hermes_state_db(install_root, "sess-1")
+
+        resolved = _resolve_hermes_home(str(binary), "")
+
+        assert resolved == str(install_root)
+
+    def test_load_sqlite_records_omits_none_payload_fields(self, tmp_path):
+        hermes_home = _prepare_hermes_home(
+            tmp_path,
+            stores=("sqlite",),
+            messages=[{"role": "user", "content": "hello"}],
+        )
+
+        records = _load_sqlite_records(hermes_home / "state.db", "hermes-sess-001")
+
+        assert len(records) == 1
+        _, payload = records[0]
+        assert payload["role"] == "user"
+        assert payload["content"] == "hello"
+        assert "tool_call_id" not in payload
+        assert "tool_name" not in payload
+        assert "reasoning" not in payload
+
+    def test_pending_actions_allocate_unique_sequences(self, tmp_path):
+        delegate_session_id = "dsess-hermes-001"
+        seqs: list[int] = []
+        lock = threading.Lock()
+
+        def worker(index: int) -> None:
+            queued = _append_pending_action(
+                tmp_path,
+                delegate_session_id,
+                {"kind": "steer", "message": f"note-{index}"},
+            )
+            with lock:
+                seqs.append(int(queued["seq"]))
+
+        threads = [
+            threading.Thread(target=worker, args=(index,), daemon=True)
+            for index in range(8)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=3)
+
+        assert sorted(seqs) == list(range(8))
+        queued = load_pending_actions(tmp_path, delegate_session_id)
+        assert [int(item["seq"]) for item in queued] == list(range(8))
+
+    def test_session_sort_timestamp_accepts_iso_strings(self):
+        assert _coerce_sort_timestamp("2026-03-28T20:27:09Z") > 0
+        assert _coerce_sort_timestamp("1711657629.5") == pytest.approx(1711657629.5)
 
     def test_probe_capability_snapshot_truthful(self):
         adapter = _make_adapter()

@@ -119,7 +119,7 @@ def hive_status(params: dict[str, Any] | None = None) -> dict[str, Any]:
         return _run_hive(["--json", "console", "run", params["run_id"]])
     payload = _run_hive(["--json", "console", "home"])
     if params and params.get("session_id"):
-        since_seq = int(params.get("since_seq", -1))
+        since_seq = params.get("since_seq", -1)
         payload["attached_session"] = {
             "sync": _sync_hermes_session(params["session_id"]),
             "pending_actions": _poll_hermes_actions(

@@ -188,6 +188,19 @@ def _add_control_parsers(
     integrate_subparsers.add_parser(
         "openclaw", help="Prepare or verify OpenClaw Gateway bridge integration."
     )
+    integrate_subparsers.add_parser(
+        "hermes", help="Prepare or verify Hermes skill/toolset integration."
+    )
+
+    integrate_import = integrate_subparsers.add_parser(
+        "import-trajectory",
+        help="Import a Hermes trajectory export into Hive.",
+    )
+    integrate_import.add_argument(
+        "source_path", help="Path to the Hermes trajectory JSONL export."
+    )
+    integrate_import.add_argument("--project-id", dest="project_id")
+    integrate_import.add_argument("--task-id", dest="task_id")
 
     integrate_attach = integrate_subparsers.add_parser(
         "attach", help="Attach a native harness session to Hive as a delegate."
@@ -198,6 +211,25 @@ def _add_control_parsers(
     )
     integrate_attach.add_argument("--project-id", dest="project_id")
     integrate_attach.add_argument("--task-id", dest="task_id")
+
+    integrate_sync = integrate_subparsers.add_parser(
+        "sync",
+        help="Sync an attached native session's transcript into Hive trajectory artifacts.",
+    )
+    integrate_sync.add_argument("harness", help="Integration name (e.g. hermes).")
+    integrate_sync.add_argument(
+        "native_session_ref", help="Native session key or ID."
+    )
+
+    integrate_poll = integrate_subparsers.add_parser(
+        "poll-actions",
+        help="Poll pending companion actions for an attached native session.",
+    )
+    integrate_poll.add_argument("harness", help="Integration name (e.g. hermes).")
+    integrate_poll.add_argument(
+        "native_session_ref", help="Native session key or ID."
+    )
+    integrate_poll.add_argument("--since-seq", type=int, default=-1)
 
     integrate_detach = integrate_subparsers.add_parser(
         "detach", help="Detach a delegate session."

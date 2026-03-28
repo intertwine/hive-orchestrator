@@ -334,6 +334,7 @@ def persist_delegate_session(
 
 def _delegate_manifest(session: SessionHandle) -> dict[str, Any]:
     return {
+        "session_id": session.session_id,
         "delegate_session_id": session.delegate_session_id or session.session_id,
         "adapter_name": session.adapter_name,
         "adapter_family": str(session.adapter_family),

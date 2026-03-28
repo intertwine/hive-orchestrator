@@ -19,6 +19,7 @@ def _bootstrap_bundled() -> None:
     _BOOTSTRAPPED = True
     from src.hive.integrations.dummy_gateway import DummyGatewayAdapter
     from src.hive.integrations.dummy_worker import DummyWorkerAdapter
+    from src.hive.integrations.hermes import HermesGatewayAdapter
     from src.hive.integrations.openclaw import OpenClawGatewayAdapter
     from src.hive.integrations.pi import PiWorkerAdapter
 
@@ -26,6 +27,7 @@ def _bootstrap_bundled() -> None:
     _INTEGRATIONS.setdefault("dummy-gateway", DummyGatewayAdapter())
     _INTEGRATIONS.setdefault("openclaw", OpenClawGatewayAdapter())
     _INTEGRATIONS.setdefault("pi", PiWorkerAdapter())
+    _INTEGRATIONS.setdefault("hermes", HermesGatewayAdapter())
 
 
 def register_integration(name: str, adapter: AdapterBase) -> None:

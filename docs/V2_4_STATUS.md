@@ -39,10 +39,10 @@ The following items are explicitly deferred from blocking v2.4:
 | Pi managed mode | Landed | `hive run start --driver pi`, `pi-hive open`, `pi-hive-runner`, managed-run lifecycle tests | — |
 | OpenClaw skill + bridge | Landed | `packages/openclaw-hive-bridge/` NDJSON protocol, ClawHub `agent-hive` skill + action wrappers, `src/hive/integrations/openclaw.py` | real Gateway HTTP calls in bridge |
 | OpenClaw attach mode | Landed | delegate persistence, trajectory write-through, `hive integrate attach/detach`, bridge protocol tests | real Gateway session binding |
-| Hermes companion integration | Proposed | RFC only | skill/toolset + attach |
-| Hermes trajectory import fallback | Proposed | RFC only | importer + tests |
+| Hermes companion integration | Landed | `src/hive/integrations/hermes.py`, `packages/hermes-skill/`, `hive integrate hermes`, 38 tests | — |
+| Hermes trajectory import fallback | Landed | `import_hermes_trajectory()`, `hive integrate import-trajectory`, event kind mapping, provenance preservation | — |
 | Truthful advisory/governed surfaces | Landed | console /integrations, driver doctor, run detail | — |
-| Install docs and doctor flows | In progress | `hive integrate doctor pi/openclaw`, `hive integrate pi/openclaw`, bridge READMEs | Hermes parity + smoke paths |
+| Install docs and doctor flows | Landed | `hive integrate doctor pi/openclaw/hermes`, setup flows, READMEs | — |
 
 ## Current Read
 

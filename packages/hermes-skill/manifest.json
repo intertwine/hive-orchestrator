@@ -1,0 +1,65 @@
+{
+  "name": "agent-hive",
+  "version": "0.1.0",
+  "description": "Connect Hermes to Agent Hive for observe-and-steer orchestration",
+  "author": "Mellona / Intertwine",
+  "homepage": "https://github.com/intertwine/hive-orchestrator",
+  "type": "skill",
+  "actions": [
+    {
+      "id": "hive_next",
+      "label": "Next work",
+      "description": "Ask Hive for the next recommended task",
+      "intent": "hive_next"
+    },
+    {
+      "id": "hive_search",
+      "label": "Search Hive",
+      "description": "Search Hive workspace for tasks, memory, docs, or runs",
+      "intent": "hive_search",
+      "parameters": {
+        "query": { "type": "string", "required": true }
+      }
+    },
+    {
+      "id": "hive_attach",
+      "label": "Attach this session to Hive",
+      "description": "Bind the current Hermes session to Hive as an advisory delegate",
+      "intent": "hive_attach"
+    },
+    {
+      "id": "hive_finish",
+      "label": "Finish / escalate",
+      "description": "Mark the current task as finished or escalate for review",
+      "intent": "hive_finish"
+    },
+    {
+      "id": "hive_note",
+      "label": "Post a steering note",
+      "description": "Send a note to the Hive steering history for this session",
+      "intent": "hive_note",
+      "parameters": {
+        "note": { "type": "string", "required": true }
+      }
+    },
+    {
+      "id": "hive_status",
+      "label": "Hive status",
+      "description": "Show current Hive workspace and session status",
+      "intent": "hive_status"
+    }
+  ],
+  "setup": {
+    "description": "Connect Hermes to Agent Hive",
+    "steps": [
+      "Install or update mellona-hive with Hermes support",
+      "Run: hive integrate hermes",
+      "Load the agent-hive skill/toolset in Hermes",
+      "Attach a session: hive integrate attach hermes <session-id>"
+    ]
+  },
+  "memory_policy": {
+    "description": "Hermes private memory (MEMORY.md, USER.md) is never bulk-imported. Only explicit summaries, trajectories, and operator-approved content are imported.",
+    "blocked_files": ["MEMORY.md", "USER.md", ".memory", ".user"]
+  }
+}

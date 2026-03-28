@@ -56,10 +56,12 @@ def test_v24_status_doc_tracks_scope_and_next_blocker():
     assert "## Scope Lock" in status_doc
     assert "## Release Gate Ledger" in status_doc
     assert "Hive Link and normalized trajectory capture" in status_doc
-    assert "the v2.4 RFC bundle and status ledger now live at stable repo paths" in status_doc
+    assert (
+        "the v2.4 RFC bundle and status ledger now live at stable repo paths"
+        in status_doc
+    )
     assert "## Next Blocker" in status_doc
-    assert "Land Milestone 1 foundation work" in status_doc
-    assert "DelegateGatewayAdapter" in status_doc
+    assert "Milestone 2" in status_doc
 
 
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():
@@ -119,7 +121,9 @@ def test_maintainer_docs_link_the_v24_ledger_and_bundle():
     assert "[docs/V2_4_STATUS.md](./V2_4_STATUS.md)" in maintaining
     assert "[docs/hive-v2.4-rfc/README.md](./hive-v2.4-rfc/README.md)" in maintaining
     assert "[docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md)" in release_doc
-    assert "[docs/hive-v2.4-rfc/README.md](/docs/hive-v2.4-rfc/README.md)" in release_doc
+    assert (
+        "[docs/hive-v2.4-rfc/README.md](/docs/hive-v2.4-rfc/README.md)" in release_doc
+    )
 
 
 def test_v24_bundle_uses_repo_paths_without_overlay_duplicates():

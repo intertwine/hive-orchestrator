@@ -60,6 +60,10 @@ class DriverInfo:
             payload["effective"] = snapshot["effective"]
             payload["confidence"] = snapshot["confidence"]
             payload["evidence"] = snapshot["evidence"]
+            # v2.4 adapter-family metadata.
+            payload["governance_mode"] = snapshot.get("governance_mode", "governed")
+            payload["integration_level"] = snapshot.get("integration_level", "managed")
+            payload["adapter_family"] = snapshot.get("adapter_family", "legacy_driver")
         return payload
 
 

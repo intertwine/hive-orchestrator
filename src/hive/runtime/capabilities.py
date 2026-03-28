@@ -41,6 +41,10 @@ class CapabilitySnapshot:
     effective: CapabilitySurface = field(default_factory=CapabilitySurface)
     confidence: dict[str, str] = field(default_factory=dict)
     evidence: dict[str, str] = field(default_factory=dict)
+    # v2.4 adapter-family metadata — defaults preserve backward compat with existing drivers.
+    governance_mode: str = "governed"
+    integration_level: str = "managed"
+    adapter_family: str = "legacy_driver"
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the snapshot for JSON output."""
@@ -53,6 +57,9 @@ class CapabilitySnapshot:
             "effective": self.effective.to_dict(),
             "confidence": dict(self.confidence),
             "evidence": dict(self.evidence),
+            "governance_mode": self.governance_mode,
+            "integration_level": self.integration_level,
+            "adapter_family": self.adapter_family,
         }
 
 

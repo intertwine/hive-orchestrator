@@ -11,7 +11,9 @@ from pathlib import Path
 from src.hive import __version__
 
 
-def _add_bootstrap_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+def _add_bootstrap_parsers(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
     quickstart_parser = subparsers.add_parser(
         "quickstart",
         help="Legacy compatibility alias for `hive onboard`.",
@@ -61,7 +63,9 @@ def _add_bootstrap_parsers(subparsers: argparse._SubParsersAction[argparse.Argum
     doctor_program.add_argument("project_ref")
 
 
-def _add_control_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+def _add_control_parsers(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
     next_parser = subparsers.add_parser("next")
     next_parser.add_argument("--project-id")
 
@@ -166,8 +170,23 @@ def _add_control_parsers(subparsers: argparse._SubParsersAction[argparse.Argumen
     sandbox_doctor = sandbox_subparsers.add_parser("doctor")
     sandbox_doctor.add_argument("backend", nargs="?")
 
+    integrate_parser = subparsers.add_parser(
+        "integrate",
+        help="Inspect v2.4 adapter integrations alongside legacy drivers.",
+    )
+    integrate_subparsers = integrate_parser.add_subparsers(dest="integrate_command")
+    integrate_subparsers.add_parser(
+        "list", help="List all backends (legacy drivers + v2.4 adapters)."
+    )
+    integrate_doctor = integrate_subparsers.add_parser(
+        "doctor", help="Probe one or all integrations."
+    )
+    integrate_doctor.add_argument("name", nargs="?", help="Integration name to probe.")
 
-def _add_project_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+
+def _add_project_parsers(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
     project_parser = subparsers.add_parser("project")
     project_subparsers = project_parser.add_subparsers(dest="project_command")
     project_subparsers.add_parser("list")
@@ -264,7 +283,9 @@ def _add_project_parsers(subparsers: argparse._SubParsersAction[argparse.Argumen
     task_ready.add_argument("--limit", type=int)
 
 
-def _add_run_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+def _add_run_parsers(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
     run_parser = subparsers.add_parser("run")
     run_subparsers = run_parser.add_subparsers(dest="run_command")
     run_start = run_subparsers.add_parser("start")
@@ -352,28 +373,40 @@ def _add_run_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentPar
     program_add_evaluator.add_argument("template_id")
 
 
-def _add_knowledge_parsers(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+def _add_knowledge_parsers(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
     memory_parser = subparsers.add_parser("memory")
     memory_subparsers = memory_parser.add_subparsers(dest="memory_command")
     memory_observe = memory_subparsers.add_parser("observe")
     memory_observe.add_argument("--transcript-path")
     memory_observe.add_argument("--note")
-    memory_observe.add_argument("--scope", choices=["project", "global"], default="project")
+    memory_observe.add_argument(
+        "--scope", choices=["project", "global"], default="project"
+    )
     memory_observe.add_argument("--project")
     memory_observe.add_argument("--harness")
     memory_reflect = memory_subparsers.add_parser("reflect")
-    memory_reflect.add_argument("--scope", choices=["project", "global"], default="project")
+    memory_reflect.add_argument(
+        "--scope", choices=["project", "global"], default="project"
+    )
     memory_reflect.add_argument("--project")
     memory_reflect.add_argument("--propose", action="store_true")
     memory_accept = memory_subparsers.add_parser("accept")
-    memory_accept.add_argument("--scope", choices=["project", "global"], default="project")
+    memory_accept.add_argument(
+        "--scope", choices=["project", "global"], default="project"
+    )
     memory_accept.add_argument("--project")
     memory_reject = memory_subparsers.add_parser("reject")
-    memory_reject.add_argument("--scope", choices=["project", "global"], default="project")
+    memory_reject.add_argument(
+        "--scope", choices=["project", "global"], default="project"
+    )
     memory_reject.add_argument("--project")
     memory_search = memory_subparsers.add_parser("search")
     memory_search.add_argument("query")
-    memory_search.add_argument("--scope", choices=["project", "global", "all"], default="all")
+    memory_search.add_argument(
+        "--scope", choices=["project", "global", "all"], default="all"
+    )
     memory_search.add_argument("--project")
     memory_search.add_argument("--task")
     memory_search.add_argument("--limit", type=int, default=8)
@@ -469,10 +502,16 @@ def _add_knowledge_parsers(subparsers: argparse._SubParsersAction[argparse.Argum
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the Hive CLI parser."""
-    parser = argparse.ArgumentParser(prog="hive", description="Hive v2.3 control-plane CLI")
+    parser = argparse.ArgumentParser(
+        prog="hive", description="Hive v2.3 control-plane CLI"
+    )
     parser.add_argument("--path", default=str(Path.cwd()), help="Workspace base path")
-    parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--json", action="store_true", help="Emit machine-readable JSON"
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
 
     subparsers = parser.add_subparsers(dest="command")
     _add_bootstrap_parsers(subparsers)

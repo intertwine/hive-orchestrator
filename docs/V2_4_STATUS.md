@@ -1,7 +1,7 @@
 # Hive v2.4 Status
 
 Status: in progress
-Last updated: 2026-03-28
+Last updated: 2026-03-28 (M1 landed)
 Purpose: compact execution ledger for the current v2.4 release line
 
 This file is the maintainer-facing status ledger for v2.4.
@@ -32,8 +32,8 @@ The following items are explicitly deferred from blocking v2.4:
 
 | Gate | Status | Evidence | Remaining blocker |
 |---|---|---|---|
-| Adapter-model correction | Proposed | RFC only | implement base contracts |
-| Hive Link and normalized trajectory capture | Proposed | RFC only | implement protocol + tests |
+| Adapter-model correction | Landed | 47 tests, src/hive/integrations/ | — |
+| Hive Link and normalized trajectory capture | Landed | src/hive/link/, src/hive/trajectory/, tests | — |
 | Pi companion package | Proposed | RFC only | package skeleton + integration |
 | Pi attach mode | Proposed | RFC only | session attach flow |
 | Pi managed mode | Proposed | RFC only | managed runner |
@@ -41,7 +41,7 @@ The following items are explicitly deferred from blocking v2.4:
 | OpenClaw attach mode | Proposed | RFC only | Gateway session mapping |
 | Hermes companion integration | Proposed | RFC only | skill/toolset + attach |
 | Hermes trajectory import fallback | Proposed | RFC only | importer + tests |
-| Truthful advisory/governed surfaces | Proposed | RFC only | console + doctor |
+| Truthful advisory/governed surfaces | Landed | console /integrations, driver doctor, run detail | — |
 | Install docs and doctor flows | Proposed | RFC only | docs + smoke tests |
 
 ## Current Read
@@ -54,8 +54,8 @@ What is real now:
 
 ## Next Blocker
 
-Land Milestone 1 foundation work:
-- add the adapter-family split (`WorkerSessionAdapter` vs `DelegateGatewayAdapter`)
-- define Hive Link protocol/types and normalized trajectory helpers
-- prove packaged/searchable dummy integration coverage
-- surface advisory vs governed truth in the console and doctor flows
+Land Milestone 2 — Pi companion, attach, and managed integration:
+- create `@mellona/pi-hive` companion package skeleton
+- implement PiWorkerAdapter extending WorkerSessionAdapter
+- wire `hive integrate doctor pi` and console surfaces
+- acceptance tests: PI-1 (install + doctor), PI-2 (attach + streaming), PI-3 (managed run)

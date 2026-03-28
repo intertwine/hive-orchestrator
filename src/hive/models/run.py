@@ -39,6 +39,8 @@ class RunRecord:
     transcript_path: str | None = None
     transcript_ndjson_path: str | None = None
     transcript_raw_dir: str | None = None
+    trajectory_path: str | None = None
+    steering_path: str | None = None
     workspace_patch_path: str | None = None
     workspace_changed_files_path: str | None = None
     driver_metadata_path: str | None = None
@@ -96,6 +98,8 @@ class RunRecord:
             "transcript_path": self.transcript_path,
             "transcript_ndjson_path": self.transcript_ndjson_path,
             "transcript_raw_dir": self.transcript_raw_dir,
+            "trajectory_path": self.trajectory_path,
+            "steering_path": self.steering_path,
             "workspace_patch_path": self.workspace_patch_path,
             "workspace_changed_files_path": self.workspace_changed_files_path,
             "driver_metadata_path": self.driver_metadata_path,

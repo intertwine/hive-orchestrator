@@ -42,6 +42,7 @@ def dispatch(args, root: Path) -> int:
                     model=args.model,
                     campaign_id=args.campaign_id,
                     profile=args.profile,
+                    attach_native_session_ref=getattr(args, "attach_native_session", None),
                 )
                 sync_workspace(root)
                 return emit({"ok": True, "run": run.to_dict()}, args.json)

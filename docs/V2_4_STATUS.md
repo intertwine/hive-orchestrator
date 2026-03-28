@@ -1,7 +1,7 @@
 # Hive v2.4 Status
 
 Status: in progress
-Last updated: 2026-03-28 (Pi foundation slice in progress)
+Last updated: 2026-03-28 (Pi milestone landed; Hermes is next)
 Purpose: compact execution ledger for the current v2.4 release line
 
 This file is the maintainer-facing status ledger for v2.4.
@@ -34,9 +34,9 @@ The following items are explicitly deferred from blocking v2.4:
 |---|---|---|---|
 | Adapter-model correction | Landed | 47 tests, src/hive/integrations/ | — |
 | Hive Link and normalized trajectory capture | Landed | src/hive/link/, src/hive/trajectory/, tests | — |
-| Pi companion package | In progress | `packages/pi-hive/`, `src/hive/integrations/pi.py`, `tests/test_v24_pi_integration.py` | live Pi SDK link flow |
-| Pi attach mode | In progress | attach-session scaffolding + trajectory persistence tests | manual attach CLI + live session binding |
-| Pi managed mode | In progress | `src/hive/integrations/pi_managed.py`, `pi-hive-runner`, managed-session tests | real run-engine launch + Pi SDK session |
+| Pi companion package | Landed | `packages/pi-hive/`, `src/hive/drivers/pi.py`, `src/hive/integrations/pi.py`, `tests/test_v24_pi_runtime.py` | — |
+| Pi attach mode | Landed | `hive integrate attach pi`, `pi-hive attach`, advisory run persistence, steering round-trip tests | — |
+| Pi managed mode | Landed | `hive run start --driver pi`, `pi-hive open`, `pi-hive-runner`, managed-run lifecycle tests | — |
 | OpenClaw skill + bridge | Landed | `packages/openclaw-hive-bridge/` NDJSON protocol, ClawHub `agent-hive` skill + action wrappers, `src/hive/integrations/openclaw.py` | real Gateway HTTP calls in bridge |
 | OpenClaw attach mode | Landed | delegate persistence, trajectory write-through, `hive integrate attach/detach`, bridge protocol tests | real Gateway session binding |
 | Hermes companion integration | Proposed | RFC only | skill/toolset + attach |
@@ -51,12 +51,14 @@ What is real now:
 - Pi/Hermes/OpenClaw remain intentionally deferred from that line
 - the next product opportunity is native ecosystem presence, not another generic RPC adapter
 - the v2.4 RFC bundle and status ledger now live at stable repo paths and are wired into packaged-doc search surfaces
-- Pi now has a real companion package skeleton, doctor/setup assistant payloads, and managed/attach session scaffolding in the repo
+- Pi now has a real `pi` driver, live managed-run lifecycle wiring, advisory attach-run creation, native `pi-hive open/attach` commands, and persisted trajectory/steering artifacts
+- OpenClaw companion + attach landed earlier in the line and remains green
+- Hermes is now the remaining major harness milestone on the release line
 
 ## Next Blocker
 
-Finish Milestone 2 — Pi live attach and managed execution wiring:
-- bind `pi-hive` to Hive Link without placeholder attach/open flows
-- connect Pi managed launch into the real run lifecycle instead of session scaffolding only
-- round-trip steering through the live Pi session
-- expand PI-1/PI-2/PI-3 acceptance from foundation scaffolding to end-to-end behavior
+Start Milestone 4 — Hermes companion + attach integration:
+- ship the Hermes-native skill/toolset and doctor/setup flow
+- attach a live Hermes session to Hive as an advisory delegate session
+- persist normalized Hermes trajectories, including import fallback
+- close the remaining harness parity gap for the v2.4 release line

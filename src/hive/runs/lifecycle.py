@@ -257,6 +257,7 @@ def start_run(
     model: str | None = None,
     campaign_id: str | None = None,
     profile: str = "default",
+    attach_native_session_ref: str | None = None,
     scheduler_candidate_set: dict[str, object] | None = None,
     scheduler_decision: dict[str, object] | None = None,
 ) -> RunRecord:
@@ -430,6 +431,8 @@ def start_run(
     paths["stdout_path"].write_text("", encoding="utf-8")
     paths["stderr_path"].write_text("", encoding="utf-8")
     paths["transcript_path"].write_text("", encoding="utf-8")
+    paths["trajectory_path"].write_text("", encoding="utf-8")
+    paths["steering_path"].write_text("", encoding="utf-8")
     paths["approval_channel_path"].write_text("", encoding="utf-8")
 
     launch_request = RunLaunchRequest(
@@ -459,6 +462,7 @@ def start_run(
             "source": "hive run start",
             "task_title": task.title,
             "approval_channel": str(paths["approval_channel_path"]),
+            "attach_native_session_ref": attach_native_session_ref,
             "handoff_manifest_path": context_bundle["handoff_bundle"].get("manifest_path"),
             "handoff_summary_path": context_bundle["handoff_bundle"].get("summary_path"),
             "handoff_runs": list(context_bundle["handoff_bundle"].get("items") or []),
@@ -466,6 +470,12 @@ def start_run(
     )
     handle = driver.launch(launch_request)
     run_status = driver.status(handle)
+    capability_snapshot = (
+        CapabilitySnapshot.from_dict(handle.metadata["capability_snapshot"])
+        if isinstance(handle.metadata.get("capability_snapshot"), dict)
+        else capability_snapshot
+    )
+    manifest["driver_mode"] = capability_snapshot.effective.launch_mode
     paths["launch_path"].write_text(
         json.dumps(launch_request.to_dict(), indent=2, sort_keys=True),
         encoding="utf-8",
@@ -516,6 +526,8 @@ def start_run(
         transcript_path=str(paths["transcript_path"]),
         transcript_ndjson_path=str(paths["transcript_ndjson_path"]),
         transcript_raw_dir=str(paths["transcript_raw_dir"]),
+        trajectory_path=str(paths["trajectory_path"]),
+        steering_path=str(paths["steering_path"]),
         workspace_patch_path=str(paths["patch_path"]),
         workspace_changed_files_path=str(paths["changed_files_path"]),
         driver_metadata_path=str(paths["driver_metadata_path"]),

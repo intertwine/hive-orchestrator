@@ -67,6 +67,23 @@ class CapabilitySnapshot:
             "adapter_family": self.adapter_family,
         }
 
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> CapabilitySnapshot:
+        """Hydrate a snapshot from serialized JSON data."""
+        return cls(
+            driver=str(payload.get("driver", "")),
+            driver_version=str(payload.get("driver_version", "0.0.0")),
+            captured_at=str(payload.get("captured_at", utc_now_iso())),
+            declared=CapabilitySurface(**dict(payload.get("declared") or {})),
+            probed=dict(payload.get("probed") or {}),
+            effective=CapabilitySurface(**dict(payload.get("effective") or {})),
+            confidence={str(key): str(value) for key, value in dict(payload.get("confidence") or {}).items()},
+            evidence={str(key): str(value) for key, value in dict(payload.get("evidence") or {}).items()},
+            governance_mode=str(payload.get("governance_mode", "governed")),
+            integration_level=str(payload.get("integration_level", "managed")),
+            adapter_family=str(payload.get("adapter_family", "legacy_driver")),
+        )
+
 
 def capability_surface(**kwargs: Any) -> CapabilitySurface:
     """Small helper to keep driver probe code concise."""

@@ -12,6 +12,11 @@ def build_pi_runner_command(
     *,
     node_path: str,
     runner_path: str | Path,
+    state_path: str | Path,
+    steering_path: str | Path,
+    trajectory_path: str | Path,
+    last_message_path: str | Path,
+    native_session_ref: str,
 ) -> list[str]:
     """Return the managed Pi runner command for a prepared Hive run."""
     return [
@@ -29,6 +34,16 @@ def build_pi_runner_command(
         request.artifacts_path,
         "--context",
         request.compiled_context_path,
+        "--state",
+        str(Path(state_path)),
+        "--steering",
+        str(Path(steering_path)),
+        "--trajectory",
+        str(Path(trajectory_path)),
+        "--last-message",
+        str(Path(last_message_path)),
+        "--native-session-ref",
+        native_session_ref,
     ]
 
 

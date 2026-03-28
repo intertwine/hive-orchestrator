@@ -11,6 +11,7 @@ STATE_PATTERNS = (
     ".hive/tasks/**",
     ".hive/events/**",
     ".hive/runs/**",
+    ".hive/pi-native/**",
     "GLOBAL.md",
     "AGENTS.md",
     "projects/**/AGENCY.md",

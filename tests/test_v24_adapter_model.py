@@ -278,6 +278,8 @@ def test_registry_with_registered_adapters():
 def test_existing_drivers_probe_with_adapter_metadata():
     """All legacy drivers should return adapter metadata in to_dict()."""
     for driver in list_drivers():
+        if driver.name == "pi":
+            continue
         info = driver.probe()
         d = info.to_dict()
         if info.capability_snapshot is not None:
@@ -289,6 +291,8 @@ def test_existing_drivers_probe_with_adapter_metadata():
 def test_existing_driver_capability_snapshots_expose_backward_compat_defaults():
     """New v2.4 capability fields should stay safely defaulted for legacy drivers."""
     for driver in list_drivers():
+        if driver.name == "pi":
+            continue
         info = driver.probe()
         if info.capability_snapshot is None:
             continue
@@ -301,7 +305,7 @@ def test_existing_driver_capability_snapshots_expose_backward_compat_defaults():
 
 
 def test_get_driver_still_works():
-    for name in ("local", "manual", "codex", "claude"):
+    for name in ("local", "manual", "codex", "claude", "pi"):
         driver = get_driver(name)
         info = driver.probe()
         assert info.driver == name or info.driver in ("claude",)

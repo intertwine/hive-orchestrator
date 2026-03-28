@@ -8,6 +8,7 @@ from src.hive.drivers.claude_sdk import ClaudeSDKDriver
 from src.hive.drivers.codex import CodexDriver
 from src.hive.drivers.local import LocalDriver
 from src.hive.drivers.manual import ManualDriver
+from src.hive.drivers.pi import PiDriver
 
 
 _DRIVERS: dict[str, Driver] = {
@@ -15,6 +16,7 @@ _DRIVERS: dict[str, Driver] = {
     "manual": ManualDriver(),
     "codex": CodexDriver(),
     "claude": ClaudeSDKDriver(),
+    "pi": PiDriver(),
 }
 _ALIASES = {
     "claude-code": "claude",

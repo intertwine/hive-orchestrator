@@ -215,6 +215,7 @@ def persist_delegate_session(
     session_dir.mkdir(parents=True, exist_ok=True)
 
     manifest = {
+        "session_id": session.session_id,
         "delegate_session_id": session.delegate_session_id or session.session_id,
         "adapter_name": session.adapter_name,
         "adapter_family": str(session.adapter_family),
@@ -225,6 +226,7 @@ def persist_delegate_session(
         "task_id": session.task_id,
         "status": session.status,
         "attached_at": session.attached_at,
+        "metadata": dict(session.metadata),
     }
     (session_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"

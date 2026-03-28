@@ -43,6 +43,26 @@ def _run_hive(args: list[str]) -> dict[str, Any]:
         }
 
 
+def _sync_hermes_session(session_id: str) -> dict[str, Any]:
+    """Sync an attached Hermes session transcript into Hive."""
+    return _run_hive(["--json", "integrate", "sync", "hermes", session_id])
+
+
+def _poll_hermes_actions(session_id: str, since_seq: int = -1) -> dict[str, Any]:
+    """Poll pending Hive actions for an attached Hermes session."""
+    return _run_hive(
+        [
+            "--json",
+            "integrate",
+            "poll-actions",
+            "hermes",
+            session_id,
+            "--since-seq",
+            str(since_seq),
+        ]
+    )
+
+
 def hive_next(params: dict[str, Any] | None = None) -> dict[str, Any]:
     """Ask Hive for the next recommended task."""
     args = ["--json", "next"]
@@ -67,7 +87,14 @@ def hive_attach(params: dict[str, Any] | None = None) -> dict[str, Any]:
         args.extend(["--project-id", params["project_id"]])
     if params.get("task_id"):
         args.extend(["--task-id", params["task_id"]])
-    return _run_hive(args)
+    attached = _run_hive(args)
+    if not attached.get("ok"):
+        return attached
+    return {
+        **attached,
+        "sync": _sync_hermes_session(params["session_id"]),
+        "pending_actions": _poll_hermes_actions(params["session_id"]),
+    }
 
 
 def hive_finish(params: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -90,7 +117,16 @@ def hive_status(params: dict[str, Any] | None = None) -> dict[str, Any]:
     """Show Hive workspace or run status."""
     if params and params.get("run_id"):
         return _run_hive(["--json", "console", "run", params["run_id"]])
-    return _run_hive(["--json", "console", "home"])
+    payload = _run_hive(["--json", "console", "home"])
+    if params and params.get("session_id"):
+        since_seq = int(params.get("since_seq", -1))
+        payload["attached_session"] = {
+            "sync": _sync_hermes_session(params["session_id"]),
+            "pending_actions": _poll_hermes_actions(
+                params["session_id"], since_seq=since_seq
+            ),
+        }
+    return payload
 
 
 ACTIONS: dict[str, Any] = {

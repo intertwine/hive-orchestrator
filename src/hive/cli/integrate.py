@@ -63,6 +63,12 @@ def dispatch(args, root: Path) -> int:
         if args.integrate_command == "attach":
             return _attach_session(args, root)
 
+        if args.integrate_command == "sync":
+            return _sync_session(args, root)
+
+        if args.integrate_command == "poll-actions":
+            return _poll_actions(args, root)
+
         if args.integrate_command == "detach":
             return _detach_session(args, root)
 
@@ -192,6 +198,80 @@ def _attach_session(args, root: Path) -> int:
     )
 
 
+def _sync_session(args, root: Path) -> int:
+    """Sync transcript-backed delegate sessions into Hive trajectory artifacts."""
+    if args.harness != "hermes":
+        return emit_error(
+            ValueError(f"{args.harness} does not support integrate sync."),
+            args.json,
+        )
+
+    from src.hive.integrations.hermes import (
+        HermesGatewayAdapter,
+        load_attached_hermes_session,
+    )
+
+    session = load_attached_hermes_session(root, args.native_session_ref)
+    if session is None:
+        return emit_error(
+            ValueError(f"No attached Hermes session found for {args.native_session_ref}."),
+            args.json,
+        )
+
+    adapter = HermesGatewayAdapter(base_path=root)
+    events = list(adapter.stream_events(session))
+    return emit(
+        {
+            "ok": True,
+            "message": f"Synced {len(events)} event(s) from Hermes session {args.native_session_ref}.",
+            "session": session.to_dict(),
+            "events": events,
+            "synced_count": len(events),
+        },
+        args.json,
+    )
+
+
+def _poll_actions(args, root: Path) -> int:
+    """Poll pending companion actions for an attached Hermes session."""
+    if args.harness != "hermes":
+        return emit_error(
+            ValueError(f"{args.harness} does not support integrate poll-actions."),
+            args.json,
+        )
+
+    from src.hive.integrations.hermes import (
+        load_attached_hermes_session,
+        load_pending_actions,
+    )
+
+    session = load_attached_hermes_session(root, args.native_session_ref)
+    if session is None or not session.delegate_session_id:
+        return emit_error(
+            ValueError(f"No attached Hermes session found for {args.native_session_ref}."),
+            args.json,
+        )
+
+    items = load_pending_actions(
+        root,
+        session.delegate_session_id,
+        since_seq=int(getattr(args, "since_seq", -1)),
+    )
+    next_since_seq = (
+        max((int(item.get("seq", -1)) for item in items), default=int(getattr(args, "since_seq", -1)))
+    )
+    return emit(
+        {
+            "ok": True,
+            "message": f"Loaded {len(items)} pending action(s) for Hermes session {args.native_session_ref}.",
+            "session": session.to_dict(),
+            "items": items,
+            "next_since_seq": next_since_seq,
+        },
+        args.json,
+    )
+
+
 def _detach_session(args, root: Path) -> int:
     """Detach a delegate session, updating both manifest and final state."""
     import json as _json
@@ -251,6 +331,7 @@ def _integrate_hermes(args, root: Path) -> int:
     probed = snapshot.probed if snapshot else {}
 
     hermes_found = bool(probed.get("hermes_found"))
+    attach_ok = bool(probed.get("attach_supported"))
     gateway_ok = bool(probed.get("gateway_reachable"))
     gateway_responding = bool(probed.get("gateway_responding"))
 
@@ -259,17 +340,15 @@ def _integrate_hermes(args, root: Path) -> int:
         status_msg = "Hermes not found"
         next_steps.append("Install Hermes or set HERMES_HOME.")
         next_steps.append("Then re-run: hive integrate hermes")
-    elif gateway_responding and not gateway_ok:
-        status_msg = "Hermes found, gateway not Hive-compatible"
+    elif not attach_ok:
+        status_msg = "Hermes found, session store not available"
+        next_steps.append("Set HERMES_HOME to a real Hermes home directory.")
         next_steps.append(
-            "Enable Hive-compatible attach support in the Hermes gateway and re-run: hive integrate hermes"
+            "Make sure HERMES_HOME contains state.db and/or sessions/, then re-run: hive integrate hermes"
         )
         next_steps.append(
-            "Or import an export instead: hive integrate import-trajectory hermes <path>"
+            "Or import an export instead: hive integrate import-trajectory <path>"
         )
-    elif not gateway_ok:
-        status_msg = "Hermes found, gateway not reachable"
-        next_steps.append("Set HERMES_GATEWAY_URL and re-run: hive integrate hermes")
     else:
         status_msg = "ready"
         if not probed.get("skill_installed"):
@@ -277,6 +356,11 @@ def _integrate_hermes(args, root: Path) -> int:
                 "Load the agent-hive skill in Hermes from packages/hermes-skill/"
             )
         next_steps.append("Attach a session: hive integrate attach hermes <session-id>")
+        next_steps.append("Poll pending notes from Hermes: hive_status {\"session_id\":\"<session-id>\"}")
+        if gateway_responding and not gateway_ok:
+            next_steps.append(
+                "Optional: enable Hive-compatible gateway health metadata if you want gateway readiness verified too."
+            )
         next_steps.append("hive integrate doctor hermes --json")
 
     return emit(

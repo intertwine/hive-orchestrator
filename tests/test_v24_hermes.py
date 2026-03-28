@@ -7,6 +7,8 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 from pathlib import Path
+import sqlite3
+import time
 
 import pytest
 
@@ -68,9 +70,148 @@ def _serve_json(payload: dict[str, object]):
 # ---------------------------------------------------------------------------
 
 
+def _sample_hermes_messages() -> list[dict[str, object]]:
+    return [
+        {"role": "user", "content": "hello from Hermes"},
+        {
+            "role": "assistant",
+            "content": "I checked the repo",
+            "tool_calls": [
+                {
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {"name": "search", "arguments": "{}"},
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call-1",
+            "tool_name": "search",
+            "content": "search results",
+        },
+    ]
+
+
+def _write_hermes_transcript(
+    hermes_home: Path,
+    session_id: str,
+    messages: list[dict[str, object]] | None = None,
+) -> Path:
+    sessions_dir = hermes_home / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    transcript_path = sessions_dir / f"{session_id}.jsonl"
+    payload = messages or _sample_hermes_messages()
+    transcript_path.write_text(
+        "\n".join(json.dumps(message) for message in payload) + "\n",
+        encoding="utf-8",
+    )
+    return transcript_path
+
+
+def _write_hermes_state_db(
+    hermes_home: Path,
+    session_id: str,
+    messages: list[dict[str, object]] | None = None,
+    *,
+    source: str = "cli",
+) -> Path:
+    db_path = hermes_home / "state.db"
+    hermes_home.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sessions (
+            id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            title TEXT,
+            started_at REAL,
+            ended_at REAL,
+            message_count INTEGER DEFAULT 0
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT,
+            tool_call_id TEXT,
+            tool_calls TEXT,
+            tool_name TEXT,
+            timestamp REAL NOT NULL,
+            reasoning TEXT,
+            reasoning_details TEXT,
+            codex_reasoning_items TEXT
+        )
+        """
+    )
+    now = time.time()
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO sessions (id, source, title, started_at, ended_at, message_count)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (session_id, source, None, now, None, len(messages or _sample_hermes_messages())),
+    )
+    for index, message in enumerate(messages or _sample_hermes_messages()):
+        conn.execute(
+            """
+            INSERT INTO messages (
+                session_id, role, content, tool_call_id, tool_calls, tool_name, timestamp,
+                reasoning, reasoning_details, codex_reasoning_items
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                session_id,
+                message.get("role", "assistant"),
+                message.get("content"),
+                message.get("tool_call_id"),
+                json.dumps(message["tool_calls"])
+                if message.get("tool_calls") is not None
+                else None,
+                message.get("tool_name"),
+                now + index,
+                message.get("reasoning"),
+                json.dumps(message["reasoning_details"])
+                if message.get("reasoning_details") is not None
+                else None,
+                json.dumps(message["codex_reasoning_items"])
+                if message.get("codex_reasoning_items") is not None
+                else None,
+            ),
+        )
+    conn.commit()
+    conn.close()
+    return db_path
+
+
+def _prepare_hermes_home(
+    tmp_path: Path,
+    *,
+    session_ids: tuple[str, ...] = ("hermes-sess-001",),
+    stores: tuple[str, ...] = ("transcript",),
+    messages: list[dict[str, object]] | None = None,
+) -> Path:
+    hermes_home = tmp_path / "hermes-home"
+    hermes_home.mkdir(parents=True, exist_ok=True)
+    for session_id in session_ids:
+        if "transcript" in stores:
+            _write_hermes_transcript(hermes_home, session_id, messages)
+        if "sqlite" in stores:
+            _write_hermes_state_db(hermes_home, session_id, messages)
+    return hermes_home
+
+
 def _stub_hermes_probe(
     *,
     hermes_found: bool = True,
+    hermes_home: str = "/opt/hermes",
+    attach_supported: bool = True,
+    state_db_available: bool = False,
     gateway_reachable: bool = True,
     skill_installed: bool = True,
     agents_intact: bool = True,
@@ -80,19 +221,23 @@ def _stub_hermes_probe(
             hermes_found=False,
             blockers=["Hermes not found."],
         )
+    state_db_path = str(Path(hermes_home) / "state.db")
+    sessions_dir = str(Path(hermes_home) / "sessions")
     return HermesProbe(
         hermes_found=True,
-        hermes_home="/opt/hermes",
+        hermes_home=hermes_home,
         hermes_version="3.2.0",
+        state_db_path=state_db_path,
+        state_db_available=state_db_available,
+        sessions_dir=sessions_dir,
+        attach_supported=attach_supported,
         gateway_url="http://localhost:4000",
         gateway_reachable=gateway_reachable,
         skill_installed=skill_installed,
         agents_context_intact=agents_intact,
         trajectory_export_available=True,
-        notes=["Hermes detected at /opt/hermes."],
-        blockers=[]
-        if gateway_reachable
-        else ["HERMES_GATEWAY_URL not set — gateway attach will be unavailable."],
+        notes=[f"Hermes detected at {hermes_home}."],
+        blockers=[] if attach_supported else ["Hermes session storage not available."],
     )
 
 
@@ -100,11 +245,23 @@ def _make_adapter(
     tmp_path: Path | None = None,
     *,
     hermes_found: bool = True,
+    attach_supported: bool | None = None,
+    stores: tuple[str, ...] = ("transcript",),
     gateway_reachable: bool = True,
     skill_installed: bool = True,
 ) -> HermesGatewayAdapter:
+    hermes_home = Path("/opt/hermes")
+    state_db_available = False
+    if tmp_path is not None:
+        hermes_home = _prepare_hermes_home(tmp_path, stores=stores)
+        state_db_available = (hermes_home / "state.db").exists()
     probe = _stub_hermes_probe(
         hermes_found=hermes_found,
+        hermes_home=str(hermes_home),
+        attach_supported=(
+            attach_supported if attach_supported is not None else bool(stores)
+        ),
+        state_db_available=state_db_available,
         gateway_reachable=gateway_reachable,
         skill_installed=skill_installed,
     )
@@ -140,11 +297,11 @@ class TestHE1InstallAndConnect:
     def test_probe_with_gateway_unreachable(self):
         adapter = _make_adapter(gateway_reachable=False)
         info = adapter.probe()
-        assert info.available is False
+        assert info.available is True
         snap = info.capability_snapshot
         assert snap is not None
         assert snap.probed["gateway_reachable"] is False
-        assert snap.confidence["launch_mode"] == "hermes_only"
+        assert snap.confidence["launch_mode"] == "verified"
 
     def test_real_probe_rejects_generic_http_server(self, tmp_path, monkeypatch):
         monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
@@ -163,7 +320,8 @@ class TestHE1InstallAndConnect:
         )
 
     def test_real_probe_accepts_hive_compatible_gateway(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
+        hermes_home = _prepare_hermes_home(tmp_path, stores=("sqlite",))
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
         with _serve_json(
             {
                 "gateway": "hermes",
@@ -183,6 +341,24 @@ class TestHE1InstallAndConnect:
         assert snap is not None
         assert snap.probed["gateway_reachable"] is True
         assert snap.probed["gateway_responding"] is True
+        assert snap.probed["state_db_available"] is True
+
+    def test_real_probe_accepts_sqlite_session_store_without_gateway(
+        self, tmp_path, monkeypatch
+    ):
+        hermes_home = _prepare_hermes_home(tmp_path, stores=("sqlite",))
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.delenv("HERMES_GATEWAY_URL", raising=False)
+
+        adapter = HermesGatewayAdapter(base_path=tmp_path)
+        info = adapter.probe()
+
+        assert info.available is True
+        snap = info.capability_snapshot
+        assert snap is not None
+        assert snap.probed["state_db_available"] is True
+        assert snap.probed["attach_supported"] is True
+        assert snap.probed["gateway_reachable"] is False
 
     def test_probe_capability_snapshot_truthful(self):
         adapter = _make_adapter()
@@ -252,6 +428,7 @@ class TestHE2AttachLiveSession:
         assert session.delegate_session_id is not None
         assert session.project_id == "proj-1"
         assert session.governance_mode == GovernanceMode.ADVISORY
+        assert session.metadata["transcript_path"].endswith("hermes-sess-001.jsonl")
 
     def test_attach_always_advisory(self, tmp_path):
         """Hermes sessions are always advisory — Hive never owns the sandbox."""
@@ -266,10 +443,18 @@ class TestHE2AttachLiveSession:
         with pytest.raises(ConnectionError, match="Hermes not found"):
             adapter.attach_delegate_session("sess", GovernanceMode.ADVISORY)
 
-    def test_attach_fails_when_gateway_unreachable(self):
-        adapter = _make_adapter(gateway_reachable=False)
-        with pytest.raises(ConnectionError, match="gateway not reachable"):
-            adapter.attach_delegate_session("sess", GovernanceMode.ADVISORY)
+    def test_attach_fails_when_session_missing(self, tmp_path):
+        adapter = _make_adapter(tmp_path, stores=("sqlite",))
+        with pytest.raises(ConnectionError, match="session not found"):
+            adapter.attach_delegate_session("missing-session", GovernanceMode.ADVISORY)
+
+    def test_attach_supports_sqlite_only_session(self, tmp_path):
+        adapter = _make_adapter(tmp_path, stores=("sqlite",))
+        session = adapter.attach_delegate_session(
+            "hermes-sess-001", GovernanceMode.ADVISORY
+        )
+        assert session.metadata["state_db_path"].endswith("state.db")
+        assert session.metadata["transcript_path"] == ""
 
     def test_stream_events_normalized(self, tmp_path):
         adapter = _make_adapter(tmp_path)
@@ -277,14 +462,17 @@ class TestHE2AttachLiveSession:
             "hermes-sess-001", GovernanceMode.ADVISORY
         )
         events = list(adapter.stream_events(session))
-        assert len(events) >= 1
-        assert events[0]["kind"] == "session_start"
+        kinds = [event["kind"] for event in events]
+        assert kinds[:2] == ["session_start", "user_message"]
+        assert "assistant_delta" in kinds
+        assert "tool_call_start" in kinds
+        assert "tool_call_end" in kinds
         assert events[0]["harness"] == "hermes"
         assert events[0]["adapter_family"] == "delegate_gateway"
         assert events[0]["delegate_session_id"] == session.delegate_session_id
 
     def test_stream_events_persists_trajectory(self, tmp_path):
-        adapter = _make_adapter(tmp_path)
+        adapter = _make_adapter(tmp_path, stores=("sqlite",))
         session = adapter.attach_delegate_session(
             "hermes-sess-001", GovernanceMode.ADVISORY
         )
@@ -315,6 +503,8 @@ class TestHE2AttachLiveSession:
         )
         assert result["ok"] is True
         assert result["action"] == "pause"
+        assert result["queued"] is True
+        assert result["delivered"] is False
 
     def test_steering_persists(self, tmp_path):
         adapter = _make_adapter(tmp_path)
@@ -334,6 +524,16 @@ class TestHE2AttachLiveSession:
         assert len(lines) == 1
         assert json.loads(lines[0])["action"] == "pause"
 
+        pending_path = (
+            tmp_path
+            / ".hive"
+            / "delegates"
+            / session.delegate_session_id
+            / "pending-actions.ndjson"
+        )
+        pending = [json.loads(line) for line in pending_path.read_text(encoding="utf-8").splitlines()]
+        assert pending[0]["action_type"] == "pause"
+
     def test_publish_note_round_trips(self, tmp_path):
         adapter = _make_adapter(tmp_path)
         session = adapter.attach_delegate_session(
@@ -341,6 +541,8 @@ class TestHE2AttachLiveSession:
         )
         result = adapter.publish_note(session, "check the cron output")
         assert result["ok"] is True
+        assert result["queued"] is True
+        assert result["delivered"] is False
 
     def test_detach_leaves_hermes_session_running(self, tmp_path):
         adapter = _make_adapter(tmp_path)
@@ -375,12 +577,14 @@ class TestHE2AttachLiveSession:
             "hermes-sess-001", GovernanceMode.ADVISORY
         )
         list(adapter.stream_events(session))
+        adapter.publish_note(session, "watch this session")
         artifacts = adapter.collect_artifacts(session)
         names = [a["name"] for a in artifacts["artifacts"]]
         assert "trajectory.jsonl" in names
+        assert "pending-actions.ndjson" in names
 
     def test_delegate_session_persisted_on_attach(self, tmp_path):
-        adapter = _make_adapter(tmp_path)
+        adapter = _make_adapter(tmp_path, stores=("sqlite",))
         session = adapter.attach_delegate_session(
             "hermes-sess-001", GovernanceMode.ADVISORY, project_id="proj-1"
         )
@@ -388,6 +592,7 @@ class TestHE2AttachLiveSession:
         assert loaded is not None
         assert loaded["native_session_ref"] == "hermes-sess-001"
         assert loaded["governance_mode"] == "advisory"
+        assert loaded["metadata"]["state_db_path"].endswith("state.db")
 
 
 # ---------------------------------------------------------------------------
@@ -604,13 +809,13 @@ class TestHE4MemoryPrivacy:
 class TestHermesHiveLink:
     """Verify Hermes adapter works with the Hive Link server."""
 
-    def test_link_hello_attach_flow(self):
+    def test_link_hello_attach_flow(self, tmp_path):
         import io
 
         from src.hive.link.protocol import LinkAttach, LinkHello
         from src.hive.link.server import LinkServer
 
-        adapter = _make_adapter()
+        adapter = _make_adapter(tmp_path)
         messages = [
             json.dumps(
                 LinkHello(harness="hermes", adapter_family="delegate_gateway").to_dict()
@@ -638,13 +843,13 @@ class TestHermesHiveLink:
         assert responses[1]["effective_governance"] == "advisory"
         assert responses[1]["delegate_session_id"] is not None
 
-    def test_link_governed_request_downgraded_to_advisory(self):
+    def test_link_governed_request_downgraded_to_advisory(self, tmp_path):
         import io
 
         from src.hive.link.protocol import LinkAttach
         from src.hive.link.server import LinkServer
 
-        adapter = _make_adapter()
+        adapter = _make_adapter(tmp_path)
         messages = [
             json.dumps(
                 LinkAttach(

@@ -578,3 +578,176 @@ class TestReviewFixes:
         artifacts = adapter.collect_artifacts(session)
         names = [a["name"] for a in artifacts["artifacts"]]
         assert "trajectory.jsonl" in names
+
+    def test_attach_fails_when_bridge_attach_returns_error(self):
+        """P1-1 (PR #167): adapter must check bridge attach response ok field."""
+        stub = StubBridgeClient()
+        # Override attach to return an error.
+        stub.attach = lambda key, **kw: {
+            "ok": False,
+            "error": "Gateway rejected session.",
+        }
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        with pytest.raises(ConnectionError, match="Gateway rejected session"):
+            adapter.attach_delegate_session("oc-sess-001", GovernanceMode.ADVISORY)
+
+    def test_probe_not_available_when_gateway_unreachable(self):
+        """P1-3 (PR #167): probe must not claim available when gateway is down."""
+        stub = StubBridgeClient(gateway_reachable=False)
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        info = adapter.probe()
+        assert info.available is False
+        assert info.capability_snapshot is not None
+        assert info.capability_snapshot.probed["gateway_reachable"] is False
+
+    def test_attach_fails_when_gateway_unreachable(self):
+        """P1-1 (follow-up): attach must fail when gateway is configured but down."""
+        stub = StubBridgeClient(gateway_reachable=False)
+        adapter = OpenClawGatewayAdapter(bridge=stub)
+        with pytest.raises(ConnectionError, match="gateway is not reachable"):
+            adapter.attach_delegate_session("oc-sess-001", GovernanceMode.ADVISORY)
+
+
+# ---------------------------------------------------------------------------
+# Bridge client protocol tests
+# ---------------------------------------------------------------------------
+
+
+class TestBridgeClientProtocol:
+    """Verify the real OpenClawBridgeClient speaks NDJSON correctly."""
+
+    def test_send_receive_with_stub_bridge(self, tmp_path):
+        """Create a tiny stub bridge script and verify the NDJSON round-trip."""
+        # Write a minimal Node script that echoes back a probe response.
+        bridge_script = tmp_path / "openclaw-hive-bridge"
+        bridge_script.write_text(
+            "#!/usr/bin/env node\n"
+            'const readline = require("readline");\n'
+            "const rl = readline.createInterface({ input: process.stdin });\n"
+            'rl.on("line", (line) => {\n'
+            "  const msg = JSON.parse(line);\n"
+            '  if (msg.type === "probe") {\n'
+            "    process.stdout.write(JSON.stringify({\n"
+            '      type: "probe_ok",\n'
+            '      version: "0.1.0-test",\n'
+            '      gateway_url: "http://localhost:3000",\n'
+            "      gateway_reachable: true,\n"
+            "      sessions_accessible: true,\n"
+            "      attach_supported: true,\n"
+            "      steering_supported: true,\n"
+            '    }) + "\\n");\n'
+            '  } else if (msg.type === "list_sessions") {\n'
+            "    process.stdout.write(JSON.stringify({\n"
+            '      type: "sessions",\n'
+            '      items: [{session_key: "s1", status: "active"}],\n'
+            '    }) + "\\n");\n'
+            '  } else if (msg.type === "attach") {\n'
+            "    process.stdout.write(JSON.stringify({\n"
+            '      type: "attach_ok", ok: true,\n'
+            "      session_key: msg.native_session_ref,\n"
+            '      status: "attached",\n'
+            '    }) + "\\n");\n'
+            '  } else if (msg.type === "stream_events") {\n'
+            "    process.stdout.write(JSON.stringify({\n"
+            '      type: "stream_events_ok",\n'
+            "      events: [\n"
+            '        {kind: "session_start", ts: new Date().toISOString(), payload: {}},\n'
+            '        {kind: "assistant_delta", ts: new Date().toISOString(), payload: {text: "hi"}},\n'
+            "      ],\n"
+            '    }) + "\\n");\n'
+            "  } else {\n"
+            "    process.stdout.write(JSON.stringify({\n"
+            '      type: "ok", ok: true,\n'
+            '    }) + "\\n");\n'
+            "  }\n"
+            "  process.exit(0);\n"
+            "});\n",
+            encoding="utf-8",
+        )
+        bridge_script.chmod(0o755)
+
+        import shutil
+
+        node_path = shutil.which("node")
+        if node_path is None:
+            pytest.skip("Node.js not available for bridge protocol test")
+
+        from unittest.mock import patch
+
+        client = OpenClawBridgeClient(gateway_url="http://localhost:3000")
+        with patch.object(client, "detect_binary", return_value=str(bridge_script)):
+            with patch.object(
+                client,
+                "_bridge_command",
+                return_value=[node_path, str(bridge_script)],
+            ):
+                # Test probe
+                probe = client.probe()
+                assert probe.reachable is True
+                assert probe.gateway_reachable is True
+                assert probe.version == "0.1.0-test"
+
+    def test_send_receive_list_sessions(self, tmp_path):
+        """Verify list_sessions parses the bridge response."""
+        bridge_script = tmp_path / "openclaw-hive-bridge"
+        bridge_script.write_text(
+            "#!/usr/bin/env node\n"
+            'process.stdout.write(JSON.stringify({type:"sessions",'
+            'items:[{session_key:"s1"},{session_key:"s2"}]})'
+            '+"\\n");\n'
+            "process.exit(0);\n",
+            encoding="utf-8",
+        )
+        bridge_script.chmod(0o755)
+
+        import shutil
+
+        node_path = shutil.which("node")
+        if node_path is None:
+            pytest.skip("Node.js not available")
+
+        from unittest.mock import patch
+
+        client = OpenClawBridgeClient()
+        with patch.object(
+            client,
+            "_bridge_command",
+            return_value=[node_path, str(bridge_script)],
+        ):
+            with patch.object(client, "detect_binary", return_value=str(bridge_script)):
+                sessions = client.list_sessions()
+                assert len(sessions) == 2
+                assert sessions[0]["session_key"] == "s1"
+
+    def test_stream_events_yields_from_bridge(self, tmp_path):
+        """Verify stream_events parses events from bridge response."""
+        bridge_script = tmp_path / "openclaw-hive-bridge"
+        bridge_script.write_text(
+            "#!/usr/bin/env node\n"
+            'process.stdout.write(JSON.stringify({type:"stream_events_ok",'
+            'events:[{kind:"session_start"},{kind:"assistant_delta",payload:{text:"hi"}}]})'
+            '+"\\n");\n'
+            "process.exit(0);\n",
+            encoding="utf-8",
+        )
+        bridge_script.chmod(0o755)
+
+        import shutil
+
+        node_path = shutil.which("node")
+        if node_path is None:
+            pytest.skip("Node.js not available")
+
+        from unittest.mock import patch
+
+        client = OpenClawBridgeClient()
+        with patch.object(
+            client,
+            "_bridge_command",
+            return_value=[node_path, str(bridge_script)],
+        ):
+            with patch.object(client, "detect_binary", return_value=str(bridge_script)):
+                events = list(client.stream_events("s1"))
+                assert len(events) == 2
+                assert events[0]["kind"] == "session_start"
+                assert events[1]["payload"]["text"] == "hi"

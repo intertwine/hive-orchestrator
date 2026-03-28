@@ -7,7 +7,9 @@ via an external bridge (``openclaw-hive-bridge``). Managed mode is deferred.
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
@@ -49,11 +51,15 @@ class BridgeProbe:
 class OpenClawBridgeClient:
     """Client for communicating with the openclaw-hive-bridge process.
 
-    The default implementation detects the bridge binary and probes via
-    subprocess. Tests can subclass or replace this with an in-memory stub.
+    The default implementation launches the bridge as a stdio subprocess
+    and speaks NDJSON. Each request is a JSON line; each response is a JSON
+    line back. Tests can subclass or replace this with an in-memory stub.
     """
 
     BINARY_NAMES = ("openclaw-hive-bridge",)
+
+    def __init__(self, gateway_url: str | None = None) -> None:
+        self._gateway_url = gateway_url or os.environ.get("OPENCLAW_GATEWAY_URL", "")
 
     def detect_binary(self) -> str | None:
         for name in self.BINARY_NAMES:
@@ -61,6 +67,42 @@ class OpenClawBridgeClient:
             if path:
                 return str(Path(path).resolve())
         return None
+
+    def _bridge_command(self) -> list[str] | None:
+        binary = self.detect_binary()
+        if not binary:
+            return None
+        cmd = [binary]
+        if self._gateway_url:
+            cmd.extend(["--gateway", self._gateway_url])
+        cmd.append("--stdio")
+        return cmd
+
+    def _send_receive(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Send one NDJSON request to the bridge and return the response."""
+        cmd = self._bridge_command()
+        if not cmd:
+            return {"ok": False, "error": "Bridge binary not found."}
+        try:
+            result = subprocess.run(
+                cmd,
+                input=json.dumps(request) + "\n",
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
+            return {"ok": False, "error": str(exc)}
+        for line in result.stdout.strip().splitlines():
+            if line.strip():
+                try:
+                    return json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+        return {
+            "ok": False,
+            "error": result.stderr.strip() or "No response from bridge.",
+        }
 
     def probe(self) -> BridgeProbe:
         binary = self.detect_binary()
@@ -73,37 +115,83 @@ class OpenClawBridgeClient:
                     "Or run the bridge from packages/openclaw-hive-bridge/.",
                 ],
             )
+        # Probe the bridge for gateway status.
+        response = self._send_receive({"type": "probe"})
+        gateway_reachable = bool(response.get("gateway_reachable"))
         return BridgeProbe(
             reachable=True,
-            version="0.1.0",
-            notes=[f"Bridge detected at {binary}."],
+            version=str(response.get("version", "0.1.0")),
+            gateway_url=str(response.get("gateway_url", self._gateway_url)),
+            gateway_reachable=gateway_reachable,
+            sessions_accessible=bool(response.get("sessions_accessible")),
+            attach_supported=bool(response.get("attach_supported", True)),
+            steering_supported=bool(response.get("steering_supported", True)),
+            notes=[f"Bridge detected at {binary}."]
+            + (
+                [f"Gateway at {self._gateway_url} is reachable."]
+                if gateway_reachable
+                else []
+            ),
+            blockers=[]
+            if gateway_reachable
+            else [
+                f"Gateway at {self._gateway_url or '(not configured)'} is not reachable."
+            ],
         )
 
     def list_sessions(self) -> list[dict[str, Any]]:
-        return []
+        response = self._send_receive({"type": "list_sessions"})
+        return list(response.get("items", []))
 
     def attach(
         self, session_key: str, *, project_id: str | None = None
     ) -> dict[str, Any]:
-        return {
-            "ok": True,
-            "session_key": session_key,
-            "status": "attached",
-        }
+        return self._send_receive(
+            {
+                "type": "attach",
+                "native_session_ref": session_key,
+                "project_id": project_id,
+            }
+        )
 
     def stream_events(self, session_key: str) -> Iterator[dict[str, Any]]:
-        return iter(())
+        """Stream events from the bridge. Uses a single request/response for now."""
+        response = self._send_receive(
+            {
+                "type": "stream_events",
+                "native_session_ref": session_key,
+            }
+        )
+        yield from response.get("events", [])
 
     def send_steer(
         self, session_key: str, action: str, payload: dict[str, Any]
     ) -> dict[str, Any]:
-        return {"ok": True, "session_key": session_key, "action": action}
+        return self._send_receive(
+            {
+                "type": "steer",
+                "session_key": session_key,
+                "action": action,
+                "payload": payload,
+            }
+        )
 
     def publish_note(self, session_key: str, note: str) -> dict[str, Any]:
-        return {"ok": True, "session_key": session_key, "note": note}
+        return self._send_receive(
+            {
+                "type": "note",
+                "session_key": session_key,
+                "note": note,
+            }
+        )
 
     def detach(self, session_key: str) -> dict[str, Any]:
-        return {"ok": True, "session_key": session_key, "status": "detached"}
+        return self._send_receive(
+            {
+                "type": "detach",
+                "native_session_ref": session_key,
+            }
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -249,9 +337,15 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
                 reroute_export="none",
             ),
             effective=capability_surface(
-                launch_mode="gateway_bridge" if bridge_probe.reachable else "none",
-                session_persistence="persistent" if bridge_probe.reachable else "none",
-                event_stream="structured_deltas" if bridge_probe.reachable else "none",
+                launch_mode="gateway_bridge"
+                if bridge_probe.gateway_reachable
+                else "none",
+                session_persistence="persistent"
+                if bridge_probe.gateway_reachable
+                else "none",
+                event_stream="structured_deltas"
+                if bridge_probe.gateway_reachable
+                else "none",
                 approvals=[],
                 skills="file_projection",
                 worktrees="host_managed",
@@ -259,7 +353,7 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
                 native_sandbox="external",
                 outer_sandbox_required=False,
                 artifacts=["transcript", "session-history"]
-                if bridge_probe.reachable
+                if bridge_probe.gateway_reachable
                 else [],
                 reroute_export="none",
             ),
@@ -272,13 +366,21 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
                 "steering_supported": bridge_probe.steering_supported,
             },
             confidence={
-                "launch_mode": "verified" if bridge_probe.reachable else "unavailable",
-                "event_stream": "verified" if bridge_probe.reachable else "unavailable",
+                "launch_mode": "verified"
+                if bridge_probe.gateway_reachable
+                else ("bridge_only" if bridge_probe.reachable else "unavailable"),
+                "event_stream": "verified"
+                if bridge_probe.gateway_reachable
+                else ("bridge_only" if bridge_probe.reachable else "unavailable"),
             },
             evidence={
                 "launch_mode": "OpenClaw Gateway bridge provides session access."
-                if bridge_probe.reachable
-                else "Bridge not detected — install openclaw-hive-bridge.",
+                if bridge_probe.gateway_reachable
+                else (
+                    "Bridge detected but gateway not reachable."
+                    if bridge_probe.reachable
+                    else "Bridge not detected — install openclaw-hive-bridge."
+                ),
                 "sandbox": "Sandbox is owned by OpenClaw, not Hive.",
             },
             governance_mode="advisory",
@@ -294,7 +396,7 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
             governance_mode=GovernanceMode.ADVISORY,
             integration_level=IntegrationLevel.ATTACH,
             version=bridge_probe.version or "0.0.0",
-            available=bridge_probe.reachable,
+            available=bridge_probe.reachable and bridge_probe.gateway_reachable,
             capability_snapshot=self._capability_snapshot(bridge_probe),
             notes=[
                 *bridge_probe.notes,
@@ -313,7 +415,7 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
         project_id: str | None = None,
         task_id: str | None = None,
     ) -> SessionHandle:
-        # Fail fast if the bridge is not reachable.
+        # Fail fast if the bridge is not reachable or the gateway is unavailable.
         bridge_probe = self._bridge.probe()
         if not bridge_probe.reachable:
             raise ConnectionError(
@@ -324,11 +426,23 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
                     else "Install the bridge first."
                 )
             )
+        if not bridge_probe.gateway_reachable:
+            raise ConnectionError(
+                "Cannot attach: OpenClaw gateway is not reachable. "
+                + (
+                    bridge_probe.blockers[0]
+                    if bridge_probe.blockers
+                    else "Configure OPENCLAW_GATEWAY_URL and restart the bridge."
+                )
+            )
 
         # OpenClaw sessions are always advisory — Hive never owns the sandbox.
         effective_governance = GovernanceMode.ADVISORY
 
-        self._bridge.attach(native_session_ref, project_id=project_id)
+        attach_result = self._bridge.attach(native_session_ref, project_id=project_id)
+        if not attach_result.get("ok", False):
+            error_msg = attach_result.get("error", "Bridge attach failed.")
+            raise ConnectionError(f"Cannot attach {native_session_ref}: {error_msg}")
 
         delegate_id = new_id("del")
         session = SessionHandle(

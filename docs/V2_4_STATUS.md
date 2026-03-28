@@ -37,8 +37,8 @@ The following items are explicitly deferred from blocking v2.4:
 | Pi companion package | In progress | `packages/pi-hive/`, `src/hive/integrations/pi.py`, `tests/test_v24_pi_integration.py` | live Pi SDK link flow |
 | Pi attach mode | In progress | attach-session scaffolding + trajectory persistence tests | manual attach CLI + live session binding |
 | Pi managed mode | In progress | `src/hive/integrations/pi_managed.py`, `pi-hive-runner`, managed-session tests | real run-engine launch + Pi SDK session |
-| OpenClaw skill + bridge | Landed | `packages/openclaw-hive-bridge/`, ClawHub `agent-hive` skill, `src/hive/integrations/openclaw.py` | — |
-| OpenClaw attach mode | Landed | delegate session persistence, `hive integrate attach/detach`, 26 tests | — |
+| OpenClaw skill + bridge | Landed | `packages/openclaw-hive-bridge/` NDJSON protocol, ClawHub `agent-hive` skill + action wrappers, `src/hive/integrations/openclaw.py` | real Gateway HTTP calls in bridge |
+| OpenClaw attach mode | Landed | delegate persistence, trajectory write-through, `hive integrate attach/detach`, bridge protocol tests | real Gateway session binding |
 | Hermes companion integration | Proposed | RFC only | skill/toolset + attach |
 | Hermes trajectory import fallback | Proposed | RFC only | importer + tests |
 | Truthful advisory/governed surfaces | Landed | console /integrations, driver doctor, run detail | — |

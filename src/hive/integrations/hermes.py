@@ -66,6 +66,24 @@ class HermesProbe:
     notes: list[str] = field(default_factory=list)
 
 
+def _check_gateway_health(gateway_url: str) -> bool:
+    """Attempt an HTTP health check against the Hermes gateway."""
+    import urllib.request
+    import urllib.error
+
+    # Try common health endpoints.
+    for path in ("/health", "/api/health", "/"):
+        try:
+            url = gateway_url.rstrip("/") + path
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                if resp.status < 500:
+                    return True
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+    return False
+
+
 def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
     """Inspect the local environment for Hermes availability."""
     hermes_binary = shutil.which("hermes")
@@ -82,6 +100,11 @@ def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
             ],
         )
 
+    # Resolve hermes_home: prefer env var, fall back to binary parent.
+    resolved_home = hermes_home
+    if not resolved_home and hermes_binary:
+        resolved_home = str(Path(hermes_binary).resolve().parent.parent)
+
     # Check for AGENTS.md context compatibility.
     root = Path(workspace_root or Path.cwd()).resolve()
     agents_path = root / "AGENTS.md"
@@ -91,35 +114,42 @@ def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
     skill_dir = root / "packages" / "hermes-skill"
     skill_installed = (skill_dir / "manifest.json").exists()
 
-    # gateway_reachable is False until a real health check confirms it.
-    # Having a URL configured is necessary but not sufficient.
+    # Gateway reachability: actually probe when a URL is configured.
     gateway_configured = bool(gateway_url)
+    gateway_reachable = False
+    if gateway_configured:
+        gateway_reachable = _check_gateway_health(gateway_url)
+
     blockers: list[str] = []
     if not gateway_configured:
         blockers.append(
             "HERMES_GATEWAY_URL not set — gateway attach will be unavailable."
         )
-    else:
+    elif not gateway_reachable:
         blockers.append(
-            f"Gateway at {gateway_url} is configured but reachability is not verified. "
-            "Set up the Hermes gateway and re-run: hive integrate hermes"
+            f"Gateway at {gateway_url} is not reachable. "
+            "Start the Hermes gateway and re-run: hive integrate hermes"
         )
 
     return HermesProbe(
         hermes_found=True,
-        hermes_home=hermes_home or str(Path(hermes_binary).parent.parent)
-        if hermes_binary
-        else "",
+        hermes_home=resolved_home,
         hermes_version="",  # Populated by actual version probe when available.
         gateway_url=gateway_url,
-        gateway_reachable=False,  # Cannot verify without an actual health check.
+        gateway_reachable=gateway_reachable,
         skill_installed=skill_installed,
         agents_context_intact=agents_intact,
         trajectory_export_available=True,
         notes=[
-            f"Hermes detected at {hermes_binary or hermes_home}.",
+            f"Hermes detected at {hermes_binary or resolved_home}.",
         ]
-        + ([f"Gateway URL configured: {gateway_url}"] if gateway_configured else [])
+        + (
+            [f"Gateway at {gateway_url} is reachable."]
+            if gateway_reachable
+            else (
+                [f"Gateway URL configured: {gateway_url}"] if gateway_configured else []
+            )
+        )
         + (
             ["Skill bundle found in packages/hermes-skill/."] if skill_installed else []
         ),

@@ -44,10 +44,124 @@ def dispatch(args, root: Path) -> int:
                     "ok": True,
                     "message": "Pi setup assistant inspected the local companion and workspace readiness.",
                     "integration": info.to_dict(),
-                    "next_steps": list(getattr(info, "next_steps", [])),
+                    "next_steps": info.next_steps,
                 },
                 args.json,
             )
-    except (FileNotFoundError, ValueError) as exc:
+
+        if args.integrate_command == "openclaw":
+            return _integrate_openclaw(args, root)
+
+        if args.integrate_command == "attach":
+            return _attach_session(args, root)
+
+        if args.integrate_command == "detach":
+            return _detach_session(args, root)
+
+    except (FileNotFoundError, ValueError, ConnectionError) as exc:
         return emit_error(exc, args.json)
     return 0
+
+
+def _integrate_openclaw(args, root: Path) -> int:
+    """Run the OpenClaw integration setup/check flow."""
+    from src.hive.integrations.openclaw import OpenClawGatewayAdapter
+
+    adapter = OpenClawGatewayAdapter(base_path=root)
+    info = adapter.probe()
+    probe_dict = info.to_dict()
+    snapshot = info.capability_snapshot
+    probed = snapshot.probed if snapshot else {}
+
+    next_steps: list[str] = []
+    if not info.available:
+        next_steps.append("npm install -g openclaw-hive-bridge")
+        next_steps.append("Then re-run: hive integrate openclaw")
+    else:
+        if not probed.get("gateway_reachable"):
+            next_steps.append(
+                "Start the bridge: openclaw-hive-bridge --gateway <url> --stdio"
+            )
+        next_steps.append(
+            "Attach a session: hive integrate attach openclaw <session-key>"
+        )
+        next_steps.append("hive integrate doctor openclaw --json")
+
+    return emit(
+        {
+            "ok": True,
+            "message": f"OpenClaw integration: {'ready' if info.available else 'bridge not found'}.",
+            "integration": probe_dict,
+            "next_steps": next_steps,
+        },
+        args.json,
+    )
+
+
+def _attach_session(args, root: Path) -> int:
+    """Manually attach a native session to Hive as a delegate."""
+    from src.hive.integrations.base import DelegateGatewayAdapter
+    from src.hive.integrations.models import GovernanceMode
+    from src.hive.integrations.openclaw import OpenClawGatewayAdapter
+
+    adapter = get_integration(args.harness)
+
+    if not isinstance(adapter, DelegateGatewayAdapter):
+        return emit_error(
+            ValueError(f"{args.harness} is not a delegate-gateway adapter."),
+            args.json,
+        )
+
+    # Re-instantiate with base_path for delegate persistence.
+    if isinstance(adapter, OpenClawGatewayAdapter):
+        adapter = OpenClawGatewayAdapter(base_path=root)
+
+    session = adapter.attach_delegate_session(
+        args.native_session_ref,
+        GovernanceMode.ADVISORY,
+        project_id=getattr(args, "project_id", None),
+        task_id=getattr(args, "task_id", None),
+    )
+    return emit(
+        {
+            "ok": True,
+            "message": f"Attached {args.native_session_ref} as advisory delegate session.",
+            "session": session.to_dict(),
+        },
+        args.json,
+    )
+
+
+def _detach_session(args, root: Path) -> int:
+    """Detach a delegate session."""
+    from src.hive.clock import utc_now_iso
+    from src.hive.integrations.openclaw import (
+        finalize_delegate_session,
+        load_delegate_session,
+    )
+
+    manifest = load_delegate_session(root, args.session_id)
+    if manifest is None:
+        return emit_error(
+            ValueError(f"No delegate session found: {args.session_id}"),
+            args.json,
+        )
+
+    finalize_delegate_session(
+        root,
+        args.session_id,
+        {
+            "status": "detached",
+            "detached_at": utc_now_iso(),
+            "reason": "operator-initiated",
+        },
+    )
+
+    return emit(
+        {
+            "ok": True,
+            "message": f"Detached delegate session {args.session_id}.",
+            "session_id": args.session_id,
+        },
+        args.json,
+    )

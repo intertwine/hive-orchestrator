@@ -37,12 +37,12 @@ The following items are explicitly deferred from blocking v2.4:
 | Pi companion package | In progress | `packages/pi-hive/`, `src/hive/integrations/pi.py`, `tests/test_v24_pi_integration.py` | live Pi SDK link flow |
 | Pi attach mode | In progress | attach-session scaffolding + trajectory persistence tests | manual attach CLI + live session binding |
 | Pi managed mode | In progress | `src/hive/integrations/pi_managed.py`, `pi-hive-runner`, managed-session tests | real run-engine launch + Pi SDK session |
-| OpenClaw skill + bridge | Proposed | RFC only | bridge + skill assets |
-| OpenClaw attach mode | Proposed | RFC only | Gateway session mapping |
+| OpenClaw skill + bridge | Landed | `packages/openclaw-hive-bridge/`, ClawHub `agent-hive` skill, `src/hive/integrations/openclaw.py` | — |
+| OpenClaw attach mode | Landed | delegate session persistence, `hive integrate attach/detach`, 26 tests | — |
 | Hermes companion integration | Proposed | RFC only | skill/toolset + attach |
 | Hermes trajectory import fallback | Proposed | RFC only | importer + tests |
 | Truthful advisory/governed surfaces | Landed | console /integrations, driver doctor, run detail | — |
-| Install docs and doctor flows | In progress | `hive integrate doctor pi`, `hive integrate pi`, `packages/pi-hive/README.md` | OpenClaw/Hermes parity + smoke paths |
+| Install docs and doctor flows | In progress | `hive integrate doctor pi/openclaw`, `hive integrate pi/openclaw`, bridge READMEs | Hermes parity + smoke paths |
 
 ## Current Read
 

@@ -1,7 +1,7 @@
 # Hive v2.4 Status
 
-Status: in progress  
-Last updated: 2026-03-28  
+Status: in progress
+Last updated: 2026-03-28
 Purpose: compact execution ledger for the current v2.4 release line
 
 This file is the maintainer-facing status ledger for v2.4.

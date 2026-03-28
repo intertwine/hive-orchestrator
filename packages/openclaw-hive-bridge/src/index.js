@@ -97,7 +97,7 @@ class Bridge {
     return { ok: true, data: data.result ?? data.payload ?? data };
   }
 
-  async probeGateway() {
+  probeGateway() {
     if (!this.gatewayUrl) {
       return { gateway_reachable: false, sessions_accessible: false };
     }
@@ -112,11 +112,12 @@ class Bridge {
       gateway_reachable: gatewayReachable,
       gateway_url: this.gatewayUrl,
       connection_mode: this._connectionMode(),
+      connection_scope: this._connectionMode(),
       gateway_version: this._extractVersion(health.data),
       sessions_accessible: sessions.ok,
       session_count: rowCount,
       attach_supported: sessions.ok,
-      steering_supported: true,
+      steering_supported: sessions.ok,
     };
   }
 
@@ -236,6 +237,10 @@ class Bridge {
       message.kind ||
       message.type ||
       (message.role === "assistant" ? "assistant_delta" : "session_event");
+    const payload =
+      message.payload ||
+      message.content ||
+      (typeof message.text === "string" ? { text: message.text } : {});
     return {
       seq,
       kind,
@@ -244,7 +249,7 @@ class Bridge {
       adapter_family: "delegate_gateway",
       native_session_ref: sessionKey,
       raw_ref: message.raw_ref || message.id || message.messageId || null,
-      payload: message.payload || message.content || message,
+      payload,
     };
   }
 

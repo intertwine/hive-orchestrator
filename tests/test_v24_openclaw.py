@@ -844,9 +844,78 @@ class TestBridgeClientProtocol:
                 assert events[0]["kind"] == "session_start"
                 assert events[1]["payload"]["text"] == "hi"
 
+    def test_stream_receive_closes_process_when_generator_is_closed_early(self):
+        class _Writer:
+            def write(self, _text):
+                return None
+
+            def close(self):
+                return None
+
+        class _Reader:
+            def __init__(self, lines):
+                self._lines = list(lines)
+
+            def __iter__(self):
+                return iter(self._lines)
+
+            def close(self):
+                return None
+
+        class _Err:
+            def read(self):
+                return ""
+
+            def close(self):
+                return None
+
+        class _Proc:
+            def __init__(self):
+                self.stdin = _Writer()
+                self.stdout = _Reader(
+                    ['{"type":"stream_event","event":{"kind":"session_start"}}\n']
+                )
+                self.stderr = _Err()
+                self.killed = False
+                self.wait_calls = 0
+                self.returncode = None
+
+            def poll(self):
+                return self.returncode
+
+            def kill(self):
+                self.killed = True
+                self.returncode = -9
+
+            def wait(self, timeout=None):
+                self.wait_calls += 1
+                if self.returncode is None:
+                    self.returncode = 0
+                return self.returncode
+
+        from unittest.mock import patch
+
+        client = OpenClawBridgeClient()
+        proc = _Proc()
+        with patch.object(client, "_bridge_command", return_value=["bridge"]):
+            with patch("src.hive.integrations.openclaw.subprocess.Popen", return_value=proc):
+                stream = client._stream_receive({"type": "stream_events"})
+                first = next(stream)
+                assert first["type"] == "stream_event"
+                stream.close()
+        assert proc.killed is True
+        assert proc.wait_calls >= 1
+
 
 class TestRealBridgePackage:
-    def _bridge_client(self, monkeypatch, tmp_path):
+    def _bridge_client(
+        self,
+        monkeypatch,
+        tmp_path,
+        *,
+        sessions_accessible: bool = True,
+        history_events: list[dict[str, Any]] | None = None,
+    ):
         import shutil
         from pathlib import Path
         from unittest.mock import patch
@@ -857,14 +926,33 @@ class TestRealBridgePackage:
 
         fake_openclaw = tmp_path / "openclaw"
         fake_log = tmp_path / "fake-openclaw-log.jsonl"
+        sessions_payload = (
+            [
+                {"sessionKey": "oc-sess-001", "owner": "agent-alpha"},
+                {"sessionKey": "oc-sess-002", "owner": "agent-beta"},
+            ]
+            if sessions_accessible
+            else None
+        )
+        history_payload = history_events or [
+            {"kind": "session_start", "ts": "2026-03-28T00:00:00Z", "payload": {}},
+            {
+                "kind": "assistant_delta",
+                "ts": "2026-03-28T00:00:01Z",
+                "payload": {"text": "bridge hi"},
+                "id": "evt-1",
+            },
+        ]
         fake_openclaw.write_text(
             "#!/usr/bin/env python3\n"
             "import json, os, sys\n"
+            f"SESSIONS = {sessions_payload!r}\n"
+            f"HISTORY = {history_payload!r}\n"
             "args = sys.argv[1:]\n"
             "log_path = os.environ.get('FAKE_OPENCLAW_LOG', '')\n"
             "if log_path:\n"
             "    with open(log_path, 'a', encoding='utf-8') as fh:\n"
-            "        fh.write(json.dumps(args) + '\\n')\n"
+                "        fh.write(json.dumps(args) + '\\n')\n"
             "if args and args[0] == 'health':\n"
             "    print(json.dumps({'version': '1.2.3-test'}))\n"
             "    raise SystemExit(0)\n"
@@ -875,15 +963,12 @@ class TestRealBridgePackage:
             "if '--params' in args:\n"
             "    params = json.loads(args[args.index('--params') + 1])\n"
             "if method == 'sessions.list':\n"
-            "    print(json.dumps({'items': [\n"
-            "        {'sessionKey': 'oc-sess-001', 'owner': 'agent-alpha'},\n"
-            "        {'sessionKey': 'oc-sess-002', 'owner': 'agent-beta'}\n"
-            "    ]}))\n"
+            "    if SESSIONS is None:\n"
+            "        print(json.dumps({'ok': False, 'error': 'sessions denied'}))\n"
+            "        raise SystemExit(1)\n"
+            "    print(json.dumps({'items': SESSIONS}))\n"
             "elif method == 'sessions.history':\n"
-            "    print(json.dumps({'history': [\n"
-            "        {'kind': 'session_start', 'ts': '2026-03-28T00:00:00Z', 'payload': {}},\n"
-            "        {'kind': 'assistant_delta', 'ts': '2026-03-28T00:00:01Z', 'payload': {'text': 'bridge hi'}, 'id': 'evt-1'}\n"
-            "    ]}))\n"
+            "    print(json.dumps({'history': HISTORY}))\n"
             "elif method == 'chat.send':\n"
             "    print(json.dumps({'ok': True, 'echo': params}))\n"
             "elif method == 'chat.inject':\n"
@@ -959,6 +1044,39 @@ class TestRealBridgePackage:
         assert "sessions.history" in methods
         assert "chat.send" in methods
         assert "chat.inject" in methods
+
+    def test_real_bridge_probe_marks_steering_unavailable_when_sessions_fail(
+        self, monkeypatch, tmp_path
+    ):
+        client, _fake_log, patcher = self._bridge_client(
+            monkeypatch,
+            tmp_path,
+            sessions_accessible=False,
+        )
+        try:
+            probe = client.probe()
+            assert probe.gateway_reachable is True
+            assert probe.sessions_accessible is False
+            assert probe.steering_supported is False
+        finally:
+            patcher.stop()
+
+    def test_real_bridge_normalizes_payloadless_messages_to_empty_object(
+        self, monkeypatch, tmp_path
+    ):
+        client, _fake_log, patcher = self._bridge_client(
+            monkeypatch,
+            tmp_path,
+            history_events=[
+                {"kind": "session_start", "ts": "2026-03-28T00:00:00Z", "payload": {}},
+                {"kind": "assistant_delta", "ts": "2026-03-28T00:00:01Z", "id": "evt-2"},
+            ],
+        )
+        try:
+            events = list(client.stream_events("oc-sess-001"))
+            assert events[1]["payload"] == {}
+        finally:
+            patcher.stop()
 
     def test_adapter_streams_and_persists_via_real_bridge(self, monkeypatch, tmp_path):
         client, _fake_log, patcher = self._bridge_client(monkeypatch, tmp_path)
@@ -1037,3 +1155,34 @@ class TestDetachCli:
         assert rc == 1
         assert payload["ok"] is False
         assert payload["error"] == "gateway refused detach"
+
+    def test_detach_rejects_manifest_missing_required_identifiers(
+        self, tmp_path, capsys
+    ):
+        session = SessionHandle(
+            session_id="sess-001",
+            adapter_name="openclaw",
+            adapter_family=AdapterFamily.DELEGATE_GATEWAY,
+            native_session_ref="oc-sess-001",
+            governance_mode=GovernanceMode.ADVISORY,
+            integration_level=IntegrationLevel.ATTACH,
+            delegate_session_id="del-cli-bad",
+            status="attached",
+        )
+        session_dir = persist_delegate_session(tmp_path, session)
+        manifest_path = session_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("native_session_ref", None)
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        rc = _detach_session(
+            Namespace(session_id="del-cli-bad", json=True),
+            tmp_path,
+        )
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 1
+        assert payload["ok"] is False
+        assert "missing required identifiers" in payload["error"]

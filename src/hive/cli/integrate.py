@@ -216,20 +216,29 @@ def _detach_session(args, root: Path) -> int:
             ValueError(f"Unsupported delegate adapter for detach: {adapter_name or '(unknown)'}"),
             args.json,
         )
+    native_session_ref = str(manifest.get("native_session_ref") or "").strip()
+    delegate_session_id = str(manifest.get("delegate_session_id") or "").strip()
+    if not native_session_ref or not delegate_session_id:
+        return emit_error(
+            ValueError(
+                f"Delegate session manifest for {args.session_id} is missing required identifiers."
+            ),
+            args.json,
+        )
 
     adapter = OpenClawGatewayAdapter(base_path=root)
     session = SessionHandle(
-        session_id=str(manifest.get("session_id") or manifest["delegate_session_id"]),
+        session_id=str(manifest.get("session_id") or delegate_session_id),
         adapter_name=adapter_name,
         adapter_family=AdapterFamily(str(manifest.get("adapter_family") or "delegate_gateway")),
-        native_session_ref=str(manifest["native_session_ref"]),
+        native_session_ref=native_session_ref,
         governance_mode=GovernanceMode(
             str(manifest.get("governance_mode") or GovernanceMode.ADVISORY)
         ),
         integration_level=IntegrationLevel(
             str(manifest.get("integration_level") or IntegrationLevel.ATTACH)
         ),
-        delegate_session_id=str(manifest["delegate_session_id"]),
+        delegate_session_id=delegate_session_id,
         project_id=manifest.get("project_id"),
         task_id=manifest.get("task_id"),
         status=str(manifest.get("status") or "attached"),

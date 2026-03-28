@@ -129,6 +129,8 @@ class OpenClawBridgeClient:
         proc.stdin.write(json.dumps(request) + "\n")
         proc.stdin.close()
 
+        stderr_text = ""
+        returncode: int | None = None
         try:
             for raw_line in proc.stdout:
                 line = raw_line.strip()
@@ -142,10 +144,29 @@ class OpenClawBridgeClient:
         except subprocess.TimeoutExpired as exc:
             proc.kill()
             raise ConnectionError("Timed out waiting for bridge stream response.") from exc
+        finally:
+            try:
+                proc.stdout.close()
+            except Exception:
+                pass
+            try:
+                if returncode is None and getattr(proc, "poll", lambda: None)() is None:
+                    proc.kill()
+                if returncode is None:
+                    returncode = proc.wait(timeout=1)
+            except Exception:
+                pass
+            try:
+                stderr_text = proc.stderr.read().strip()
+            except Exception:
+                stderr_text = ""
+            try:
+                proc.stderr.close()
+            except Exception:
+                pass
 
-        stderr = proc.stderr.read().strip()
-        if returncode != 0 and stderr:
-            raise ConnectionError(stderr)
+        if returncode not in (None, 0) and stderr_text:
+            raise ConnectionError(stderr_text)
 
     def probe(self) -> BridgeProbe:
         binary = self.detect_binary()

@@ -532,6 +532,34 @@ def detect_hermes(workspace_root: Path | None = None) -> HermesProbe:
     )
 
 
+def _hermes_doctor_next_steps(hermes_probe: HermesProbe) -> list[str]:
+    """Build doctor guidance that mirrors Hermes setup truthfully."""
+    next_steps: list[str] = []
+    if not hermes_probe.hermes_found:
+        next_steps.append("Install Hermes or set HERMES_HOME.")
+        next_steps.append("Then re-run: hive integrate hermes")
+        return next_steps
+
+    if not hermes_probe.attach_supported:
+        next_steps.append("Set HERMES_HOME to a real Hermes home directory.")
+        next_steps.append(
+            "Make sure HERMES_HOME contains state.db and/or sessions/, then re-run: hive integrate hermes"
+        )
+        next_steps.append("Or import an export instead: hive integrate import-trajectory <path>")
+        return next_steps
+
+    if not hermes_probe.skill_installed:
+        next_steps.append("Load the agent-hive skill in Hermes from packages/hermes-skill/")
+    next_steps.append("Attach a session: hive integrate attach hermes <session-id>")
+    next_steps.append('Poll pending notes from Hermes: hive_status {"session_id":"<session-id>"}')
+    if hermes_probe.gateway_responding and not hermes_probe.gateway_reachable:
+        next_steps.append(
+            "Optional: enable Hive-compatible gateway health metadata if you want gateway readiness verified too."
+        )
+    next_steps.append("hive integrate doctor hermes --json")
+    return next_steps
+
+
 # ---------------------------------------------------------------------------
 # Memory privacy enforcement
 # ---------------------------------------------------------------------------
@@ -827,6 +855,18 @@ class HermesGatewayAdapter(DelegateGatewayAdapter):
         self._detector = detector or detect_hermes
         self._sessions: dict[str, SessionHandle] = {}
 
+    @staticmethod
+    def supported_levels() -> list[IntegrationLevel]:
+        return [
+            IntegrationLevel.PACK,
+            IntegrationLevel.COMPANION,
+            IntegrationLevel.ATTACH,
+        ]
+
+    @staticmethod
+    def supported_governance_modes() -> list[GovernanceMode]:
+        return [GovernanceMode.ADVISORY]
+
     def _hermes_probe(self) -> HermesProbe:
         root = Path(self._base_path) if self._base_path else None
         return self._detector(root)
@@ -920,6 +960,9 @@ class HermesGatewayAdapter(DelegateGatewayAdapter):
             version=hermes_probe.hermes_version or "0.0.0",
             available=hermes_probe.hermes_found and hermes_probe.attach_supported,
             capability_snapshot=self._capability_snapshot(hermes_probe),
+            supported_levels=self.supported_levels(),
+            supported_governance_modes=self.supported_governance_modes(),
+            next_steps=_hermes_doctor_next_steps(hermes_probe),
             notes=[
                 *hermes_probe.notes,
                 *[f"blocker: {b}" for b in hermes_probe.blockers],

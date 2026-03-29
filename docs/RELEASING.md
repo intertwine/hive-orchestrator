@@ -49,7 +49,7 @@ That does five things:
 
 If `make release-check` fails, fix that before you tag anything.
 
-For the scoped v2.3 release line, do not call the release ready until these additional truthfulness
+For the scoped v2.4 launch line, do not call the release ready until these additional truthfulness
 checks are closed:
 
 1. README, demo walkthrough, compare-harness, and operator docs match the shipped observe-and-steer story.
@@ -165,7 +165,7 @@ hive doctor --json
 hive task ready --project-id demo --json
 ```
 
-For the scoped v2.3 release line, the built-artifact smoke script now proves installed-package
+For the scoped v2.4 launch line, the built-artifact smoke script now proves installed-package
 retrieval usefulness automatically for the `uv tool` install lane. If you are verifying manually or
 debugging a release candidate, run one API/RFC query and one packaged recipe query without a
 source checkout on the `PYTHONPATH`:

@@ -58,7 +58,7 @@ What is real now:
 - Hermes now has native companion integration, attach parity, and shared doctor contract fields
 - the console now shows unified run/delegate truth across Pi, OpenClaw, and Hermes, and attached delegates appear within one refresh cycle at the RFC 3-second bound
 - attached advisory sessions can now raise inbox-visible delegate exceptions and inbound notes without being dropped from operator views
-- functionality now meets the pre-doc v2.4 acceptance bar; launch/docs polish is the remaining release work
+- functionality now meets the pre-doc v2.4 acceptance bar for the currently tracked RFC gates, while a few surface-level follow-ups remain under discussion
 
 ## Next Blocker
 

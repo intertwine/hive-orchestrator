@@ -325,6 +325,13 @@ class TestObserveConsoleApi:
                     "note": "Need operator review before continuing.",
                     "source": "delegate",
                     "inbox_visible": True,
+                },
+                {
+                    "ts": "2026-03-29T15:47:00Z",
+                    "action": "note",
+                    "note": "Gateway conversation is waiting on a human decision.",
+                    "source": "delegate",
+                    "inbox_visible": True,
                 }
             ],
             trajectory_events=[
@@ -383,6 +390,12 @@ class TestObserveConsoleApi:
             item["kind"] == "delegate-note"
             and item["run_id"] == "del_openclaw_attention"
             and item["reason"] == "Need operator review before continuing."
+            for item in items
+        )
+        assert any(
+            item["kind"] == "delegate-note"
+            and item["run_id"] == "del_openclaw_attention"
+            and item["reason"] == "Gateway conversation is waiting on a human decision."
             for item in items
         )
         assert any(

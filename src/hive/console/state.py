@@ -522,12 +522,18 @@ def _delegate_inbox_items(base_path: Path, run: dict[str, Any]) -> list[dict[str
             }
         )
 
-    for record in reversed(_load_jsonl_records(run.get("steering_path"))):
+    seen_notes: set[tuple[str, str]] = set()
+    for record in _load_jsonl_records(run.get("steering_path")):
         if not _delegate_inbox_note_visible(record):
             continue
         note = _delegate_inbox_note_text(record)
         if not note:
             continue
+        title = str(record.get("title") or f"Note from {label}")
+        note_key = (title, note)
+        if note_key in seen_notes:
+            continue
+        seen_notes.add(note_key)
         items.append(
             {
                 "kind": "delegate-note",
@@ -536,11 +542,10 @@ def _delegate_inbox_items(base_path: Path, run: dict[str, Any]) -> list[dict[str
                 "project_id": run.get("project_id"),
                 "delegate_session_id": delegate_session_id,
                 "native_session_ref": native_session_ref or None,
-                "title": str(record.get("title") or f"Note from {label}"),
+                "title": title,
                 "reason": note,
             }
         )
-        break
 
     latest_approval: dict[str, Any] | None = None
     latest_error: dict[str, Any] | None = None

@@ -238,6 +238,92 @@ describe("Observe Console smoke", () => {
     expect(await screen.findByRole("link", { name: "del_openclaw_live" })).toBeInTheDocument();
   });
 
+  it("surfaces attached delegate exceptions in the home and inbox views", async () => {
+    const inboxItems = [
+      {
+        kind: "delegate-blocked",
+        title: "Blocked OpenClaw attached session",
+        reason: "Native session requested operator review before proceeding.",
+        project_id: "alpha",
+        run_id: "del_openclaw_attention",
+      },
+      {
+        kind: "delegate-note",
+        title: "Note from OpenClaw attached session",
+        reason: "Need operator review before continuing.",
+        project_id: "alpha",
+        run_id: "del_openclaw_attention",
+      },
+    ];
+    installFetchMock([
+      {
+        pathname: "/home",
+        response: jsonResponse({
+          ok: true,
+          home: {
+            workspace: "/tmp/hive-demo",
+            active_runs: [
+              makeRun("run_alpha_pi_1", "alpha", "pi", "healthy", "Alpha Pi slice"),
+              {
+                id: "del_openclaw_attention",
+                project_id: "alpha",
+                driver: "openclaw",
+                health: "blocked",
+                status: "blocked",
+                started_at: "2026-03-29T15:40:00Z",
+                metadata_json: {
+                  task_title: "OpenClaw attached session",
+                  entry_kind: "delegate_session",
+                },
+              },
+            ],
+            evaluating_runs: [],
+            inbox: inboxItems,
+            blocked_projects: [],
+            campaigns: [],
+            recent_events: [],
+            recent_accepts: [],
+            recommended_next: {
+              task: {
+                id: "task_alpha_next",
+                title: "Investigate delegate inbox routing",
+                project_id: "alpha",
+              },
+              reasons: ["delegate session requested attention"],
+            },
+          },
+        }),
+      },
+      {
+        pathname: "/inbox",
+        response: jsonResponse({
+          ok: true,
+          items: inboxItems,
+        }),
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderConsole(["/"]);
+
+    await screen.findByRole("heading", { name: "Home" });
+    expect(screen.getByText("Blocked OpenClaw attached session")).toBeInTheDocument();
+    expect(
+      screen.getByText("Native session requested operator review before proceeding."),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Inbox" }));
+    await screen.findByRole("heading", { name: "Inbox" });
+    const blockedCard = screen
+      .getByText("Blocked OpenClaw attached session")
+      .closest("article");
+    expect(blockedCard).not.toBeNull();
+    expect(
+      within(blockedCard as HTMLElement).getByRole("link", { name: "Open run" }),
+    ).toHaveAttribute("href", "/runs/del_openclaw_attention");
+    expect(screen.getByText("Note from OpenClaw attached session")).toBeInTheDocument();
+  });
+
   it("loads project doctor and search routes through the live app shell", async () => {
     installFetchMock([
       {

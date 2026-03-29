@@ -428,11 +428,179 @@ def _artifact_preview(
     }
 
 
+def _delegate_inbox_note_visible(record: dict[str, Any]) -> bool:
+    if bool(
+        record.get("inbox_visible")
+        or record.get("surface_to_inbox")
+        or record.get("raise_in_inbox")
+    ):
+        return True
+    direction = str(record.get("direction") or record.get("flow") or "").strip().lower()
+    if direction in {"inbound", "from_delegate", "delegate_to_hive", "native_to_hive"}:
+        return True
+    source = str(
+        record.get("source")
+        or record.get("origin")
+        or record.get("author")
+        or record.get("actor")
+        or ""
+    ).strip().lower()
+    return source in {
+        "assistant",
+        "delegate",
+        "harness",
+        "hermes",
+        "native",
+        "openclaw",
+        "session",
+    }
+
+
+def _delegate_inbox_note_text(record: dict[str, Any]) -> str:
+    note = str(record.get("note") or "").strip()
+    if note:
+        return note
+    payload = record.get("payload")
+    if isinstance(payload, dict):
+        return str(
+            payload.get("note")
+            or payload.get("message")
+            or payload.get("summary")
+            or ""
+        ).strip()
+    return ""
+
+
+def _delegate_inbox_label(run: dict[str, Any]) -> str:
+    metadata_json = dict(run.get("metadata_json") or {})
+    task_title = str(metadata_json.get("task_title") or "").strip()
+    if task_title:
+        return task_title
+    native_session_ref = str(
+        run.get("native_session_ref") or run.get("driver_handle") or ""
+    ).strip()
+    harness = str(run.get("driver") or "delegate")
+    if native_session_ref:
+        return f"{harness} session {native_session_ref}"
+    return f"{harness} attached session"
+
+
+def _delegate_status_reason(final_state: dict[str, Any], status: str) -> str:
+    for key in ("reason", "message", "error", "summary"):
+        reason = str(final_state.get(key) or "").strip()
+        if reason:
+            return reason
+    return f"Attached advisory session is {status}."
+
+
+def _delegate_inbox_items(base_path: Path, run: dict[str, Any]) -> list[dict[str, Any]]:
+    delegate_session_id = str(
+        run.get("delegate_session_id") or run.get("id") or ""
+    ).strip()
+    if not delegate_session_id:
+        return []
+    harness = str(run.get("driver") or "delegate")
+    native_session_ref = str(
+        run.get("native_session_ref") or run.get("driver_handle") or ""
+    ).strip()
+    final_state = _load_json(str(run.get("final_path") or "")) or {}
+    label = _delegate_inbox_label(run)
+    items: list[dict[str, Any]] = []
+
+    status = str(run.get("status") or "")
+    if status in {"escalated", "failed", "blocked"}:
+        items.append(
+            {
+                "kind": f"delegate-{status}",
+                "priority": 1,
+                "run_id": run["id"],
+                "project_id": run.get("project_id"),
+                "delegate_session_id": delegate_session_id,
+                "native_session_ref": native_session_ref or None,
+                "title": f"{status.title()} {label}",
+                "reason": _delegate_status_reason(final_state, status),
+            }
+        )
+
+    for record in reversed(_load_jsonl_records(run.get("steering_path"))):
+        if not _delegate_inbox_note_visible(record):
+            continue
+        note = _delegate_inbox_note_text(record)
+        if not note:
+            continue
+        items.append(
+            {
+                "kind": "delegate-note",
+                "priority": 1,
+                "run_id": run["id"],
+                "project_id": run.get("project_id"),
+                "delegate_session_id": delegate_session_id,
+                "native_session_ref": native_session_ref or None,
+                "title": str(record.get("title") or f"Note from {label}"),
+                "reason": note,
+            }
+        )
+        break
+
+    latest_approval: dict[str, Any] | None = None
+    latest_error: dict[str, Any] | None = None
+    for event in reversed(load_trajectory(base_path, delegate_session_id=delegate_session_id)):
+        if latest_approval is None and event.kind == "approval_request":
+            latest_approval = event.to_dict()
+        elif latest_error is None and event.kind == "error":
+            latest_error = event.to_dict()
+        if latest_approval is not None and latest_error is not None:
+            break
+
+    if latest_approval is not None:
+        payload = dict(latest_approval.get("payload") or {})
+        items.append(
+            {
+                "kind": "delegate-approval",
+                "priority": 0,
+                "run_id": run["id"],
+                "project_id": run.get("project_id"),
+                "delegate_session_id": delegate_session_id,
+                "native_session_ref": native_session_ref or None,
+                "title": f"Approval requested by {label}",
+                "reason": str(
+                    payload.get("summary")
+                    or payload.get("message")
+                    or payload.get("title")
+                    or "Attached advisory session requested approval."
+                ),
+            }
+        )
+
+    if latest_error is not None:
+        payload = dict(latest_error.get("payload") or {})
+        items.append(
+            {
+                "kind": "delegate-error",
+                "priority": 1,
+                "run_id": run["id"],
+                "project_id": run.get("project_id"),
+                "delegate_session_id": delegate_session_id,
+                "native_session_ref": native_session_ref or None,
+                "title": f"Error in {label}",
+                "reason": str(
+                    payload.get("message")
+                    or payload.get("error")
+                    or payload.get("summary")
+                    or "Attached advisory session emitted an error."
+                ),
+            }
+        )
+
+    return items
+
+
 def build_inbox(base_path: Path) -> list[dict]:
     """Return typed attention items for the operator inbox."""
     items: list[dict] = []
     for run in list_runs(base_path):
         if run.get("entry_kind") == "delegate_session":
+            items.extend(_delegate_inbox_items(base_path, run))
             continue
         approvals = [
             approval

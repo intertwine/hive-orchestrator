@@ -12,6 +12,7 @@ import time
 
 import pytest
 
+from src.hive.cli.main import main as hive_main
 from src.hive.drivers.types import SteeringRequest
 from src.hive.integrations.base import DelegateGatewayAdapter
 from src.hive.integrations.hermes import (
@@ -36,7 +37,7 @@ from src.hive.integrations.models import (
 from src.hive.integrations.openclaw import (
     load_delegate_session,
 )
-from src.hive.integrations.registry import get_integration
+from src.hive.integrations.registry import get_integration, register_integration
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +247,13 @@ def _stub_hermes_probe(
     )
 
 
+def _invoke_cli_json(capsys, argv: list[str]) -> dict[str, object]:
+    exit_code = hive_main(argv)
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    return json.loads(captured.out)
+
+
 def _make_adapter(
     tmp_path: Path | None = None,
     *,
@@ -298,6 +306,19 @@ class TestHE1InstallAndConnect:
         info = adapter.probe()
         assert info.available is False
         assert any("blocker" in n for n in info.notes)
+
+    def test_probe_reports_shared_doctor_contract_fields(self):
+        adapter = _make_adapter(hermes_found=False)
+        info = adapter.probe().to_dict()
+
+        assert info["supported_levels"] == ["pack", "companion", "attach"]
+        assert info["supported_governance_modes"] == ["advisory"]
+        assert info["available"] is False
+        assert info["configuration_problems"] == ["Hermes not found."]
+        assert info["next_steps"] == [
+            "Install Hermes or set HERMES_HOME.",
+            "Then re-run: hive integrate hermes",
+        ]
 
     def test_probe_with_gateway_unreachable(self):
         adapter = _make_adapter(gateway_reachable=False)
@@ -472,6 +493,30 @@ class TestHE1InstallAndConnect:
     def test_registry_bootstraps_hermes(self):
         adapter = get_integration("hermes")
         assert isinstance(adapter, HermesGatewayAdapter)
+
+    def test_cli_integrate_doctor_hermes_reports_shared_contract_fields(
+        self, tmp_path, capsys
+    ):
+        adapter = _make_adapter(hermes_found=False)
+        original = get_integration("hermes")
+        register_integration("hermes", adapter)
+        try:
+            payload = _invoke_cli_json(
+                capsys,
+                ["--path", str(tmp_path), "--json", "integrate", "doctor", "hermes"],
+            )
+        finally:
+            register_integration("hermes", original)
+
+        integration = payload["integrations"][0]
+        assert integration["supported_levels"] == ["pack", "companion", "attach"]
+        assert integration["supported_governance_modes"] == ["advisory"]
+        assert integration["available"] is False
+        assert integration["configuration_problems"] == ["Hermes not found."]
+        assert integration["next_steps"] == [
+            "Install Hermes or set HERMES_HOME.",
+            "Then re-run: hive integrate hermes",
+        ]
 
 
 # ---------------------------------------------------------------------------

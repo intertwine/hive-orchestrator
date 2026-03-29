@@ -1,4 +1,4 @@
-"""Reusable launch/demo fixture builder for Hive 2.2."""
+"""Reusable launch/demo fixture builder for the Hive v2.4 launch story."""
 
 from __future__ import annotations
 
@@ -16,9 +16,9 @@ from src.hive.store.projects import get_project
 from src.hive.store.task_files import create_task
 
 DEMO_PROJECTS = {
-    "alpha": "Alpha Control Plane",
-    "beta": "Beta Research Ops",
-    "gamma": "Gamma Launch Loop",
+    "alpha": "Pi Managed Control Plane",
+    "beta": "OpenClaw Attach Control Plane",
+    "gamma": "Hermes Advisory Control Plane",
 }
 
 
@@ -116,7 +116,7 @@ def _start_waiting_run(root: Path, project_id: str, driver: str) -> str:
 
 
 def build_north_star_demo(path: str | Path) -> dict[str, Any]:
-    """Build the multi-project v2.2 launch fixture and return a manifest."""
+    """Build the multi-project v2.4 launch fixture and return a manifest."""
     root = Path(path).resolve()
     root.mkdir(parents=True, exist_ok=True)
     _init_git_repo(root)
@@ -126,8 +126,8 @@ def build_north_star_demo(path: str | Path) -> dict[str, Any]:
 
     campaign = create_campaign_flow(
         root,
-        title="North Star Daily Brief",
-        goal="Keep three projects moving under one operator.",
+        title="Native Harness Daily Brief",
+        goal="Keep Pi, OpenClaw, and Hermes moving under one operator.",
         project_ids=["alpha", "beta", "gamma"],
         driver="local",
         cadence="daily",
@@ -135,7 +135,7 @@ def build_north_star_demo(path: str | Path) -> dict[str, Any]:
         max_active_runs=1,
     )
 
-    _commit_all(root, "Bootstrap Hive 2.2 demo workspace")
+    _commit_all(root, "Bootstrap Hive v2.4 demo workspace")
 
     accepted_runs = [
         _start_local_accepted_run(root, "alpha"),
@@ -150,6 +150,7 @@ def build_north_star_demo(path: str | Path) -> dict[str, Any]:
         _start_waiting_run(root, "alpha", "manual"),
         _start_waiting_run(root, "beta", "claude-code"),
     ]
+    pi_running = start_run(root, _next_task_id(root, "alpha"), driver_name="pi").id
     gamma_running = start_run(root, _next_task_id(root, "gamma"), driver_name="local").id
 
     rerouted = start_run(root, _next_task_id(root, "gamma"), driver_name="local").id
@@ -183,13 +184,13 @@ def build_north_star_demo(path: str | Path) -> dict[str, Any]:
         "accepted_runs": accepted_runs,
         "review_runs": review_runs,
         "waiting_runs": waiting_runs,
-        "running_runs": [gamma_running, campaign_run_id],
+        "running_runs": [pi_running, gamma_running, campaign_run_id],
         "showcase_run_id": rerouted,
         "projects": DEMO_PROJECTS,
         "all_runs": accepted_runs
         + review_runs
         + waiting_runs[:-1]
-        + [gamma_running, rerouted, campaign_run_id],
+        + [pi_running, gamma_running, rerouted, campaign_run_id],
     }
     return manifest
 

@@ -165,7 +165,7 @@ hive doctor --json
 hive task ready --project-id demo --json
 ```
 
-For the scoped v2.3 release line, the built-artifact smoke script now proves installed-package
+For the scoped v2.4 launch line, the built-artifact smoke script now proves installed-package
 retrieval usefulness automatically for the `uv tool` install lane. If you are verifying manually or
 debugging a release candidate, run one API/RFC query and one packaged recipe query without a
 source checkout on the `PYTHONPATH`:

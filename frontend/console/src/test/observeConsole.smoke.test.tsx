@@ -90,10 +90,10 @@ function renderConsole(initialEntries: string[]) {
   );
 }
 
-function expectKeyValue(container: HTMLElement, label: string, value: string) {
+async function expectKeyValue(container: HTMLElement, label: string, value: string) {
   const row = within(container).getByText(label).closest(".key-value-grid__row");
   expect(row).not.toBeNull();
-  expect(within(row as HTMLElement).getByText(value)).toBeInTheDocument();
+  expect(await within(row as HTMLElement).findByText(value)).toBeInTheDocument();
 }
 
 describe("Observe Console smoke", () => {
@@ -751,10 +751,10 @@ describe("Observe Console smoke", () => {
     await screen.findByRole("heading", { name: runId });
     const runtimePanel = screen.getByRole("heading", { name: "Driver and Sandbox" }).closest("section");
     expect(runtimePanel).not.toBeNull();
-    expectKeyValue(runtimePanel as HTMLElement, "Harness", "openclaw");
-    expectKeyValue(runtimePanel as HTMLElement, "Integration level", "attach");
-    expectKeyValue(runtimePanel as HTMLElement, "Governance mode", "advisory");
-    expectKeyValue(runtimePanel as HTMLElement, "Native session", "oc-session-001");
+    await expectKeyValue(runtimePanel as HTMLElement, "Harness", "openclaw");
+    await expectKeyValue(runtimePanel as HTMLElement, "Integration level", "attach");
+    await expectKeyValue(runtimePanel as HTMLElement, "Governance mode", "advisory");
+    await expectKeyValue(runtimePanel as HTMLElement, "Native session", "oc-session-001");
     expect(screen.getByRole("heading", { name: "Capability snapshot" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Steering History" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Trajectory" })).toBeInTheDocument();

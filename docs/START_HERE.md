@@ -1,14 +1,18 @@
 # Start Here
 
-Hive is a control plane for multi-agent software work. Use this page to pick the right path into it.
+Hive is a control plane for multi-agent software work. Use this page to pick the path that matches where you already work.
 
-Best first experience: install Hive, create a fresh workspace with `hive onboard demo`, then go straight into
-`hive next`, `hive work`, and `hive finish`.
+Best first experience:
+- if you already live in Pi, OpenClaw, or Hermes, start with the native harness path below
+- if you want a fresh generic Hive workspace, install Hive and create one with `hive onboard demo`
 
 ## Choose Your Lane
 
 | If you want to... | Start here |
 |---|---|
+| keep working inside Pi | [Pi harness guide](./recipes/pi-harness.md) |
+| keep working inside OpenClaw | [OpenClaw harness guide](./recipes/openclaw-harness.md) |
+| keep working inside Hermes | [Hermes harness guide](./recipes/hermes-harness.md) |
 | install Hive and create a fresh workspace | [Quickstart](./QUICKSTART.md) |
 | bring Hive into an existing repository | [Adopt Hive In An Existing Repo](./ADOPT_EXISTING_REPO.md) |
 | work on Hive itself, ship releases, or update packaging | [Maintaining Hive](./MAINTAINING.md) and [Releasing Hive](./RELEASING.md) |
@@ -48,6 +52,95 @@ indexes catch up, use the git install instead:
 ```bash
 uv tool install --from 'git+https://github.com/intertwine/hive-orchestrator.git' 'mellona-hive[console]'
 ```
+
+## Native Harness Paths
+
+These are the v2.4-native first-value paths. They all start with `hive integrate doctor` so setup failures are diagnosable before you edit any config by hand.
+
+### Pi
+
+Install Hive and the Pi companion:
+
+```bash
+uv tool install 'mellona-hive[console]'
+npm install -g @mellona/pi-hive
+```
+
+Verify readiness:
+
+```bash
+hive integrate doctor pi --json
+hive integrate pi
+```
+
+Then stay inside Pi:
+
+```bash
+pi-hive connect
+pi-hive next --project-id <project-id>
+pi-hive open <task-id> --json
+```
+
+Or attach a live session:
+
+```bash
+pi-hive attach <native-session-ref> --task-id <task-id> --json
+```
+
+Use the full guide in [recipes/pi-harness.md](./recipes/pi-harness.md).
+
+### OpenClaw
+
+Install Hive plus the bridge, then add the `agent-hive` skill from ClawHub:
+
+```bash
+uv tool install 'mellona-hive[console]'
+npm install -g openclaw-hive-bridge
+```
+
+Verify the bridge and gateway path:
+
+```bash
+hive integrate doctor openclaw --json
+hive integrate openclaw
+```
+
+Then attach the live session:
+
+```bash
+hive integrate attach openclaw <session-key>
+```
+
+OpenClaw is attach-only in v2.4 and always advisory. Use the full guide in [recipes/openclaw-harness.md](./recipes/openclaw-harness.md).
+
+### Hermes
+
+Install or update Hive:
+
+```bash
+uv tool install 'mellona-hive[console]'
+```
+
+Verify the Hermes path and load the Agent Hive skill/toolset:
+
+```bash
+hive integrate doctor hermes --json
+hive integrate hermes
+```
+
+Then attach the current session:
+
+```bash
+hive integrate attach hermes <session-id>
+```
+
+If live attach is unavailable, import a trajectory later:
+
+```bash
+hive integrate import-trajectory hermes /path/to/hermes-export.jsonl --project-id <project-id>
+```
+
+Hermes private memory is never bulk-imported automatically. Use the full guide in [recipes/hermes-harness.md](./recipes/hermes-harness.md).
 
 ## Additional Extras
 

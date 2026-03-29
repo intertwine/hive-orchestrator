@@ -93,8 +93,8 @@ def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():
     assert "Pi (deferred from the v2.3 release bar)" in acceptance_doc
 
 
-def test_release_docs_require_scope_locked_v23_story_and_installed_search_proof():
-    """Release docs should require docs/demo alignment and installed retrieval proof for v2.3."""
+def test_release_docs_require_scope_locked_story_and_installed_search_proof():
+    """Release docs should require aligned public docs and installed retrieval proof."""
     release_doc = (REPO_ROOT / "docs" / "RELEASING.md").read_text(encoding="utf-8")
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     operator_doc = (REPO_ROOT / "docs" / "OPERATOR_FLOWS.md").read_text(
@@ -115,8 +115,9 @@ def test_release_docs_require_scope_locked_v23_story_and_installed_search_proof(
         in release_doc
     )
     assert "built-artifact smoke script now proves installed-package" in release_doc
-    assert "truthful v2.3 operator surface" in readme
-    assert "Hive v2.3 assumes the operator mostly supervises" in operator_doc
+    assert "truthful operator surface" in readme
+    assert "v2.4 extends it into native Pi, OpenClaw, and Hermes companion flows" in readme
+    assert "assumes the operator mostly supervises" in operator_doc
     assert "If you want the latest unreleased checkout" in start_here
 
 

@@ -59,13 +59,16 @@ def test_v24_status_doc_tracks_scope_and_next_blocker():
     assert "| Pi companion package | Landed |" in status_doc
     assert "| Pi attach mode | Landed |" in status_doc
     assert "| Pi managed mode | Landed |" in status_doc
+    assert "| OpenClaw attach mode | Landed |" in status_doc
+    assert "| Hermes companion integration | Landed |" in status_doc
+    assert "| Console truth + attach visibility proof | Landed |" in status_doc
     assert (
         "the v2.4 RFC bundle and status ledger now live at stable repo paths"
         in status_doc
     )
-    assert "Hermes is now the remaining major harness milestone" in status_doc
+    assert "functionality now meets the pre-doc v2.4 acceptance bar" in status_doc
     assert "## Next Blocker" in status_doc
-    assert "Milestone 4" in status_doc
+    assert "Milestone 5" in status_doc
 
 
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -90,8 +90,15 @@ function renderConsole(initialEntries: string[]) {
   );
 }
 
+function expectKeyValue(container: HTMLElement, label: string, value: string) {
+  const row = within(container).getByText(label).closest(".key-value-grid__row");
+  expect(row).not.toBeNull();
+  expect(within(row as HTMLElement).getByText(value)).toBeInTheDocument();
+}
+
 describe("Observe Console smoke", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -185,6 +192,51 @@ describe("Observe Console smoke", () => {
     });
     expect(screen.getByRole("link", { name: "run_alpha_manual_1" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "run_beta_manual_1" })).toBeInTheDocument();
+  });
+
+  it("refreshes the runs board within one 3-second cycle so attached delegate sessions appear", async () => {
+    let attached = false;
+    let pollRuns: (() => Promise<void>) | null = null;
+    const delegateRun = {
+      id: "del_openclaw_live",
+      project_id: "alpha",
+      driver: "openclaw",
+      health: "healthy",
+      status: "attached",
+      started_at: "2026-03-29T15:40:00Z",
+      metadata_json: {
+        task_title: "OpenClaw attached session",
+        entry_kind: "delegate_session",
+      },
+    };
+    const fetchMock = installFetchMock([
+      {
+        pathname: "/runs",
+        response: () => jsonResponse({ ok: true, runs: attached ? [delegateRun] : [] }),
+      },
+    ]);
+    const setIntervalMock = vi.spyOn(window, "setInterval").mockImplementation(((handler, timeout) => {
+      if (timeout === 3000 && typeof handler === "function") {
+        pollRuns = handler as () => Promise<void>;
+      }
+      return 1;
+    }) as typeof window.setInterval);
+    vi.spyOn(window, "clearInterval").mockImplementation(() => undefined);
+
+    renderConsole(["/runs"]);
+
+    await screen.findByRole("heading", { name: "Runs" });
+    expect(await screen.findByText("No runs match the current filters.")).toBeInTheDocument();
+    expect(setIntervalMock).toHaveBeenCalledWith(expect.any(Function), 3000);
+    expect(pollRuns).not.toBeNull();
+
+    attached = true;
+    await act(async () => {
+      await pollRuns?.();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("link", { name: "del_openclaw_live" })).toBeInTheDocument();
   });
 
   it("loads project doctor and search routes through the live app shell", async () => {
@@ -595,6 +647,119 @@ describe("Observe Console smoke", () => {
       `/runs/${runId}/approvals/approval_1/approve`,
       `/runs/${runId}/approvals/approval_2/reject`,
     ]);
+  });
+
+  it("renders delegate detail truth surfaces for attached advisory sessions", async () => {
+    const runId = "del_openclaw_live";
+    installFetchMock([
+      {
+        pathname: `/runs/${runId}`,
+        response: jsonResponse({
+          ok: true,
+          detail: {
+            detail_kind: "delegate_session",
+            run: {
+              id: runId,
+              project_id: "alpha",
+              driver: "openclaw",
+              status: "attached",
+              health: "healthy",
+              started_at: "2026-03-29T15:40:00Z",
+              finished_at: null,
+              metadata_json: { task_title: "OpenClaw attached session" },
+            },
+            promotion_decision: {},
+            artifact_preview: {
+              trajectory: '[{"kind":"assistant_message"}]',
+              steering: '[{"action":"note"}]',
+            },
+            inspector: {
+              capability_snapshot: {
+                driver: "openclaw",
+                adapter_family: "delegate_gateway",
+                governance_mode: "advisory",
+                integration_level: "attach",
+                effective: {
+                  launch_mode: "gateway_bridge",
+                  session_persistence: "persistent",
+                  event_stream: "structured_deltas",
+                  approvals: [],
+                  artifacts: ["trajectory", "session-history"],
+                },
+              },
+            },
+            capability_snapshot: {
+              driver: "openclaw",
+              adapter_family: "delegate_gateway",
+              governance_mode: "advisory",
+              integration_level: "attach",
+              effective: {
+                launch_mode: "gateway_bridge",
+                session_persistence: "persistent",
+                event_stream: "structured_deltas",
+                approvals: [],
+                artifacts: ["trajectory", "session-history"],
+              },
+            },
+            sandbox_policy: {},
+            retrieval_trace: {},
+            context_manifest: {},
+            approvals: [],
+            steering_history: [
+              {
+                event_id: "steering-1",
+                type: "steering.note_added",
+                ts: "2026-03-29T15:41:00Z",
+                payload: { note: "Note from Hive" },
+              },
+            ],
+            trajectory: [
+              {
+                seq: 0,
+                kind: "assistant_message",
+                harness: "openclaw",
+                adapter_family: "delegate_gateway",
+                native_session_ref: "oc-session-001",
+                payload: { text: "delta" },
+                ts: "2026-03-29T15:40:30Z",
+              },
+            ],
+            timeline: [
+              {
+                event_id: "trajectory-0",
+                type: "trajectory.assistant_message",
+                ts: "2026-03-29T15:40:30Z",
+                payload: { text: "delta" },
+              },
+            ],
+            evaluations: [],
+            changed_files: {},
+            context_entries: [],
+            harness: "openclaw",
+            integration_level: "attach",
+            governance_mode: "advisory",
+            adapter_family: "delegate_gateway",
+            native_session_handle: "oc-session-001",
+            sandbox_owner: "openclaw",
+          },
+        }),
+      },
+    ]);
+
+    renderConsole([`/runs/${runId}`]);
+
+    await screen.findByRole("heading", { name: runId });
+    const runtimePanel = screen.getByRole("heading", { name: "Driver and Sandbox" }).closest("section");
+    expect(runtimePanel).not.toBeNull();
+    expectKeyValue(runtimePanel as HTMLElement, "Harness", "openclaw");
+    expectKeyValue(runtimePanel as HTMLElement, "Integration level", "attach");
+    expectKeyValue(runtimePanel as HTMLElement, "Governance mode", "advisory");
+    expectKeyValue(runtimePanel as HTMLElement, "Native session", "oc-session-001");
+    expect(screen.getByRole("heading", { name: "Capability snapshot" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Steering History" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Trajectory" })).toBeInTheDocument();
+    expect(screen.getByText(/attached delegate session/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
   });
 
   it("explains when live controls are hidden because capability snapshots are missing", async () => {

@@ -15,9 +15,19 @@ from fastapi.testclient import TestClient
 
 from hive.cli.main import main as hive_main
 from src.hive.console.api import app
+from src.hive.integrations.models import (
+    AdapterFamily,
+    GovernanceMode,
+    IntegrationLevel,
+    SessionHandle,
+)
+from src.hive.integrations.openclaw import persist_delegate_session
 from src.hive.runs.engine import accept_run, eval_run, start_run
+from src.hive.runtime.capabilities import CapabilitySnapshot, capability_surface
 from src.hive.scheduler.query import ready_tasks
 from src.hive.store.task_files import create_task
+from src.hive.trajectory.schema import trajectory_event
+from src.hive.trajectory.writer import append_trajectory_event
 
 
 def _invoke_cli_json(capsys, argv: list[str]) -> dict:
@@ -25,6 +35,94 @@ def _invoke_cli_json(capsys, argv: list[str]) -> dict:
     captured = capsys.readouterr()
     assert exit_code == 0
     return json.loads(captured.out)
+
+
+def _delegate_capability_snapshot(harness: str) -> CapabilitySnapshot:
+    return CapabilitySnapshot(
+        driver=harness,
+        driver_version="1.0.0",
+        declared=capability_surface(
+            launch_mode="external_session",
+            session_persistence="persistent",
+            event_stream="structured_deltas",
+            steering="note",
+            native_sandbox="external",
+            outer_sandbox_required=False,
+            artifacts=["trajectory", "session-history"],
+        ),
+        effective=capability_surface(
+            launch_mode="external_session",
+            session_persistence="persistent",
+            event_stream="structured_deltas",
+            steering="note",
+            native_sandbox="external",
+            outer_sandbox_required=False,
+            artifacts=["trajectory", "session-history"],
+        ),
+        probed={"attach_supported": True},
+        evidence={"sandbox": f"Sandbox is owned by {harness}, not Hive."},
+        governance_mode="advisory",
+        integration_level="attach",
+        adapter_family="delegate_gateway",
+    )
+
+
+def _write_delegate_session(
+    workspace_root: Path,
+    *,
+    harness: str,
+    delegate_session_id: str,
+    native_session_ref: str,
+    project_id: str,
+    task_id: str,
+) -> None:
+    session = SessionHandle(
+        session_id=f"dsess-{delegate_session_id}",
+        adapter_name=harness,
+        adapter_family=AdapterFamily.DELEGATE_GATEWAY,
+        native_session_ref=native_session_ref,
+        governance_mode=GovernanceMode.ADVISORY,
+        integration_level=IntegrationLevel.ATTACH,
+        delegate_session_id=delegate_session_id,
+        project_id=project_id,
+        task_id=task_id,
+        status="attached",
+        metadata={"sandbox_owner": harness},
+    )
+    persist_delegate_session(
+        workspace_root,
+        session,
+        capability_snapshot=_delegate_capability_snapshot(harness),
+    )
+    append_trajectory_event(
+        workspace_root,
+        trajectory_event(
+            seq=0,
+            kind="assistant_message",
+            harness=harness,
+            adapter_family="delegate_gateway",
+            native_session_ref=native_session_ref,
+            delegate_session_id=delegate_session_id,
+            project_id=project_id,
+            task_id=task_id,
+            payload={"text": f"{harness} transcript delta"},
+            raw_ref=f"{harness}:{native_session_ref}:0",
+        ),
+    )
+    steering_path = (
+        workspace_root / ".hive" / "delegates" / delegate_session_id / "steering.ndjson"
+    )
+    steering_path.write_text(
+        json.dumps(
+            {
+                "ts": "2026-03-29T15:45:00Z",
+                "action": "note",
+                "note": f"Note from {harness}",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 class TestObserveConsoleApi:
@@ -90,6 +188,95 @@ class TestObserveConsoleApi:
         assert "context_entries" in detail.json()["detail"]
         assert "handoff_manifest" in detail.json()["detail"]["inspector"]
         assert "reroute_bundle" in detail.json()["detail"]["inspector"]
+
+    def test_v24_run_and_delegate_detail_truth_surfaces(self, temp_hive_dir, capsys):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        pi_run = start_run(temp_hive_dir, task_id, driver_name="pi")
+        _write_delegate_session(
+            Path(temp_hive_dir),
+            harness="openclaw",
+            delegate_session_id="del_openclaw_live",
+            native_session_ref="oc-session-001",
+            project_id="demo",
+            task_id=task_id,
+        )
+        _write_delegate_session(
+            Path(temp_hive_dir),
+            harness="hermes",
+            delegate_session_id="del_hermes_live",
+            native_session_ref="hermes-session-001",
+            project_id="demo",
+            task_id=task_id,
+        )
+
+        client = TestClient(app)
+        runs = client.get("/runs", params={"path": temp_hive_dir})
+        home = client.get("/home", params={"path": temp_hive_dir})
+        pi_detail = client.get(f"/runs/{pi_run.id}", params={"path": temp_hive_dir})
+        openclaw_detail = client.get("/runs/del_openclaw_live", params={"path": temp_hive_dir})
+        hermes_detail = client.get("/runs/del_hermes_live", params={"path": temp_hive_dir})
+
+        assert runs.status_code == 200
+        run_ids = {item["id"] for item in runs.json()["runs"]}
+        assert pi_run.id in run_ids
+        assert "del_openclaw_live" in run_ids
+        assert "del_hermes_live" in run_ids
+
+        assert home.status_code == 200
+        active_run_ids = {item["id"] for item in home.json()["home"]["active_runs"]}
+        assert pi_run.id in active_run_ids
+        assert "del_openclaw_live" in active_run_ids
+        assert "del_hermes_live" in active_run_ids
+
+        assert pi_detail.status_code == 200
+        assert pi_detail.json()["detail"]["detail_kind"] == "run"
+        assert pi_detail.json()["detail"]["harness"] == "pi"
+        assert pi_detail.json()["detail"]["integration_level"] == "managed"
+        assert pi_detail.json()["detail"]["governance_mode"] == "governed"
+        assert pi_detail.json()["detail"]["native_session_handle"].startswith("pi-managed:")
+        assert pi_detail.json()["detail"]["capability_snapshot"]["adapter_family"] == "worker_session"
+        assert pi_detail.json()["detail"]["steering_history"] == []
+        assert pi_detail.json()["detail"]["trajectory"]
+
+        assert openclaw_detail.status_code == 200
+        assert openclaw_detail.json()["detail"]["detail_kind"] == "delegate_session"
+        assert openclaw_detail.json()["detail"]["harness"] == "openclaw"
+        assert openclaw_detail.json()["detail"]["integration_level"] == "attach"
+        assert openclaw_detail.json()["detail"]["governance_mode"] == "advisory"
+        assert openclaw_detail.json()["detail"]["native_session_handle"] == "oc-session-001"
+        assert (
+            openclaw_detail.json()["detail"]["capability_snapshot"]["adapter_family"]
+            == "delegate_gateway"
+        )
+        assert openclaw_detail.json()["detail"]["steering_history"][0]["type"] == "steering.note_added"
+        assert openclaw_detail.json()["detail"]["trajectory"][0]["native_session_ref"] == "oc-session-001"
+
+        assert hermes_detail.status_code == 200
+        assert hermes_detail.json()["detail"]["detail_kind"] == "delegate_session"
+        assert hermes_detail.json()["detail"]["harness"] == "hermes"
+        assert hermes_detail.json()["detail"]["integration_level"] == "attach"
+        assert hermes_detail.json()["detail"]["governance_mode"] == "advisory"
+        assert hermes_detail.json()["detail"]["native_session_handle"] == "hermes-session-001"
+        assert (
+            hermes_detail.json()["detail"]["capability_snapshot"]["adapter_family"]
+            == "delegate_gateway"
+        )
+        assert hermes_detail.json()["detail"]["steering_history"][0]["type"] == "steering.note_added"
+        assert hermes_detail.json()["detail"]["trajectory"][0]["native_session_ref"] == "hermes-session-001"
 
     def test_run_steer_endpoint_records_typed_steering_history(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)

@@ -81,10 +81,11 @@ export function RunDetailPage() {
   const { data, loading, error } = useConsoleQuery(
     `run:${apiBase}:${workspacePath}:${runId}:${refreshNonce}`,
     () => client.getRunDetail(runId),
-    5000,
+    3000,
   );
 
   const detail = (data?.detail ?? {}) as Record<string, unknown>;
+  const detailKind = String(detail.detail_kind ?? "run");
   const run = (detail.run ?? {}) as Record<string, unknown>;
   const promotion = (detail.promotion_decision ?? {}) as Record<string, unknown>;
   const artifactPreview = (detail.artifact_preview ?? {}) as Record<string, unknown>;
@@ -106,6 +107,7 @@ export function RunDetailPage() {
   const capabilitySnapshot = (
     detail.capability_snapshot ?? inspector.capability_snapshot ?? {}
   ) as Record<string, unknown>;
+  const trajectory = Array.isArray(detail.trajectory) ? detail.trajectory : [];
   const sandboxPolicy = (
     detail.sandbox_policy ?? inspector.sandbox_policy ?? {}
   ) as Record<string, unknown>;
@@ -113,6 +115,12 @@ export function RunDetailPage() {
     detail.retrieval_trace ?? inspector.retrieval_trace ?? {}
   ) as Record<string, unknown>;
   const effective = (capabilitySnapshot.effective ?? {}) as Record<string, unknown>;
+  const harness = String(detail.harness ?? capabilitySnapshot.driver ?? run.driver ?? "—");
+  const governanceMode = String(detail.governance_mode ?? capabilitySnapshot.governance_mode ?? "—");
+  const integrationLevel = String(detail.integration_level ?? capabilitySnapshot.integration_level ?? "—");
+  const adapterFamily = String(detail.adapter_family ?? capabilitySnapshot.adapter_family ?? "—");
+  const nativeSessionHandle = String(detail.native_session_handle ?? run.driver_handle ?? "—");
+  const sandboxOwner = String(detail.sandbox_owner ?? run.sandbox_owner ?? "—");
   const retrievalContext = Array.isArray(retrievalTrace.selected_context)
     ? retrievalTrace.selected_context
     : [];
@@ -120,15 +128,16 @@ export function RunDetailPage() {
   const runHealth = String(run.health ?? "");
   const launchMode = String(effective.launch_mode ?? "");
   const sessionPersistence = String(effective.session_persistence ?? "none");
-  const canLiveSteer = launchMode !== "" && launchMode !== "staged" && sessionPersistence !== "none";
+  const supportsRunControls = detailKind === "run";
+  const canLiveSteer = supportsRunControls && launchMode !== "" && launchMode !== "staged" && sessionPersistence !== "none";
   const liveSteerMessage = canLiveSteer
     ? null
     : liveSteerUnavailableMessage(launchMode, sessionPersistence);
   const canPause = canLiveSteer && runHealth !== "paused";
   const canResume = canLiveSteer && runHealth === "paused";
   const canAnnotate = canLiveSteer;
-  const canCancel = !["accepted", "cancelled", "failed", "rejected"].includes(runStatus);
-  const canReroute = !["accepted", "cancelled", "failed"].includes(runStatus);
+  const canCancel = supportsRunControls && !["accepted", "cancelled", "failed", "rejected"].includes(runStatus);
+  const canReroute = supportsRunControls && !["accepted", "cancelled", "failed"].includes(runStatus);
 
   async function handleAction(
     action: string,
@@ -239,6 +248,12 @@ export function RunDetailPage() {
         <div className="stack">
           <KeyValueGrid
             values={[
+              { label: "Harness", value: harness },
+              { label: "Integration level", value: integrationLevel },
+              { label: "Governance mode", value: governanceMode },
+              { label: "Adapter family", value: adapterFamily },
+              { label: "Native session", value: nativeSessionHandle },
+              { label: "Sandbox owner", value: sandboxOwner },
               { label: "Launch mode", value: String(effective.launch_mode ?? "—") },
               {
                 label: "Session persistence",
@@ -270,94 +285,104 @@ export function RunDetailPage() {
 
       <Panel eyebrow="Operator controls" title="Steer This Run">
         <div className="stack">
-          <label className="console-field">
-            <span>Reason</span>
-            <input
-              placeholder="Why are you steering this run?"
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-            />
-          </label>
-          <label className="console-field">
-            <span>Note</span>
-            <input
-              placeholder="Optional note to add to the audit trail"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-            />
-          </label>
-          <div className="action-grid">
-            {canPause ? (
-              <button
-                className="primary-button"
-                type="button"
-                disabled={pendingAction !== null}
-                onClick={() => handleAction("pause")}
-              >
-                Pause
-              </button>
-            ) : null}
-            {canResume ? (
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={pendingAction !== null}
-                onClick={() => handleAction("resume")}
-              >
-                Resume
-              </button>
-            ) : null}
-            {canAnnotate ? (
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={pendingAction !== null}
-                onClick={() => handleAction("note")}
-              >
-                Add Note
-              </button>
-            ) : null}
-            {canCancel ? (
-              <button
-                className="danger-button"
-                type="button"
-                disabled={pendingAction !== null}
-                onClick={() => handleAction("cancel")}
-              >
-                Cancel
-              </button>
-            ) : null}
-          </div>
-          {canReroute ? (
-            <form className="filters" onSubmit={handleReroute}>
+          {supportsRunControls ? (
+            <>
               <label className="console-field">
-                <span>Reroute to</span>
-                <select
-                  value={rerouteDriver}
-                  onChange={(event) => setRerouteDriver(event.target.value)}
-                >
-                  <option value="local">local</option>
-                  <option value="manual">manual</option>
-                  <option value="codex">codex</option>
-                  <option value="claude">claude</option>
-                </select>
+                <span>Reason</span>
+                <input
+                  placeholder="Why are you steering this run?"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                />
               </label>
-              <div className="filters__actions">
-                <button
-                  className="primary-button"
-                  type="submit"
-                  disabled={pendingAction !== null}
-                >
-                  Reroute
-                </button>
+              <label className="console-field">
+                <span>Note</span>
+                <input
+                  placeholder="Optional note to add to the audit trail"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                />
+              </label>
+              <div className="action-grid">
+                {canPause ? (
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={pendingAction !== null}
+                    onClick={() => handleAction("pause")}
+                  >
+                    Pause
+                  </button>
+                ) : null}
+                {canResume ? (
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={pendingAction !== null}
+                    onClick={() => handleAction("resume")}
+                  >
+                    Resume
+                  </button>
+                ) : null}
+                {canAnnotate ? (
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={pendingAction !== null}
+                    onClick={() => handleAction("note")}
+                  >
+                    Add Note
+                  </button>
+                ) : null}
+                {canCancel ? (
+                  <button
+                    className="danger-button"
+                    type="button"
+                    disabled={pendingAction !== null}
+                    onClick={() => handleAction("cancel")}
+                  >
+                    Cancel
+                  </button>
+                ) : null}
               </div>
-            </form>
-          ) : null}
-          {liveSteerMessage ? (
+              {canReroute ? (
+                <form className="filters" onSubmit={handleReroute}>
+                  <label className="console-field">
+                    <span>Reroute to</span>
+                    <select
+                      value={rerouteDriver}
+                      onChange={(event) => setRerouteDriver(event.target.value)}
+                    >
+                      <option value="local">local</option>
+                      <option value="manual">manual</option>
+                      <option value="codex">codex</option>
+                      <option value="claude">claude</option>
+                    </select>
+                  </label>
+                  <div className="filters__actions">
+                    <button
+                      className="primary-button"
+                      type="submit"
+                      disabled={pendingAction !== null}
+                    >
+                      Reroute
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+              {liveSteerMessage ? (
+                <p className="list-card__meta">
+                  {liveSteerMessage}
+                </p>
+              ) : null}
+            </>
+          ) : (
             <p className="list-card__meta">
-              {liveSteerMessage}
+              This detail view represents an attached delegate session. Run-only pause, cancel,
+              and reroute controls stay hidden here so the console does not claim Hive owns the
+              native harness lifecycle.
             </p>
-          ) : null}
+          )}
           {actionMessage ? <p>{actionMessage}</p> : null}
           {actionError ? <p className="error-copy">{actionError}</p> : null}
         </div>
@@ -586,6 +611,16 @@ export function RunDetailPage() {
             })
           ) : (
             <p>No steering actions recorded for this run.</p>
+          )}
+        </div>
+      </Panel>
+
+      <Panel eyebrow="Normalized history" title="Trajectory">
+        <div className="stack">
+          {trajectory.length ? (
+            <PreviewBlock title="trajectory.jsonl" content={jsonPreview(trajectory)} />
+          ) : (
+            <p>No trajectory events recorded yet.</p>
           )}
         </div>
       </Panel>

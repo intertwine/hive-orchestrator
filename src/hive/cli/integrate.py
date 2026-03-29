@@ -367,8 +367,6 @@ def _integrate_hermes(args, root: Path) -> int:
 
     hermes_found = bool(probed.get("hermes_found"))
     attach_ok = bool(probed.get("attach_supported"))
-    gateway_ok = bool(probed.get("gateway_reachable"))
-    gateway_responding = bool(probed.get("gateway_responding"))
     if not hermes_found:
         status_msg = "Hermes not found"
     elif not attach_ok:

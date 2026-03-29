@@ -314,13 +314,11 @@ class TestHE1InstallAndConnect:
         assert info["supported_levels"] == ["pack", "companion", "attach"]
         assert info["supported_governance_modes"] == ["advisory"]
         assert info["available"] is False
+        assert info["configuration_problems"] == ["Hermes not found."]
         assert info["next_steps"] == [
             "Install Hermes or set HERMES_HOME.",
             "Then re-run: hive integrate hermes",
         ]
-        assert any(
-            "Hermes not found" in problem for problem in info["configuration_problems"]
-        ) or any("blocker:" in note for note in info["notes"])
 
     def test_probe_with_gateway_unreachable(self):
         adapter = _make_adapter(gateway_reachable=False)
@@ -514,14 +512,11 @@ class TestHE1InstallAndConnect:
         assert integration["supported_levels"] == ["pack", "companion", "attach"]
         assert integration["supported_governance_modes"] == ["advisory"]
         assert integration["available"] is False
+        assert integration["configuration_problems"] == ["Hermes not found."]
         assert integration["next_steps"] == [
             "Install Hermes or set HERMES_HOME.",
             "Then re-run: hive integrate hermes",
         ]
-        assert any(
-            "blocker:" in note or "Install Hermes" in note
-            for note in integration["notes"]
-        )
 
 
 # ---------------------------------------------------------------------------

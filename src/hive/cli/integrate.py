@@ -369,41 +369,19 @@ def _integrate_hermes(args, root: Path) -> int:
     attach_ok = bool(probed.get("attach_supported"))
     gateway_ok = bool(probed.get("gateway_reachable"))
     gateway_responding = bool(probed.get("gateway_responding"))
-
-    next_steps: list[str] = []
     if not hermes_found:
         status_msg = "Hermes not found"
-        next_steps.append("Install Hermes or set HERMES_HOME.")
-        next_steps.append("Then re-run: hive integrate hermes")
     elif not attach_ok:
         status_msg = "Hermes found, session store not available"
-        next_steps.append("Set HERMES_HOME to a real Hermes home directory.")
-        next_steps.append(
-            "Make sure HERMES_HOME contains state.db and/or sessions/, then re-run: hive integrate hermes"
-        )
-        next_steps.append(
-            "Or import an export instead: hive integrate import-trajectory <path>"
-        )
     else:
         status_msg = "ready"
-        if not probed.get("skill_installed"):
-            next_steps.append(
-                "Load the agent-hive skill in Hermes from packages/hermes-skill/"
-            )
-        next_steps.append("Attach a session: hive integrate attach hermes <session-id>")
-        next_steps.append("Poll pending notes from Hermes: hive_status {\"session_id\":\"<session-id>\"}")
-        if gateway_responding and not gateway_ok:
-            next_steps.append(
-                "Optional: enable Hive-compatible gateway health metadata if you want gateway readiness verified too."
-            )
-        next_steps.append("hive integrate doctor hermes --json")
 
     return emit(
         {
             "ok": True,
             "message": f"Hermes integration: {status_msg}.",
             "integration": probe_dict,
-            "next_steps": next_steps,
+            "next_steps": list(probe_dict.get("next_steps") or []),
         },
         args.json,
     )

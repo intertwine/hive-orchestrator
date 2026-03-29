@@ -962,6 +962,7 @@ class HermesGatewayAdapter(DelegateGatewayAdapter):
             capability_snapshot=self._capability_snapshot(hermes_probe),
             supported_levels=self.supported_levels(),
             supported_governance_modes=self.supported_governance_modes(),
+            configuration_problems=list(hermes_probe.blockers),
             next_steps=_hermes_doctor_next_steps(hermes_probe),
             notes=[
                 *hermes_probe.notes,

@@ -147,6 +147,46 @@ class Bridge {
     return [];
   }
 
+  _parsePositiveInt(value, fallback) {
+    const parsed = Number.parseInt(String(value ?? ""), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  _streamConfig(overrides = {}) {
+    return {
+      follow: overrides.follow !== false,
+      pollIntervalMs: this._parsePositiveInt(
+        overrides.pollIntervalMs ?? process.env.OPENCLAW_HIVE_STREAM_POLL_MS,
+        250
+      ),
+      idleTimeoutMs: this._parsePositiveInt(
+        overrides.idleTimeoutMs ?? process.env.OPENCLAW_HIVE_STREAM_IDLE_MS,
+        1500
+      ),
+      limit: this._parsePositiveInt(
+        overrides.limit ?? process.env.OPENCLAW_HIVE_STREAM_LIMIT,
+        200
+      ),
+    };
+  }
+
+  _sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  _hashText(value) {
+    // Stable enough for dedup fingerprints, not cryptographic identity; collisions only affect synthetic raw refs.
+    let hash = 0;
+    for (let idx = 0; idx < value.length; idx += 1) {
+      hash = (hash * 31 + value.charCodeAt(idx)) >>> 0;
+    }
+    return hash.toString(16);
+  }
+
+  _eventFingerprint(event) {
+    return String(event.raw_ref || "");
+  }
+
   _extractVersion(payload) {
     if (!payload || typeof payload !== "object") {
       return "unknown";
@@ -216,20 +256,68 @@ class Bridge {
     };
   }
 
-  streamEvents(sessionKey) {
-    const response = this._invokeGateway("sessions.history", {
-      sessionKey,
-      limit: 200,
-      includeTools: false,
-    });
-    if (!response.ok) {
-      return { ok: false, error: response.error };
+  async streamEvents(sessionKey, options = {}, onEvent = null) {
+    const { follow, pollIntervalMs, idleTimeoutMs, limit } = this._streamConfig(options);
+    const afterRawRef = String(options.afterRawRef || "");
+    const events = [];
+    const seen = new Set();
+    let emittedCount = 0;
+    let idleDeadline = Date.now() + idleTimeoutMs;
+    let cursorSatisfied = !afterRawRef;
+    let hasPolled = false;
+
+    while (true) {
+      if (hasPolled && Date.now() >= idleDeadline) {
+        return follow
+          ? { ok: true, event_count: emittedCount }
+          : { ok: true, events, event_count: emittedCount };
+      }
+      hasPolled = true;
+      const response = this._invokeGateway("sessions.history", {
+        sessionKey,
+        limit,
+        includeTools: false,
+      });
+      if (!response.ok) {
+        return { ok: false, error: response.error };
+      }
+
+      const transcript = this._coerceTranscriptItems(response.data);
+      let newCount = 0;
+      for (const [idx, message] of transcript.entries()) {
+        const event = this._normalizeMessage(sessionKey, message, idx);
+        const fingerprint = this._eventFingerprint(event);
+        if (!cursorSatisfied) {
+          seen.add(fingerprint);
+          if (event.raw_ref === afterRawRef) {
+            cursorSatisfied = true;
+          }
+          continue;
+        }
+        if (seen.has(fingerprint)) {
+          continue;
+        }
+        seen.add(fingerprint);
+        emittedCount += 1;
+        newCount += 1;
+        if (onEvent) {
+          onEvent(event);
+        } else {
+          events.push(event);
+        }
+      }
+      if (!cursorSatisfied && transcript.length > 0) {
+        cursorSatisfied = true;
+      }
+
+      if (!follow) {
+        return { ok: true, events, event_count: emittedCount };
+      }
+      if (newCount > 0) {
+        idleDeadline = Date.now() + idleTimeoutMs;
+      }
+      await this._sleep(pollIntervalMs);
     }
-    const transcript = this._coerceTranscriptItems(response.data);
-    return {
-      ok: true,
-      events: transcript.map((message, idx) => this._normalizeMessage(sessionKey, message, idx)),
-    };
   }
 
   _normalizeMessage(sessionKey, message, seq) {
@@ -241,14 +329,20 @@ class Bridge {
       message.payload ||
       message.content ||
       (typeof message.text === "string" ? { text: message.text } : {});
+    const ts = message.ts || message.createdAt || new Date().toISOString();
+    const rawRef =
+      message.raw_ref ||
+      message.id ||
+      message.messageId ||
+      `synthetic:${sessionKey}:${kind}:${ts}:${this._hashText(JSON.stringify(payload || {}))}`;
     return {
       seq,
       kind,
-      ts: message.ts || message.createdAt || new Date().toISOString(),
+      ts,
       harness: "openclaw",
       adapter_family: "delegate_gateway",
       native_session_ref: sessionKey,
-      raw_ref: message.raw_ref || message.id || message.messageId || null,
+      raw_ref: rawRef,
       payload,
     };
   }
@@ -342,10 +436,29 @@ class Bridge {
             : { type: "error", message: result.error };
         }
       case "stream_events": {
-        const result = this.streamEvents(msg.native_session_ref);
-        return result.ok
-          ? { type: "stream_events_ok", events: result.events }
-          : { type: "error", message: result.error };
+        const result = await this.streamEvents(
+          msg.native_session_ref,
+          {
+            follow: msg.follow,
+            pollIntervalMs: msg.poll_interval_ms,
+            idleTimeoutMs: msg.idle_timeout_ms,
+            afterRawRef: msg.after_raw_ref,
+            limit: msg.limit,
+          },
+          (event) => {
+            process.stdout.write(JSON.stringify({ type: "stream_event", event }) + "\n");
+          }
+        );
+        if (!result.ok) {
+          return { type: "error", message: result.error };
+        }
+        process.stdout.write(
+          JSON.stringify({
+            type: "stream_events_end",
+            event_count: result.event_count || 0,
+          }) + "\n"
+        );
+        return null;
       }
       case "detach":
         return {

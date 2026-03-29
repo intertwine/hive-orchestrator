@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
@@ -107,7 +108,23 @@ class OpenClawBridgeClient:
             "error": result.stderr.strip() or "No response from bridge.",
         }
 
-    def _stream_receive(self, request: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    @staticmethod
+    def _read_positive_int_env(name: str, default: int) -> int:
+        raw = os.environ.get(name, "").strip()
+        if not raw:
+            return default
+        try:
+            value = int(raw)
+        except ValueError:
+            return default
+        return value if value > 0 else default
+
+    def _stream_watchdog_ms(self) -> int:
+        return self._read_positive_int_env("OPENCLAW_HIVE_STREAM_MAX_MS", 30000)
+
+    def _stream_receive(
+        self, request: dict[str, Any], *, timeout_seconds: float = 30.0
+    ) -> Iterator[dict[str, Any]]:
         """Send one NDJSON request and yield each parsed bridge response line."""
         cmd = self._bridge_command()
         if not cmd:
@@ -131,6 +148,21 @@ class OpenClawBridgeClient:
 
         stderr_text = ""
         returncode: int | None = None
+        timed_out = False
+
+        def _expire() -> None:
+            nonlocal timed_out
+            timed_out = True
+            try:
+                proc.kill()
+            except Exception:
+                pass
+
+        timer = None
+        if timeout_seconds > 0:
+            timer = threading.Timer(timeout_seconds, _expire)
+            timer.daemon = True
+            timer.start()
         try:
             for raw_line in proc.stdout:
                 line = raw_line.strip()
@@ -145,6 +177,8 @@ class OpenClawBridgeClient:
             proc.kill()
             raise ConnectionError("Timed out waiting for bridge stream response.") from exc
         finally:
+            if timer is not None:
+                timer.cancel()
             try:
                 proc.stdout.close()
             except Exception:
@@ -165,6 +199,8 @@ class OpenClawBridgeClient:
             except Exception:
                 pass
 
+        if timed_out:
+            raise ConnectionError("Timed out waiting for bridge stream response.")
         if returncode not in (None, 0) and stderr_text:
             raise ConnectionError(stderr_text)
 
@@ -239,14 +275,37 @@ class OpenClawBridgeClient:
             }
         )
 
-    def stream_events(self, session_key: str) -> Iterator[dict[str, Any]]:
+    def stream_events(
+        self,
+        session_key: str,
+        *,
+        after_raw_ref: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
         """Stream events from the bridge."""
-        for response in self._stream_receive(
-            {
-                "type": "stream_events",
-                "native_session_ref": session_key,
-            }
-        ):
+        def _stream_env_int(name: str) -> int | None:
+            raw = os.environ.get(name, "").strip()
+            if not raw:
+                return None
+            try:
+                value = int(raw)
+            except ValueError:
+                return None
+            return value if value > 0 else None
+
+        request: dict[str, Any] = {
+            "type": "stream_events",
+            "native_session_ref": session_key,
+            "follow": True,
+        }
+        if after_raw_ref:
+            request["after_raw_ref"] = after_raw_ref
+        poll_ms = _stream_env_int("OPENCLAW_HIVE_STREAM_POLL_MS") or 250
+        idle_ms = _stream_env_int("OPENCLAW_HIVE_STREAM_IDLE_MS") or 1500
+        timeout_ms = _stream_env_int("OPENCLAW_HIVE_STREAM_TIMEOUT_MS") or 30000
+        request["poll_interval_ms"] = poll_ms
+        request["idle_timeout_ms"] = idle_ms
+
+        for response in self._stream_receive(request, timeout_seconds=timeout_ms / 1000.0):
             response_type = str(response.get("type", ""))
             if response_type == "error":
                 error_msg = str(response.get("message") or response.get("error") or "")
@@ -657,41 +716,59 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
         from src.hive.trajectory.schema import trajectory_event
         from src.hive.trajectory.writer import append_trajectory_event
 
-        seq = 0
-        for raw_event in self._bridge.stream_events(session.native_session_ref):
-            raw_ref = str(raw_event.get("raw_ref") or raw_event.get("id") or "") or None
-            event = {
-                "seq": seq,
-                "kind": raw_event.get("kind", "assistant_delta"),
-                "ts": raw_event.get("ts", utc_now_iso()),
-                "harness": "openclaw",
-                "adapter_family": "delegate_gateway",
-                "native_session_ref": session.native_session_ref,
-                "delegate_session_id": session.delegate_session_id,
-                "project_id": session.project_id,
-                "task_id": session.task_id,
-                "payload": raw_event.get("payload", {}),
-                "raw_ref": raw_ref,
-            }
-            # Persist to trajectory file.
-            if self._base_path and session.delegate_session_id:
-                append_trajectory_event(
-                    self._base_path,
-                    trajectory_event(
-                        seq=seq,
-                        kind=event["kind"],
-                        harness="openclaw",
-                        adapter_family="delegate_gateway",
-                        native_session_ref=session.native_session_ref,
-                        delegate_session_id=session.delegate_session_id,
-                        project_id=session.project_id,
-                        task_id=session.task_id,
-                        payload=event.get("payload", {}),
-                        raw_ref=raw_ref,
-                    ),
-                )
-            yield event
-            seq += 1
+        seq = int(session.metadata.get("next_stream_seq") or 0)
+        last_raw_ref = str(session.metadata.get("last_stream_raw_ref") or "") or None
+        metadata_changed = False
+        try:
+            for raw_event in self._bridge.stream_events(
+                session.native_session_ref,
+                after_raw_ref=last_raw_ref,
+            ):
+                raw_ref = str(raw_event.get("raw_ref") or raw_event.get("id") or "") or None
+                event = {
+                    "seq": seq,
+                    "kind": raw_event.get("kind", "assistant_delta"),
+                    "ts": raw_event.get("ts", utc_now_iso()),
+                    "harness": "openclaw",
+                    "adapter_family": "delegate_gateway",
+                    "native_session_ref": session.native_session_ref,
+                    "delegate_session_id": session.delegate_session_id,
+                    "project_id": session.project_id,
+                    "task_id": session.task_id,
+                    "payload": raw_event.get("payload", {}),
+                    "raw_ref": raw_ref,
+                }
+                if raw_ref:
+                    session.metadata["last_stream_raw_ref"] = raw_ref
+                    metadata_changed = True
+                session.metadata["next_stream_seq"] = seq + 1
+                metadata_changed = True
+                # Persist to trajectory file.
+                if self._base_path and session.delegate_session_id:
+                    append_trajectory_event(
+                        self._base_path,
+                        trajectory_event(
+                            seq=seq,
+                            kind=event["kind"],
+                            harness="openclaw",
+                            adapter_family="delegate_gateway",
+                            native_session_ref=session.native_session_ref,
+                            delegate_session_id=session.delegate_session_id,
+                            project_id=session.project_id,
+                            task_id=session.task_id,
+                            payload=event.get("payload", {}),
+                            raw_ref=raw_ref,
+                        ),
+                    )
+                yield event
+                seq += 1
+        finally:
+            if (
+                metadata_changed
+                and self._base_path
+                and session.delegate_session_id
+            ):
+                _write_delegate_manifest(self._base_path, session)
 
     def send_steer(
         self, session: SessionHandle, request: SteeringRequest

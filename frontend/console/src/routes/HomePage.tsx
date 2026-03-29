@@ -89,6 +89,7 @@ export function HomePage() {
   const { data, loading, error } = useConsoleQuery(
     `home:${apiBase}:${workspacePath}`,
     () => client.getHome(),
+    3000,
   );
 
   const home = (data?.home ?? {}) as Record<string, unknown>;

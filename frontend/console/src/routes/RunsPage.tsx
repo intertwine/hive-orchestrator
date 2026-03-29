@@ -22,6 +22,7 @@ export function RunsPage() {
         projectId: projectId || undefined,
         campaignId: campaignId || undefined,
       }),
+    3000,
   );
   const runs = Array.isArray(data?.runs) ? data.runs : [];
 
@@ -42,8 +43,11 @@ export function RunsPage() {
             <option value="">All drivers</option>
             <option value="local">local</option>
             <option value="manual">manual</option>
+            <option value="pi">pi</option>
             <option value="codex">codex</option>
             <option value="claude-code">claude-code</option>
+            <option value="openclaw">openclaw</option>
+            <option value="hermes">hermes</option>
           </select>
         </label>
         <label className="console-field">

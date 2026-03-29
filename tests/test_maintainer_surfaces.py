@@ -106,6 +106,7 @@ def test_release_docs_require_scope_locked_story_and_installed_search_proof():
     assert "Installed-package `hive search` is proven useful" in release_doc
     assert "make bump-version BUMP=minor" in release_doc
     assert "Update [docs/V2_3_STATUS.md](/docs/V2_3_STATUS.md)" in release_doc
+    assert "For the scoped v2.4 launch line" in release_doc
     assert 'hive search "runtime contract" --scope api --limit 5 --json' in release_doc
     assert (
         'hive search "sandbox doctor" --scope examples --limit 5 --json' in release_doc

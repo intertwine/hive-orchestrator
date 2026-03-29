@@ -307,9 +307,9 @@ describe("Observe Console smoke", () => {
     renderConsole(["/"]);
 
     await screen.findByRole("heading", { name: "Home" });
-    expect(screen.getByText("Blocked OpenClaw attached session")).toBeInTheDocument();
+    expect(await screen.findByText("Blocked OpenClaw attached session")).toBeInTheDocument();
     expect(
-      screen.getByText("Native session requested operator review before proceeding."),
+      await screen.findByText("Native session requested operator review before proceeding."),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("link", { name: "Inbox" }));

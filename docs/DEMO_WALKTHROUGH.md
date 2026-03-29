@@ -1,10 +1,10 @@
-# Hive v2.3 Demo Walkthrough
+# Hive v2.4 Demo Walkthrough
 
-This is the shortest path to a truthful scope-locked v2.3 demo.
+This is the shortest path to a truthful scope-locked v2.4 demo.
 
-It still builds on the existing multi-project launch fixture from the v2.2 line, so the builder
-and temp paths keep their `v22` names. The point of this walkthrough is to show the deeper v2.3
-operator surface on top of that stable fixture, not to replace the fixture itself.
+It still builds on the existing multi-project launch fixture from the older line, so one helper
+script keeps its historical `v22` filename. The point of this walkthrough is to show the deeper
+v2.4 operator surface on top of that stable fixture, not to replace the fixture itself.
 
 If you just want to see the current product story, start with the checked-in screenshots and clip under
 `images/launch/`. You only need the fixture builder when you want to regenerate the demo locally.
@@ -12,11 +12,12 @@ If you just want to see the current product story, start with the checked-in scr
 It builds the same north-star shape we use in acceptance:
 
 - three projects
+- a Pi-managed lane, plus OpenClaw and Hermes attach-oriented lanes
 - ten runs across local, Codex, Claude, and manual flows
 - a reroute with preserved lineage
 - a campaign-generated daily brief
 - accepted runs with evaluator evidence and context manifests
-- run detail with capability truth, sandbox policy, retrieval trace, and steering history
+- run detail with capability truth, sandbox policy, retrieval trace, steering history, and live attach visibility
 - an inbox flow that shows approval handling without manual markdown edits
 
 ## 1. Build the demo workspace
@@ -24,13 +25,13 @@ It builds the same north-star shape we use in acceptance:
 Use a throwaway directory outside this repository:
 
 ```bash
-uv run python scripts/build_v22_demo_workspace.py /tmp/hive-v22-demo --force
+uv run python scripts/build_v22_demo_workspace.py /tmp/hive-v24-demo --force
 ```
 
 That writes the fixture manifest to:
 
 ```bash
-/tmp/hive-v22-demo/.hive/demo/north_star_manifest.json
+/tmp/hive-v24-demo/.hive/demo/north_star_manifest.json
 ```
 
 ## 2. Serve the console
@@ -38,13 +39,13 @@ That writes the fixture manifest to:
 In a second terminal:
 
 ```bash
-uv run hive --path /tmp/hive-v22-demo console serve --host 127.0.0.1 --port 8787
+uv run hive --path /tmp/hive-v24-demo console serve --host 127.0.0.1 --port 8787
 ```
 
 Then open:
 
 ```text
-http://127.0.0.1:8787/console/?workspace=/tmp/hive-v22-demo
+http://127.0.0.1:8787/console/?workspace=/tmp/hive-v24-demo
 ```
 
 The console will prefill the workspace path from the URL so the demo opens ready to use.
@@ -59,7 +60,7 @@ cd frontend/console
 pnpm install
 pnpm exec playwright install chromium
 pnpm capture-demo -- \
-  --manifest /tmp/hive-v22-demo/.hive/demo/north_star_manifest.json \
+  --manifest /tmp/hive-v24-demo/.hive/demo/north_star_manifest.json \
   --base-url http://127.0.0.1:8787 \
   --output-dir ../../images/launch
 ```
@@ -91,11 +92,12 @@ without recreating the fixture first.
 
 ## 5. What this proves
 
-This walkthrough is meant to make the release checklist concrete:
+This walkthrough is meant to make the launch checklist concrete:
 
 - the operator can monitor multiple projects and runs in one console
 - steering is typed and visible in the audit trail
+- Pi managed truth, OpenClaw attach truth, and Hermes attach truth are visible without opening raw artifacts
 - capability truth, sandbox truth, and retrieval explanations are visible without opening raw artifacts
 - accepted work can explain why it passed
 - campaigns and daily briefs are part of the same control surface
-- the same control plane can sit above Codex, Claude, local execution, and manual handoffs
+- the same control plane can sit above Codex, Claude, local execution, manual handoffs, and native harnesses

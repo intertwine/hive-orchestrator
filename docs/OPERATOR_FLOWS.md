@@ -1,7 +1,7 @@
 # Operator Flows
 
-Hive v2.3 assumes the operator mostly supervises, but it also gives explicit inspect-and-steer
-surfaces when a run or campaign needs intervention.
+Hive v2.4 assumes the operator mostly supervises, but it also gives explicit inspect-and-steer
+surfaces when a Pi, OpenClaw, or Hermes run needs intervention.
 
 Install `mellona-hive[console]` first anywhere you use `hive console serve` below.
 
@@ -15,6 +15,14 @@ hive finish <run-id>
 ```
 
 Use this when the system is healthy and the project already has a real `PROGRAM.md`.
+
+For native harness work, check the integration first:
+
+```bash
+hive integrate doctor pi --json
+hive integrate doctor openclaw --json
+hive integrate doctor hermes --json
+```
 
 ## Guided first-run loop
 
@@ -38,6 +46,22 @@ hive finish <run-id>
 
 Install `mellona-hive[console]` first and add `hive console serve` beside that loop when you want the live
 observe-and-steer view from the beginning.
+
+Pi is the managed companion path:
+
+```bash
+hive integrate pi --json
+hive next --project-id demo
+hive work --owner <your-name>
+hive finish <run-id>
+```
+
+OpenClaw and Hermes are attach-first advisory paths:
+
+```bash
+hive integrate attach openclaw <session-key> --json
+hive integrate attach hermes <session-key> --json
+```
 
 ## Steering loop
 
@@ -83,7 +107,8 @@ hive sandbox doctor daytona --json
 Use [docs/recipes/sandbox-doctor.md](./recipes/sandbox-doctor.md) for the profile map, optional extras, and current backend limitations.
 
 The current shipped operator story is: capability truth, sandbox truth, retrieval explanations,
-approval handling, and campaign reasoning from one console and one CLI.
+approval handling, and campaign reasoning from one console and one CLI, with Pi managed runs and
+OpenClaw/Hermes attach flows all visible in the same control surface.
 
 ## Campaign loop
 

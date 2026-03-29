@@ -118,7 +118,7 @@ def test_release_docs_require_scope_locked_story_and_installed_search_proof():
     assert "built-artifact smoke script now proves installed-package" in release_doc
     assert "truthful operator surface" in readme
     assert "v2.4 extends it into native Pi, OpenClaw, and Hermes companion flows" in readme
-    assert "assumes the operator mostly supervises" in operator_doc
+    assert "Hive v2.4 assumes the operator mostly supervises" in operator_doc
     assert "If you want the latest unreleased checkout" in start_here
 
 

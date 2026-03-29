@@ -175,6 +175,7 @@ class Bridge {
   }
 
   _hashText(value) {
+    // Stable enough for dedup fingerprints; collisions only affect synthetic raw refs.
     let hash = 0;
     for (let idx = 0; idx < value.length; idx += 1) {
       hash = (hash * 31 + value.charCodeAt(idx)) >>> 0;

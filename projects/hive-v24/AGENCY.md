@@ -28,7 +28,7 @@ truthful advisory-vs-governed UX.
 
 | ID | Status | Priority | Owner | Title |
 |---|---|---:|---|---|
-| task_01KMRWWXGA9XZZK6XBQPWE9HME | ready | 1 |  | Implement Hermes companion and attach integration |
+| task_01KMRWWXGA9XZZK6XBQPWE9HME | in_progress | 1 | claude | Implement Hermes companion and attach integration |
 | task_01KMRWWPXX70HTCPZFKBG3E1TZ | done | 1 | claude | Implement OpenClaw companion and Gateway attach integration |
 | task_01KMRWWETVXHGSE293M2C3X9TC | done | 1 | codex | Implement Pi companion, attach, and managed integration |
 | task_01KMRWW8E64Q9GPDPWPRZZQ2Z5 | in_progress | 1 | claude | Land adapter-family split, Hive Link, and advisory truth surfaces |

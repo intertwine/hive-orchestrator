@@ -98,7 +98,6 @@ async function expectKeyValue(container: HTMLElement, label: string, value: stri
 
 describe("Observe Console smoke", () => {
   afterEach(() => {
-    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 

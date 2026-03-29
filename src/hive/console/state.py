@@ -43,15 +43,7 @@ def list_runs(
     for metadata_path in _run_metadata_paths(base_path):
         run = refresh_run_driver_state(base_path, metadata_path.parent.name)
         runs.append(run)
-    runs.extend(
-        _delegate_entries(
-            base_path,
-            project_id=project_id,
-            driver=driver,
-            health=health,
-            campaign_id=campaign_id,
-        )
-    )
+    runs.extend(_delegate_entries(base_path))
     requested_driver = normalize_driver_name(driver)
     filtered: list[dict] = []
     for run in runs:
@@ -193,27 +185,10 @@ def _delegate_entry(manifest_path: Path) -> dict[str, Any]:
 
 def _delegate_entries(
     base_path: Path,
-    *,
-    project_id: str | None = None,
-    driver: str | None = None,
-    health: str | None = None,
-    campaign_id: str | None = None,
 ) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
-    requested_driver = normalize_driver_name(driver)
     for manifest_path in _delegate_manifest_paths(base_path):
         entry = _delegate_entry(manifest_path)
-        if project_id and entry.get("project_id") != project_id:
-            continue
-        if campaign_id:
-            continue
-        if (
-            requested_driver
-            and normalize_driver_name(str(entry.get("driver") or "")) != requested_driver
-        ):
-            continue
-        if health and entry.get("health") != health:
-            continue
         entries.append(entry)
     return entries
 

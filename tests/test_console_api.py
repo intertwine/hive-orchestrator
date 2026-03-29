@@ -75,6 +75,9 @@ def _write_delegate_session(
     native_session_ref: str,
     project_id: str,
     task_id: str,
+    final_state: dict | None = None,
+    steering_records: list[dict] | None = None,
+    trajectory_events: list | None = None,
 ) -> None:
     session = SessionHandle(
         session_id=f"dsess-{delegate_session_id}",
@@ -94,8 +97,7 @@ def _write_delegate_session(
         session,
         capability_snapshot=_delegate_capability_snapshot(harness),
     )
-    append_trajectory_event(
-        workspace_root,
+    events = trajectory_events or [
         trajectory_event(
             seq=0,
             kind="assistant_message",
@@ -107,22 +109,30 @@ def _write_delegate_session(
             task_id=task_id,
             payload={"text": f"{harness} transcript delta"},
             raw_ref=f"{harness}:{native_session_ref}:0",
-        ),
-    )
+        )
+    ]
+    for event in events:
+        append_trajectory_event(workspace_root, event)
     steering_path = (
         workspace_root / ".hive" / "delegates" / delegate_session_id / "steering.ndjson"
     )
+    records = steering_records or [
+        {
+            "ts": "2026-03-29T15:45:00Z",
+            "action": "note",
+            "note": f"Note from {harness}",
+        }
+    ]
     steering_path.write_text(
-        json.dumps(
-            {
-                "ts": "2026-03-29T15:45:00Z",
-                "action": "note",
-                "note": f"Note from {harness}",
-            }
-        )
-        + "\n",
+        "".join(json.dumps(record) + "\n" for record in records),
         encoding="utf-8",
     )
+    if final_state is not None:
+        final_path = workspace_root / ".hive" / "delegates" / delegate_session_id / "final.json"
+        final_path.write_text(
+            json.dumps(final_state, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
 
 class TestObserveConsoleApi:
@@ -277,6 +287,138 @@ class TestObserveConsoleApi:
         )
         assert hermes_detail.json()["detail"]["steering_history"][0]["type"] == "steering.note_added"
         assert hermes_detail.json()["detail"]["trajectory"][0]["native_session_ref"] == "hermes-session-001"
+
+    def test_v24_delegate_sessions_surface_inbox_exceptions_and_notes(
+        self, temp_hive_dir, capsys
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        pi_run = start_run(temp_hive_dir, task_id, driver_name="pi")
+        _write_delegate_session(
+            Path(temp_hive_dir),
+            harness="openclaw",
+            delegate_session_id="del_openclaw_attention",
+            native_session_ref="oc-session-777",
+            project_id="demo",
+            task_id=task_id,
+            final_state={
+                "status": "blocked",
+                "reason": "Native session requested operator review before proceeding.",
+            },
+            steering_records=[
+                {
+                    "ts": "2026-03-29T15:46:00Z",
+                    "action": "note",
+                    "note": "Need operator review before continuing.",
+                    "source": "delegate",
+                    "inbox_visible": True,
+                },
+                {
+                    "ts": "2026-03-29T15:47:00Z",
+                    "action": "note",
+                    "note": "Gateway conversation is waiting on a human decision.",
+                    "source": "delegate",
+                    "inbox_visible": True,
+                }
+            ],
+            trajectory_events=[
+                trajectory_event(
+                    seq=0,
+                    kind="assistant_message",
+                    harness="openclaw",
+                    adapter_family="delegate_gateway",
+                    native_session_ref="oc-session-777",
+                    delegate_session_id="del_openclaw_attention",
+                    project_id="demo",
+                    task_id=task_id,
+                    payload={"text": "OpenClaw transcript delta"},
+                    raw_ref="openclaw:oc-session-777:0",
+                ),
+                trajectory_event(
+                    seq=1,
+                    kind="approval_request",
+                    harness="openclaw",
+                    adapter_family="delegate_gateway",
+                    native_session_ref="oc-session-777",
+                    delegate_session_id="del_openclaw_attention",
+                    project_id="demo",
+                    task_id=task_id,
+                    payload={"summary": "Approve escalation acknowledgement"},
+                    raw_ref="openclaw:oc-session-777:1",
+                ),
+                trajectory_event(
+                    seq=2,
+                    kind="error",
+                    harness="openclaw",
+                    adapter_family="delegate_gateway",
+                    native_session_ref="oc-session-777",
+                    delegate_session_id="del_openclaw_attention",
+                    project_id="demo",
+                    task_id=task_id,
+                    payload={"message": "Native harness raised an exception."},
+                    raw_ref="openclaw:oc-session-777:2",
+                ),
+            ],
+        )
+
+        client = TestClient(app)
+        inbox = client.get("/inbox", params={"path": temp_hive_dir})
+        home = client.get("/home", params={"path": temp_hive_dir})
+
+        assert inbox.status_code == 200
+        items = inbox.json()["items"]
+        assert any(
+            item["kind"] == "delegate-blocked"
+            and item["run_id"] == "del_openclaw_attention"
+            and item["reason"] == "Native session requested operator review before proceeding."
+            for item in items
+        )
+        assert any(
+            item["kind"] == "delegate-note"
+            and item["run_id"] == "del_openclaw_attention"
+            and item["reason"] == "Need operator review before continuing."
+            for item in items
+        )
+        assert any(
+            item["kind"] == "delegate-note"
+            and item["run_id"] == "del_openclaw_attention"
+            and item["reason"] == "Gateway conversation is waiting on a human decision."
+            for item in items
+        )
+        assert any(
+            item["kind"] == "delegate-approval"
+            and item["run_id"] == "del_openclaw_attention"
+            and item["reason"] == "Approve escalation acknowledgement"
+            for item in items
+        )
+        assert any(
+            item["kind"] == "delegate-error"
+            and item["run_id"] == "del_openclaw_attention"
+            and item["reason"] == "Native harness raised an exception."
+            for item in items
+        )
+
+        assert home.status_code == 200
+        home_payload = home.json()["home"]
+        assert any(run["id"] == pi_run.id for run in home_payload["active_runs"])
+        assert any(
+            item["kind"] == "delegate-blocked"
+            and item["run_id"] == "del_openclaw_attention"
+            for item in home_payload["inbox"]
+        )
 
     def test_run_steer_endpoint_records_typed_steering_history(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)

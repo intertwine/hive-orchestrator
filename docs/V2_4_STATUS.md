@@ -1,7 +1,7 @@
 # Hive v2.4 Status
 
 Status: in progress
-Last updated: 2026-03-29 (all harness milestones landed; console acceptance proof is next-blocker complete)
+Last updated: 2026-03-29 (all harness milestones landed; delegate inbox parity closes the final pre-doc acceptance gap)
 Purpose: compact execution ledger for the current v2.4 release line
 
 This file is the maintainer-facing status ledger for v2.4.
@@ -43,6 +43,7 @@ The following items are explicitly deferred from blocking v2.4:
 | Hermes trajectory import fallback | Landed | `import_hermes_trajectory()`, `hive integrate import-trajectory`, event kind mapping, provenance preservation | — |
 | Truthful advisory/governed surfaces | Landed | console /integrations, driver doctor, unified run/delegate detail truth surfaces | — |
 | Console truth + attach visibility proof | Landed | `tests/test_console_api.py`, frontend observe-console smoke, 3-second refresh wiring, delegate detail truth panels | — |
+| Console inbox / exception parity | Landed | delegate blocked/note/error/approval inbox derivation, `tests/test_console_api.py`, frontend inbox smoke | — |
 | Install docs and doctor flows | Landed | `hive integrate doctor pi/openclaw/hermes`, setup flows, READMEs | — |
 
 ## Current Read
@@ -56,7 +57,8 @@ What is real now:
 - OpenClaw now has real gateway-backed attach parity, persisted live-follow trajectory updates, and truthful detach/doctor behavior
 - Hermes now has native companion integration, attach parity, and shared doctor contract fields
 - the console now shows unified run/delegate truth across Pi, OpenClaw, and Hermes, and attached delegates appear within one refresh cycle at the RFC 3-second bound
-- functionality now meets the pre-doc v2.4 acceptance bar; launch/docs polish is the remaining release work
+- attached advisory sessions can now raise inbox-visible delegate exceptions and inbound notes without being dropped from operator views
+- functionality now meets the pre-doc v2.4 acceptance bar for the currently tracked RFC gates, while a few surface-level follow-ups remain under discussion
 
 ## Next Blocker
 

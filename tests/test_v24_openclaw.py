@@ -909,6 +909,85 @@ class TestBridgeClientProtocol:
         assert proc.killed is True
         assert proc.wait_calls >= 1
 
+    def test_stream_receive_enforces_upper_timeout_watchdog(self):
+        class _Writer:
+            def write(self, _text):
+                return None
+
+            def close(self):
+                return None
+
+        class _Reader:
+            def __iter__(self):
+                return iter(())
+
+            def close(self):
+                return None
+
+        class _Err:
+            def read(self):
+                return ""
+
+            def close(self):
+                return None
+
+        class _Proc:
+            def __init__(self):
+                self.stdin = _Writer()
+                self.stdout = _Reader()
+                self.stderr = _Err()
+                self.killed = False
+                self.wait_calls = 0
+                self.returncode = None
+
+            def poll(self):
+                return self.returncode
+
+            def kill(self):
+                self.killed = True
+                self.returncode = -9
+
+            def wait(self, timeout=None):
+                self.wait_calls += 1
+                if self.returncode is None:
+                    self.returncode = 0
+                return self.returncode
+
+        class _Timer:
+            def __init__(self, _interval, function):
+                self.function = function
+                self.daemon = False
+
+            def start(self):
+                self.function()
+
+            def cancel(self):
+                return None
+
+        from unittest.mock import patch
+
+        client = OpenClawBridgeClient()
+        proc = _Proc()
+        with patch.object(client, "_bridge_command", return_value=["bridge"]):
+            with patch(
+                "src.hive.integrations.openclaw.subprocess.Popen",
+                return_value=proc,
+            ):
+                with patch(
+                    "src.hive.integrations.openclaw.threading.Timer", _Timer
+                ):
+                    with pytest.raises(
+                        ConnectionError,
+                        match="Timed out waiting for bridge stream response",
+                    ):
+                        list(
+                            client._stream_receive(
+                                {"type": "stream_events"}, timeout_seconds=0.01
+                            )
+                        )
+        assert proc.killed is True
+        assert proc.wait_calls >= 1
+
 
 class TestRealBridgePackage:
     def _bridge_client(
@@ -1022,6 +1101,52 @@ class TestRealBridgePackage:
         patcher.start()
         monkeypatch.setattr(client, "detect_binary", lambda: str(bridge_bin))
         return client, fake_log, patcher
+
+    def test_real_bridge_stream_request_uses_integer_timeouts(
+        self, monkeypatch, tmp_path
+    ):
+        import sys
+
+        bridge_script = tmp_path / "bridge-request-log.py"
+        request_log = tmp_path / "bridge-request-log.json"
+        bridge_script.write_text(
+            "import json, os, sys\n"
+            "msg = json.loads(sys.stdin.readline())\n"
+            "with open(os.environ['OPENCLAW_REQUEST_LOG'], 'w', encoding='utf-8') as fh:\n"
+            "    json.dump({\n"
+            "        'poll_type': type(msg.get('poll_interval_ms')).__name__,\n"
+            "        'idle_type': type(msg.get('idle_timeout_ms')).__name__,\n"
+            "        'poll': msg.get('poll_interval_ms'),\n"
+            "        'idle': msg.get('idle_timeout_ms'),\n"
+            "    }, fh)\n"
+            "sys.stdout.write(json.dumps({'type': 'stream_events_end'}) + '\\n')\n"
+            "sys.stdout.flush()\n",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setenv("OPENCLAW_REQUEST_LOG", str(request_log))
+        monkeypatch.setenv("OPENCLAW_HIVE_STREAM_POLL_MS", "37")
+        monkeypatch.setenv("OPENCLAW_HIVE_STREAM_IDLE_MS", "91")
+        monkeypatch.setenv("OPENCLAW_HIVE_STREAM_TIMEOUT_MS", "1000")
+
+        client = OpenClawBridgeClient()
+        from unittest.mock import patch
+
+        with patch.object(
+            client,
+            "_bridge_command",
+            return_value=[sys.executable, str(bridge_script)],
+        ):
+            events = list(client.stream_events("oc-sess-001"))
+
+        assert events == []
+        payload = json.loads(request_log.read_text(encoding="utf-8"))
+        assert payload == {
+            "poll_type": "int",
+            "idle_type": "int",
+            "poll": 37,
+            "idle": 91,
+        }
 
     def test_real_bridge_client_uses_actual_package(self, monkeypatch, tmp_path):
         client, fake_log, patcher = self._bridge_client(monkeypatch, tmp_path)

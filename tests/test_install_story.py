@@ -62,13 +62,21 @@ def test_public_readmes_surface_three_clear_entry_points():
     assert "Mellona" in readme
     assert "Keep your agent. Add a control plane." in readme
     assert "Try It In 90 Seconds" in readme
+    assert "Pi" in readme
+    assert "OpenClaw" in readme
+    assert "Hermes" in readme
+    assert "Native Harnesses" in readme
 
     assert "Fresh Workspace" in start_here
     assert "Existing Repo" in start_here
     assert "Maintainers" in start_here
+    assert "Native Harness Paths" in start_here
     assert "Mellona" in start_here
     assert "Create a small React website about bees." in start_here
     assert "run worktree" in start_here
+    assert "Pi harness guide" in start_here
+    assert "OpenClaw harness guide" in start_here
+    assert "Hermes harness guide" in start_here
 
     assert "make install-dev" not in pypi_readme
     assert "src.agent_dispatcher" not in pypi_readme
@@ -76,6 +84,9 @@ def test_public_readmes_surface_three_clear_entry_points():
     assert "Keep your agent. Add a control plane." in pypi_readme
     assert "Create a small React website about bees." in pypi_readme
     assert "run worktree" in pypi_readme
+    assert "Pi" in pypi_readme
+    assert "OpenClaw" in pypi_readme
+    assert "Hermes" in pypi_readme
 
 
 def test_public_docs_recommend_console_extra_in_install():
@@ -151,6 +162,27 @@ def test_start_here_install_matrix_covers_common_installers_and_homebrew_limit()
     assert "python -m pip install" in start_here
     assert "brew install intertwine/tap/mellona-hive" in start_here
     assert "Base CLI only" in start_here or "base CLI" in start_here.lower()
+
+
+def test_native_harness_recipe_docs_exist_and_surface_integrate_doctor_paths():
+    """The v2.4 harness-native onboarding guides should be checked in and diagnosable."""
+    pi = (REPO_ROOT / "docs" / "recipes" / "pi-harness.md").read_text(encoding="utf-8")
+    openclaw = (REPO_ROOT / "docs" / "recipes" / "openclaw-harness.md").read_text(
+        encoding="utf-8"
+    )
+    hermes = (REPO_ROOT / "docs" / "recipes" / "hermes-harness.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "hive integrate doctor pi --json" in pi
+    assert "pi-hive open" in pi
+    assert "pi-hive attach" in pi
+    assert "hive integrate doctor openclaw --json" in openclaw
+    assert "hive integrate attach openclaw" in openclaw
+    assert "attach-only in v2.4" in openclaw
+    assert "hive integrate doctor hermes --json" in hermes
+    assert "hive integrate attach hermes" in hermes
+    assert "never bulk-imported automatically" in hermes
 
 
 def test_existing_repo_guide_surfaces_init_and_migration_paths():

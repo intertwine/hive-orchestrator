@@ -38,7 +38,8 @@ def test_readme_and_compare_docs_keep_the_control_plane_launch_story():
     assert "command center" in readme.lower()
     assert "docs/DEMO_WALKTHROUGH.md" in readme
     assert "images/launch/console-home.png" in readme
-    assert "current release line focused on a truthful v2.3 operator surface" in readme
+    assert "v2.3 established the truthful operator surface" in readme
+    assert "v2.4 extends it into native Pi, OpenClaw, and Hermes companion flows" in readme
     assert "control plane above the worker harness" in compare.lower()
 
 

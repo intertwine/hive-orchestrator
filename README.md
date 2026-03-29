@@ -5,7 +5,7 @@
 
 ![Agent Hive observe-and-steer console](images/launch/console-home.png)
 
-Agent Hive is a repo-native control plane for autonomous work. Keep your favorite worker harness, whether that is Codex, Claude Code, or a local/manual loop, and use Hive to supervise tasks, runs, memory, approvals, and campaigns from one place.
+Agent Hive is a repo-native control plane for autonomous work. In v2.4, that means you can keep existing worker flows like Codex, Claude Code, and local/manual execution while also adding native companion paths for Pi, OpenClaw, and Hermes.
 
 **Keep your agent. Add a control plane.**
 
@@ -14,14 +14,15 @@ If you are already using coding agents and feeling the limits of isolated sessio
 - one command center above many runs and many projects
 - one governed loop instead of “the agent said it was done”
 - one inspectable substrate instead of hidden agent state
-- one place to steer Codex, Claude Code, local execution, and manual handoffs
+- one place to steer Pi, OpenClaw, Hermes, Codex, Claude Code, local execution, and manual handoffs
 
-The center of gravity in this repository is the Hive v2 substrate, with the current release line focused on a truthful v2.3 operator surface.
+The center of gravity in this repository is the Hive v2 substrate. v2.3 established the truthful operator surface; v2.4 extends it into native Pi, OpenClaw, and Hermes companion flows.
 
 ## Why It Feels Different
 
 - The console is not a toy dashboard. It is a real observe-and-steer command center with active runs, inbox items, campaign reasoning, retrieval traces, and run detail in one place.
-- Hive does not replace your worker harness. It sits above it, so you can keep using Codex, Claude Code, local execution, or manual loops.
+- Hive does not replace your worker harness. It sits above it, so you can keep using Pi, OpenClaw, Hermes, Codex, Claude Code, local execution, or manual loops.
+- Native companion paths are real now: Pi can `open` or `attach`, OpenClaw can attach a live gateway `sessionKey`, and Hermes can attach or import trajectories without bulk-importing private memory.
 - Agents do not decide when they are done. `PROGRAM.md` evaluators and promotion policy do.
 - Machine state stays explicit. Tasks, runs, memory, events, briefs, and campaigns live in predictable files instead of hidden session state.
 - You can get to a real governed loop in minutes, not after wiring up a framework.
@@ -54,8 +55,9 @@ stays available for power users and agent integrations.
 
 ## Start Here
 
-There are three clean ways into Hive:
+There are four clean ways into Hive:
 
+- [Connect Pi, OpenClaw, or Hermes](docs/START_HERE.md#native-harness-paths) if you want first value inside the harness you already use
 - [Install Hive](docs/START_HERE.md) if you want a fresh workspace and the shortest path to real work
 - [Adopt Hive in an existing repo](docs/ADOPT_EXISTING_REPO.md) if you already have a codebase and want Hive inside it
 - [Maintain or publish Hive](docs/MAINTAINING.md) if you are working on this repository itself
@@ -205,10 +207,27 @@ These are useful, but the base CLI works fine without them:
 The MCP surface stays intentionally small: `search` and `execute`. `execute` is a bounded local Python helper, not a
 full sandbox.
 
+## Native Harnesses
+
+If you already live inside Pi, OpenClaw, or Hermes, do not start with a generic `hive work` loop. Start inside the native harness and attach or open from there.
+
+- [Pi harness guide](docs/recipes/pi-harness.md): install `@mellona/pi-hive`, run `hive integrate doctor pi --json`, then use `pi-hive open ...` for governed work or `pi-hive attach ...` for advisory continuation.
+- [OpenClaw harness guide](docs/recipes/openclaw-harness.md): install the `agent-hive` skill plus `openclaw-hive-bridge`, run `hive integrate doctor openclaw --json`, then attach the current `sessionKey` without relaunch.
+- [Hermes harness guide](docs/recipes/hermes-harness.md): run `hive integrate doctor hermes --json`, load the Agent Hive skill/toolset, then attach a live Hermes session or import a trajectory fallback.
+
+The short version:
+
+- Pi gives you both `open` and `attach`
+- OpenClaw is attach-only in v2.4 and always advisory
+- Hermes is attach/import in v2.4 and always advisory
+
 ## Compare Harnesses
 
 Hive does not ask you to switch worker tools. It gives them a shared control layer.
 
+- Pi is strong when you want a real native companion with both governed `open` and advisory `attach`.
+- OpenClaw is strong when you want to keep chatting in an existing gateway session and let Hive observe and steer it as an advisory delegate.
+- Hermes is strong when you want Hermes-native skills, attach-first supervision, and privacy-preserving trajectory import fallback.
 - Codex is strong when you want a powerful coding worker with worktree-aware runs and good local iteration.
 - Claude Code is strong when you want broader repo search, longer synthesis, and a handoff-friendly transcript pack.
 - Local and manual drivers are useful when you want bounded execution, custom tooling, or a human review step.
@@ -235,11 +254,14 @@ The longer comparison lives in [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSE
 - [docs/QUICKSTART.md](docs/QUICKSTART.md) for the fresh-workspace walkthrough
 - [docs/ADOPT_EXISTING_REPO.md](docs/ADOPT_EXISTING_REPO.md) for existing repositories and legacy imports
 - [docs/DEMO_WALKTHROUGH.md](docs/DEMO_WALKTHROUGH.md) for the current demo walkthrough, screenshots, and narration built on the multi-project launch fixture
-- [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSES.md) for Codex, Claude Code, and local/manual guidance
+- [docs/COMPARE_HARNESSES.md](docs/COMPARE_HARNESSES.md) for Pi, OpenClaw, Hermes, Codex, Claude Code, and local/manual guidance
 - [docs/UI_INFORMATION_ARCHITECTURE.md](docs/UI_INFORMATION_ARCHITECTURE.md) for the console information architecture
 - [docs/OPERATOR_FLOWS.md](docs/OPERATOR_FLOWS.md) for the manager loop and steering flows
 - [docs/MAINTAINING.md](docs/MAINTAINING.md) for source-checkout work
 - [docs/RELEASING.md](docs/RELEASING.md) for tagged releases, PyPI, and Homebrew
+- [docs/recipes/pi-harness.md](docs/recipes/pi-harness.md) for the Pi native companion path
+- [docs/recipes/openclaw-harness.md](docs/recipes/openclaw-harness.md) for the OpenClaw gateway attach path
+- [docs/recipes/hermes-harness.md](docs/recipes/hermes-harness.md) for the Hermes skill/attach path
 - [docs/recipes/sandbox-doctor.md](docs/recipes/sandbox-doctor.md) for sandbox profiles, extras, and doctor output
 
 ## Maintainers

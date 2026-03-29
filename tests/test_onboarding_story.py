@@ -68,6 +68,10 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     assert "Keep your agent. Add a control plane." in readme
     assert "one command center above many runs and many projects" in readme
     assert "The console is not a toy dashboard." in readme
+    assert "Pi" in readme
+    assert "OpenClaw" in readme
+    assert "Hermes" in readme
+    assert "Native Harnesses" in readme
     assert "## Adopt Hive In An Existing Repo" in readme
     assert "## Maintainers" in readme
     assert "Do this in a fresh workspace, not inside this repository checkout." in readme
@@ -80,6 +84,9 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     assert "run worktree" in readme
     assert "hive task update <task-id> --status done" in readme
     assert "[docs/MAINTAINING.md](docs/MAINTAINING.md)" in readme
+    assert "docs/recipes/pi-harness.md" in readme
+    assert "docs/recipes/openclaw-harness.md" in readme
+    assert "docs/recipes/hermes-harness.md" in readme
 
     assert "Use a fresh directory for this walkthrough." in quickstart
     assert "If you are maintaining Hive itself" in quickstart

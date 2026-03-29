@@ -1,12 +1,21 @@
 # Agent Hive
 
-Agent Hive is a repo-native control plane for autonomous work. Use Codex, Claude Code, or local/manual execution to
-do the work. Use Hive to supervise tasks, runs, memory, policy, and approvals from one place.
+Agent Hive is a repo-native control plane for autonomous work. In v2.4, that means you can still supervise Codex, Claude Code, and local/manual work from one place, while also adding native companion paths for Pi, OpenClaw, and Hermes.
 
 **Keep your agent. Add a control plane.**
 
 `mellona-hive` is the distribution you install from PyPI or Homebrew. Mellona is the package family. Agent Hive is
 the current product. Install with the `[console]` extra to get the live operator UI alongside the `hive` CLI.
+
+## Native Harness Paths
+
+If you already work inside Pi, OpenClaw, or Hermes, start there instead of beginning with a generic `hive work` loop:
+
+- Pi: `@mellona/pi-hive` gives you `next/search/open/attach/finish/note/status`
+- OpenClaw: the `agent-hive` skill plus `openclaw-hive-bridge` lets you attach a live `sessionKey`
+- Hermes: the Agent Hive skill/toolset supports advisory attach and trajectory import fallback
+
+Each path starts with `hive integrate doctor <harness> --json` so setup failures are diagnosable.
 
 ## Install
 
@@ -72,9 +81,18 @@ Governed edits happen inside the run worktree that `hive work` creates, not in t
 Fresh onboarded projects start with the placeholder `local-smoke` evaluator so the loop works immediately. Replace
 it with a real repo-specific evaluator before you trust autonomous promotion.
 
+If you want the harness-native path instead of the generic first run:
+
+- Pi: [docs/recipes/pi-harness.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/recipes/pi-harness.md)
+- OpenClaw: [docs/recipes/openclaw-harness.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/recipes/openclaw-harness.md)
+- Hermes: [docs/recipes/hermes-harness.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/recipes/hermes-harness.md)
+
 ## Choose The Right Guide
 
 - Start here: [docs/START_HERE.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/START_HERE.md)
 - Fresh workspace walkthrough: [docs/QUICKSTART.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/QUICKSTART.md)
 - Existing repository adoption: [docs/ADOPT_EXISTING_REPO.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/ADOPT_EXISTING_REPO.md)
+- Pi harness guide: [docs/recipes/pi-harness.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/recipes/pi-harness.md)
+- OpenClaw harness guide: [docs/recipes/openclaw-harness.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/recipes/openclaw-harness.md)
+- Hermes harness guide: [docs/recipes/hermes-harness.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/recipes/hermes-harness.md)
 - Maintainer and release docs: [docs/MAINTAINING.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/MAINTAINING.md) and [docs/RELEASING.md](https://github.com/intertwine/hive-orchestrator/blob/main/docs/RELEASING.md)

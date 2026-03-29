@@ -25,6 +25,8 @@ def test_demo_walkthrough_exists_and_points_to_real_commands():
     assert "observe-and-steer-demo.webm" in demo
     assert "console-home.png" in demo
     assert "console-run-detail.png" in demo
+    assert "capability truth" in demo
+    assert "retrieval inspector" in demo
     assert "Pi-managed lane" in demo
     assert "OpenClaw and Hermes attach-oriented lanes" in demo
     assert "live attach visibility" in demo
@@ -68,3 +70,13 @@ def test_demo_builder_fails_cleanly_when_campaign_tick_launches_no_run(tmp_path,
 
     with pytest.raises(RuntimeError, match="Campaign tick produced no runs"):
         demo_fixture.build_north_star_demo(tmp_path / "demo")
+
+
+def test_demo_builder_generates_the_v24_manifest_successfully(tmp_path):
+    """Demo generation should provision enough ready work for the native-harness lanes."""
+    manifest = demo_fixture.build_north_star_demo(tmp_path / "demo")
+
+    assert manifest["campaign_run_id"] in manifest["running_runs"]
+    assert len(manifest["accepted_runs"]) == 2
+    assert len(manifest["review_runs"]) == 2
+    assert len(manifest["running_runs"]) == 3

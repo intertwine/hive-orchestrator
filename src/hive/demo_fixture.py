@@ -122,7 +122,8 @@ def build_north_star_demo(path: str | Path) -> dict[str, Any]:
     _init_git_repo(root)
 
     for project_id, title in DEMO_PROJECTS.items():
-        _seed_project(root, project_id, title)
+        # Alpha consumes an extra ready task for the Pi-managed showcase lane.
+        _seed_project(root, project_id, title, extra_tasks=5 if project_id == "alpha" else 4)
 
     campaign = create_campaign_flow(
         root,

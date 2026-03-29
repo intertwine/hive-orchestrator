@@ -239,14 +239,28 @@ class OpenClawBridgeClient:
             }
         )
 
-    def stream_events(self, session_key: str) -> Iterator[dict[str, Any]]:
+    def stream_events(
+        self,
+        session_key: str,
+        *,
+        after_raw_ref: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
         """Stream events from the bridge."""
-        for response in self._stream_receive(
-            {
-                "type": "stream_events",
-                "native_session_ref": session_key,
-            }
-        ):
+        request: dict[str, Any] = {
+            "type": "stream_events",
+            "native_session_ref": session_key,
+            "follow": True,
+        }
+        if after_raw_ref:
+            request["after_raw_ref"] = after_raw_ref
+        poll_ms = os.environ.get("OPENCLAW_HIVE_STREAM_POLL_MS", "").strip()
+        idle_ms = os.environ.get("OPENCLAW_HIVE_STREAM_IDLE_MS", "").strip()
+        if poll_ms:
+            request["poll_interval_ms"] = poll_ms
+        if idle_ms:
+            request["idle_timeout_ms"] = idle_ms
+
+        for response in self._stream_receive(request):
             response_type = str(response.get("type", ""))
             if response_type == "error":
                 error_msg = str(response.get("message") or response.get("error") or "")
@@ -657,41 +671,59 @@ class OpenClawGatewayAdapter(DelegateGatewayAdapter):
         from src.hive.trajectory.schema import trajectory_event
         from src.hive.trajectory.writer import append_trajectory_event
 
-        seq = 0
-        for raw_event in self._bridge.stream_events(session.native_session_ref):
-            raw_ref = str(raw_event.get("raw_ref") or raw_event.get("id") or "") or None
-            event = {
-                "seq": seq,
-                "kind": raw_event.get("kind", "assistant_delta"),
-                "ts": raw_event.get("ts", utc_now_iso()),
-                "harness": "openclaw",
-                "adapter_family": "delegate_gateway",
-                "native_session_ref": session.native_session_ref,
-                "delegate_session_id": session.delegate_session_id,
-                "project_id": session.project_id,
-                "task_id": session.task_id,
-                "payload": raw_event.get("payload", {}),
-                "raw_ref": raw_ref,
-            }
-            # Persist to trajectory file.
-            if self._base_path and session.delegate_session_id:
-                append_trajectory_event(
-                    self._base_path,
-                    trajectory_event(
-                        seq=seq,
-                        kind=event["kind"],
-                        harness="openclaw",
-                        adapter_family="delegate_gateway",
-                        native_session_ref=session.native_session_ref,
-                        delegate_session_id=session.delegate_session_id,
-                        project_id=session.project_id,
-                        task_id=session.task_id,
-                        payload=event.get("payload", {}),
-                        raw_ref=raw_ref,
-                    ),
-                )
-            yield event
-            seq += 1
+        seq = int(session.metadata.get("next_stream_seq") or 0)
+        last_raw_ref = str(session.metadata.get("last_stream_raw_ref") or "") or None
+        metadata_changed = False
+        try:
+            for raw_event in self._bridge.stream_events(
+                session.native_session_ref,
+                after_raw_ref=last_raw_ref,
+            ):
+                raw_ref = str(raw_event.get("raw_ref") or raw_event.get("id") or "") or None
+                event = {
+                    "seq": seq,
+                    "kind": raw_event.get("kind", "assistant_delta"),
+                    "ts": raw_event.get("ts", utc_now_iso()),
+                    "harness": "openclaw",
+                    "adapter_family": "delegate_gateway",
+                    "native_session_ref": session.native_session_ref,
+                    "delegate_session_id": session.delegate_session_id,
+                    "project_id": session.project_id,
+                    "task_id": session.task_id,
+                    "payload": raw_event.get("payload", {}),
+                    "raw_ref": raw_ref,
+                }
+                if raw_ref:
+                    session.metadata["last_stream_raw_ref"] = raw_ref
+                    metadata_changed = True
+                session.metadata["next_stream_seq"] = seq + 1
+                metadata_changed = True
+                # Persist to trajectory file.
+                if self._base_path and session.delegate_session_id:
+                    append_trajectory_event(
+                        self._base_path,
+                        trajectory_event(
+                            seq=seq,
+                            kind=event["kind"],
+                            harness="openclaw",
+                            adapter_family="delegate_gateway",
+                            native_session_ref=session.native_session_ref,
+                            delegate_session_id=session.delegate_session_id,
+                            project_id=session.project_id,
+                            task_id=session.task_id,
+                            payload=event.get("payload", {}),
+                            raw_ref=raw_ref,
+                        ),
+                    )
+                yield event
+                seq += 1
+        finally:
+            if (
+                metadata_changed
+                and self._base_path
+                and session.delegate_session_id
+            ):
+                _write_delegate_manifest(self._base_path, session)
 
     def send_steer(
         self, session: SessionHandle, request: SteeringRequest

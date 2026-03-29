@@ -120,7 +120,10 @@ class StubBridgeClient(OpenClawBridgeClient):
             **self._attach_metadata,
         }
 
-    def stream_events(self, session_key: str) -> Iterator[dict[str, Any]]:
+    def stream_events(
+        self, session_key: str, *, after_raw_ref: str | None = None
+    ) -> Iterator[dict[str, Any]]:
+        del after_raw_ref
         return iter(self._events.get(session_key, []))
 
     def send_steer(
@@ -915,6 +918,7 @@ class TestRealBridgePackage:
         *,
         sessions_accessible: bool = True,
         history_events: list[dict[str, Any]] | None = None,
+        history_sequence: list[list[dict[str, Any]]] | None = None,
     ):
         import shutil
         from pathlib import Path
@@ -943,16 +947,19 @@ class TestRealBridgePackage:
                 "id": "evt-1",
             },
         ]
+        history_state = tmp_path / "fake-openclaw-history-step.txt"
         fake_openclaw.write_text(
             "#!/usr/bin/env python3\n"
             "import json, os, sys\n"
             f"SESSIONS = {sessions_payload!r}\n"
             f"HISTORY = {history_payload!r}\n"
+            f"HISTORY_SEQUENCE = {history_sequence!r}\n"
+            f"HISTORY_STATE = {str(history_state)!r}\n"
             "args = sys.argv[1:]\n"
             "log_path = os.environ.get('FAKE_OPENCLAW_LOG', '')\n"
             "if log_path:\n"
             "    with open(log_path, 'a', encoding='utf-8') as fh:\n"
-                "        fh.write(json.dumps(args) + '\\n')\n"
+            "        fh.write(json.dumps(args) + '\\n')\n"
             "if args and args[0] == 'health':\n"
             "    print(json.dumps({'version': '1.2.3-test'}))\n"
             "    raise SystemExit(0)\n"
@@ -968,7 +975,18 @@ class TestRealBridgePackage:
             "        raise SystemExit(1)\n"
             "    print(json.dumps({'items': SESSIONS}))\n"
             "elif method == 'sessions.history':\n"
-            "    print(json.dumps({'history': HISTORY}))\n"
+            "    if HISTORY_SEQUENCE:\n"
+            "        try:\n"
+            "            with open(HISTORY_STATE, 'r', encoding='utf-8') as fh:\n"
+            "                idx = int(fh.read().strip() or '0')\n"
+            "        except FileNotFoundError:\n"
+            "            idx = 0\n"
+            "        current = HISTORY_SEQUENCE[idx] if idx < len(HISTORY_SEQUENCE) else HISTORY_SEQUENCE[-1]\n"
+            "        with open(HISTORY_STATE, 'w', encoding='utf-8') as fh:\n"
+            "            fh.write(str(idx + 1))\n"
+            "        print(json.dumps({'history': current}))\n"
+            "    else:\n"
+            "        print(json.dumps({'history': HISTORY}))\n"
             "elif method == 'chat.send':\n"
             "    print(json.dumps({'ok': True, 'echo': params}))\n"
             "elif method == 'chat.inject':\n"
@@ -983,6 +1001,8 @@ class TestRealBridgePackage:
         monkeypatch.setenv("OPENCLAW_CLI", str(fake_openclaw))
         monkeypatch.setenv("OPENCLAW_GATEWAY_TOKEN", "test-token")
         monkeypatch.setenv("FAKE_OPENCLAW_LOG", str(fake_log))
+        monkeypatch.setenv("OPENCLAW_HIVE_STREAM_POLL_MS", "20")
+        monkeypatch.setenv("OPENCLAW_HIVE_STREAM_IDLE_MS", "80")
 
         bridge_bin = Path(__file__).resolve().parents[1] / "packages" / "openclaw-hive-bridge" / "bin" / "openclaw-hive-bridge.js"
         client = OpenClawBridgeClient(gateway_url="http://localhost:3000")
@@ -1075,6 +1095,134 @@ class TestRealBridgePackage:
         try:
             events = list(client.stream_events("oc-sess-001"))
             assert events[1]["payload"] == {}
+        finally:
+            patcher.stop()
+
+    def test_real_bridge_streams_incremental_history_updates(self, monkeypatch, tmp_path):
+        client, fake_log, patcher = self._bridge_client(
+            monkeypatch,
+            tmp_path,
+            history_sequence=[
+                [
+                    {
+                        "kind": "session_start",
+                        "ts": "2026-03-28T00:00:00Z",
+                        "payload": {},
+                    }
+                ],
+                [
+                    {
+                        "kind": "session_start",
+                        "ts": "2026-03-28T00:00:00Z",
+                        "payload": {},
+                    },
+                    {
+                        "kind": "assistant_delta",
+                        "ts": "2026-03-28T00:00:01Z",
+                        "payload": {"text": "later update"},
+                    },
+                ],
+            ],
+        )
+        try:
+            events = list(client.stream_events("oc-sess-001"))
+            assert len(events) == 2
+            assert all(event["raw_ref"] for event in events)
+            assert events[1]["payload"]["text"] == "later update"
+        finally:
+            patcher.stop()
+
+        log_lines = [
+            json.loads(line)
+            for line in fake_log.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        methods = [line[2] for line in log_lines if len(line) > 2 and line[:2] == ["gateway", "call"]]
+        assert methods.count("sessions.history") >= 2
+
+    def test_adapter_stream_follow_avoids_replay_across_calls(self, monkeypatch, tmp_path):
+        client, _fake_log, patcher = self._bridge_client(
+            monkeypatch,
+            tmp_path,
+            history_sequence=[
+                [
+                    {
+                        "kind": "session_start",
+                        "ts": "2026-03-28T00:00:00Z",
+                        "payload": {},
+                    }
+                ],
+                [
+                    {
+                        "kind": "session_start",
+                        "ts": "2026-03-28T00:00:00Z",
+                        "payload": {},
+                    },
+                    {
+                        "kind": "assistant_delta",
+                        "ts": "2026-03-28T00:00:01Z",
+                        "payload": {"text": "first live update"},
+                    },
+                ],
+                [
+                    {
+                        "kind": "session_start",
+                        "ts": "2026-03-28T00:00:00Z",
+                        "payload": {},
+                    },
+                    {
+                        "kind": "assistant_delta",
+                        "ts": "2026-03-28T00:00:01Z",
+                        "payload": {"text": "first live update"},
+                    },
+                    {
+                        "kind": "assistant_delta",
+                        "ts": "2026-03-28T00:00:02Z",
+                        "payload": {"text": "second live update"},
+                    },
+                ],
+            ],
+        )
+        try:
+            adapter = OpenClawGatewayAdapter(bridge=client, base_path=tmp_path)
+            session = adapter.attach_delegate_session(
+                "oc-sess-001", GovernanceMode.ADVISORY, project_id="proj-1"
+            )
+
+            first_events = list(adapter.stream_events(session))
+            second_events = list(adapter.stream_events(session))
+
+            assert [event["payload"].get("text", "") for event in first_events] == [
+                "",
+                "first live update",
+                "second live update",
+            ]
+            assert second_events == []
+            assert [event["seq"] for event in first_events] == [0, 1, 2]
+
+            manifest = load_delegate_session(tmp_path, session.delegate_session_id)
+            assert manifest is not None
+            assert manifest["metadata"]["next_stream_seq"] == 3
+            assert manifest["metadata"]["last_stream_raw_ref"]
+
+            traj_path = (
+                tmp_path
+                / ".hive"
+                / "delegates"
+                / session.delegate_session_id
+                / "trajectory.jsonl"
+            )
+            lines = [
+                json.loads(line)
+                for line in traj_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            assert [line["seq"] for line in lines] == [0, 1, 2]
+            assert [line["payload"].get("text", "") for line in lines] == [
+                "",
+                "first live update",
+                "second live update",
+            ]
         finally:
             patcher.stop()
 

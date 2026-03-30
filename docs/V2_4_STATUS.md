@@ -1,7 +1,7 @@
 # Hive v2.4 Status
 
-Status: in progress
-Last updated: 2026-03-29 (all harness milestones landed; the pre-doc acceptance bar is met and M5 launch/docs polish is next)
+Status: implementation complete; release execution pending
+Last updated: 2026-03-30 (all harness milestones and M5 launch/docs work are landed; remaining work is version/tag/publish)
 Purpose: compact execution ledger for the current v2.4 release line
 
 This file is the maintainer-facing status ledger for v2.4.
@@ -58,11 +58,13 @@ What is real now:
 - Hermes now has native companion integration, attach parity, and shared doctor contract fields
 - the console now shows unified run/delegate truth across Pi, OpenClaw, and Hermes, and attached delegates appear within one refresh cycle at the RFC 3-second bound
 - attached advisory sessions can now raise inbox-visible delegate exceptions and inbound notes without being dropped from operator views
-- functionality now meets the pre-doc v2.4 acceptance bar for the currently tracked RFC gates, and the remaining work is M5 launch/docs polish
+- v2.4 implementation and launch/docs polish are now complete against the currently tracked RFC gates
+- the remaining work is release execution: version bump, tag, publish, release notes, and public install verification
 
 ## Next Blocker
 
-Start Milestone 5 — launch/docs/onboarding polish:
-- update README, START_HERE, and compare/onboarding/operator docs to present the shipped Pi/OpenClaw/Hermes story
-- refresh maintainer/release collateral so the public docs match the landed v2.4 harness-native surfaces
-- close the remaining doc and launch-polish gates for the v2.4 release line
+Execute the actual v2.4 release:
+- bump the published package version from `2.3.2` to the final v2.4 release
+- tag and publish the release with notes that point to the v2.4 RFC bundle and launch docs
+- verify the public install paths and packaged-doc search surfaces against the published artifact
+- keep this ledger aligned with the release-execution state until the tag is cut

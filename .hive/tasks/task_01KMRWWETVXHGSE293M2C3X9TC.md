@@ -14,7 +14,7 @@ kind: task
 labels:
 - v2.4
 - pi
-owner: codex
+owner: null
 parent_id: null
 priority: 1
 project_id: hive-v24

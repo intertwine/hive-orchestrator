@@ -1,6 +1,6 @@
 ---
 acceptance: []
-claimed_until: '2026-03-29T12:00:00Z'
+claimed_until: null
 created_at: '2026-03-28T00:18:27.466422Z'
 edges:
   blocks:
@@ -8,15 +8,15 @@ edges:
 id: task_01KMRWWXGA9XZZK6XBQPWE9HME
 kind: task
 labels: []
-owner: claude
+owner: null
 parent_id: null
 priority: 1
 project_id: hive-v24
 relevant_files: []
 source: {}
-status: in_progress
+status: done
 title: Implement Hermes companion and attach integration
-updated_at: '2026-03-28T00:19:12.194936Z'
+updated_at: '2026-03-29T22:09:37.452487Z'
 ---
 
 ## Summary
@@ -39,3 +39,4 @@ M1 foundation stable. Building on DelegateGatewayAdapter pattern from OpenClaw.
 ## History
 - 2026-03-28T00:18:27.466422Z bootstrap created.
 - 2026-03-28: M4 implementation started — claimed by claude in worktree.
+- 2026-03-29: M4 implementation landed — Hermes companion integration, attach parity, trajectory import fallback, and memory-privacy coverage merged on main.

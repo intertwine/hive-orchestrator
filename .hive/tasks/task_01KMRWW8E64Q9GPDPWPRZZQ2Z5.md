@@ -4,7 +4,7 @@ acceptance:
   capability modeling
 - A dummy adapter can attach and stream normalized events
 - Console and doctor surfaces distinguish advisory from governed truth
-claimed_until: '2026-03-29T02:00:00Z'
+claimed_until: null
 created_at: '2026-03-28T00:18:05.894735Z'
 edges:
   blocks:
@@ -14,7 +14,7 @@ edges:
 id: task_01KMRWW8E64Q9GPDPWPRZZQ2Z5
 kind: task
 labels: []
-owner: claude
+owner: null
 parent_id: null
 priority: 1
 project_id: hive-v24
@@ -26,9 +26,9 @@ relevant_files:
 - docs/V2_4_STATUS.md
 - docs/hive-v2.4-rfc/HIVE_V2_4_ADAPTER_MODEL_AND_LINK_SPEC.md
 source: {}
-status: in_progress
+status: done
 title: Land adapter-family split, Hive Link, and advisory truth surfaces
-updated_at: '2026-03-28T00:30:20.702262Z'
+updated_at: '2026-03-29T22:09:07.278722Z'
 ---
 
 ## Summary
@@ -40,4 +40,3 @@ M0 is complete enough to build on: stable docs live at docs/hive-v2.4-rfc/ and d
 ## History
 2026-03-28: M0 repo-wiring slice landed locally with packaging/search/tests support for the v2.4 bundle.
 2026-03-28: M1 implementation complete — adapter ABCs, Hive Link protocol, trajectory schema, integration registry, dummy adapters, CLI wiring, console truth surfaces. 47 new tests passing, 661 total green.
-

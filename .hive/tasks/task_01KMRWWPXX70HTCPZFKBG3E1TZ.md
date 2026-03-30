@@ -1,6 +1,6 @@
 ---
 acceptance: []
-claimed_until: '2026-03-29T04:00:00Z'
+claimed_until: null
 created_at: '2026-03-28T00:18:20.733177Z'
 edges:
   blocks:
@@ -8,7 +8,7 @@ edges:
 id: task_01KMRWWPXX70HTCPZFKBG3E1TZ
 kind: task
 labels: []
-owner: claude
+owner: null
 parent_id: null
 priority: 1
 project_id: hive-v24

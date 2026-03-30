@@ -52,7 +52,7 @@ def test_v24_status_doc_tracks_scope_and_next_blocker():
     status_doc = (REPO_ROOT / "docs" / "V2_4_STATUS.md").read_text(encoding="utf-8")
 
     assert "# Hive v2.4 Status" in status_doc
-    assert "Status: in progress" in status_doc
+    assert "Status: implementation complete; release execution pending" in status_doc
     assert "## Scope Lock" in status_doc
     assert "## Release Gate Ledger" in status_doc
     assert "Hive Link and normalized trajectory capture" in status_doc
@@ -66,9 +66,10 @@ def test_v24_status_doc_tracks_scope_and_next_blocker():
         "the v2.4 RFC bundle and status ledger now live at stable repo paths"
         in status_doc
     )
-    assert "functionality now meets the pre-doc v2.4 acceptance bar" in status_doc
+    assert "v2.4 implementation and launch/docs polish are now complete" in status_doc
     assert "## Next Blocker" in status_doc
-    assert "Milestone 5" in status_doc
+    assert "Execute the actual v2.4 release" in status_doc
+    assert "version bump, tag, publish" in status_doc
 
 
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():

@@ -28,12 +28,12 @@ truthful advisory-vs-governed UX.
 
 | ID | Status | Priority | Owner | Title |
 |---|---|---:|---|---|
-| task_01KMRWWXGA9XZZK6XBQPWE9HME | in_progress | 1 | claude | Implement Hermes companion and attach integration |
-| task_01KMRWWPXX70HTCPZFKBG3E1TZ | done | 1 | claude | Implement OpenClaw companion and Gateway attach integration |
-| task_01KMRWWETVXHGSE293M2C3X9TC | done | 1 | codex | Implement Pi companion, attach, and managed integration |
-| task_01KMRWW8E64Q9GPDPWPRZZQ2Z5 | in_progress | 1 | claude | Land adapter-family split, Hive Link, and advisory truth surfaces |
+| task_01KMRWWXGA9XZZK6XBQPWE9HME | done | 1 |  | Implement Hermes companion and attach integration |
+| task_01KMRWWPXX70HTCPZFKBG3E1TZ | done | 1 |  | Implement OpenClaw companion and Gateway attach integration |
+| task_01KMRWWETVXHGSE293M2C3X9TC | done | 1 |  | Implement Pi companion, attach, and managed integration |
+| task_01KMRWW8E64Q9GPDPWPRZZQ2Z5 | done | 1 |  | Land adapter-family split, Hive Link, and advisory truth surfaces |
 | task_01KMRWW1YQ5MWC0NCVCYB4WNWC | done | 1 |  | Wire the v2.4 RFC/status bundle into repo docs, search, and packaging |
-| task_01KMRWX2AP42JZ32GMBKQAQ8JE | ready | 2 |  | Polish compare docs, demos, and release gates for v2.4 |
+| task_01KMRWX2AP42JZ32GMBKQAQ8JE | done | 2 |  | Polish compare docs, demos, and release gates for v2.4 |
 <!-- hive:end task-rollup -->
 
 <!-- hive:begin recent-runs -->

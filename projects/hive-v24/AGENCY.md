@@ -28,7 +28,7 @@ truthful advisory-vs-governed UX.
 
 | ID | Status | Priority | Owner | Title |
 |---|---|---:|---|---|
-| task_01KMY3WJJ0XANHDQHB6NY2HJ5S | in_progress | 1 | codex | Archive stale docs and maintenance artifacts for v2.4 assessment |
+| task_01KMY3WJJ0XANHDQHB6NY2HJ5S | done | 1 |  | Archive stale docs and maintenance artifacts for v2.4 assessment |
 | task_01KMRWWXGA9XZZK6XBQPWE9HME | done | 1 |  | Implement Hermes companion and attach integration |
 | task_01KMRWWPXX70HTCPZFKBG3E1TZ | done | 1 |  | Implement OpenClaw companion and Gateway attach integration |
 | task_01KMRWWETVXHGSE293M2C3X9TC | done | 1 |  | Implement Pi companion, attach, and managed integration |

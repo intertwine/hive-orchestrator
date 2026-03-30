@@ -1,6 +1,6 @@
 # UI Information Architecture
 
-The Hive v2.3 console is organized around exceptions and decisions, not folders.
+The current Agent Hive console is organized around exceptions and decisions, not folders.
 
 ## Home
 

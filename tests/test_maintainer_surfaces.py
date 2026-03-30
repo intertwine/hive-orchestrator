@@ -106,7 +106,7 @@ def test_release_docs_require_scope_locked_story_and_installed_search_proof():
     assert "README, demo walkthrough, compare-harness, and operator docs" in release_doc
     assert "Installed-package `hive search` is proven useful" in release_doc
     assert "make bump-version BUMP=minor" in release_doc
-    assert "Update [docs/V2_3_STATUS.md](/docs/V2_3_STATUS.md)" in release_doc
+    assert "Update [docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md)" in release_doc
     assert "For the scoped v2.4 launch line" in release_doc
     assert 'hive search "runtime contract" --scope api --limit 5 --json' in release_doc
     assert (
@@ -153,12 +153,18 @@ def test_archive_and_rfc_docs_frame_historical_material_clearly():
     archive_readme = (REPO_ROOT / "docs" / "archive" / "README.md").read_text(
         encoding="utf-8"
     )
+    migration_note = (
+        REPO_ROOT / "docs" / "archive" / "MIGRATING_TO_V2_2.md"
+    ).read_text(encoding="utf-8")
     onboarding_note = (
         REPO_ROOT / "docs" / "archive" / "V2_2_4_ONBOARDING_POLISH.md"
     ).read_text(encoding="utf-8")
     ux_sweep = (REPO_ROOT / "docs" / "archive" / "UX_SWEEP.md").read_text(
         encoding="utf-8"
     )
+    v24_reassessment = (
+        REPO_ROOT / "docs" / "archive" / "V2_4_FINAL_REASSESSMENT.md"
+    ).read_text(encoding="utf-8")
     rfc_readme = (REPO_ROOT / "docs" / "hive-v2.3-rfc" / "README.md").read_text(
         encoding="utf-8"
     )
@@ -172,8 +178,11 @@ def test_archive_and_rfc_docs_frame_historical_material_clearly():
 
     assert "# Archived Docs" in archive_readme
     assert "no longer part of the primary user or maintainer path" in archive_readme
+    assert "`docs/V2_4_STATUS.md`" in archive_readme
+    assert "Archived note" in migration_note
     assert "Archived note" in onboarding_note
     assert "Archived note" in ux_sweep
+    assert "Archived note" in v24_reassessment
     assert "historical planning and design reference" in rfc_readme
     assert "Current scoped release truth lives in" in rfc_readme
     assert "Status: Historical planning reference" in implementation_plan
@@ -269,10 +278,8 @@ def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
         in maintaining_doc
     )
     assert 'claude -p "/review <pr-number>"' in maintaining_doc
-    assert (
-        "Use the explicit scope-lock notes there as the current release truth"
-        in maintaining_doc
-    )
+    assert "compact ledger for the shipped v2.3 line" in maintaining_doc
+    assert "active v2.4 release candidate and implementation line" in maintaining_doc
     assert (
         "/Users/bryanyoung/experiments/hive-orchestrator/.github/workflows/branch-hygiene.yml"
         not in maintaining_doc
@@ -281,6 +288,22 @@ def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
     assert "An `eyes` reaction alone does not count as completion." in claude_doc
     assert 'claude -p "/review <pr-number>"' in skill_doc
     assert "An `eyes` reaction alone is not completion" in skill_doc
+
+
+def test_agent_entrypoints_remind_fresh_worktrees_to_install_dev_extras():
+    """Fresh maintainer worktrees should explicitly install dev extras before tests."""
+    agents_doc = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    claude_doc = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    skill_doc = (REPO_ROOT / "skills" / "hive-maintainer" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "uv sync --extra dev" in agents_doc
+    assert "uv sync --extra dev" in claude_doc
+    assert "uv sync --extra dev" in skill_doc
+    assert "docs/V2_4_STATUS.md" in agents_doc
+    assert "docs/V2_4_STATUS.md" in claude_doc
+    assert "docs/V2_4_STATUS.md" in skill_doc
 
 
 def test_scheduled_uv_installers_use_setup_action():

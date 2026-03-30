@@ -558,7 +558,7 @@ def _add_knowledge_parsers(
 def build_parser() -> argparse.ArgumentParser:
     """Build the Hive CLI parser."""
     parser = argparse.ArgumentParser(
-        prog="hive", description="Hive v2.3 control-plane CLI"
+        prog="hive", description="Agent Hive control-plane CLI"
     )
     parser.add_argument("--path", default=str(Path.cwd()), help="Workspace base path")
     parser.add_argument(

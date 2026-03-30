@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_ref:
-        description: "Release tag to publish or re-verify (for example: v2.2.1)"
+        description: "Release tag to publish or re-verify (for example: vX.Y.Z)"
         required: true
         type: string
       skip_existing:
@@ -49,7 +49,7 @@ jobs:
             RELEASE_REF="refs/tags/$RELEASE_REF"
           fi
           if [[ "$RELEASE_REF" != refs/tags/v* ]]; then
-            echo "This workflow only publishes from version tags like v2.2.1."
+            echo "This workflow only publishes from version tags like vX.Y.Z."
             echo "Push a version tag first, or pass an existing tag through workflow_dispatch."
             exit 1
           fi

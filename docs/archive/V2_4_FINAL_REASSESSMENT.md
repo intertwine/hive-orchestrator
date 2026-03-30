@@ -1,5 +1,9 @@
 # Hive v2.4 Final Reassessment
 
+Archived note: kept as the post-implementation reassessment after the v2.4 sprint landed. Prefer
+`docs/V2_4_STATUS.md` for live release truth, and `docs/AUTONOMY_GAP_ANALYSIS.md` plus
+`docs/AUTONOMY_V2_5_PLAN.md` for current autonomy follow-up.
+
 Date: 2026-03-30
 Scope: Post-`#179` re-audit of the shipped v2.4 line on `main`
 

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Legacy dashboard compatibility helpers.
 
-The primary human control surface in Hive 2.2 is the React observe-and-steer console
-served by ``hive console serve``. This module sticks around only so older imports and
-tests can keep using the data-loading helpers without depending on Streamlit.
+The primary human control surface in Agent Hive is the React observe-and-steer
+console served by ``hive console serve``. This module sticks around only so
+older imports and tests can keep using the data-loading helpers without
+depending on Streamlit.
 """
 
 from __future__ import annotations

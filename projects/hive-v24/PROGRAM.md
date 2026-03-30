@@ -9,7 +9,12 @@ budgets:
   max_cost_usd: 2.0
 paths:
   allow:
+    - .github/workflows/**
+    - Makefile
+    - README.md
+    - images/**
     - pyproject.toml
+    - scripts/**
     - GLOBAL.md
     - src/**
     - tests/**

@@ -1,5 +1,8 @@
 # Migrating From Hive 2.1 To 2.2
 
+Archived note: kept as a historical migration record now that Hive 2.2 is long shipped. Prefer `README.md`,
+`docs/START_HERE.md`, `docs/QUICKSTART.md`, and `docs/MAINTAINING.md` for current product and maintainer guidance.
+
 Hive 2.2 is not a substrate rewrite. The task, run, memory, and `PROGRAM.md` model from 2.1 stays in place.
 
 What changes in practice:

@@ -22,7 +22,12 @@ Before substantial work:
 ```bash
 make workspace-status
 hive doctor --json
+uv sync --extra dev
 ```
+
+If you are in a fresh maintainer worktree, do the `uv sync --extra dev` step before
+running `pytest` or `make check`. The focused maintainer/docs suites need the
+dev-only test dependencies.
 
 Classify current work into:
 - **Release blockers** — fix these first
@@ -144,7 +149,7 @@ After delegation:
 
 `make bump-version BUMP=patch|minor|major` updates `pyproject.toml` and `src/hive/common.py` automatically. You must also update manually:
 
-- **`docs/V2_3_STATUS.md`** — bump the `Status:` line, `Last updated:` date, add a row to the Release History table, and rewrite the Next Blocker section.
+- **`docs/V2_3_STATUS.md` or `docs/V2_4_STATUS.md`** — update the active release ledger for the line you are cutting. For the current v2.4 line, keep `docs/V2_4_STATUS.md` current; once v2.4 ships, that ledger becomes the compact shipped-line record just like v2.3.
 - **`tests/test_maintainer_surfaces.py`** — the `test_v23_status_doc_tracks_release_gates_and_next_blocker` test asserts the current version string in the status doc. Update the assertion and add one for the new version in the release history.
 - **`uv.lock`** — run `uv sync` or `uv lock` after the pyproject.toml bump so the lockfile stays in sync (or let `uv run` do it implicitly).
 
@@ -158,7 +163,7 @@ make release-check                      # build, validate, smoke-test artifacts
 ### Commit, tag, and push
 
 ```bash
-git add pyproject.toml src/hive/common.py docs/V2_3_STATUS.md tests/test_maintainer_surfaces.py uv.lock
+git add pyproject.toml src/hive/common.py docs/V2_4_STATUS.md tests/test_maintainer_surfaces.py uv.lock
 git commit -m "chore: bump version to X.Y.Z"
 git tag vX.Y.Z
 git push && git push --tags
@@ -191,7 +196,7 @@ gh release create vX.Y.Z dist/mellona_hive-X.Y.Z* \
 
 - Watch the post-push CI run on `main` — a red merge commit is immediate blocking work.
 - Verify the new version is installable: `uv tool install 'mellona-hive[console]'` (allow CDN propagation time).
-- Keep `docs/V2_3_STATUS.md` current as the compact release ledger.
+- Keep the active release ledger current: `docs/V2_4_STATUS.md` for the current v2.4 line, and `docs/V2_3_STATUS.md` for the already shipped v2.3 line.
 
 ## Context Protection
 

@@ -43,9 +43,8 @@ Useful local commands:
 - `hive run cleanup --terminal` prunes linked worktrees left behind by terminal runs
 - `uv run hive sandbox doctor --json` reports truthful backend availability and configuration for `local-safe`, `local-fast`, E2B, and Daytona
 
-For the current release train, keep [docs/V2_3_STATUS.md](./V2_3_STATUS.md) up to date as the compact v2.3 execution ledger.
-Use the explicit scope-lock notes there as the current release truth if they narrow older proposed RFC items.
-For the v2.4 implementation line, use [docs/V2_4_STATUS.md](./V2_4_STATUS.md) as the compact execution ledger and
+Keep [docs/V2_3_STATUS.md](./V2_3_STATUS.md) as the compact ledger for the shipped v2.3 line and its scope-lock notes.
+For the active v2.4 release candidate and implementation line, use [docs/V2_4_STATUS.md](./V2_4_STATUS.md) as the compact execution ledger and
 [docs/hive-v2.4-rfc/README.md](./hive-v2.4-rfc/README.md) as the bundled planning reference.
 
 ## Install Paths While Developing

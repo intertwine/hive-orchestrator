@@ -59,14 +59,14 @@ For the active v2.4 implementation line, keep [docs/V2_4_STATUS.md](/docs/V2_4_S
 planning bundle in [docs/hive-v2.4-rfc/README.md](/docs/hive-v2.4-rfc/README.md) before calling any milestone
 ready for broader review.
 
-For the actual v2.3.0 release cut from this repo state, the expected version bump is:
+For the upcoming v2.4 release cut from this repo state, the expected version bump is:
 
 ```bash
 make bump-version BUMP=minor
 uv lock
 ```
 
-Update [docs/V2_3_STATUS.md](/docs/V2_3_STATUS.md) at the same time so the ledger points at tag-and-publish as the only remaining blocker before you cut the tag.
+Update [docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md) at the same time so the ledger points at tag-and-publish as the only remaining blocker before you cut the tag.
 
 ## Cut A Release
 
@@ -97,10 +97,10 @@ That tag triggers the release workflow.
 
 The release workflow only publishes from `v*` tags. `workflow_dispatch` is available for maintainers who need to re-drive an existing tagged release from the current workflow definition.
 
-For example, after fixing PyPI trusted publishing or another release-automation issue, you can rerun the `v2.2.1` release from `main` without uploading duplicate files:
+For example, after fixing PyPI trusted publishing or another release-automation issue, you can rerun the `vX.Y.Z` release from `main` without uploading duplicate files:
 
 ```bash
-gh workflow run release.yml --ref main -f release_ref=v2.2.1 -f skip_existing=true
+gh workflow run release.yml --ref main -f release_ref=vX.Y.Z -f skip_existing=true
 ```
 
 That path still builds from the tagged release, but it uses the latest workflow logic and tells PyPI to treat already-uploaded files as a clean no-op.
@@ -181,7 +181,8 @@ include non-empty explanations. Record that proof before you call the retrieval 
 ## Optional Remote Sandbox Release Proofs
 
 When you have real hosted or self-hosted sandbox credentials available, run the opt-in remote
-acceptance proofs from a source checkout before you call the v2.3 sandbox story complete.
+acceptance proofs from a source checkout before you call the carried-forward sandbox story complete
+for the current release.
 `make release-check` and the default install smoke scripts do not prove these sandbox extras.
 
 Hosted-managed E2B proof:
@@ -215,7 +216,7 @@ make brew-formula
 Run the full local Homebrew release check:
 
 ```bash
-make brew-release-check HOMEBREW_PACKAGE_VERSION=2.2.1
+make brew-release-check HOMEBREW_PACKAGE_VERSION=X.Y.Z
 ```
 
 That command only works after the target version is already live on PyPI, because the formula generator resolves published artifacts instead of local files. For a brand-new release, the tagged GitHub workflow is the thing that proves the Homebrew path before it updates the tap.

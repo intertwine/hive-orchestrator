@@ -1,4 +1,4 @@
-"""Observe-console state loaders for Hive v2.3."""
+"""Observe-console state loaders for Agent Hive."""
 
 from __future__ import annotations
 

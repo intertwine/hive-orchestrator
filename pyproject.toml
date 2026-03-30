@@ -118,7 +118,7 @@ only-packages = true
 "docs/COMPARE_HARNESSES.md" = "src/hive/resources/docs/COMPARE_HARNESSES.md"
 "docs/UI_INFORMATION_ARCHITECTURE.md" = "src/hive/resources/docs/UI_INFORMATION_ARCHITECTURE.md"
 "docs/OPERATOR_FLOWS.md" = "src/hive/resources/docs/OPERATOR_FLOWS.md"
-"docs/MIGRATING_TO_V2_2.md" = "src/hive/resources/docs/MIGRATING_TO_V2_2.md"
+"docs/archive/MIGRATING_TO_V2_2.md" = "src/hive/resources/docs/archive/MIGRATING_TO_V2_2.md"
 "docs/hive-v2-spec/AGENT_INTERFACE.md" = "src/hive/resources/docs/hive-v2-spec/AGENT_INTERFACE.md"
 "docs/hive-v2-spec/HANDOFF_TO_CODEX.md" = "src/hive/resources/docs/hive-v2-spec/HANDOFF_TO_CODEX.md"
 "docs/hive-v2-spec/HIVE_V2_SPEC.md" = "src/hive/resources/docs/hive-v2-spec/HIVE_V2_SPEC.md"
@@ -149,7 +149,7 @@ only-include = [
     "docs/COMPARE_HARNESSES.md",
     "docs/UI_INFORMATION_ARCHITECTURE.md",
     "docs/OPERATOR_FLOWS.md",
-    "docs/MIGRATING_TO_V2_2.md",
+    "docs/archive/MIGRATING_TO_V2_2.md",
     "docs/hive-v2-spec",
     "docs/hive-v2.2-rfc",
     "docs/V2_4_STATUS.md",

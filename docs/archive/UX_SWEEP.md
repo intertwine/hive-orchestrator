@@ -1,7 +1,7 @@
 # Hive UX Sweep
 
 Archived note: this is a historical usability findings log, not a canonical public or maintainer guide. Prefer the
-active onboarding docs and `docs/V2_3_STATUS.md` for current product truth.
+active onboarding docs and `docs/V2_4_STATUS.md` for current product truth.
 
 This file tracks real usability findings from hands-on Hive testing.
 

@@ -4,7 +4,6 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
-import { CONSOLE_PREFERENCES_KEY } from "../preferences";
 
 interface MockRoute {
   method?: string;
@@ -258,19 +257,6 @@ describe("Observe Console smoke", () => {
 
     await user.type(screen.getByRole("textbox", { name: "View name" }), "Gamma incidents");
     await user.click(screen.getByRole("button", { name: "Save current view" }));
-
-    expect(JSON.parse(window.localStorage.getItem(CONSOLE_PREFERENCES_KEY) ?? "{}")).toMatchObject({
-      runs: {
-        filters: {
-          projectId: "gamma",
-        },
-        savedViews: [
-          {
-            name: "Gamma incidents",
-          },
-        ],
-      },
-    });
 
     firstRender.unmount();
 

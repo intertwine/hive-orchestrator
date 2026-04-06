@@ -1,4 +1,4 @@
-import { type ChangeEvent, useState } from "react";
+import { useState } from "react";
 
 import { createConsoleClient } from "../api/client";
 import { useConsolePreferences } from "../components/ConsolePreferences";
@@ -7,7 +7,6 @@ import { RunCard } from "../components/RunCard";
 import { useConsoleConfig } from "../components/ConsoleLayout";
 import { useConsoleQuery } from "../hooks/useConsoleQuery";
 import {
-  DEFAULT_RUNS_FILTERS,
   sameRunsFilters,
   type RunsFiltersPreference,
 } from "../preferences";
@@ -21,8 +20,8 @@ export function RunsPage() {
     saveRunsView,
     setRunsFilters,
   } = useConsolePreferences();
-  const [filters, setFilters] = useState<RunsFiltersPreference>(preferences.runs.filters);
   const [viewName, setViewName] = useState("");
+  const filters = preferences.runs.filters;
   const client = createConsoleClient(apiBase, workspacePath);
   const { data, loading, error } = useConsoleQuery(
     `runs:${apiBase}:${workspacePath}:${filters.driver}:${filters.health}:${filters.projectId}:${filters.campaignId}`,
@@ -40,14 +39,8 @@ export function RunsPage() {
     sameRunsFilters(view.filters, filters)
   ) ?? null;
 
-  function handleChange(setter: (value: string) => void) {
-    return (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setter(event.target.value);
-  }
-
   function updateFilters(partial: Partial<RunsFiltersPreference>) {
-    const next = { ...filters, ...partial };
-    setFilters(next);
-    setRunsFilters(next);
+    setRunsFilters({ ...filters, ...partial });
   }
 
   function applySavedView(viewId: string) {
@@ -55,7 +48,6 @@ export function RunsPage() {
     if (!view) {
       return;
     }
-    setFilters(view.filters);
     setRunsFilters(view.filters);
     setViewName(view.name);
   }
@@ -73,7 +65,6 @@ export function RunsPage() {
 
   function handleResetFilters() {
     resetRunsFilters();
-    setFilters({ ...DEFAULT_RUNS_FILTERS });
   }
 
   return (
@@ -93,7 +84,7 @@ export function RunsPage() {
               <input
                 placeholder="Gamma incidents"
                 value={viewName}
-                onChange={handleChange(setViewName)}
+                onChange={(event) => setViewName(event.target.value)}
               />
             </label>
             <button className="primary-button" type="button" onClick={handleSaveView}>

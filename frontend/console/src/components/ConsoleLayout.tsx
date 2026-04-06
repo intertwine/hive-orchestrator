@@ -10,6 +10,14 @@ import {
 } from "react";
 
 import { ConsolePreferencesProvider, useConsolePreferences } from "./ConsolePreferences";
+import {
+  CONSOLE_DENSITIES,
+  CONSOLE_PAGES,
+  CONSOLE_THEMES,
+  normalizeConsoleDensity,
+  normalizeConsolePage,
+  normalizeConsoleTheme,
+} from "../preferences";
 
 const DEFAULT_API_BASE = window.location.pathname.startsWith("/console")
   ? window.location.origin
@@ -30,6 +38,22 @@ const ConsoleConfigContext = createContext<ConsoleConfig>({
   apiBase: DEFAULT_API_BASE,
   workspacePath: "",
 });
+const PAGE_LABELS = {
+  home: "Home",
+  runs: "Runs",
+  inbox: "Inbox",
+  campaigns: "Campaigns",
+  projects: "Projects",
+  search: "Search",
+} as const;
+const THEME_LABELS = {
+  clay: "Clay",
+  ledger: "Ledger",
+} as const;
+const DENSITY_LABELS = {
+  comfortable: "Comfortable",
+  compact: "Compact",
+} as const;
 
 export function useConsoleConfig() {
   return useContext(ConsoleConfigContext);
@@ -81,6 +105,7 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
     if (location.pathname !== "/") {
       return;
     }
+    // Only auto-redirect the first landing on "/" so operators can still revisit Home later.
     redirectedDefaultPage.current = true;
     navigate(`/${preferences.defaultPage}`, { replace: true });
   }, [location.pathname, navigate, preferences.defaultPage]);
@@ -134,10 +159,13 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
               <select
                 aria-label="Theme"
                 value={preferences.theme}
-                onChange={(event) => setTheme(event.target.value as "clay" | "ledger")}
+                onChange={(event) => setTheme(normalizeConsoleTheme(event.target.value))}
               >
-                <option value="clay">Clay</option>
-                <option value="ledger">Ledger</option>
+                {CONSOLE_THEMES.map((theme) => (
+                  <option key={theme} value={theme}>
+                    {THEME_LABELS[theme]}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="console-field">
@@ -145,10 +173,13 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
               <select
                 aria-label="Density"
                 value={preferences.density}
-                onChange={(event) => setDensity(event.target.value as "comfortable" | "compact")}
+                onChange={(event) => setDensity(normalizeConsoleDensity(event.target.value))}
               >
-                <option value="comfortable">Comfortable</option>
-                <option value="compact">Compact</option>
+                {CONSOLE_DENSITIES.map((density) => (
+                  <option key={density} value={density}>
+                    {DENSITY_LABELS[density]}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="console-field">
@@ -156,24 +187,13 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
               <select
                 aria-label="Default page"
                 value={preferences.defaultPage}
-                onChange={(event) => {
-                  setDefaultPage(
-                    event.target.value as
-                      | "home"
-                      | "runs"
-                      | "inbox"
-                      | "campaigns"
-                      | "projects"
-                      | "search",
-                  );
-                }}
+                onChange={(event) => setDefaultPage(normalizeConsolePage(event.target.value))}
               >
-                <option value="home">Home</option>
-                <option value="runs">Runs</option>
-                <option value="inbox">Inbox</option>
-                <option value="campaigns">Campaigns</option>
-                <option value="projects">Projects</option>
-                <option value="search">Search</option>
+                {CONSOLE_PAGES.map((page) => (
+                  <option key={page} value={page}>
+                    {PAGE_LABELS[page]}
+                  </option>
+                ))}
               </select>
             </label>
             <p className="console-settings__note">

@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConsoleLayout } from "../components/ConsoleLayout";
 import { CONSOLE_PREFERENCES_KEY } from "../preferences";
@@ -15,6 +15,7 @@ describe("ConsoleLayout query-param behavior", () => {
 
   afterEach(() => {
     window.history.replaceState({}, "", originalUrl);
+    vi.useRealTimers();
   });
 
   it("uses deep-link config without overwriting saved console defaults until the user changes them", async () => {
@@ -51,12 +52,79 @@ describe("ConsoleLayout query-param behavior", () => {
     expect(window.localStorage.getItem("hive-console-api-base")).toBe("http://127.0.0.1:9998");
     expect(window.localStorage.getItem("hive-console-workspace")).toBe("/tmp/operator-workspace");
 
-    expect(JSON.parse(window.localStorage.getItem(CONSOLE_PREFERENCES_KEY) ?? "{}")).toMatchObject({
-      theme: "ledger",
-      density: "compact",
-      defaultPage: "runs",
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem(CONSOLE_PREFERENCES_KEY) ?? "{}")).toMatchObject({
+        theme: "ledger",
+        density: "compact",
+        defaultPage: "runs",
+      });
     });
     expect(document.querySelector(".console-shell")).toHaveAttribute("data-theme", "ledger");
     expect(document.querySelector(".console-shell")).toHaveAttribute("data-density", "compact");
+  });
+
+  it("debounces preference persistence before writing to localStorage", () => {
+    vi.useFakeTimers();
+
+    render(
+      <MemoryRouter>
+        <ConsoleLayout>
+          <div>child</div>
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "ledger" } });
+    expect(window.localStorage.getItem(CONSOLE_PREFERENCES_KEY)).toBeNull();
+
+    vi.advanceTimersByTime(250);
+
+    expect(JSON.parse(window.localStorage.getItem(CONSOLE_PREFERENCES_KEY) ?? "{}")).toMatchObject({
+      theme: "ledger",
+    });
+
+  });
+
+  it("syncs operator preferences when another tab updates the same storage key", async () => {
+    render(
+      <MemoryRouter>
+        <ConsoleLayout>
+          <div>child</div>
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    const nextPreferences = {
+      version: 1,
+      theme: "ledger",
+      density: "compact",
+      defaultPage: "runs",
+      runs: {
+        filters: {
+          projectId: "",
+          driver: "codex",
+          health: "",
+          campaignId: "",
+        },
+        hiddenColumns: [],
+        pinnedPanels: [],
+        savedViews: [],
+      },
+    };
+
+    act(() => {
+      window.localStorage.setItem(CONSOLE_PREFERENCES_KEY, JSON.stringify(nextPreferences));
+      window.dispatchEvent(new StorageEvent("storage", {
+        key: CONSOLE_PREFERENCES_KEY,
+        newValue: JSON.stringify(nextPreferences),
+        storageArea: window.localStorage,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector(".console-shell")).toHaveAttribute("data-theme", "ledger");
+      expect(document.querySelector(".console-shell")).toHaveAttribute("data-density", "compact");
+      expect(screen.getByLabelText("Default page")).toHaveValue("runs");
+    });
   });
 });

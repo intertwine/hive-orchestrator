@@ -1,6 +1,7 @@
-import { createContext, type PropsWithChildren, useContext, useEffect, useState } from "react";
+import { createContext, type PropsWithChildren, useContext, useEffect, useRef, useState } from "react";
 
 import {
+  CONSOLE_PREFERENCES_KEY,
   DEFAULT_RUNS_FILTERS,
   deleteSavedRunsView,
   loadConsolePreferences,
@@ -25,13 +26,40 @@ interface ConsolePreferencesContextValue {
 }
 
 const ConsolePreferencesContext = createContext<ConsolePreferencesContextValue | null>(null);
+const PREFERENCES_SAVE_DEBOUNCE_MS = 250;
 
 export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
   const [preferences, setPreferences] = useState<ConsolePreferences>(() => loadConsolePreferences());
+  const latestPreferencesRef = useRef(preferences);
 
   useEffect(() => {
-    saveConsolePreferences(preferences);
+    latestPreferencesRef.current = preferences;
   }, [preferences]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      saveConsolePreferences(preferences);
+    }, PREFERENCES_SAVE_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [preferences]);
+
+  useEffect(() => {
+    return () => {
+      saveConsolePreferences(latestPreferencesRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      if (event.storageArea !== window.localStorage || event.key !== CONSOLE_PREFERENCES_KEY) {
+        return;
+      }
+      setPreferences(loadConsolePreferences());
+    }
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   function setDensity(density: ConsoleDensity) {
     setPreferences((current) => ({ ...current, density }));

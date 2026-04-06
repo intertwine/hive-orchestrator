@@ -1,8 +1,9 @@
 export const CONSOLE_PREFERENCES_KEY = "hive-console-operator-preferences";
 
-const CONSOLE_THEMES = ["clay", "ledger"] as const;
-const CONSOLE_DENSITIES = ["comfortable", "compact"] as const;
-const CONSOLE_PAGES = ["home", "runs", "inbox", "campaigns", "projects", "search"] as const;
+export const CONSOLE_THEMES = ["clay", "ledger"] as const;
+export const CONSOLE_DENSITIES = ["comfortable", "compact"] as const;
+export const CONSOLE_PAGES = ["home", "runs", "inbox", "campaigns", "projects", "search"] as const;
+export const MAX_SAVED_RUNS_VIEWS = 50;
 
 export type ConsoleTheme = (typeof CONSOLE_THEMES)[number];
 export type ConsoleDensity = (typeof CONSOLE_DENSITIES)[number];
@@ -72,17 +73,17 @@ function readStringArray(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
-function readTheme(value: unknown): ConsoleTheme {
+export function normalizeConsoleTheme(value: unknown): ConsoleTheme {
   return CONSOLE_THEMES.includes(value as ConsoleTheme) ? (value as ConsoleTheme) : "clay";
 }
 
-function readDensity(value: unknown): ConsoleDensity {
+export function normalizeConsoleDensity(value: unknown): ConsoleDensity {
   return CONSOLE_DENSITIES.includes(value as ConsoleDensity)
     ? (value as ConsoleDensity)
     : "comfortable";
 }
 
-function readPage(value: unknown): ConsolePage {
+export function normalizeConsolePage(value: unknown): ConsolePage {
   return CONSOLE_PAGES.includes(value as ConsolePage) ? (value as ConsolePage) : "home";
 }
 
@@ -124,14 +125,17 @@ export function normalizeConsolePreferences(value: unknown): ConsolePreferences 
 
   const runs = isRecord(value.runs) ? value.runs : {};
   const savedViews = Array.isArray(runs.savedViews)
-    ? runs.savedViews.map(normalizeSavedRunsView).filter((entry): entry is SavedRunsView => entry !== null)
+    ? runs.savedViews
+      .map(normalizeSavedRunsView)
+      .filter((entry): entry is SavedRunsView => entry !== null)
+      .slice(-MAX_SAVED_RUNS_VIEWS)
     : [];
 
   return {
     version: 1,
-    theme: readTheme(value.theme),
-    density: readDensity(value.density),
-    defaultPage: readPage(value.defaultPage),
+    theme: normalizeConsoleTheme(value.theme),
+    density: normalizeConsoleDensity(value.density),
+    defaultPage: normalizeConsolePage(value.defaultPage),
     runs: {
       filters: normalizeRunsFilters(runs.filters),
       hiddenColumns: readStringArray(runs.hiddenColumns),
@@ -188,7 +192,7 @@ export function upsertSavedRunsView(
   };
   const nextSavedViews = existing
     ? preferences.runs.savedViews.map((view) => (view.id === existing.id ? nextView : view))
-    : [...preferences.runs.savedViews, nextView];
+    : [...preferences.runs.savedViews, nextView].slice(-MAX_SAVED_RUNS_VIEWS);
 
   return {
     ...preferences,

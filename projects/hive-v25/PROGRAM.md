@@ -25,16 +25,24 @@ paths:
     - secrets/**
     - infra/prod/**
 commands:
-  allow: []
+  allow:
+    - make check
   deny:
     - rm -rf /
     - terraform apply
-evaluators: []
+evaluators:
+  - id: make-check
+    command: make check
+    required: true
 promotion:
   allow_unsafe_without_evaluators: false
   allow_accept_without_changes: false
-  requires_all: []
-  review_required_when_paths_match: []
+  requires_all:
+    - make-check
+  review_required_when_paths_match:
+    - frontend/console/**
+    - src/hive/console/**
+    - src/hive/resources/console/**
   auto_close_task: false
 escalation:
   when_paths_match: []
@@ -51,8 +59,12 @@ Define the autonomous work contract for this project.
 - Keep the browser console as the primary human experience; desktop work must reuse the same frontend and API contract rather than fork a second UI stack.
 - Treat the public v2.4.0 release cut as the gating precondition before claiming substantive v2.5 implementation tasks.
 - Use the Clay design language as visual direction, but adapt it to a dense operator console with truthful states and accessible contrast.
-- Runs will stop for review until you add at least one real evaluator and list it in
-  `promotion.requires_all`.
+- `make check` is the baseline required evaluator for governed v2.5 runs, and it must stay truthful.
+- Changes to browser console UI, console APIs, or packaged console assets must still stop for human
+  review until richer frontend-specific evaluator coverage lands.
+- Keep `commands.allow` intentionally narrow for now: auto-allow the required evaluator, and widen
+  command policy deliberately when the project is ready to let governed runs execute more without
+  operator approval.
 - If this project is intentionally manual or low-governance, set
   `promotion.allow_unsafe_without_evaluators: true` explicitly so reviewers can see that choice.
 - If you want report-only or no-change runs to promote, set

@@ -16,6 +16,7 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - `hive task ready` does support `--project-id`, but focused planning still feels too global because nearby `task` and `context` flows do not consistently keep one project in view.
 - `hive quickstart demo --json` does not expose a simple top-level workspace path, even though the caller often needs that path immediately for follow-up commands. The data is present under `layout.workspace`, but that is not obvious from the shape or command story.
 - `hive --version --json` currently prints plain text (`hive 2.4.0`) instead of JSON, which makes automation scripts guess at command-specific formatting rules.
+- Narrow implementation slices still pay the cost of broad repo validation, and when an unrelated late-suite test flakes it is hard to distinguish “my slice regressed” from “the suite is noisy” without manual reruns and judgment.
 
 ### Improvement ideas
 
@@ -32,6 +33,7 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Add better project-scoped ergonomics across `task`, `context`, and dependency commands so maintainers can stay focused inside one release line at a time.
 - Add a top-level `workspace_path` (or `path`) field to `quickstart demo --json` so shell automation does not need to know internal `layout` structure.
 - Make `--json` output consistent for meta commands like `--version`, or reserve `--json` only for subcommands that truly emit JSON.
+- Add task- or PR-scoped validation profiles plus simple flake memory/reporting, so maintainers can prove the changed surface quickly while still tracking broad-suite health separately.
 
 ### What worked well
 

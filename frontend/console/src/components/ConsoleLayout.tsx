@@ -108,8 +108,8 @@ export function ConsoleLayout({ children }: PropsWithChildren) {
 
         <nav className="top-nav">
           <TopNavLink to="/" label="Home" />
-          <TopNavLink to="/inbox" label="Inbox" />
           <TopNavLink to="/runs" label="Runs" />
+          <TopNavLink to="/inbox" label="Inbox" />
           <TopNavLink to="/campaigns" label="Campaigns" />
           <TopNavLink to="/projects" label="Projects" />
           <TopNavLink to="/search" label="Search" />

@@ -73,15 +73,21 @@ export function ConsoleLayout({ children }: PropsWithChildren) {
       <div className="console-shell">
         <header className="console-hero">
           <div>
-            <p className="eyebrow">Agent Hive 2.3</p>
-            <h1>Observe and steer the work, not the folders.</h1>
+            <p className="eyebrow">Agent Hive 2.5 Command Center</p>
+            <h1>Command the work. Keep the truth in view.</h1>
             <p className="hero-copy">
-              One operator view for live runs, approvals, reroutes, and why Hive picked each next
-              move.
+              A browser-first operator console for live runs, approvals, campaigns, search traces,
+              and the native companion surfaces introduced in v2.4.
             </p>
+            <div className="hero-highlights" aria-label="Command center highlights">
+              <span className="hero-highlight">Browser-first</span>
+              <span className="hero-highlight">Review-ready</span>
+              <span className="hero-highlight">Truthful state</span>
+            </div>
           </div>
 
           <div className="console-settings">
+            <p className="eyebrow">Operator setup</p>
             <label className="console-field">
               <span>API base</span>
               <input value={apiBase} onChange={handleApiBaseChange} />
@@ -94,6 +100,9 @@ export function ConsoleLayout({ children }: PropsWithChildren) {
                 onChange={handleWorkspaceChange}
               />
             </label>
+            <p className="console-settings__note">
+              Point the UI at a local daemon and workspace without losing deep-linkability.
+            </p>
           </div>
         </header>
 

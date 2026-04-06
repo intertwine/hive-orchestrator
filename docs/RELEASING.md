@@ -59,24 +59,33 @@ For the active v2.4 implementation line, keep [docs/V2_4_STATUS.md](/docs/V2_4_S
 planning bundle in [docs/hive-v2.4-rfc/README.md](/docs/hive-v2.4-rfc/README.md) before calling any milestone
 ready for broader review.
 
-For the upcoming v2.4 release cut from this repo state, the expected version bump is:
+For the v2.4.0 release cut from the `2.3.2` line, the staging bump is:
 
 ```bash
 make bump-version BUMP=minor
 uv lock
 ```
 
-Update [docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md) at the same time so the ledger points at tag-and-publish as the only remaining blocker before you cut the tag.
+Update [docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md) at the same time so the ledger points at validation/tag/publish as the only remaining blocker before you cut the tag. Once that prep slice lands, the repo should already read `2.4.0`; do not bump it again before tagging.
 
 ## Cut A Release
 
-Bump the version:
+If the repo does not yet read the target release version, bump it first.
+For the active v2.4.0 release cut, that staging step should already be done by the release-prep slice above:
+
+```bash
+make bump-version BUMP=minor
+uv lock
+```
+
+For later hotfixes from an already-released line, use the patch bump instead:
 
 ```bash
 make bump-version BUMP=patch
+uv lock
 ```
 
-Commit the version change, then tag it:
+Commit the staged version change, then tag it:
 
 ```bash
 VERSION="$(uv run python - <<'PY'

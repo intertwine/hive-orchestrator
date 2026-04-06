@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-HIVE_VERSION = "2.3.2"
+HIVE_VERSION = "2.4.0"
 
 MARKER_PROJECTS_BEGIN = "<!-- hive:begin projects -->"
 MARKER_PROJECTS_END = "<!-- hive:end projects -->"

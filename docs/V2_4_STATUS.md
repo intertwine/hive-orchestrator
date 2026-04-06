@@ -1,7 +1,7 @@
 # Hive v2.4 Status
 
-Status: implementation complete; release execution pending
-Last updated: 2026-03-30 (all harness milestones and M5 launch/docs work are landed; remaining work is version/tag/publish)
+Status: v2.4.0 validated locally; tag/publish/public verification pending
+Last updated: 2026-04-06 (repo version now reads v2.4.0, `make check` and `make release-check` are green, and the remaining work is tag, publish, and public verification)
 Purpose: compact execution ledger for the current v2.4 release line
 
 This file is the maintainer-facing status ledger for v2.4.
@@ -59,12 +59,12 @@ What is real now:
 - the console now shows unified run/delegate truth across Pi, OpenClaw, and Hermes, and attached delegates appear within one refresh cycle at the RFC 3-second bound
 - attached advisory sessions can now raise inbox-visible delegate exceptions and inbound notes without being dropped from operator views
 - v2.4 implementation and launch/docs polish are now complete against the currently tracked RFC gates
-- the remaining work is release execution: version bump, tag, publish, release notes, and public install verification
+- the repo version and maintainer release surfaces now read `2.4.0`, the local validation path is green, and no public tag or published artifact exists yet
+- the remaining work is release execution: tag, publish, release notes, and public install verification
 
 ## Next Blocker
 
-Execute the actual v2.4 release:
-- bump the published package version from `2.3.2` to the final v2.4 release
-- tag and publish the release with notes that point to the v2.4 RFC bundle and launch docs
+Publish the validated v2.4.0 release:
+- tag and publish `v2.4.0` with notes that point to the v2.4 RFC bundle and launch docs
 - verify the public install paths and packaged-doc search surfaces against the published artifact
-- keep this ledger aligned with the release-execution state until the tag is cut
+- once the tag and public verification are real, update this ledger from staged truth to shipped truth

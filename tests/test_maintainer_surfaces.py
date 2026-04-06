@@ -52,7 +52,7 @@ def test_v24_status_doc_tracks_scope_and_next_blocker():
     status_doc = (REPO_ROOT / "docs" / "V2_4_STATUS.md").read_text(encoding="utf-8")
 
     assert "# Hive v2.4 Status" in status_doc
-    assert "Status: implementation complete; release execution pending" in status_doc
+    assert "Status: v2.4.0 validated locally; tag/publish/public verification pending" in status_doc
     assert "## Scope Lock" in status_doc
     assert "## Release Gate Ledger" in status_doc
     assert "Hive Link and normalized trajectory capture" in status_doc
@@ -67,9 +67,11 @@ def test_v24_status_doc_tracks_scope_and_next_blocker():
         in status_doc
     )
     assert "v2.4 implementation and launch/docs polish are now complete" in status_doc
+    assert "the repo version and maintainer release surfaces now read `2.4.0`" in status_doc
+    assert "the local validation path is green" in status_doc
     assert "## Next Blocker" in status_doc
-    assert "Execute the actual v2.4 release" in status_doc
-    assert "version bump, tag, publish" in status_doc
+    assert "Publish the validated v2.4.0 release" in status_doc
+    assert "tag, publish, release notes, and public install verification" in status_doc
 
 
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():
@@ -107,6 +109,7 @@ def test_release_docs_require_scope_locked_story_and_installed_search_proof():
     assert "Installed-package `hive search` is proven useful" in release_doc
     assert "make bump-version BUMP=minor" in release_doc
     assert "Update [docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md)" in release_doc
+    assert "do not bump it again before tagging" in release_doc
     assert "For the scoped v2.4 launch line" in release_doc
     assert 'hive search "runtime contract" --scope api --limit 5 --json' in release_doc
     assert (

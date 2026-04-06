@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
+import { CONSOLE_PREFERENCES_KEY } from "../preferences";
 
 interface MockRoute {
   method?: string;
@@ -236,6 +237,61 @@ describe("Observe Console smoke", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(await screen.findByRole("link", { name: "del_openclaw_live" })).toBeInTheDocument();
+  });
+
+  it("persists saved runs views across remounts and reapplies them", async () => {
+    installFetchMock([
+      {
+        pathname: "/runs",
+        response: (url) => jsonResponse({ ok: true, runs: filterRuns(url) }),
+      },
+    ]);
+
+    const user = userEvent.setup();
+    const firstRender = renderConsole(["/runs"]);
+
+    await screen.findByRole("heading", { name: "Runs" });
+    await user.type(screen.getByRole("textbox", { name: "Project" }), "gamma");
+    await waitFor(() => {
+      expect(screen.getAllByRole("link", { name: /^run_/ })).toHaveLength(3);
+    });
+
+    await user.type(screen.getByRole("textbox", { name: "View name" }), "Gamma incidents");
+    await user.click(screen.getByRole("button", { name: "Save current view" }));
+
+    expect(JSON.parse(window.localStorage.getItem(CONSOLE_PREFERENCES_KEY) ?? "{}")).toMatchObject({
+      runs: {
+        filters: {
+          projectId: "gamma",
+        },
+        savedViews: [
+          {
+            name: "Gamma incidents",
+          },
+        ],
+      },
+    });
+
+    firstRender.unmount();
+
+    renderConsole(["/runs"]);
+    await screen.findByRole("heading", { name: "Runs" });
+    expect(screen.getByDisplayValue("gamma")).toBeInTheDocument();
+    expect(screen.getByText("Gamma incidents")).toBeInTheDocument();
+
+    await user.clear(screen.getByRole("textbox", { name: "Project" }));
+    await waitFor(() => {
+      expect(screen.getAllByRole("link", { name: /^run_/ })).toHaveLength(10);
+    });
+
+    const savedViewCard = screen.getByText("Gamma incidents").closest(".saved-view-card");
+    expect(savedViewCard).not.toBeNull();
+    await user.click(within(savedViewCard as HTMLElement).getByRole("button", { name: "Apply" }));
+
+    expect(screen.getByDisplayValue("gamma")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByRole("link", { name: /^run_/ })).toHaveLength(3);
+    });
   });
 
   it("surfaces attached delegate exceptions in the home and inbox views", async () => {

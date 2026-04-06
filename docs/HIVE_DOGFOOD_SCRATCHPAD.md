@@ -14,6 +14,8 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Long-running refresh or context operations do not expose enough progress to tell whether Hive is healthy, busy, or wedged.
 - There is no obvious `hive task archive` affordance. The working path is `hive task update <id> --status archived`, which is functional but discoverability-poor during cleanup work.
 - `hive task ready` does support `--project-id`, but focused planning still feels too global because nearby `task` and `context` flows do not consistently keep one project in view.
+- `hive quickstart demo --json` does not expose a simple top-level workspace path, even though the caller often needs that path immediately for follow-up commands. The data is present under `layout.workspace`, but that is not obvious from the shape or command story.
+- `hive --version --json` currently prints plain text (`hive 2.4.0`) instead of JSON, which makes automation scripts guess at command-specific formatting rules.
 
 ### Improvement ideas
 
@@ -28,6 +30,8 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Add a safer “claim + context startup” combined command for manual/non-`hive work` flows.
 - Add a first-class `hive task archive <id>` helper so duplicate cleanup is easier to discover and script.
 - Add better project-scoped ergonomics across `task`, `context`, and dependency commands so maintainers can stay focused inside one release line at a time.
+- Add a top-level `workspace_path` (or `path`) field to `quickstart demo --json` so shell automation does not need to know internal `layout` structure.
+- Make `--json` output consistent for meta commands like `--version`, or reserve `--json` only for subcommands that truly emit JSON.
 
 ### What worked well
 

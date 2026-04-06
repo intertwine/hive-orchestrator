@@ -19,16 +19,16 @@ relevant_files:
 - docs/RELEASING.md
 - docs/V2_4_STATUS.md
 source: {}
-status: claimed
+status: done
 title: Tag, publish, and cut the public v2.4.0 release artifacts
-updated_at: '2026-04-06T16:07:05.795468Z'
+updated_at: '2026-04-06T16:21:47.143524Z'
 ---
 
 ## Summary
-Perform the actual version tag, PyPI publish, and GitHub release cut once the repo is green.
+Created and pushed release commit/tag, published v2.4.0 to PyPI, and created the GitHub release.
 
 ## Notes
-- Imported or created by Hive 2.0.
+Evidence: tag v2.4.0 on main, GitHub release https://github.com/intertwine/hive-orchestrator/releases/tag/v2.4.0, Actions run 24039447602 green, PyPI serves wheel and sdist for mellona-hive 2.4.0.
 
 ## History
 - 2026-04-06T15:41:38.526509Z bootstrap created.

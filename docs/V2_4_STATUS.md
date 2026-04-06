@@ -1,7 +1,7 @@
 # Hive v2.4 Status
 
-Status: v2.4.0 validated locally; tag/publish/public verification pending
-Last updated: 2026-04-06 (repo version now reads v2.4.0, `make check` and `make release-check` are green, and the remaining work is tag, publish, and public verification)
+Status: v2.4.0 released
+Last updated: 2026-04-06 (tag `v2.4.0`, PyPI publish, GitHub release, Homebrew update, and fresh public-install verification are complete)
 Purpose: compact execution ledger for the current v2.4 release line
 
 This file is the maintainer-facing status ledger for v2.4.
@@ -59,12 +59,25 @@ What is real now:
 - the console now shows unified run/delegate truth across Pi, OpenClaw, and Hermes, and attached delegates appear within one refresh cycle at the RFC 3-second bound
 - attached advisory sessions can now raise inbox-visible delegate exceptions and inbound notes without being dropped from operator views
 - v2.4 implementation and launch/docs polish are now complete against the currently tracked RFC gates
-- the repo version and maintainer release surfaces now read `2.4.0`, the local validation path is green, and no public tag or published artifact exists yet
-- the remaining work is release execution: tag, publish, release notes, and public install verification
+- the repo version and maintainer release surfaces now read `2.4.0`
+- the `v2.4.0` tag is published, the GitHub release is live, and PyPI serves the expected wheel and source tarball
+- the release workflow, including PyPI publish and Homebrew verification/update, passed on GitHub Actions
+- a fresh installed-tool verification on Python 3.11 proved packaged-doc search, `quickstart demo`, `console home`, and `task ready` against the public artifact instead of the repo checkout
+
+## Release History
+
+| Version | Date | Notes |
+|---|---|---|
+| `v2.4.0` | 2026-04-06 | Native ecosystem release: Pi/OpenClaw/Hermes companion flows, Hive Link + adapter-family truth surfaces, packaged docs/search, and public install verification from the shipped artifact. |
 
 ## Next Blocker
 
-Publish the validated v2.4.0 release:
-- tag and publish `v2.4.0` with notes that point to the v2.4 RFC bundle and launch docs
-- verify the public install paths and packaged-doc search surfaces against the published artifact
-- once the tag and public verification are real, update this ledger from staged truth to shipped truth
+No current blocker. Next planned work: execute the v2.5 command-center foundations slice on top of the shipped v2.4.0 baseline, starting with the shell/design-token/app-IA work defined in the v2.5 Hive project.
+
+## Update Rule
+
+When a v2.4.x maintenance or follow-up PR merges:
+
+- update the affected release-gate evidence or shipped read
+- record the release or verification evidence if the shipped story changed
+- rewrite `Next Blocker` if a new v2.4.x follow-up becomes the critical path

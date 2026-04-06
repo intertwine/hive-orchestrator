@@ -22,16 +22,16 @@ relevant_files:
 - docs/OPERATOR_FLOWS.md
 - README.md
 source: {}
-status: ready
+status: done
 title: Verify public install/search behavior and mark the v2.4 line as shipped
-updated_at: '2026-04-06T15:41:49.976951Z'
+updated_at: '2026-04-06T16:22:30.156008Z'
 ---
 
 ## Summary
-Confirm the published artifact matches the promised operator and maintainer story.
+Verified the public 2.4.0 install/search/console story from a fresh installed-tool environment.
 
 ## Notes
-- Imported or created by Hive 2.0.
+Fresh install via uv tool install --python 3.11 mellona-hive[console] proved packaged-doc search hits, quickstart demo, console home, and task ready against the published artifact.
 
 ## History
 - 2026-04-06T15:41:49.976944Z bootstrap created.

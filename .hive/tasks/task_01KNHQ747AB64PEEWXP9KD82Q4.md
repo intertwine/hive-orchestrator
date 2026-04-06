@@ -22,16 +22,16 @@ relevant_files:
 - src/hive/common.py
 - tests/test_maintainer_surfaces.py
 source: {}
-status: proposed
+status: done
 title: Execute the v2.4.0 release cut and public verification
-updated_at: '2026-04-06T15:55:57.226693Z'
+updated_at: '2026-04-06T16:22:52.326245Z'
 ---
 
 ## Summary
-Release-execution tail after the implementation-complete v2.4 line.
+The v2.4.0 release cut and public verification are complete.
 
 ## Notes
-- Imported or created by Hive 2.0.
+All release subtasks are done and docs/V2_4_STATUS.md now reflects shipped truth.
 
 ## History
 - 2026-04-06T15:40:11.370325Z bootstrap created.

@@ -52,7 +52,7 @@ def test_v24_status_doc_tracks_scope_and_next_blocker():
     status_doc = (REPO_ROOT / "docs" / "V2_4_STATUS.md").read_text(encoding="utf-8")
 
     assert "# Hive v2.4 Status" in status_doc
-    assert "Status: v2.4.0 validated locally; tag/publish/public verification pending" in status_doc
+    assert "Status: v2.4.0 released" in status_doc
     assert "## Scope Lock" in status_doc
     assert "## Release Gate Ledger" in status_doc
     assert "Hive Link and normalized trajectory capture" in status_doc
@@ -67,11 +67,14 @@ def test_v24_status_doc_tracks_scope_and_next_blocker():
         in status_doc
     )
     assert "v2.4 implementation and launch/docs polish are now complete" in status_doc
-    assert "the repo version and maintainer release surfaces now read `2.4.0`" in status_doc
-    assert "the local validation path is green" in status_doc
+    assert "the `v2.4.0` tag is published" in status_doc
+    assert "PyPI serves the expected wheel and source tarball" in status_doc
+    assert "fresh installed-tool verification on Python 3.11" in status_doc
+    assert "## Release History" in status_doc
+    assert "`v2.4.0`" in status_doc
     assert "## Next Blocker" in status_doc
-    assert "Publish the validated v2.4.0 release" in status_doc
-    assert "tag, publish, release notes, and public install verification" in status_doc
+    assert "No current blocker." in status_doc
+    assert "v2.5 command-center foundations slice" in status_doc
 
 
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():

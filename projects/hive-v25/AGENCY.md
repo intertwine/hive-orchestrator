@@ -25,7 +25,7 @@ Use this document for human context, links, architecture notes, and handoff deta
 
 | ID | Status | Priority | Owner | Title |
 |---|---|---:|---|---|
-| task_01KNHQFZ3JMPSZ0QKYSP0HT99F | ready | 1 |  | Add preferences, saved views, and operator-local state persistence |
+| task_01KNHQFZ3JMPSZ0QKYSP0HT99F | claimed | 1 | codex | Add preferences, saved views, and operator-local state persistence |
 | task_01KNHQGWQKZXDNEWHWVZ6QS89H | archived | 1 |  | Add preferences, saved views, and operator-local state persistence |
 | task_01KNHQFZ4GMPSP19APVZZYB1N5 | ready | 1 |  | Add real-time event, notification, and freshness primitives for the browser console |
 | task_01KNHQHTYKXVTJXR7SGZGWMNJ9 | archived | 1 |  | Add real-time event, notification, and freshness primitives for the browser console |

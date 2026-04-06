@@ -1,5 +1,23 @@
-import { NavLink } from "react-router-dom";
-import { type ChangeEvent, type PropsWithChildren, createContext, useContext, useEffect, useState } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import {
+  type ChangeEvent,
+  type PropsWithChildren,
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import { ConsolePreferencesProvider, useConsolePreferences } from "./ConsolePreferences";
+import {
+  CONSOLE_DENSITIES,
+  CONSOLE_PAGES,
+  CONSOLE_THEMES,
+  normalizeConsoleDensity,
+  normalizeConsolePage,
+  normalizeConsoleTheme,
+} from "../preferences";
 
 const DEFAULT_API_BASE = window.location.pathname.startsWith("/console")
   ? window.location.origin
@@ -20,6 +38,22 @@ const ConsoleConfigContext = createContext<ConsoleConfig>({
   apiBase: DEFAULT_API_BASE,
   workspacePath: "",
 });
+const PAGE_LABELS = {
+  home: "Home",
+  runs: "Runs",
+  inbox: "Inbox",
+  campaigns: "Campaigns",
+  projects: "Projects",
+  search: "Search",
+} as const;
+const THEME_LABELS = {
+  clay: "Clay",
+  ledger: "Ledger",
+} as const;
+const DENSITY_LABELS = {
+  comfortable: "Comfortable",
+  compact: "Compact",
+} as const;
 
 export function useConsoleConfig() {
   return useContext(ConsoleConfigContext);
@@ -36,7 +70,7 @@ function TopNavLink({ to, label }: { to: string; label: string }) {
   );
 }
 
-export function ConsoleLayout({ children }: PropsWithChildren) {
+function ConsoleLayoutBody({ children }: PropsWithChildren) {
   const queryApiBase = queryParamValue("apiBase");
   const queryWorkspacePath = queryParamValue("workspace");
   const [apiBase, setApiBase] = useState(
@@ -45,6 +79,10 @@ export function ConsoleLayout({ children }: PropsWithChildren) {
   const [workspacePath, setWorkspacePath] = useState(
     queryWorkspacePath ?? window.localStorage.getItem(WORKSPACE_KEY) ?? "",
   );
+  const { preferences, setDefaultPage, setDensity, setTheme } = useConsolePreferences();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const redirectedDefaultPage = useRef(false);
 
   useEffect(() => {
     if (queryApiBase !== null && apiBase === queryApiBase) {
@@ -60,6 +98,18 @@ export function ConsoleLayout({ children }: PropsWithChildren) {
     window.localStorage.setItem(WORKSPACE_KEY, workspacePath);
   }, [queryWorkspacePath, workspacePath]);
 
+  useEffect(() => {
+    if (redirectedDefaultPage.current || preferences.defaultPage === "home") {
+      return;
+    }
+    if (location.pathname !== "/") {
+      return;
+    }
+    // Only auto-redirect the first landing on "/" so operators can still revisit Home later.
+    redirectedDefaultPage.current = true;
+    navigate(`/${preferences.defaultPage}`, { replace: true });
+  }, [location.pathname, navigate, preferences.defaultPage]);
+
   function handleApiBaseChange(event: ChangeEvent<HTMLInputElement>) {
     setApiBase(event.target.value);
   }
@@ -70,7 +120,11 @@ export function ConsoleLayout({ children }: PropsWithChildren) {
 
   return (
     <ConsoleConfigContext.Provider value={{ apiBase, workspacePath }}>
-      <div className="console-shell">
+      <div
+        className="console-shell"
+        data-density={preferences.density}
+        data-theme={preferences.theme}
+      >
         <header className="console-hero">
           <div>
             <p className="eyebrow">Agent Hive 2.5 Command Center</p>
@@ -100,8 +154,51 @@ export function ConsoleLayout({ children }: PropsWithChildren) {
                 onChange={handleWorkspaceChange}
               />
             </label>
+            <label className="console-field">
+              <span>Theme</span>
+              <select
+                aria-label="Theme"
+                value={preferences.theme}
+                onChange={(event) => setTheme(normalizeConsoleTheme(event.target.value))}
+              >
+                {CONSOLE_THEMES.map((theme) => (
+                  <option key={theme} value={theme}>
+                    {THEME_LABELS[theme]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="console-field">
+              <span>Density</span>
+              <select
+                aria-label="Density"
+                value={preferences.density}
+                onChange={(event) => setDensity(normalizeConsoleDensity(event.target.value))}
+              >
+                {CONSOLE_DENSITIES.map((density) => (
+                  <option key={density} value={density}>
+                    {DENSITY_LABELS[density]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="console-field">
+              <span>Default page</span>
+              <select
+                aria-label="Default page"
+                value={preferences.defaultPage}
+                onChange={(event) => setDefaultPage(normalizeConsolePage(event.target.value))}
+              >
+                {CONSOLE_PAGES.map((page) => (
+                  <option key={page} value={page}>
+                    {PAGE_LABELS[page]}
+                  </option>
+                ))}
+              </select>
+            </label>
             <p className="console-settings__note">
-              Point the UI at a local daemon and workspace without losing deep-linkability.
+              Point the UI at a local daemon and workspace without losing deep-linkability, then
+              tune operator-local preferences without touching canonical Hive state.
             </p>
           </div>
         </header>
@@ -118,5 +215,13 @@ export function ConsoleLayout({ children }: PropsWithChildren) {
         <main className="console-content">{children}</main>
       </div>
     </ConsoleConfigContext.Provider>
+  );
+}
+
+export function ConsoleLayout({ children }: PropsWithChildren) {
+  return (
+    <ConsolePreferencesProvider>
+      <ConsoleLayoutBody>{children}</ConsoleLayoutBody>
+    </ConsolePreferencesProvider>
   );
 }

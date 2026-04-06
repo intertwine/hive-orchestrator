@@ -7,28 +7,24 @@ import { ConsoleLayout } from "../components/ConsoleLayout";
 import { CONSOLE_PREFERENCES_KEY } from "../preferences";
 
 describe("ConsoleLayout query-param behavior", () => {
-  const originalUrl = window.location.href;
-
   beforeEach(() => {
     window.localStorage.clear();
   });
 
   afterEach(() => {
-    window.history.replaceState({}, "", originalUrl);
     vi.useRealTimers();
   });
 
   it("uses deep-link config without overwriting saved console defaults until the user changes them", async () => {
     window.localStorage.setItem("hive-console-api-base", "http://127.0.0.1:9999");
     window.localStorage.setItem("hive-console-workspace", "/tmp/persisted-workspace");
-    window.history.replaceState(
-      {},
-      "",
-      "/console?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
-    );
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        initialEntries={[
+          "/settings?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+        ]}
+      >
         <ConsoleLayout>
           <div>child</div>
         </ConsoleLayout>
@@ -67,7 +63,7 @@ describe("ConsoleLayout query-param behavior", () => {
     vi.useFakeTimers();
 
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/settings"]}>
         <ConsoleLayout>
           <div>child</div>
         </ConsoleLayout>
@@ -87,7 +83,7 @@ describe("ConsoleLayout query-param behavior", () => {
 
   it("syncs operator preferences when another tab updates the same storage key", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/settings"]}>
         <ConsoleLayout>
           <div>child</div>
         </ConsoleLayout>
@@ -126,5 +122,35 @@ describe("ConsoleLayout query-param behavior", () => {
       expect(document.querySelector(".console-shell")).toHaveAttribute("data-density", "compact");
       expect(screen.getByLabelText("Default page")).toHaveValue("runs");
     });
+  });
+
+  it("preserves explicit deep-link config across shell navigation links", () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/settings?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+        ]}
+      >
+        <ConsoleLayout>
+          <div>child</div>
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "Runs" })).toHaveAttribute(
+      "href",
+      expect.stringContaining(
+        "/runs?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+      ),
+    );
+    expect(screen.getByRole("link", { name: "Notifications" })).toHaveAttribute(
+      "href",
+      expect.stringContaining(
+        "/notifications?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+      ),
+    );
+    expect(screen.getByRole("link", { name: "Integrations" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Activity" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
   });
 });

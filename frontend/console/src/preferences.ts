@@ -1,8 +1,10 @@
+import { CONSOLE_PAGE_IDS } from "./consolePages";
+
 export const CONSOLE_PREFERENCES_KEY = "hive-console-operator-preferences";
 
 export const CONSOLE_THEMES = ["clay", "ledger"] as const;
 export const CONSOLE_DENSITIES = ["comfortable", "compact"] as const;
-export const CONSOLE_PAGES = ["home", "runs", "inbox", "campaigns", "projects", "search"] as const;
+export const CONSOLE_PAGES = CONSOLE_PAGE_IDS;
 export const MAX_SAVED_RUNS_VIEWS = 50;
 
 export type ConsoleTheme = (typeof CONSOLE_THEMES)[number];

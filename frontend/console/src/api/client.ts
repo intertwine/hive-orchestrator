@@ -61,6 +61,16 @@ export interface ConsoleSearchPayload {
   results: JsonRecord[];
 }
 
+export interface ConsoleIntegrationsPayload {
+  ok: boolean;
+  backends: JsonRecord[];
+}
+
+export interface ConsoleIntegrationDetailPayload {
+  ok: boolean;
+  integration: JsonRecord;
+}
+
 function withPath(url: URL, workspacePath: string) {
   if (workspacePath.trim()) {
     url.searchParams.set("path", workspacePath.trim());
@@ -217,6 +227,18 @@ export function createConsoleClient(apiBase: string, workspacePath: string) {
         url.searchParams.append("scope", scope);
       }
       return fetchJson<ConsoleSearchPayload>(url);
+    },
+
+    getIntegrations() {
+      return fetchJson<ConsoleIntegrationsPayload>(
+        withPath(new URL(`${root}/integrations`), workspacePath),
+      );
+    },
+
+    getIntegration(name: string) {
+      return fetchJson<ConsoleIntegrationDetailPayload>(
+        withPath(new URL(`${root}/integrations/${name}`), workspacePath),
+      );
     },
   };
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 
 import { createConsoleClient } from "../api/client";
+import { ConsoleLink } from "../components/ConsoleLink";
 import { Panel } from "../components/Panel";
 import { StatusPill } from "../components/StatusPill";
 import { useConsoleConfig } from "../components/ConsoleLayout";
@@ -68,7 +68,7 @@ export function InboxPage() {
                 </p>
                 {entry.run_id ? (
                   <p className="list-card__meta">
-                    <Link to={`/runs/${String(entry.run_id)}`}>Open run</Link>
+                    <ConsoleLink to={`/runs/${String(entry.run_id)}`}>Open run</ConsoleLink>
                   </p>
                 ) : null}
                 {entry.kind === "approval-request" && entry.run_id && entry.approval_id ? (

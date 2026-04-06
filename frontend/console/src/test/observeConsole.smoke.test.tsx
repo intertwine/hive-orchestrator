@@ -441,7 +441,7 @@ describe("Observe Console smoke", () => {
     ).toBeInTheDocument();
     expect(await screen.findByText("Alpha context preview")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /Beta Research Ops/i }));
+    await user.click(screen.getByRole("link", { name: /Beta Research Ops/i }));
     await waitFor(() => {
       expect(screen.getByText("Beta context preview")).toBeInTheDocument();
     });
@@ -451,6 +451,117 @@ describe("Observe Console smoke", () => {
     await user.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByText("Program Doctor hardening")).toBeInTheDocument();
     expect(screen.getByText("canonical task record")).toBeInTheDocument();
+  });
+
+  it("exposes the full v2.5 shell surfaces with stable deep-link navigation", async () => {
+    installFetchMock([
+      {
+        pathname: "/inbox",
+        response: jsonResponse({
+          ok: true,
+          items: [
+            {
+              kind: "approval-request",
+              title: "Review the shell route contract",
+              reason: "A fresh operator signoff is needed.",
+              project_id: "hive-v25",
+              run_id: "run_shell_contract",
+              approval_id: "approval_shell_contract",
+            },
+          ],
+        }),
+      },
+      {
+        pathname: "/home",
+        response: jsonResponse({
+          ok: true,
+          home: {
+            workspace: "/tmp/hive-demo",
+            active_runs: [],
+            evaluating_runs: [],
+            inbox: [],
+            blocked_projects: [],
+            campaigns: [],
+            recent_events: [
+              {
+                event_id: "event_shell_1",
+                type: "routing.updated",
+                ts: "2026-04-06T21:00:00Z",
+                payload: { message: "Canonical /home route published." },
+              },
+            ],
+            recent_accepts: [
+              makeRun(
+                "run_shell_contract",
+                "hive-v25",
+                "codex",
+                "healthy",
+                "Publish the shell route contract",
+              ),
+            ],
+            recommended_next: null,
+          },
+        }),
+      },
+      {
+        pathname: "/integrations",
+        response: jsonResponse({
+          ok: true,
+          backends: [
+            {
+              adapter: "openclaw",
+              adapter_type: "delegate_gateway",
+              integration_level: "attach",
+              governance_mode: "governed",
+              available: true,
+            },
+          ],
+        }),
+      },
+      {
+        pathname: "/integrations/openclaw",
+        response: jsonResponse({
+          ok: true,
+          integration: {
+            adapter: "openclaw",
+            adapter_family: "delegate_gateway",
+            integration_level: "attach",
+            governance_mode: "governed",
+            version: "2.4.0",
+            available: true,
+            notes: ["OpenClaw gateway is attached and ready."],
+            next_steps: ["Open a native session from the run detail page."],
+          },
+        }),
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderConsole([
+      "/settings?apiBase=http://127.0.0.1:8787&workspace=/tmp/hive-demo",
+    ]);
+
+    await screen.findByRole("heading", { name: "Settings" });
+    expect(screen.getByRole("link", { name: "Runs" })).toHaveAttribute(
+      "href",
+      expect.stringContaining(
+        "/runs?apiBase=http://127.0.0.1:8787&workspace=/tmp/hive-demo",
+      ),
+    );
+
+    await user.click(screen.getByRole("link", { name: "Notifications" }));
+    await screen.findByRole("heading", { name: "Notifications" });
+    expect(await screen.findByText("Review the shell route contract")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Activity" }));
+    await screen.findByRole("heading", { name: "Activity" });
+    expect(await screen.findByText("Canonical /home route published.")).toBeInTheDocument();
+    expect(await screen.findByText("Publish the shell route contract")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Integrations" }));
+    await screen.findByRole("heading", { name: "Integrations" });
+    expect(await screen.findByText("OpenClaw gateway is attached and ready.")).toBeInTheDocument();
+    expect(screen.getByText("Open a native session from the run detail page.")).toBeInTheDocument();
   });
 
   it("sends typed live steering actions from run detail and refreshes the audit view", async () => {

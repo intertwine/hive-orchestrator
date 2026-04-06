@@ -18,6 +18,8 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - `hive --version --json` currently prints plain text (`hive 2.4.0`) instead of JSON, which makes automation scripts guess at command-specific formatting rules.
 - Narrow implementation slices still pay the cost of broad repo validation, and when an unrelated late-suite test flakes it is hard to distinguish “my slice regressed” from “the suite is noisy” without manual reruns and judgment.
 - `hive work` can mutate task state before it finishes run-start preflight. In this session it claimed the v2.5 preferences task and only then failed because the project `PROGRAM.md` had no required evaluators, leaving a partial side effect and forcing a manual fallback to `hive context startup`.
+- When work is driven through normal PR/merge flow instead of a governed `hive finish`, task state can drift from reality. After merging the v2.5 preferences slice, the canonical task still showed up as `claimed`/`ready` until we manually ran `hive task update ... --status done`, `hive task release`, and `hive sync projections`.
+- Maintainer work inside the repo can silently run through a stale globally installed `hive` binary. In this session `/Users/bryanyoung/.local/bin/hive` still reported `2.3.0` even though the checked-out repo and the released line were already at `2.4.0`, which makes dogfooding truth harder to reason about.
 
 ### Improvement ideas
 
@@ -37,6 +39,8 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Add task- or PR-scoped validation profiles plus simple flake memory/reporting, so maintainers can prove the changed surface quickly while still tracking broad-suite health separately.
 - Run `hive work` preflight before mutating task ownership, or automatically roll back the claim when run start fails.
 - Surface project run-readiness earlier in task recommendation flows so `hive next` does not hand back a task that `hive work` cannot actually start.
+- Add a first-class “landed via PR” or “close from merge” flow so maintainers can reconcile canonical task state with merged Git history without manual task-update/release/projection cleanup.
+- Detect when the repo checkout and the globally installed `hive` CLI disagree on version, and either warn loudly or offer a repo-local execution path so maintainers do not unknowingly dogfood the wrong build.
 
 ### What worked well
 

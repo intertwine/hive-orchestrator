@@ -20,10 +20,10 @@ relevant_files:
 - docs
 - frontend/console/scripts/captureDemoAssets.mjs
 source: {}
-status: ready
+status: done
 title: Refresh demo collateral, screenshots, and launch proof for the v2.5 Command
   Center
-updated_at: '2026-04-06T15:51:01.628653Z'
+updated_at: '2026-04-07T13:46:52.905008Z'
 ---
 
 ## Summary

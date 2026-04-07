@@ -46,8 +46,11 @@ Useful local commands:
 - `uv run hive sandbox doctor --json` reports truthful backend availability and configuration for `local-safe`, `local-fast`, E2B, and Daytona
 
 Keep [docs/V2_3_STATUS.md](./V2_3_STATUS.md) as the compact ledger for the shipped v2.3 line and its scope-lock notes.
-For the active v2.4 release candidate and implementation line, use [docs/V2_4_STATUS.md](./V2_4_STATUS.md) as the compact execution ledger and
-[docs/hive-v2.4-rfc/README.md](./hive-v2.4-rfc/README.md) as the bundled planning reference.
+Keep [docs/V2_4_STATUS.md](./V2_4_STATUS.md) as the compact shipped ledger for the v2.4 release line.
+For the active v2.5 draft release line, use [docs/V2_5_STATUS.md](./V2_5_STATUS.md) as the compact execution ledger and
+[docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md](./hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md) plus
+[docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md](./hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md)
+as the planning reference bundle.
 
 ## Install Paths While Developing
 

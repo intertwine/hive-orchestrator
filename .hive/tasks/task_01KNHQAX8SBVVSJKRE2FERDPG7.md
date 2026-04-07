@@ -17,9 +17,9 @@ relevant_files:
 - docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md
 - docs/hive-post-v2.4-rfcs/docs/POST_V2_4_ACCEPTANCE_MATRIX.md
 source: {}
-status: proposed
+status: done
 title: Deliver RFC 2.5 Command Center as a browser-first product release
-updated_at: '2026-04-06T15:42:15.322319Z'
+updated_at: '2026-04-07T13:47:00.876178Z'
 ---
 
 ## Summary

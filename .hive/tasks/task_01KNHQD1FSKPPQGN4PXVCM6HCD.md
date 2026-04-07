@@ -20,9 +20,9 @@ relevant_files:
 - docs/UI_INFORMATION_ARCHITECTURE.md
 - docs/OPERATOR_FLOWS.md
 source: {}
-status: proposed
+status: done
 title: 'M2: Operator workflows, review ergonomics, and adoption polish'
-updated_at: '2026-04-06T15:56:48.756679Z'
+updated_at: '2026-04-07T13:46:56.897274Z'
 ---
 
 ## Summary

@@ -32,15 +32,16 @@ Use this document for human context, links, architecture notes, and handoff deta
 | task_01KNHQP3P6SXH8MZB706YYVKQD | done | 1 |  | Add startup wizard, workspace chooser, help surfaces, and safe-first onboarding |
 | task_01KNHQBQ773EB9RJSX7AGK1EH0 | done | 1 |  | Bootstrap the v2.5 project, policy, and canonical task tree |
 | task_01KNHQEYG1721BBK9JS5EVZP03 | done | 1 | codex | Build the Clay-aligned command-center design system and token library |
-| task_01KNHQAX8SBVVSJKRE2FERDPG7 | proposed | 1 |  | Deliver RFC 2.5 Command Center as a browser-first product release |
+| task_01KNHQAX8SBVVSJKRE2FERDPG7 | done | 1 |  | Deliver RFC 2.5 Command Center as a browser-first product release |
 | task_01KNHQFZ1FE415P7TX42WRYKJD | done | 1 | codex | Implement the shared action registry, action execution APIs, and command palette |
 | task_01KNHQGDQN66GEZ5M3HDAS0WC0 | archived | 1 |  | Implement the shared action registry, action execution APIs, and command palette |
 | task_01KNHQK443Q889CY875N9QB70Z | archived | 1 |  | Implement the shared action registry, action execution APIs, and command palette |
 | task_01KNHQM9P6HGZ50D2GSMTA49RS | archived | 1 |  | Implement the shared action registry, action execution APIs, and command palette |
-| task_01KNHQCCFAB4KWR88RGJX2JJTF | proposed | 1 |  | M1: Design system and shell-ready frontend foundations |
-| task_01KNHQD1FSKPPQGN4PXVCM6HCD | proposed | 1 |  | M2: Operator workflows, review ergonomics, and adoption polish |
+| task_01KNHQCCFAB4KWR88RGJX2JJTF | done | 1 |  | M1: Design system and shell-ready frontend foundations |
+| task_01KNHQD1FSKPPQGN4PXVCM6HCD | done | 1 |  | M2: Operator workflows, review ergonomics, and adoption polish |
 | task_01KNHQKPDZVGABQCEVT9S0VR95 | done | 1 | codex | Overhaul inbox triage, bulk actions, snooze, and the notifications center |
 | task_01KNHQQD92MKY1163YSGFHG0WX | done | 1 |  | Pass accessibility and responsiveness hardening for the primary v2.5 surfaces |
+| task_01KNM307T8PVN66NVG7TAZHR84 | done | 1 | Codex | Publish the v2.5 release ledger and reconcile milestone truth |
 | task_01KNHQMEZWBXKK8CVJ5AJ48HNK | done | 1 | codex | Rebuild run detail with review rails, compare-runs, and explain surfaces |
 | task_01KNHQFPPS275AERJPMX8ERTZN | done | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
 | task_01KNHQFZ0JQ689T9HWY0PGC28M | archived | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
@@ -51,8 +52,8 @@ Use this document for human context, links, architecture notes, and handoff deta
 | task_01KNHQPJM4RKGESMF9YV2H3RM6 | done | 2 | codex | Add settings, activity, and keyboard-shortcut help surfaces |
 | task_01KNHQRCC2ED8B89SGNJ6C6GCX | done | 2 |  | Bootstrap the Tauri 2 desktop shell beta around the shared command-center frontend |
 | task_01KNHQT4PK1BMNDQK8Z4BS9DBG | done | 2 |  | Document desktop packaging, permissions, update path, and operator expectations |
-| task_01KNHQE7RS8JDFC221XF3N5QGV | proposed | 2 |  | M3: Tauri desktop beta and launch polish |
-| task_01KNHQTZ7WVABJPAWSCY2RD1X5 | ready | 2 |  | Refresh demo collateral, screenshots, and launch proof for the v2.5 Command Center |
+| task_01KNHQE7RS8JDFC221XF3N5QGV | done | 2 |  | M3: Tauri desktop beta and launch polish |
+| task_01KNHQTZ7WVABJPAWSCY2RD1X5 | done | 2 |  | Refresh demo collateral, screenshots, and launch proof for the v2.5 Command Center |
 <!-- hive:end task-rollup -->
 
 <!-- hive:begin recent-runs -->
@@ -60,5 +61,5 @@ Use this document for human context, links, architecture notes, and handoff deta
 
 | Run | Status | Task |
 |---|---|---|
-| run_01KNKPYV4ZWAAN84TSWC1D3F86 | rejected | task_01KNHQT4PK1BMNDQK8Z4BS9DBG |
+| No runs | - | - |
 <!-- hive:end recent-runs -->

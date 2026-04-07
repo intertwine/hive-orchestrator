@@ -11,5 +11,6 @@ Prefer these files for current guidance:
 - `docs/ADOPT_EXISTING_REPO.md`
 - `docs/MAINTAINING.md`
 - `docs/RELEASING.md`
+- `docs/V2_5_STATUS.md`
 - `docs/V2_4_STATUS.md`
 - `docs/V2_3_STATUS.md`

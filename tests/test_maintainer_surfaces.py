@@ -77,6 +77,27 @@ def test_v24_status_doc_tracks_scope_and_next_blocker():
     assert "v2.5 command-center foundations slice" in status_doc
 
 
+def test_v25_status_doc_tracks_acceptance_and_next_blocker():
+    """The v2.5 ledger should summarize acceptance proof and the remaining release decision."""
+    status_doc = (REPO_ROOT / "docs" / "V2_5_STATUS.md").read_text(encoding="utf-8")
+
+    assert "# Hive v2.5 Status" in status_doc
+    assert "Status: draft release candidate" in status_doc
+    assert "## Scope Lock" in status_doc
+    assert "## Release Gate Ledger" in status_doc
+    assert "| Browser-first command-center shell and design system | Landed |" in status_doc
+    assert "| Shared action model and command palette | Landed |" in status_doc
+    assert "| Real-time freshness, inbox triage, and notifications | Landed |" in status_doc
+    assert "| Desktop beta shell and native affordances | Landed |" in status_doc
+    assert "version bump/tag/publish are intentionally pending" in status_doc
+    assert "the desktop shell is real and dogfoodable, but it is intentionally still described as beta" in status_doc
+    assert "## Release History" in status_doc
+    assert "Draft release candidate" in status_doc
+    assert "## Next Blocker" in status_doc
+    assert "No implementation blocker." in status_doc
+    assert "version-bump/tag/publish plan for v2.5" in status_doc
+
+
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():
     """The v2.3 acceptance doc should narrow remote sandbox expectations to shipped truth."""
     acceptance_doc = (
@@ -112,8 +133,11 @@ def test_release_docs_require_scope_locked_story_and_installed_search_proof():
     assert "Installed-package `hive search` is proven useful" in release_doc
     assert "make bump-version BUMP=minor" in release_doc
     assert "Update [docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md)" in release_doc
+    assert "[docs/V2_5_STATUS.md](/docs/V2_5_STATUS.md)" in release_doc
     assert "do not bump it again before tagging" in release_doc
-    assert "For the scoped v2.4 launch line" in release_doc
+    assert "For the shipped v2.4 launch line" in release_doc
+    assert "shipped v2.4 ecosystem-integration story" in release_doc
+    assert "For the active v2.5 draft release line" in release_doc
     assert 'hive search "runtime contract" --scope api --limit 5 --json' in release_doc
     assert (
         'hive search "sandbox doctor" --scope examples --limit 5 --json' in release_doc
@@ -130,15 +154,29 @@ def test_release_docs_require_scope_locked_story_and_installed_search_proof():
 
 
 def test_maintainer_docs_link_the_v24_ledger_and_bundle():
-    """Maintainer docs should point at the live v2.4 planning surfaces."""
+    """Maintainer docs should point at the live v2.5 ledger and keep v2.4 historical surfaces visible."""
     maintaining = (REPO_ROOT / "docs" / "MAINTAINING.md").read_text(encoding="utf-8")
     release_doc = (REPO_ROOT / "docs" / "RELEASING.md").read_text(encoding="utf-8")
 
     assert "[docs/V2_4_STATUS.md](./V2_4_STATUS.md)" in maintaining
-    assert "[docs/hive-v2.4-rfc/README.md](./hive-v2.4-rfc/README.md)" in maintaining
-    assert "[docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md)" in release_doc
+    assert "[docs/V2_5_STATUS.md](./V2_5_STATUS.md)" in maintaining
     assert (
-        "[docs/hive-v2.4-rfc/README.md](/docs/hive-v2.4-rfc/README.md)" in release_doc
+        "[docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md](./hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md)"
+        in maintaining
+    )
+    assert (
+        "[docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md](./hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md)"
+        in maintaining
+    )
+    assert "[docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md)" in release_doc
+    assert "[docs/V2_5_STATUS.md](/docs/V2_5_STATUS.md)" in release_doc
+    assert (
+        "[docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md](/docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md)"
+        in release_doc
+    )
+    assert (
+        "[docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md](/docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md)"
+        in release_doc
     )
 
 
@@ -184,6 +222,7 @@ def test_archive_and_rfc_docs_frame_historical_material_clearly():
 
     assert "# Archived Docs" in archive_readme
     assert "no longer part of the primary user or maintainer path" in archive_readme
+    assert "`docs/V2_5_STATUS.md`" in archive_readme
     assert "`docs/V2_4_STATUS.md`" in archive_readme
     assert "Archived note" in migration_note
     assert "Archived note" in onboarding_note
@@ -285,7 +324,8 @@ def test_repo_relies_on_managed_claude_review_instead_of_repo_local_workflow():
     )
     assert 'claude -p "/review <pr-number>"' in maintaining_doc
     assert "compact ledger for the shipped v2.3 line" in maintaining_doc
-    assert "active v2.4 release candidate and implementation line" in maintaining_doc
+    assert "compact shipped ledger for the v2.4 release line" in maintaining_doc
+    assert "active v2.5 draft release line" in maintaining_doc
     assert (
         "/Users/bryanyoung/experiments/hive-orchestrator/.github/workflows/branch-hygiene.yml"
         not in maintaining_doc
@@ -310,6 +350,9 @@ def test_agent_entrypoints_remind_fresh_worktrees_to_install_dev_extras():
     assert "docs/V2_4_STATUS.md" in agents_doc
     assert "docs/V2_4_STATUS.md" in claude_doc
     assert "docs/V2_4_STATUS.md" in skill_doc
+    assert "docs/V2_5_STATUS.md" in agents_doc
+    assert "docs/V2_5_STATUS.md" in claude_doc
+    assert "docs/V2_5_STATUS.md" in skill_doc
 
 
 def test_scheduled_uv_installers_use_setup_action():

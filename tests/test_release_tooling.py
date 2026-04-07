@@ -261,8 +261,27 @@ def test_wheel_force_include_uses_repo_docs_as_the_only_markdown_source():
         == "src/hive/resources/docs/ADOPT_EXISTING_REPO.md"
     )
     assert force_include["docs/V2_4_STATUS.md"] == "src/hive/resources/docs/V2_4_STATUS.md"
+    assert force_include["docs/V2_5_STATUS.md"] == "src/hive/resources/docs/V2_5_STATUS.md"
     assert force_include["docs/hive-v2.4-rfc"] == "src/hive/resources/docs/hive-v2.4-rfc"
+    assert (
+        force_include["docs/hive-post-v2.4-rfcs"]
+        == "src/hive/resources/docs/hive-post-v2.4-rfcs"
+    )
     assert mirror_files == []
+
+
+def test_packaged_search_indexes_v25_status_and_planning_docs():
+    """Installed API search should expose the active v2.5 ledger and planning corpus."""
+    search_source = (Path(__file__).resolve().parents[1] / "src" / "hive" / "search.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"docs/V2_5_STATUS.md"' in search_source
+    assert '"docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md"' in search_source
+    assert (
+        '"docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md"'
+        in search_source
+    )
 
 
 def test_opencode_mcp_command_requests_optional_extra():

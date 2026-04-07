@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useParams } from "react-router-dom";
 
 import { createConsoleClient } from "../api/client";
+import { ConsoleLink } from "../components/ConsoleLink";
 import { Panel } from "../components/Panel";
 import { StatusPill } from "../components/StatusPill";
 import { useConsoleConfig } from "../components/ConsoleLayout";
@@ -9,13 +10,13 @@ import { useConsoleQuery } from "../hooks/useConsoleQuery";
 export function ProjectsPage() {
   const { apiBase, workspacePath } = useConsoleConfig();
   const client = createConsoleClient(apiBase, workspacePath);
-  const [selectedProject, setSelectedProject] = useState<string>("");
+  const { projectRef = "" } = useParams();
   const { data, loading, error } = useConsoleQuery(
     `projects:${apiBase}:${workspacePath}`,
     () => client.getProjects(),
   );
   const projects = Array.isArray(data?.projects) ? data.projects : [];
-  const activeProject = selectedProject || String((projects[0] as Record<string, unknown> | undefined)?.id ?? "");
+  const activeProject = projectRef || String((projects[0] as Record<string, unknown> | undefined)?.id ?? "");
   const doctor = useConsoleQuery(
     `doctor:${apiBase}:${workspacePath}:${activeProject}`,
     () =>
@@ -43,11 +44,10 @@ export function ProjectsPage() {
             const project = item as Record<string, unknown>;
             const projectId = String(project.id ?? "");
             return (
-              <button
+              <ConsoleLink
                 className={`list-card list-card--button${activeProject === projectId ? " list-card--selected" : ""}`}
                 key={projectId}
-                type="button"
-                onClick={() => setSelectedProject(projectId)}
+                to={`/projects/${projectId}`}
               >
                 <div className="list-card__header">
                   <h3>{String(project.title ?? projectId)}</h3>
@@ -59,7 +59,7 @@ export function ProjectsPage() {
                   {projectId} • Priority {String(project.priority ?? "—")} • Owner{" "}
                   {String(project.owner ?? "—")}
                 </p>
-              </button>
+              </ConsoleLink>
             );
           })}
         </div>

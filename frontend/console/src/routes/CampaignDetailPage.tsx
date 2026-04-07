@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 import { createConsoleClient } from "../api/client";
+import { ConsoleLink } from "../components/ConsoleLink";
 import { KeyValueGrid } from "../components/KeyValueGrid";
 import { Panel } from "../components/Panel";
 import { RunCard } from "../components/RunCard";
@@ -173,7 +174,7 @@ export function CampaignDetailPage() {
             <pre className="inline-json">{jsonPreview(latestDecision)}</pre>
           </article>
           <p className="list-card__meta">
-            <Link to="/campaigns">Back to campaigns</Link>
+            <ConsoleLink to="/campaigns">Back to campaigns</ConsoleLink>
           </p>
         </div>
       </Panel>

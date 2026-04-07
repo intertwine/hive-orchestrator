@@ -1,34 +1,45 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConsoleLayout } from "../components/ConsoleLayout";
 import { CONSOLE_PREFERENCES_KEY } from "../preferences";
 
-describe("ConsoleLayout query-param behavior", () => {
-  const originalUrl = window.location.href;
+function DeepLinkOverrideButton() {
+  const navigate = useNavigate();
 
+  return (
+    <button
+      onClick={() =>
+        navigate("/settings?apiBase=http://127.0.0.1:7777&workspace=/tmp/external-workspace")
+      }
+      type="button"
+    >
+      Open external deep link
+    </button>
+  );
+}
+
+describe("ConsoleLayout query-param behavior", () => {
   beforeEach(() => {
     window.localStorage.clear();
   });
 
   afterEach(() => {
-    window.history.replaceState({}, "", originalUrl);
     vi.useRealTimers();
   });
 
   it("uses deep-link config without overwriting saved console defaults until the user changes them", async () => {
     window.localStorage.setItem("hive-console-api-base", "http://127.0.0.1:9999");
     window.localStorage.setItem("hive-console-workspace", "/tmp/persisted-workspace");
-    window.history.replaceState(
-      {},
-      "",
-      "/console?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
-    );
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        initialEntries={[
+          "/settings?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+        ]}
+      >
         <ConsoleLayout>
           <div>child</div>
         </ConsoleLayout>
@@ -67,7 +78,7 @@ describe("ConsoleLayout query-param behavior", () => {
     vi.useFakeTimers();
 
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/settings"]}>
         <ConsoleLayout>
           <div>child</div>
         </ConsoleLayout>
@@ -87,7 +98,7 @@ describe("ConsoleLayout query-param behavior", () => {
 
   it("syncs operator preferences when another tab updates the same storage key", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/settings"]}>
         <ConsoleLayout>
           <div>child</div>
         </ConsoleLayout>
@@ -125,6 +136,66 @@ describe("ConsoleLayout query-param behavior", () => {
       expect(document.querySelector(".console-shell")).toHaveAttribute("data-theme", "ledger");
       expect(document.querySelector(".console-shell")).toHaveAttribute("data-density", "compact");
       expect(screen.getByLabelText("Default page")).toHaveValue("runs");
+    });
+  });
+
+  it("preserves explicit deep-link config across shell navigation links", () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/settings?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+        ]}
+      >
+        <ConsoleLayout>
+          <div>child</div>
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "Runs" })).toHaveAttribute(
+      "href",
+      expect.stringContaining(
+        "/runs?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+      ),
+    );
+    expect(screen.getByRole("link", { name: "Notifications" })).toHaveAttribute(
+      "href",
+      expect.stringContaining(
+        "/notifications?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+      ),
+    );
+    expect(screen.getByRole("link", { name: "Integrations" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Activity" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("lets a fresh explicit deep link retake control after local config edits", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/settings?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+        ]}
+      >
+        <ConsoleLayout>
+          <DeepLinkOverrideButton />
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    const user = userEvent.setup();
+    await user.clear(screen.getByLabelText("API base"));
+    await user.type(screen.getByLabelText("API base"), "http://127.0.0.1:9998");
+    await user.clear(screen.getByLabelText("Workspace path"));
+    await user.type(screen.getByLabelText("Workspace path"), "/tmp/operator-workspace");
+
+    expect(screen.getByDisplayValue("http://127.0.0.1:9998")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("/tmp/operator-workspace")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open external deep link" }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("http://127.0.0.1:7777")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("/tmp/external-workspace")).toBeInTheDocument();
     });
   });
 });

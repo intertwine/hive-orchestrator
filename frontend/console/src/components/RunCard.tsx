@@ -1,5 +1,4 @@
-import { Link } from "react-router-dom";
-
+import { ConsoleLink } from "./ConsoleLink";
 import { StatusPill } from "./StatusPill";
 
 export function RunCard({ run }: { run: Record<string, unknown> }) {
@@ -12,7 +11,7 @@ export function RunCard({ run }: { run: Record<string, unknown> }) {
         <span>{String(run.driver ?? "local")}</span>
       </div>
       <h3>
-        <Link to={`/runs/${String(run.id)}`}>{String(run.id)}</Link>
+        <ConsoleLink to={`/runs/${String(run.id)}`}>{String(run.id)}</ConsoleLink>
       </h3>
       <p className="run-card__title">{String(metadata.task_title ?? run.task_id ?? "Untitled run")}</p>
       <dl className="run-card__facts">

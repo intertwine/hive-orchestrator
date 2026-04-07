@@ -25,7 +25,7 @@ Use this document for human context, links, architecture notes, and handoff deta
 
 | ID | Status | Priority | Owner | Title |
 |---|---|---:|---|---|
-| task_01KNHQFZ3JMPSZ0QKYSP0HT99F | claimed | 1 | codex | Add preferences, saved views, and operator-local state persistence |
+| task_01KNHQFZ3JMPSZ0QKYSP0HT99F | done | 1 |  | Add preferences, saved views, and operator-local state persistence |
 | task_01KNHQGWQKZXDNEWHWVZ6QS89H | archived | 1 |  | Add preferences, saved views, and operator-local state persistence |
 | task_01KNHQFZ4GMPSP19APVZZYB1N5 | ready | 1 |  | Add real-time event, notification, and freshness primitives for the browser console |
 | task_01KNHQHTYKXVTJXR7SGZGWMNJ9 | archived | 1 |  | Add real-time event, notification, and freshness primitives for the browser console |
@@ -42,7 +42,7 @@ Use this document for human context, links, architecture notes, and handoff deta
 | task_01KNHQKPDZVGABQCEVT9S0VR95 | ready | 1 |  | Overhaul inbox triage, bulk actions, snooze, and the notifications center |
 | task_01KNHQQD92MKY1163YSGFHG0WX | ready | 1 |  | Pass accessibility and responsiveness hardening for the primary v2.5 surfaces |
 | task_01KNHQMEZWBXKK8CVJ5AJ48HNK | ready | 1 |  | Rebuild run detail with review rails, compare-runs, and explain surfaces |
-| task_01KNHQFPPS275AERJPMX8ERTZN | ready | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
+| task_01KNHQFPPS275AERJPMX8ERTZN | claimed | 1 | codex | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
 | task_01KNHQFZ0JQ689T9HWY0PGC28M | archived | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
 | task_01KNHQHEEM0QEC8YK2KH63H58W | archived | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
 | task_01KNHQJX5VKQE4DGZK4KPHBY4C | ready | 1 |  | Strengthen the console validation harness with component, E2E, and accessibility gates |

@@ -1,6 +1,5 @@
-import { Link } from "react-router-dom";
-
 import { createConsoleClient } from "../api/client";
+import { ConsoleLink } from "../components/ConsoleLink";
 import { Panel } from "../components/Panel";
 import { StatusPill } from "../components/StatusPill";
 import { useConsoleConfig } from "../components/ConsoleLayout";
@@ -27,9 +26,9 @@ export function CampaignsPage() {
               <article className="list-card" key={String(campaign.id)}>
                 <div className="list-card__header">
                   <h3>
-                    <Link to={`/campaigns/${String(campaign.id)}`}>
+                    <ConsoleLink to={`/campaigns/${String(campaign.id)}`}>
                       {String(campaign.title ?? campaign.id ?? "Campaign")}
-                    </Link>
+                    </ConsoleLink>
                   </h3>
                   <StatusPill tone={String(campaign.status ?? "healthy")}>
                     {String(campaign.status ?? "unknown")}

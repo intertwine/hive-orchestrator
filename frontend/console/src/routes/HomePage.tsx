@@ -1,6 +1,5 @@
-import { Link } from "react-router-dom";
-
 import { createConsoleClient } from "../api/client";
+import { ConsoleLink } from "../components/ConsoleLink";
 import { KeyValueGrid } from "../components/KeyValueGrid";
 import { Panel } from "../components/Panel";
 import { RunCard } from "../components/RunCard";
@@ -72,10 +71,10 @@ hive finish <run-id>`}</pre>
           ) : null}
 
           <p className="hero-card__subtle">
-            Explore the <Link to="/projects" className="getting-started__link">Projects</Link> page
+            Explore the <ConsoleLink to="/projects" className="getting-started__link">Projects</ConsoleLink> page
             to see your tasks and governance policy, or check the{" "}
-            <Link to="/inbox" className="getting-started__link">Inbox</Link> for items
-            that need your attention.
+            <ConsoleLink to="/inbox" className="getting-started__link">Inbox</ConsoleLink> for
+            items that need your attention.
           </p>
         </div>
       </Panel>
@@ -222,9 +221,9 @@ export function HomePage() {
                 <article className="list-card" key={String(campaign.id)}>
                   <div className="list-card__header">
                     <h3>
-                      <Link to={`/campaigns/${String(campaign.id)}`}>
+                      <ConsoleLink to={`/campaigns/${String(campaign.id)}`}>
                         {String(campaign.title ?? campaign.id ?? "Campaign")}
-                      </Link>
+                      </ConsoleLink>
                     </h3>
                     <StatusPill tone={String(campaign.status ?? "healthy")}>
                       {String(campaign.status ?? "unknown")}

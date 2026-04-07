@@ -558,7 +558,7 @@ describe("Observe Console smoke", () => {
     renderConsole(["/inbox"]);
 
     await screen.findByRole("heading", { name: "Inbox" });
-    const approvalCard = screen.getByText("Approve deploy step").closest("article");
+    const approvalCard = (await screen.findByText("Approve deploy step")).closest("article");
     expect(approvalCard).not.toBeNull();
     expect(
       within(approvalCard as HTMLElement).getByRole("link", { name: "Open run" }),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from importlib.resources import files
 import json
 import os
@@ -12,9 +13,12 @@ from typing import Iterable
 
 import logging
 
+from src.hive.delegates import list_delegate_entries
 from src.hive.scheduler.query import dependency_summary, project_summary
+from src.hive.store.campaigns import list_campaigns
 from src.hive.store.cache import rebuild_cache
 from src.hive.store.layout import cache_dir
+from src.hive.store.projects import discover_projects
 from src.hive.retrieval_trace import classify_retrieval_intent, retrieval_explanation
 
 logger = logging.getLogger(__name__)
@@ -173,6 +177,33 @@ DOC_TYPE_BOOST = {
     "agency": 12,
     "global": 8,
 }
+SEARCH_SOURCE_LABELS = {
+    "task": "Tasks",
+    "run": "Runs",
+    "memory": "Memory",
+    "docs": "Docs",
+    "command": "Commands",
+    "recipe": "Recipes",
+    "project": "Projects",
+    "campaign": "Campaigns",
+    "delegate": "Delegates",
+}
+SOURCE_FILTER_KINDS = {
+    "task": {"task"},
+    "run": {"run_summary"},
+    "memory": {"memory"},
+    "docs": {"workspace_doc", "program", "agency", "global", "api", "schema"},
+    "command": {"command"},
+    "recipe": {"example"},
+    "project": {"project"},
+    "campaign": {"campaign"},
+    "delegate": {"delegate"},
+}
+TIME_WINDOW_DELTAS = {
+    "24h": timedelta(hours=24),
+    "7d": timedelta(days=7),
+    "30d": timedelta(days=30),
+}
 
 # Keep a stable view of the checkout root for tests that monkeypatch `_repo_root()`
 # to simulate installed-package behavior without a source docs tree.
@@ -181,6 +212,85 @@ _CHECKOUT_ROOT = Path(__file__).resolve().parents[2]
 
 def _repo_root() -> Path:
     return _CHECKOUT_ROOT
+
+
+def _iso_from_ns(updated_at_ns: int | float | None) -> str:
+    if not updated_at_ns:
+        return ""
+    try:
+        return (
+            datetime.fromtimestamp(float(updated_at_ns) / 1_000_000_000, tz=UTC)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+    except (OverflowError, OSError, TypeError, ValueError):
+        return ""
+
+
+def _project_title_map(root: Path) -> dict[str, str]:
+    return {project.id: project.title for project in discover_projects(root)}
+
+
+def _search_source(kind: str) -> str:
+    if kind in {"task", "run_summary", "memory", "project", "command", "campaign", "delegate"}:
+        return {
+            "task": "task",
+            "run_summary": "run",
+            "memory": "memory",
+            "project": "project",
+            "command": "command",
+            "campaign": "campaign",
+            "delegate": "delegate",
+        }[kind]
+    if kind == "example":
+        return "recipe"
+    return "docs"
+
+
+def _search_open_label(kind: str) -> str | None:
+    if kind == "task":
+        return "Open project context"
+    if kind == "run_summary":
+        return "Open run"
+    if kind in {"program", "agency", "project"}:
+        return "Open project"
+    if kind == "campaign":
+        return "Open campaign"
+    if kind == "delegate":
+        return "Open session"
+    return None
+
+
+def _search_deep_link(kind: str, metadata: dict[str, object]) -> str | None:
+    if kind == "run_summary" and metadata.get("run_id"):
+        return f"/runs/{metadata['run_id']}"
+    if kind == "delegate" and metadata.get("delegate_session_id"):
+        return f"/runs/{metadata['delegate_session_id']}"
+    if kind == "campaign" and metadata.get("campaign_id"):
+        return f"/campaigns/{metadata['campaign_id']}"
+    if metadata.get("project_id"):
+        return f"/projects/{metadata['project_id']}"
+    return None
+
+
+def _normalize_harness(value: object) -> str:
+    return str(value or "").strip()
+
+
+def _within_time_window(occurred_at: str, time_window: str | None, now: datetime) -> bool:
+    if not time_window:
+        return True
+    delta = TIME_WINDOW_DELTAS.get(time_window)
+    if delta is None:
+        return True
+    if not occurred_at:
+        return False
+    try:
+        observed = datetime.fromisoformat(occurred_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return observed >= (now - delta)
 
 
 def _packaged_docs_root():
@@ -362,6 +472,7 @@ def _cache_result(
     fts_rank: float,
     query: str,
     intent: str,
+    updated_at_ns: int | float | None = None,
     dense_distance: float | None = None,
 ) -> dict[str, object]:
     terms = _query_terms(query)
@@ -421,6 +532,9 @@ def _cache_result(
         result["scope"] = scope
     if dense_distance is not None:
         result["dense_match"] = True
+    occurred_at = _iso_from_ns(updated_at_ns)
+    if occurred_at:
+        result["occurred_at"] = occurred_at
     return result
 
 
@@ -504,6 +618,7 @@ def search_cache_documents(
                   d.title,
                   d.body,
                   d.metadata_json,
+                  d.updated_at,
                   bm25(search_docs_fts, 2.0, 1.0) AS fts_rank
                 FROM search_docs_fts
                 JOIN search_docs d ON d.rowid = search_docs_fts.rowid
@@ -520,7 +635,7 @@ def search_cache_documents(
         deduped: list[dict[str, object]] = []
         seen_keys: set[str] = set()
         seen_ids: set[str] = set()
-        for doc_type, path, title, body, metadata_json, fts_rank in rows:
+        for doc_type, path, title, body, metadata_json, updated_at, fts_rank in rows:
             metadata = json.loads(metadata_json or "{}")
             if not _matches_project_filter(metadata, project_id):
                 continue
@@ -542,6 +657,7 @@ def search_cache_documents(
                     fts_rank=float(fts_rank),
                     query=query,
                     intent=intent,
+                    updated_at_ns=updated_at,
                     dense_distance=dense_hits.get(doc_id),
                 )
             )
@@ -583,6 +699,7 @@ def search_cache_documents(
                     fts_rank=0.0,
                     query=query,
                     intent=intent,
+                    updated_at_ns=None,
                     dense_distance=distance,
                 )
             )
@@ -808,6 +925,105 @@ def _search_project_summary(
     ]
 
 
+def _search_campaign_records(
+    root: Path, query: str, limit: int
+) -> list[dict[str, object]]:
+    results: list[dict[str, object]] = []
+    for campaign in list_campaigns(root):
+        record = campaign.to_frontmatter()
+        record["notes_md"] = campaign.notes_md
+        record["path"] = str(campaign.path) if campaign.path else ""
+        body = json.dumps(record, indent=2, sort_keys=True)
+        score = _score(body, query)
+        if not score:
+            continue
+        title = str(record.get("title") or record.get("id") or "Campaign")
+        reasons = ["matched campaign plan"]
+        title_hits = [term for term in _query_terms(query) if term in title.casefold()]
+        if title_hits:
+            reasons.append("matched title terms: " + ", ".join(title_hits))
+        results.append(
+            {
+                "kind": "campaign",
+                "title": title,
+                "path": f"campaign:{record.get('id')}",
+                "score": score,
+                "summary": str(record.get("goal") or "Campaign configuration matched the query."),
+                "snippet": _snippet(body, query),
+                "why": reasons,
+                "matches": reasons,
+                "explanation": "; ".join(reasons),
+                "metadata": {
+                    "entity_key": f"campaign:{record.get('id')}",
+                    "campaign_id": record.get("id"),
+                    "project_id": (record.get("project_ids") or [None])[0],
+                    "status": record.get("status"),
+                    "driver": record.get("driver"),
+                    "cadence": record.get("cadence"),
+                },
+                "occurred_at": str(record.get("updated_at") or record.get("created_at") or ""),
+            }
+        )
+    return sorted(results, key=lambda item: (-float(item["score"]), str(item["title"])))[:limit]
+
+
+def _search_delegate_records(root: Path, query: str, limit: int) -> list[dict[str, object]]:
+    results: list[dict[str, object]] = []
+    for entry in list_delegate_entries(root):
+        metadata_json = (
+            entry.get("metadata_json") if isinstance(entry.get("metadata_json"), dict) else {}
+        )
+        body = json.dumps(
+            {
+                "entry": entry,
+                "metadata_json": metadata_json,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        score = _score(body, query)
+        if not score:
+            continue
+        title = str(
+            metadata_json.get("task_title")
+            or entry.get("delegate_session_id")
+            or entry.get("id")
+            or "Delegate session"
+        )
+        reasons = ["matched delegate session record"]
+        title_hits = [term for term in _query_terms(query) if term in title.casefold()]
+        if title_hits:
+            reasons.append("matched title terms: " + ", ".join(title_hits))
+        delegate_session_id = str(entry.get("delegate_session_id") or entry.get("id") or "")
+        results.append(
+            {
+                "kind": "delegate",
+                "title": title,
+                "path": str(entry.get("manifest_path") or delegate_session_id),
+                "score": score,
+                "summary": (
+                    f"{entry.get('driver', 'delegate')} session "
+                    f"{entry.get('driver_handle') or delegate_session_id}"
+                ),
+                "snippet": _snippet(body, query),
+                "why": reasons,
+                "matches": reasons,
+                "explanation": "; ".join(reasons),
+                "metadata": {
+                    "entity_key": f"delegate:{delegate_session_id}",
+                    "delegate_session_id": delegate_session_id,
+                    "project_id": entry.get("project_id"),
+                    "task_id": entry.get("task_id"),
+                    "status": entry.get("status"),
+                    "driver": entry.get("driver"),
+                    "native_session_ref": entry.get("native_session_ref"),
+                },
+                "occurred_at": str(entry.get("finished_at") or entry.get("started_at") or ""),
+            }
+        )
+    return sorted(results, key=lambda item: (-float(item["score"]), str(item["title"])))[:limit]
+
+
 # pylint: disable-next=too-many-arguments
 def search_workspace(
     path: str | Path | None,
@@ -850,6 +1066,145 @@ def search_workspace(
     return _ensure_scope_diversity(deduped, normalized_scopes, limit)
 
 
+def _console_result_metadata(
+    root: Path, item: dict[str, object], project_titles: dict[str, str]
+) -> dict[str, object]:
+    metadata = dict(item.get("metadata") or {})
+    kind = str(item.get("kind") or "")
+
+    if kind == "run_summary" and metadata.get("run_id"):
+        try:
+            from src.hive.runs.engine import refresh_run_driver_state
+
+            run = refresh_run_driver_state(root, str(metadata["run_id"]))
+            metadata.setdefault("driver", run.get("driver"))
+            metadata.setdefault("status", run.get("status"))
+            metadata.setdefault("health", run.get("health"))
+            metadata.setdefault("project_id", run.get("project_id"))
+            metadata.setdefault("task_id", run.get("task_id"))
+            metadata.setdefault(
+                "occurred_at",
+                run.get("finished_at") or run.get("updated_at") or run.get("started_at"),
+            )
+        except FileNotFoundError:
+            pass
+
+    project_id = str(metadata.get("project_id") or "")
+    occurred_at = str(item.get("occurred_at") or metadata.get("occurred_at") or "")
+    source = _search_source(kind)
+    deep_link = _search_deep_link(kind, metadata)
+    open_label = _search_open_label(kind) if deep_link else None
+    harness = _normalize_harness(metadata.get("driver"))
+    summary = str(
+        item.get("summary")
+        or metadata.get("summary")
+        or item.get("snippet")
+        or "No preview available."
+    )
+
+    return {
+        "id": str(
+            metadata.get("entity_key")
+            or item.get("path")
+            or f"{kind}:{item.get('title') or 'result'}"
+        ),
+        "kind": kind,
+        "source": source,
+        "source_label": SEARCH_SOURCE_LABELS.get(source, source.title()),
+        "title": str(item.get("title") or item.get("path") or "Result"),
+        "summary": summary,
+        "snippet": str(item.get("snippet") or ""),
+        "preview": str(item.get("snippet") or summary),
+        "why": list(item.get("why") or []),
+        "matches": list(item.get("matches") or []),
+        "explanation": str(item.get("explanation") or ""),
+        "path": str(item.get("path") or ""),
+        "score": float(item.get("score") or 0.0),
+        "project_id": project_id,
+        "project_label": project_titles.get(project_id, project_id or "Workspace"),
+        "task_id": str(metadata.get("task_id") or (metadata.get("entity_id") if kind == "task" else "") or ""),
+        "run_id": str(metadata.get("run_id") or ""),
+        "campaign_id": str(metadata.get("campaign_id") or ""),
+        "delegate_session_id": str(metadata.get("delegate_session_id") or ""),
+        "harness": harness,
+        "status": str(metadata.get("status") or ""),
+        "occurred_at": occurred_at,
+        "deep_link": deep_link,
+        "open_label": open_label,
+        "dedupe_count": 1,
+        "dedupe_note": "",
+        "metadata": metadata,
+    }
+
+
+def _matches_source_filter(kind: str, source: str | None) -> bool:
+    if not source:
+        return True
+    return kind in SOURCE_FILTER_KINDS.get(source, set())
+
+
+def search_console_workspace(
+    path: str | Path | None,
+    query: str,
+    *,
+    scopes: Iterable[str] | None = None,
+    limit: int = 12,
+    project_id: str | None = None,
+    source: str | None = None,
+    harness: str | None = None,
+    time_window: str | None = None,
+) -> list[dict[str, object]]:
+    """Return command-center search results with filters, previews, and deep links."""
+    root = Path(path or Path.cwd()).resolve()
+    normalized_scopes = _normalized_scopes(scopes)
+    base_limit = max(limit * 4, 24)
+    project_titles = _project_title_map(root)
+    combined: list[dict[str, object]] = []
+    combined.extend(
+        search_cache_documents(
+            root,
+            query,
+            scopes=normalized_scopes,
+            limit=base_limit,
+            project_id=project_id,
+        )
+    )
+    combined.extend(_search_api_docs(query, normalized_scopes, base_limit))
+    combined.extend(_search_examples(query, normalized_scopes, base_limit))
+    combined.extend(_search_project_summary(root, query, normalized_scopes, base_limit))
+    combined.extend(_search_campaign_records(root, query, base_limit))
+    combined.extend(_search_delegate_records(root, query, base_limit))
+
+    ranked = sorted(
+        combined,
+        key=lambda result: (-float(result.get("score") or 0.0), str(result.get("title") or "")),
+    )
+    now = datetime.now(tz=UTC)
+    seen: dict[str, dict[str, object]] = {}
+    ordered: list[dict[str, object]] = []
+    requested_harness = _normalize_harness(harness)
+    for item in ranked:
+        console_item = _console_result_metadata(root, item, project_titles)
+        if project_id and str(console_item["project_id"]) not in {"", project_id}:
+            continue
+        if not _matches_source_filter(str(console_item["kind"]), source):
+            continue
+        if requested_harness and _normalize_harness(console_item.get("harness")) != requested_harness:
+            continue
+        if not _within_time_window(str(console_item["occurred_at"]), time_window, now):
+            continue
+        key = str(console_item["id"])
+        existing = seen.get(key)
+        if existing is not None:
+            existing["dedupe_count"] = int(existing.get("dedupe_count") or 1) + 1
+            dedupe_count = int(existing["dedupe_count"])
+            existing["dedupe_note"] = f"Collapsed {dedupe_count - 1} related projection(s)."
+            continue
+        seen[key] = console_item
+        ordered.append(console_item)
+    return ordered[:limit]
+
+
 # pylint: disable-next=too-many-arguments
 def search_workspace_corpus(
     path: str | Path | None,
@@ -871,5 +1226,9 @@ def search_workspace_corpus(
         task_id=task_id,
     )
 
-
-__all__ = ["search_cache_documents", "search_workspace", "search_workspace_corpus"]
+__all__ = [
+    "search_cache_documents",
+    "search_console_workspace",
+    "search_workspace",
+    "search_workspace_corpus",
+]

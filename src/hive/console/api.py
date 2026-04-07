@@ -31,7 +31,7 @@ from src.hive.context_bundle import build_context_bundle
 from src.hive.drivers import SteeringRequest
 from src.hive.program.doctor import doctor_program
 from src.hive.runtime.approvals import list_approvals
-from src.hive.search import search_workspace
+from src.hive.search import search_console_workspace
 from src.hive.store.campaigns import list_campaigns
 from src.hive.runs.engine import steer_run
 from src.hive.store.events import load_events
@@ -578,14 +578,27 @@ def search(
     query: str = Query(...),
     path: str | None = Query(default=None),
     scope: list[str] | None = Query(default=None),
-    limit: int = Query(default=8),
+    limit: int = Query(default=12),
+    project_id: str | None = Query(default=None),
+    source: str | None = Query(default=None),
+    harness: str | None = Query(default=None),
+    time_window: str | None = Query(default=None),
 ) -> dict:
     """Return unified search results for the console."""
     root = _workspace_root(path)
     sync_workspace(root)
     return {
         "ok": True,
-        "results": search_workspace(root, query, scopes=scope, limit=limit),
+        "results": search_console_workspace(
+            root,
+            query,
+            scopes=scope,
+            limit=limit,
+            project_id=project_id,
+            source=source,
+            harness=harness,
+            time_window=time_window,
+        ),
     }
 
 

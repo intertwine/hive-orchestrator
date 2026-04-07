@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 import importlib
 import json
 from pathlib import Path
@@ -32,7 +33,7 @@ from src.hive.projections.global_md import END as GLOBAL_END
 from src.hive.runs import accept_run, eval_run, start_run
 from src.hive.runs.engine import cleanup_run, escalate_run, promote_run, reject_run
 from src.hive.runs.metadata import load_run
-from src.hive.search import search_workspace
+from src.hive.search import search_console_workspace, search_workspace
 from src.hive.scheduler.query import project_summary, ready_tasks
 from src.hive.store.cache import _memory_scope_parts, rebuild_cache
 from src.hive.store.layout import ensure_layout, global_memory_dir, tasks_dir
@@ -3141,6 +3142,128 @@ class TestHiveV2Search:
             for item in v24_results
         )
         assert any(item["kind"] == "example" for item in example_results)
+
+    def test_search_console_workspace_returns_campaign_and_delegate_context(self, tmp_path):
+        """Console search should enrich campaign and delegate hits with provenance and deep links."""
+        workspace = tmp_path / "console-search"
+        hive_main(["--path", str(workspace), "--json", "onboard", "demo", "--title", "Demo"])
+        hive_main(
+            [
+                "--path",
+                str(workspace),
+                "--json",
+                "campaign",
+                "create",
+                "--title",
+                "Palette launch",
+                "--goal",
+                "Ship the palette refinement slice",
+                "--project-id",
+                "demo",
+            ]
+        )
+
+        delegate_dir = workspace / ".hive" / "delegates" / "del_palette"
+        delegate_dir.mkdir(parents=True, exist_ok=True)
+        (delegate_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "delegate_session_id": "del_palette",
+                    "adapter_name": "openclaw",
+                    "native_session_ref": "palette-review",
+                    "project_id": "demo",
+                    "task_id": "task_palette",
+                    "attached_at": "2026-04-07T05:30:00Z",
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (delegate_dir / "final.json").write_text(
+            json.dumps({"status": "attached"}, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        results = search_console_workspace(
+            workspace,
+            "palette",
+            scopes=["workspace", "project"],
+            limit=10,
+        )
+
+        campaign = next(item for item in results if item["kind"] == "campaign")
+        delegate = next(item for item in results if item["kind"] == "delegate")
+
+        assert campaign["source"] == "campaign"
+        assert campaign["source_label"] == "Campaigns"
+        assert str(campaign["deep_link"]).startswith("/campaigns/")
+        assert campaign["open_label"] == "Open campaign"
+        assert campaign["project_id"] == "demo"
+
+        assert delegate["source"] == "delegate"
+        assert delegate["source_label"] == "Delegates"
+        assert delegate["deep_link"] == "/runs/del_palette"
+        assert delegate["open_label"] == "Open session"
+        assert delegate["project_id"] == "demo"
+        assert delegate["task_id"] == "task_palette"
+        assert delegate["harness"] == "openclaw"
+        assert delegate["path"].endswith("manifest.json")
+
+    def test_search_console_workspace_applies_project_source_harness_and_time_filters(self, tmp_path):
+        """Console search filters should narrow enriched results without changing the query surface."""
+        workspace = tmp_path / "console-search-filters"
+        hive_main(["--path", str(workspace), "--json", "onboard", "demo", "--title", "Demo"])
+
+        delegate_root = workspace / ".hive" / "delegates"
+        recent_dir = delegate_root / "del_recent"
+        recent_dir.mkdir(parents=True, exist_ok=True)
+        old_dir = delegate_root / "del_old"
+        old_dir.mkdir(parents=True, exist_ok=True)
+        now = datetime.now(tz=UTC)
+        recent_attached_at = (now - timedelta(hours=2)).replace(microsecond=0).isoformat().replace(
+            "+00:00", "Z"
+        )
+        old_attached_at = (now - timedelta(days=40)).replace(microsecond=0).isoformat().replace(
+            "+00:00", "Z"
+        )
+        for session_dir, session_id, driver, attached_at in (
+            (recent_dir, "del_recent", "openclaw", recent_attached_at),
+            (old_dir, "del_old", "hermes", old_attached_at),
+        ):
+            (session_dir / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "delegate_session_id": session_id,
+                        "adapter_name": driver,
+                        "native_session_ref": "filter-lighthouse",
+                        "project_id": "demo",
+                        "task_id": "task_filter",
+                        "attached_at": attached_at,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (session_dir / "final.json").write_text(
+                json.dumps({"status": "attached"}, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+
+        filtered = search_console_workspace(
+            workspace,
+            "filter-lighthouse",
+            limit=10,
+            project_id="demo",
+            source="delegate",
+            harness="openclaw",
+            time_window="24h",
+        )
+
+        assert [item["delegate_session_id"] for item in filtered] == ["del_recent"]
 
 
 class TestHiveV2Execute:

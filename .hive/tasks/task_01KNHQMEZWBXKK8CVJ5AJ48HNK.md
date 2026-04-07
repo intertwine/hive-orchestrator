@@ -20,9 +20,9 @@ relevant_files:
 - src/hive/console/api.py
 - src/hive/console/state.py
 source: {}
-status: review
+status: done
 title: Rebuild run detail with review rails, compare-runs, and explain surfaces
-updated_at: '2026-04-07T06:08:04.761766Z'
+updated_at: '2026-04-07T06:15:24.847001Z'
 ---
 
 ## Summary
@@ -32,4 +32,4 @@ Make run detail the best inspection and decision surface in the product.
 - Imported or created by Hive 2.0.
 
 ## History
-2026-04-07T06:22:00Z draft PR #196 opened; local Claude review fallback addressed on d6883ae.
+2026-04-07T06:31:00Z merged via PR #196 (merge commit 48c18f2).

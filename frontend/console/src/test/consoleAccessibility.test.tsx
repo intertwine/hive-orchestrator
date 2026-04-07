@@ -233,9 +233,17 @@ const SEARCH_ROUTE: MockRoute = {
       {
         id: "result_program",
         title: "PROGRAM.md",
-        kind: "project-doc",
+        kind: "program",
+        source: "docs",
+        source_label: "Docs",
         summary: "Policy guidance for governed runs.",
+        preview: "The program defines evaluator and promotion policy.",
         why: ["matched title terms: program"],
+        project_id: "alpha",
+        project_label: "Alpha Project",
+        path: "projects/alpha/PROGRAM.md",
+        deep_link: "/projects/alpha",
+        open_label: "Open project",
       },
     ],
   }),
@@ -363,7 +371,7 @@ describe("Console accessibility smoke", () => {
     const { container } = renderConsole(["/search"]);
     const button = await screen.findByRole("button", { name: "Search" });
     button.click();
-    await screen.findByText("PROGRAM.md");
+    expect(await screen.findAllByText("PROGRAM.md")).toHaveLength(2);
     const results = await axe(container);
     expect(results.violations).toEqual([]);
   });

@@ -279,11 +279,32 @@ export function createConsoleClient(apiBase: string, workspacePath: string) {
       );
     },
 
-    search(query: string, scopes?: string[]) {
+    search(
+      query: string,
+      options?: {
+        scopes?: string[];
+        projectId?: string;
+        source?: string;
+        harness?: string;
+        timeWindow?: string;
+      },
+    ) {
       const url = withPath(new URL(`${root}/search`), workspacePath);
       url.searchParams.set("query", query);
-      for (const scope of scopes ?? []) {
+      for (const scope of options?.scopes ?? []) {
         url.searchParams.append("scope", scope);
+      }
+      if (options?.projectId) {
+        url.searchParams.set("project_id", options.projectId);
+      }
+      if (options?.source) {
+        url.searchParams.set("source", options.source);
+      }
+      if (options?.harness) {
+        url.searchParams.set("harness", options.harness);
+      }
+      if (options?.timeWindow) {
+        url.searchParams.set("time_window", options.timeWindow);
       }
       return fetchJson<ConsoleSearchPayload>(url);
     },

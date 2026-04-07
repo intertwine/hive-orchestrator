@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from src.hive.control import portfolio_status, recommend_next_task
+from src.hive.delegates import list_delegate_entries, load_delegate_entry
 from src.hive.drivers.registry import normalize_driver_name
 from src.hive.runtime.approvals import list_approvals
 from src.hive.runs.engine import refresh_run_driver_state
@@ -25,13 +26,6 @@ def _run_metadata_paths(base_path: Path) -> list[Path]:
     return sorted(runs_root.glob("run_*/metadata.json"))
 
 
-def _delegate_manifest_paths(base_path: Path) -> list[Path]:
-    delegates_root = base_path / ".hive" / "delegates"
-    if not delegates_root.exists():
-        return []
-    return sorted(delegates_root.glob("*/manifest.json"))
-
-
 def list_runs(
     base_path: Path,
     *,
@@ -45,7 +39,7 @@ def list_runs(
     for metadata_path in _run_metadata_paths(base_path):
         run = refresh_run_driver_state(base_path, metadata_path.parent.name)
         runs.append(run)
-    runs.extend(_delegate_entries(base_path))
+    runs.extend(list_delegate_entries(base_path))
     requested_driver = normalize_driver_name(driver)
     filtered: list[dict] = []
     for run in runs:
@@ -109,90 +103,6 @@ def _load_jsonl_records(path_value: str | Path | None) -> list[dict[str, Any]]:
         if isinstance(payload, dict):
             records.append(payload)
     return records
-
-
-def _delegate_status(manifest: dict[str, Any], final_state: dict[str, Any]) -> str:
-    return str(final_state.get("status") or manifest.get("status") or "attached")
-
-
-def _delegate_health(status: str) -> str:
-    if status in {"attached", "active"}:
-        return "healthy"
-    if status in {"failed", "blocked"}:
-        return status
-    return "idle"
-
-
-def _delegate_task_title(manifest: dict[str, Any]) -> str:
-    task_id = str(manifest.get("task_id") or "").strip()
-    if task_id:
-        return task_id
-    adapter_name = str(manifest.get("adapter_name") or "delegate")
-    native_session_ref = str(manifest.get("native_session_ref") or "").strip()
-    if native_session_ref:
-        return f"{adapter_name} session {native_session_ref}"
-    return f"{adapter_name} delegate session"
-
-
-def _delegate_sandbox_owner(manifest: dict[str, Any]) -> str:
-    metadata = dict(manifest.get("metadata") or {})
-    if metadata.get("sandbox_owner"):
-        return str(metadata["sandbox_owner"])
-    return str(manifest.get("adapter_name") or "external")
-
-
-def _delegate_entry(manifest_path: Path) -> dict[str, Any]:
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    session_dir = manifest_path.parent
-    final_state = _load_json(str(session_dir / "final.json")) or {}
-    delegate_session_id = str(
-        manifest.get("delegate_session_id") or manifest.get("session_id") or session_dir.name
-    )
-    status = _delegate_status(manifest, final_state)
-    sandbox_owner = _delegate_sandbox_owner(manifest)
-    return {
-        "id": delegate_session_id,
-        "entry_kind": "delegate_session",
-        "driver": str(manifest.get("adapter_name") or "delegate"),
-        "driver_handle": str(manifest.get("native_session_ref") or "") or None,
-        "project_id": manifest.get("project_id"),
-        "task_id": manifest.get("task_id"),
-        "campaign_id": None,
-        "status": status,
-        "health": _delegate_health(status),
-        "started_at": manifest.get("attached_at"),
-        "finished_at": final_state.get("detached_at") or final_state.get("completed_at"),
-        "metadata_json": {
-            "task_title": _delegate_task_title(manifest),
-            "entry_kind": "delegate_session",
-            "adapter_family": manifest.get("adapter_family"),
-            "native_session_ref": manifest.get("native_session_ref"),
-            "governance_mode": manifest.get("governance_mode"),
-            "integration_level": manifest.get("integration_level"),
-            "sandbox_owner": sandbox_owner,
-        },
-        "delegate_session_id": delegate_session_id,
-        "native_session_ref": manifest.get("native_session_ref"),
-        "adapter_family": manifest.get("adapter_family"),
-        "integration_level": manifest.get("integration_level"),
-        "governance_mode": manifest.get("governance_mode"),
-        "sandbox_owner": sandbox_owner,
-        "capability_snapshot_path": str(session_dir / "capability-snapshot.json"),
-        "trajectory_path": str(session_dir / "trajectory.jsonl"),
-        "steering_path": str(session_dir / "steering.ndjson"),
-        "final_path": str(session_dir / "final.json"),
-        "manifest_path": str(manifest_path),
-    }
-
-
-def _delegate_entries(
-    base_path: Path,
-) -> list[dict[str, Any]]:
-    entries: list[dict[str, Any]] = []
-    for manifest_path in _delegate_manifest_paths(base_path):
-        entry = _delegate_entry(manifest_path)
-        entries.append(entry)
-    return entries
 
 
 def _run_native_session_handle(run: dict[str, Any]) -> str | None:
@@ -272,9 +182,10 @@ def _load_delegate_detail(base_path: Path, delegate_session_id: str) -> dict[str
         event.to_dict()
         for event in load_trajectory(base_path, delegate_session_id=delegate_session_id)
     ]
-    sandbox_owner = _delegate_sandbox_owner(manifest)
+    run_entry = load_delegate_entry(manifest_path)
+    sandbox_owner = str(run_entry.get("sandbox_owner") or "")
     return {
-        "run": _delegate_entry(manifest_path),
+        "run": run_entry,
         "detail_kind": "delegate_session",
         "timeline": _delegate_timeline(base_path, delegate_session_id, steering_history),
         "context_manifest": {},
@@ -1193,7 +1104,7 @@ def build_home_view(base_path: Path) -> dict:
     deps = dependency_summary(base_path)
     inbox = build_inbox(base_path)
     active_runs = list(status["active_runs"]) + [
-        run for run in _delegate_entries(base_path) if run.get("status") == "attached"
+        run for run in list_delegate_entries(base_path) if run.get("status") == "attached"
     ]
     active_runs.sort(key=lambda item: item.get("started_at") or item["id"], reverse=True)
     accepted = [run for run in list_runs(base_path) if run.get("status") == "accepted"][

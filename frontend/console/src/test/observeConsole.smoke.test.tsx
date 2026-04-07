@@ -742,8 +742,8 @@ describe("Observe Console smoke", () => {
     renderConsole(["/inbox"]);
 
     await screen.findByRole("heading", { name: "Inbox" });
-    expect(screen.getByRole("heading", { name: "Critical · Approval" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "High · Failure" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Critical · Approval" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "High · Failure" })).toBeInTheDocument();
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Severity" }), "high");
     expect(screen.getByText("Blocked Gamma polish")).toBeInTheDocument();

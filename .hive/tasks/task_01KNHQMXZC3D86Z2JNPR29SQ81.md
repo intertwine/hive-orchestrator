@@ -20,10 +20,10 @@ relevant_files:
 - src/hive/console/api.py
 - src/hive/search.py
 source: {}
-status: claimed
+status: review
 title: Upgrade search to explainable unified provenance with previews and open-in-context
   flows
-updated_at: '2026-04-07T06:15:29.376872Z'
+updated_at: '2026-04-07T06:40:05.588523Z'
 ---
 
 ## Summary

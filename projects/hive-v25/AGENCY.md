@@ -46,7 +46,7 @@ Use this document for human context, links, architecture notes, and handoff deta
 | task_01KNHQFZ0JQ689T9HWY0PGC28M | archived | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
 | task_01KNHQHEEM0QEC8YK2KH63H58W | archived | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
 | task_01KNHQJX5VKQE4DGZK4KPHBY4C | claimed | 1 | codex | Strengthen the console validation harness with component, E2E, and accessibility gates |
-| task_01KNHQMXZC3D86Z2JNPR29SQ81 | claimed | 1 | codex | Upgrade search to explainable unified provenance with previews and open-in-context flows |
+| task_01KNHQMXZC3D86Z2JNPR29SQ81 | review | 1 | codex | Upgrade search to explainable unified provenance with previews and open-in-context flows |
 | task_01KNHQS6FZW0PECASBK1NW0HWA | ready | 2 |  | Add daemon lifecycle, tray, native notifications, and desktop deep-link handling |
 | task_01KNHQPJM4RKGESMF9YV2H3RM6 | ready | 2 |  | Add settings, activity, and keyboard-shortcut help surfaces |
 | task_01KNHQRCC2ED8B89SGNJ6C6GCX | ready | 2 |  | Bootstrap the Tauri 2 desktop shell beta around the shared command-center frontend |

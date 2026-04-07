@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { createConsoleClient } from "../api/client";
+import { useConsoleEventBus } from "../components/ConsoleEventBus";
 import { ConsoleLink } from "../components/ConsoleLink";
 import { Panel } from "../components/Panel";
 import { StatusPill } from "../components/StatusPill";
@@ -10,12 +11,12 @@ import { useConsoleQuery } from "../hooks/useConsoleQuery";
 export function InboxPage() {
   const { apiBase, workspacePath } = useConsoleConfig();
   const client = createConsoleClient(apiBase, workspacePath);
-  const [refreshNonce, setRefreshNonce] = useState(0);
+  const { requestRefresh } = useConsoleEventBus();
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const { data, loading, error } = useConsoleQuery(
-    `inbox:${apiBase}:${workspacePath}:${refreshNonce}`,
+    `inbox:${apiBase}:${workspacePath}`,
     () => client.getInbox(),
   );
   const items = Array.isArray(data?.items) ? data.items : [];
@@ -35,7 +36,7 @@ export function InboxPage() {
         await client.rejectRunApproval(runId, approvalId, { actor: "console-operator" });
       }
       setActionMessage(`${resolution === "approve" ? "Approved" : "Rejected"} ${approvalId}.`);
-      setRefreshNonce((value) => value + 1);
+      requestRefresh();
     } catch (caught) {
       setActionError(
         caught instanceof Error ? caught.message : `Unable to ${resolution} approval.`,

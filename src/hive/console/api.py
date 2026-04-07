@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 
+from src.hive.common import isoformat_z
 from src.hive import __version__
 from src.hive.console.state import (
     build_home_view,
@@ -192,6 +193,9 @@ def events_stream(
     def generate():
         last_marker: str | None = None
         while True:
+            # The current console is a localhost/operator surface, so a simple
+            # blocking generator is acceptable for now even though it ties up
+            # one worker thread per connected SSE client.
             events = load_events(root)
             if run_id:
                 events = [event for event in events if event.get("run_id") == run_id]
@@ -210,8 +214,19 @@ def events_stream(
                         "run_id": run_id,
                         "events": selected,
                         "count": len(events),
+                        "synced_at": isoformat_z(),
                     },
                 )
+            yield _encode_sse(
+                "heartbeat",
+                {
+                    "workspace": str(root),
+                    "run_id": run_id,
+                    "count": len(events),
+                    "last_event_id": selected[-1]["event_id"] if selected else None,
+                    "synced_at": isoformat_z(),
+                },
+            )
             if once:
                 break
             time.sleep(1.0)

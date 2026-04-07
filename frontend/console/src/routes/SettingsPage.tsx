@@ -35,6 +35,7 @@ export function SettingsPage() {
             <div className="stack stack--compact">
               {recentWorkspaces.map((candidate) => (
                 <button
+                  aria-current={candidate === workspacePath ? "true" : undefined}
                   className={`list-card list-card--button${candidate === workspacePath ? " list-card--selected" : ""}`}
                   key={candidate}
                   onClick={() => setWorkspacePath(candidate)}

@@ -18,6 +18,11 @@ function doctorStatus(payload: unknown): string {
   return String(doctor?.status ?? "unknown");
 }
 
+function doctorBlocksAutonomousPromotion(payload: unknown): boolean {
+  const doctor = (payload as { doctor?: Record<string, unknown> } | undefined)?.doctor;
+  return Boolean(doctor?.blocked_autonomous_promotion);
+}
+
 function doctorGuidance(payload: unknown) {
   const status = doctorStatus(payload);
   const issues = doctorIssues(payload);
@@ -35,7 +40,7 @@ function doctorGuidance(payload: unknown) {
     };
   }
 
-  if (codes.has("missing_required_evaluator") || status.includes("blocked")) {
+  if (codes.has("missing_required_evaluator") || doctorBlocksAutonomousPromotion(payload)) {
     return {
       title: "Program Doctor is blocking promotion",
       summary: "The project may be observable, but Hive is correctly warning that autonomous promotion is not yet safe.",
@@ -48,7 +53,7 @@ function doctorGuidance(payload: unknown) {
   }
 
   return {
-    title: "Doctor found issues to resolve",
+    title: status === "fail" ? "Doctor found blocking issues to resolve" : "Doctor found issues to resolve",
     summary: "Treat these findings as policy or setup work, not as a reason to force the run engine forward.",
     steps: [
       "Read each issue code and message carefully.",

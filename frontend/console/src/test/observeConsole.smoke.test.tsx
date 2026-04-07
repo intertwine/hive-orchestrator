@@ -214,6 +214,8 @@ describe("Observe Console smoke", () => {
     await screen.findByRole("heading", { name: "Home" });
     expect(screen.getByText("Investigate inbox routing")).toBeInTheDocument();
     expect(screen.getByText("/tmp/hive-demo")).toBeInTheDocument();
+    expect(screen.queryByText("Inspect first. Mutate later.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Choose the shortest honest path")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("link", { name: "Runs" }));
 
@@ -415,6 +417,7 @@ describe("Observe Console smoke", () => {
     await user.click(screen.getByRole("link", { name: "Settings" }));
     await screen.findByRole("heading", { name: "Recent Workspaces" });
     await user.click(screen.getByRole("button", { name: /\/tmp\/release-demo/i }));
+    expect(screen.getByRole("button", { name: /\/tmp\/release-demo/i })).toHaveAttribute("aria-current", "true");
     expect(screen.getAllByDisplayValue("/tmp/release-demo")).toHaveLength(2);
     expect(screen.getByText("What to open first")).toBeInTheDocument();
 

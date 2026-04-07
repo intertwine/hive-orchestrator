@@ -9,8 +9,10 @@ import { useConsoleQuery } from "../hooks/useConsoleQuery";
 
 function RecommendedTaskCard({
   recommended,
+  mode = "active",
 }: {
   recommended: { task?: Record<string, unknown>; reasons?: string[] } | null;
+  mode?: "active" | "getting-started";
 }) {
   return (
     <div className="hero-card">
@@ -31,8 +33,9 @@ function RecommendedTaskCard({
         <>
           <h3>No recommendation yet</h3>
           <p className="hero-card__subtle">
-            Start in Projects to read Program Doctor, then return here once Hive has enough
-            context to rank the next safe action.
+            {mode === "getting-started"
+              ? "Start in Projects to read Program Doctor, then return here once Hive has enough context to rank the next safe action."
+              : "No recommendation is available right now. Check Inbox, Runs, or Projects for work that still needs operator attention."}
           </p>
         </>
       )}
@@ -191,7 +194,7 @@ hive work --owner <your-name>
 hive finish <run-id>`}</pre>
           </div>
 
-          <RecommendedTaskCard recommended={recommended} />
+          <RecommendedTaskCard recommended={recommended} mode="getting-started" />
 
           <p className="hero-card__subtle">
             Explore the{" "}
@@ -255,10 +258,7 @@ export function HomePage() {
             />
 
             <div className="card-grid">
-              <SafeFirstChecklist workspacePath={workspacePath} />
-              <BuiltInHelpCard />
               <RecommendedTaskCard recommended={recommended} />
-              <ChooseYourPathCard />
             </div>
           </div>
         ) : null}

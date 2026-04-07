@@ -1205,7 +1205,7 @@ describe("Observe Console smoke", () => {
     renderConsole([`/runs/${runId}`]);
 
     await screen.findByRole("heading", { name: runId });
-    const runBriefTab = screen.getByRole("tab", { name: "Run brief" });
+    const runBriefTab = await screen.findByRole("tab", { name: "Run brief" });
     runBriefTab.focus();
     fireEvent.keyDown(runBriefTab, { key: "ArrowRight" });
     await waitFor(() => {

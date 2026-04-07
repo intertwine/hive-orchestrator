@@ -82,3 +82,16 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Make focused test entry points override script-level excludes when a maintainer explicitly names a test file, or fail loudly instead of silently skipping the requested file.
 - Move fake Codex harness temp directories outside the repo checkout, or guarantee fixture teardown so focused validation does not create review noise under `tests/`.
 - Add changed-surface-aware CI summaries or flaky-test breadcrumbs for `main` push failures, so maintainers can tell faster whether a red post-merge run is plausibly caused by the latest commit or by an existing latent test race.
+
+## 2026-04-07
+
+### Current blockers and friction
+
+- `uv run hive work <task-id> --owner Codex --json` finally succeeded cleanly end to end on `hive-v25`, which is a real improvement over the earlier program-policy failures, but the next bootstrap steps still feel too manual in a fresh run worktree.
+- Fresh Hive worktrees still require maintainers to remember `uv sync --extra dev` before `make check`; otherwise the first repo-wide gate fails immediately on missing tools like `pylint`, even when the task itself is unrelated to Python packaging.
+- Fresh frontend worktrees also need an explicit `pnpm install` before desktop-shell helper flows work. In this slice, an initial `pnpm tauri add ...` failed with `Volta error: Could not locate executable tauri in your project.` until dependencies were installed manually.
+
+### Improvement ideas
+
+- Teach `hive work` or `hive context startup` to emit a small post-claim bootstrap checklist keyed to the project surface, for example reminding maintainers when a fresh worktree still needs `uv sync --extra dev` or frontend dependency install steps.
+- Add a first-class workspace bootstrap command for mixed Python plus frontend projects so a new Hive run worktree can become validation-ready in one intentional step instead of through remembered tribal knowledge.

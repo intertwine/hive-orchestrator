@@ -1,4 +1,4 @@
-"""Checks for the current release demo collateral and walkthrough assets."""
+"""Checks for the current command-center launch collateral and walkthrough assets."""
 
 from __future__ import annotations
 
@@ -16,15 +16,17 @@ def test_demo_walkthrough_exists_and_points_to_real_commands():
     """The launch demo doc should tell a maintainer exactly how to build and capture the fixture."""
     demo = (REPO_ROOT / "docs" / "DEMO_WALKTHROUGH.md").read_text(encoding="utf-8")
 
-    assert "# Hive v2.4 Demo Walkthrough" in demo
-    assert "scope-locked v2.4 demo" in demo
+    assert "# Hive v2.5 Command Center Demo Walkthrough" in demo
+    assert "truthful v2.5 command-center demo" in demo
     assert "scripts/build_v22_demo_workspace.py" in demo
     assert "frontend/console/scripts/captureDemoAssets.mjs" in demo
     assert "north_star_manifest.json" in demo
-    assert "hive --path /tmp/hive-v24-demo console serve" in demo
-    assert "observe-and-steer-demo.webm" in demo
+    assert "hive --path /tmp/hive-v25-demo console serve" in demo
+    assert "command-center-demo.webm" in demo
     assert "console-home.png" in demo
     assert "console-run-detail.png" in demo
+    assert "browser-first" in demo
+    assert "desktop beta" in demo
     assert "capability truth" in demo
     assert "retrieval inspector" in demo
     assert "Pi-managed lane" in demo
@@ -42,7 +44,8 @@ def test_readme_and_compare_docs_keep_the_control_plane_launch_story():
     assert "docs/DEMO_WALKTHROUGH.md" in readme
     assert "images/launch/console-home.png" in readme
     assert "v2.3 established the truthful operator surface" in readme
-    assert "v2.4 extends it into native Pi, OpenClaw, and Hermes companion flows" in readme
+    assert "v2.5 turns that foundation into the first command-center release" in readme
+    assert "desktop beta" in readme.lower()
     assert "control plane above the worker harness" in compare.lower()
 
 
@@ -53,11 +56,13 @@ def test_launch_assets_are_checked_in():
         "images/launch/console-inbox.png",
         "images/launch/console-runs.png",
         "images/launch/console-run-detail.png",
-        "images/launch/observe-and-steer-demo.webm",
+        "images/launch/command-center-demo.webm",
     ):
         asset = REPO_ROOT / relative_path
         assert asset.exists()
         assert asset.stat().st_size > 0
+
+    assert not (REPO_ROOT / "images/launch/observe-and-steer-demo.webm").exists()
 
 
 def test_demo_builder_fails_cleanly_when_campaign_tick_launches_no_run(tmp_path, monkeypatch):

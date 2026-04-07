@@ -94,6 +94,7 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - The recovery path after that rejection was also brittle: a follow-up `hive sync projections --json` and the first retried `hive finish` both surfaced the temporary cache-refresh error even though the workspace was effectively idle, while the task file had already been partially mutated to `done`.
 - The same `hive finish` wall-clock rejection happened again on the desktop-docs task after PR #205 merged and merge commit `4744646` passed `main` CI run `24082531263`, which confirms the bug is systemic rather than a one-off edge case.
 - `hive task update ... --status done` can report a temporary cache-refresh failure even when the task file was already rewritten on disk. In this session the desktop-docs task did become `done`, but the CLI still returned an error and suggested a retry, leaving the operator unsure whether another write would be safe.
+- After that rejection sequence, routine commands for the next slice all hit the same cache-refresh failure: `hive work`, `hive task claim`, `hive context startup`, and even `hive sync projections --json`. That forced the launch-collateral slice onto a manual branch workflow with no canonical run record, even though the underlying workspace was otherwise healthy.
 
 ### Improvement ideas
 
@@ -102,3 +103,4 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Separate “active implementation wall time” from “elapsed time waiting on review/CI” in promotion budgets, or add an explicit maintainer override path when a run is already merged and post-merge CI is green.
 - Make projection refresh locking and retry behavior more explicit and idempotent during `finish`, including better reporting about what is holding the refresh lock and a safe automatic retry once the workspace is idle.
 - Make task/project projection refresh transactional and more observable. If a write succeeds but derived-state rebuild fails, the CLI should say that explicitly and offer a safe resume/retry path instead of returning a generic error after partially succeeding.
+- Add a first-class repair path for derived-state lock or cache-refresh failures, and let `hive work` fall back to a safe claim-plus-run bootstrap when projections are temporarily stale instead of blocking the whole next slice.

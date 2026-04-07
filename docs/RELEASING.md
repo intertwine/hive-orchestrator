@@ -52,7 +52,7 @@ If `make release-check` fails, fix that before you tag anything.
 For the scoped v2.4 launch line, do not call the release ready until these additional truthfulness
 checks are closed:
 
-1. README, demo walkthrough, compare-harness, and operator docs match the shipped observe-and-steer story.
+1. README, demo walkthrough, compare-harness, and operator docs match the shipped command-center story.
 2. Installed-package `hive search` is proven useful from a throwaway install, not only from a source checkout.
 
 For the active v2.4 implementation line, keep [docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md) aligned with the

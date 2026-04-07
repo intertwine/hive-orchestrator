@@ -43,14 +43,21 @@ async function capture(page, outputPath, width, height) {
   await page.screenshot({ path: outputPath, fullPage: true });
 }
 
+async function gotoConsole(page, url) {
+  await page.goto(url, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => document.body?.innerText?.trim().length > 0);
+}
+
 async function main() {
   const options = parseArgs(process.argv);
   const manifest = JSON.parse(await readFile(options.manifestPath, "utf8"));
   const workspace = options.workspace ?? manifest.workspace;
   const outputDir = path.resolve(options.outputDir);
   const videoDir = path.join(outputDir, "video-temp");
+  const legacyVideoPath = path.join(outputDir, "observe-and-steer-demo.webm");
   await mkdir(outputDir, { recursive: true });
   await rm(videoDir, { recursive: true, force: true });
+  await rm(legacyVideoPath, { force: true });
   await mkdir(videoDir, { recursive: true });
 
   const browser = await chromium.launch({ headless: true });
@@ -60,22 +67,19 @@ async function main() {
   });
   const page = await context.newPage();
 
-  await page.goto(consoleUrl(options.baseUrl, "", workspace), { waitUntil: "networkidle" });
+  await gotoConsole(page, consoleUrl(options.baseUrl, "", workspace));
   await page.waitForTimeout(1500);
   await capture(page, path.join(outputDir, "console-home.png"), 1440, 1080);
 
-  await page.goto(consoleUrl(options.baseUrl, "inbox", workspace), { waitUntil: "networkidle" });
+  await gotoConsole(page, consoleUrl(options.baseUrl, "inbox", workspace));
   await page.waitForTimeout(1200);
   await capture(page, path.join(outputDir, "console-inbox.png"), 1440, 1080);
 
-  await page.goto(consoleUrl(options.baseUrl, "runs", workspace), { waitUntil: "networkidle" });
+  await gotoConsole(page, consoleUrl(options.baseUrl, "runs", workspace));
   await page.waitForTimeout(1200);
   await capture(page, path.join(outputDir, "console-runs.png"), 1440, 1200);
 
-  await page.goto(
-    consoleUrl(options.baseUrl, `runs/${manifest.showcase_run_id}`, workspace),
-    { waitUntil: "networkidle" },
-  );
+  await gotoConsole(page, consoleUrl(options.baseUrl, `runs/${manifest.showcase_run_id}`, workspace));
   await page.waitForTimeout(1500);
   await capture(page, path.join(outputDir, "console-run-detail.png"), 1440, 2200);
 
@@ -90,7 +94,7 @@ async function main() {
   }
   await rename(
     path.join(videoDir, firstVideo),
-    path.join(outputDir, "observe-and-steer-demo.webm"),
+    path.join(outputDir, "command-center-demo.webm"),
   );
   await rm(videoDir, { recursive: true, force: true });
 }

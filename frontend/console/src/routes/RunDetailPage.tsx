@@ -2,6 +2,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { createConsoleClient } from "../api/client";
+import { useConsoleEventBus } from "../components/ConsoleEventBus";
 import { KeyValueGrid } from "../components/KeyValueGrid";
 import { Panel } from "../components/Panel";
 import { StatusPill } from "../components/StatusPill";
@@ -71,7 +72,7 @@ export function RunDetailPage() {
     () => createConsoleClient(apiBase, workspacePath),
     [apiBase, workspacePath],
   );
-  const [refreshNonce, setRefreshNonce] = useState(0);
+  const { requestRefresh } = useConsoleEventBus();
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [rerouteDriver, setRerouteDriver] = useState("claude");
@@ -79,7 +80,7 @@ export function RunDetailPage() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const { data, loading, error } = useConsoleQuery(
-    `run:${apiBase}:${workspacePath}:${runId}:${refreshNonce}`,
+    `run:${apiBase}:${workspacePath}:${runId}`,
     () => client.getRunDetail(runId),
     3000,
   );
@@ -157,7 +158,7 @@ export function RunDetailPage() {
       setActionMessage(`Sent ${action} for ${runId}.`);
       setReason("");
       setNote("");
-      setRefreshNonce((value) => value + 1);
+      requestRefresh();
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : `Unable to ${action} run.`);
     } finally {
@@ -185,7 +186,7 @@ export function RunDetailPage() {
         `${resolution === "approve" ? "Approved" : "Rejected"} ${approvalId} for ${runId}.`,
       );
       setNote("");
-      setRefreshNonce((value) => value + 1);
+      requestRefresh();
     } catch (caught) {
       setActionError(
         caught instanceof Error ? caught.message : `Unable to ${resolution} approval.`,

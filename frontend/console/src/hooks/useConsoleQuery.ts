@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useConsoleEventBus } from "../components/ConsoleEventBus";
 
 interface QueryState<T> {
   data: T | null;
   loading: boolean;
   error: string | null;
+  lastUpdated: number | null;
 }
 
 export function useConsoleQuery<T>(
@@ -11,9 +14,17 @@ export function useConsoleQuery<T>(
   fetcher: () => Promise<T>,
   refreshMs = 10000,
 ): QueryState<T> {
+  const { connected, eventVersion, recordSync, supportsStreaming } = useConsoleEventBus();
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const fetcherRef = useRef(fetcher);
+  const hasLoadedRef = useRef(false);
+
+  useEffect(() => {
+    fetcherRef.current = fetcher;
+  }, [fetcher]);
 
   useEffect(() => {
     let alive = true;
@@ -22,16 +33,20 @@ export function useConsoleQuery<T>(
       if (!alive) {
         return;
       }
-      if (data === null) {
+      if (!hasLoadedRef.current) {
         setLoading(true);
       }
       try {
-        const next = await fetcher();
+        const next = await fetcherRef.current();
         if (!alive) {
           return;
         }
+        const timestamp = Date.now();
         setData(next);
         setError(null);
+        setLastUpdated(timestamp);
+        hasLoadedRef.current = true;
+        recordSync(timestamp);
       } catch (caught) {
         if (!alive) {
           return;
@@ -44,13 +59,21 @@ export function useConsoleQuery<T>(
       }
     }
 
-    load();
-    const intervalId = window.setInterval(load, refreshMs);
+    void load();
+    if (refreshMs <= 0 || (supportsStreaming && connected)) {
+      return () => {
+        alive = false;
+      };
+    }
+
+    const intervalId = window.setInterval(() => {
+      void load();
+    }, refreshMs);
     return () => {
       alive = false;
       window.clearInterval(intervalId);
     };
-  }, [key, refreshMs]);
+  }, [connected, eventVersion, key, recordSync, refreshMs, supportsStreaming]);
 
-  return { data, loading, error };
+  return { data, loading, error, lastUpdated };
 }

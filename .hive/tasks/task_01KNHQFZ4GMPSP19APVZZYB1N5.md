@@ -3,14 +3,14 @@ acceptance:
 - Primary console flows no longer depend on manual full refresh for normal updates.
 - Notification and activity surfaces can be driven from shared event primitives.
 - The UI shows freshness honestly when data may be stale.
-claimed_until: null
+claimed_until: '2026-04-07T02:09:21.949697Z'
 created_at: '2026-04-06T15:45:01.072618Z'
 edges: {}
 id: task_01KNHQFZ4GMPSP19APVZZYB1N5
 kind: task
 labels:
 - realtime
-owner: null
+owner: codex
 parent_id: task_01KNHQCCFAB4KWR88RGJX2JJTF
 priority: 1
 project_id: hive-v25
@@ -19,10 +19,10 @@ relevant_files:
 - frontend/console/src/hooks
 - frontend/console/src/routes
 source: {}
-status: ready
+status: claimed
 title: Add real-time event, notification, and freshness primitives for the browser
   console
-updated_at: '2026-04-06T15:45:01.072626Z'
+updated_at: '2026-04-07T00:39:21.949745Z'
 ---
 
 ## Summary

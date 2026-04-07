@@ -297,6 +297,30 @@ select:focus-visible {
   box-shadow: var(--shadow-card);
 }
 
+.freshness-pill {
+  border-color: rgba(46, 35, 19, 0.12);
+  background: var(--color-surface-strong);
+  color: var(--color-ink-soft);
+}
+
+.freshness-pill--live {
+  border-color: rgba(33, 77, 45, 0.18);
+  background: rgba(226, 244, 232, 0.92);
+  color: var(--color-matcha-ink);
+}
+
+.freshness-pill--synced {
+  border-color: rgba(1, 64, 133, 0.14);
+  background: rgba(232, 244, 251, 0.92);
+  color: var(--color-blueberry-ink);
+}
+
+.freshness-pill--stale {
+  border-color: rgba(168, 96, 37, 0.2);
+  background: rgba(255, 243, 222, 0.94);
+  color: var(--color-pomegranate-ink);
+}
+
 .console-settings {
   display: grid;
   gap: var(--space-4);

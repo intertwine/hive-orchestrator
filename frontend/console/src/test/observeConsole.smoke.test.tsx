@@ -11,6 +11,51 @@ interface MockRoute {
   response: Response | ((url: URL, init?: RequestInit) => Response);
 }
 
+class MockEventSource {
+  static instances: MockEventSource[] = [];
+
+  onerror: ((event: Event) => void) | null = null;
+  onopen: ((event: Event) => void) | null = null;
+  readonly url: string;
+  private readonly listeners = new Map<string, Set<(event: MessageEvent) => void>>();
+
+  constructor(url: string | URL) {
+    this.url = String(url);
+    MockEventSource.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: (event: MessageEvent) => void) {
+    const listeners = this.listeners.get(type) ?? new Set<(event: MessageEvent) => void>();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: (event: MessageEvent) => void) {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  close() {
+    return undefined;
+  }
+
+  emit(type: string, payload: unknown) {
+    const event = new MessageEvent(type, {
+      data: JSON.stringify(payload),
+    });
+    for (const listener of this.listeners.get(type) ?? []) {
+      listener(event);
+    }
+  }
+
+  open() {
+    this.onopen?.(new Event("open"));
+  }
+
+  static reset() {
+    MockEventSource.instances = [];
+  }
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -97,6 +142,10 @@ async function expectKeyValue(container: HTMLElement, label: string, value: stri
 }
 
 describe("Observe Console smoke", () => {
+  beforeEach(() => {
+    MockEventSource.reset();
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -236,6 +285,51 @@ describe("Observe Console smoke", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(await screen.findByRole("link", { name: "del_openclaw_live" })).toBeInTheDocument();
+  });
+
+  it("refreshes the runs board immediately when the shared event stream emits a snapshot", async () => {
+    let attached = false;
+    const delegateRun = {
+      id: "del_openclaw_live",
+      project_id: "alpha",
+      driver: "openclaw",
+      health: "healthy",
+      status: "attached",
+      started_at: "2026-03-29T15:40:00Z",
+      metadata_json: {
+        task_title: "OpenClaw attached session",
+        entry_kind: "delegate_session",
+      },
+    };
+    const fetchMock = installFetchMock([
+      {
+        pathname: "/runs",
+        response: () => jsonResponse({ ok: true, runs: attached ? [delegateRun] : [] }),
+      },
+    ]);
+    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+
+    renderConsole(["/runs"]);
+
+    await screen.findByRole("heading", { name: "Runs" });
+    expect(await screen.findByText("No runs match the current filters.")).toBeInTheDocument();
+    expect(MockEventSource.instances).toHaveLength(1);
+    expect(screen.getByText(/Stream offline · synced/)).toBeInTheDocument();
+
+    attached = true;
+    await act(async () => {
+      MockEventSource.instances[0]?.open();
+      MockEventSource.instances[0]?.emit("snapshot", {
+        workspace: "/tmp/hive-demo",
+        events: [{ event_id: "evt_console_1" }],
+      });
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(screen.getByRole("link", { name: "del_openclaw_live" })).toBeInTheDocument();
+    });
+    expect(screen.getByText("Live")).toBeInTheDocument();
   });
 
   it("persists saved runs views across remounts and reapplies them", async () => {

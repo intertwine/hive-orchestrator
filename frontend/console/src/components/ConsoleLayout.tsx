@@ -11,6 +11,7 @@ import {
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { ConsolePreferencesProvider, useConsolePreferences } from "./ConsolePreferences";
+import { ConsoleEventBusProvider, FreshnessIndicator } from "./ConsoleEventBus";
 import { ConsoleNavLink, preserveConsoleSearch } from "./ConsoleLink";
 import {
   CONSOLE_PAGE_DESCRIPTIONS,
@@ -271,44 +272,47 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
         },
       }}
     >
-      <div
-        className="console-shell"
-        data-density={preferences.density}
-        data-theme={preferences.theme}
-      >
-        <header className="console-hero">
-          <div>
-            <p className="eyebrow">Agent Hive 2.5 Command Center</p>
-            <h1>Command the work. Keep the truth in view.</h1>
-            <p className="hero-copy">
-              A browser-first operator console for live runs, approvals, campaigns, search traces,
-              and the native companion surfaces introduced in v2.4.
-            </p>
-            <div className="hero-route-copy">
-              <p className="hero-card__eyebrow">Current surface</p>
-              <p className="hero-route-copy__title">{activePage.label}</p>
-              <p className="hero-card__subtle">{CONSOLE_PAGE_DESCRIPTIONS[activePage.id]}</p>
+      <ConsoleEventBusProvider apiBase={apiBase} workspacePath={workspacePath}>
+        <div
+          className="console-shell"
+          data-density={preferences.density}
+          data-theme={preferences.theme}
+        >
+          <header className="console-hero">
+            <div>
+              <p className="eyebrow">Agent Hive 2.5 Command Center</p>
+              <h1>Command the work. Keep the truth in view.</h1>
+              <p className="hero-copy">
+                A browser-first operator console for live runs, approvals, campaigns, search traces,
+                and the native companion surfaces introduced in v2.4.
+              </p>
+              <div className="hero-route-copy">
+                <p className="hero-card__eyebrow">Current surface</p>
+                <p className="hero-route-copy__title">{activePage.label}</p>
+                <p className="hero-card__subtle">{CONSOLE_PAGE_DESCRIPTIONS[activePage.id]}</p>
+              </div>
+              <div className="hero-highlights" aria-label="Command center highlights">
+                <span className="hero-highlight">Browser-first</span>
+                <span className="hero-highlight">Review-ready</span>
+                <span className="hero-highlight">Truthful state</span>
+                <FreshnessIndicator />
+              </div>
             </div>
-            <div className="hero-highlights" aria-label="Command center highlights">
-              <span className="hero-highlight">Browser-first</span>
-              <span className="hero-highlight">Review-ready</span>
-              <span className="hero-highlight">Truthful state</span>
-            </div>
-          </div>
-          <ConsoleSettingsCard />
-        </header>
+            <ConsoleSettingsCard />
+          </header>
 
-        <nav className="top-nav">
-          {PRIMARY_CONSOLE_PAGES.map((page) => (
-            <TopNavLink key={page.id} to={page.path} label={page.label} />
-          ))}
-          {SECONDARY_CONSOLE_PAGES.map((page) => (
-            <TopNavLink key={page.id} to={page.path} label={page.label} />
-          ))}
-        </nav>
+          <nav className="top-nav">
+            {PRIMARY_CONSOLE_PAGES.map((page) => (
+              <TopNavLink key={page.id} to={page.path} label={page.label} />
+            ))}
+            {SECONDARY_CONSOLE_PAGES.map((page) => (
+              <TopNavLink key={page.id} to={page.path} label={page.label} />
+            ))}
+          </nav>
 
-        <main className="console-content">{children ?? <Outlet />}</main>
-      </div>
+          <main className="console-content">{children ?? <Outlet />}</main>
+        </div>
+      </ConsoleEventBusProvider>
     </ConsoleConfigContext.Provider>
   );
 }

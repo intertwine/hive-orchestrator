@@ -34,6 +34,7 @@ def test_console_frontend_scaffold_exposes_the_primary_routes():
     assert 'path="activity"' in app_tsx
     assert 'path="settings"' in app_tsx
     assert (REPO_ROOT / "frontend" / "console" / "src" / "routes" / "RunDetailPage.tsx").exists()
+    assert (REPO_ROOT / "frontend" / "console" / "src" / "components" / "ConsoleEventBus.tsx").exists()
     assert (REPO_ROOT / "frontend" / "console" / "src" / "routes" / "IntegrationsPage.tsx").exists()
     assert (REPO_ROOT / "frontend" / "console" / "src" / "routes" / "NotificationsPage.tsx").exists()
     assert (REPO_ROOT / "frontend" / "console" / "src" / "routes" / "ActivityPage.tsx").exists()

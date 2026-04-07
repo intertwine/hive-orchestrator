@@ -67,6 +67,22 @@ def _delegate_capability_snapshot(harness: str) -> CapabilitySnapshot:
     )
 
 
+def _parse_sse_events(text: str) -> list[tuple[str, dict]]:
+    events: list[tuple[str, dict]] = []
+    for block in text.strip().split("\n\n"):
+        if not block.strip():
+            continue
+        event_name = ""
+        payload: dict = {}
+        for line in block.splitlines():
+            if line.startswith("event: "):
+                event_name = line.removeprefix("event: ").strip()
+            elif line.startswith("data: "):
+                payload = json.loads(line.removeprefix("data: "))
+        events.append((event_name, payload))
+    return events
+
+
 def _write_delegate_session(
     workspace_root: Path,
     *,
@@ -198,6 +214,34 @@ class TestObserveConsoleApi:
         assert "context_entries" in detail.json()["detail"]
         assert "handoff_manifest" in detail.json()["detail"]["inspector"]
         assert "reroute_bundle" in detail.json()["detail"]["inspector"]
+
+    def test_events_stream_emits_snapshot_and_heartbeat_frames(
+        self, temp_hive_dir, capsys
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+
+        client = TestClient(app)
+        response = client.get("/events/stream", params={"path": temp_hive_dir, "once": True})
+
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers["content-type"]
+        events = _parse_sse_events(response.text)
+
+        assert [event for event, _ in events] == ["snapshot", "heartbeat", "end"]
+        snapshot_payload = events[0][1]
+        heartbeat_payload = events[1][1]
+        assert snapshot_payload["workspace"] == str(Path(temp_hive_dir).resolve())
+        assert "synced_at" in snapshot_payload
+        assert heartbeat_payload["workspace"] == str(Path(temp_hive_dir).resolve())
+        expected_last_event_id = (
+            snapshot_payload["events"][-1]["event_id"] if snapshot_payload["events"] else None
+        )
+        assert heartbeat_payload["last_event_id"] == expected_last_event_id
+        assert "synced_at" in heartbeat_payload
 
     def test_v24_run_and_delegate_detail_truth_surfaces(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)

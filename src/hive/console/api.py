@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 
+from src.hive.common import isoformat_z
 from src.hive import __version__
 from src.hive.console.state import (
     build_home_view,
@@ -210,8 +211,19 @@ def events_stream(
                         "run_id": run_id,
                         "events": selected,
                         "count": len(events),
+                        "synced_at": isoformat_z(),
                     },
                 )
+            yield _encode_sse(
+                "heartbeat",
+                {
+                    "workspace": str(root),
+                    "run_id": run_id,
+                    "count": len(events),
+                    "last_event_id": selected[-1]["event_id"] if selected else None,
+                    "synced_at": isoformat_z(),
+                },
+            )
             if once:
                 break
             time.sleep(1.0)

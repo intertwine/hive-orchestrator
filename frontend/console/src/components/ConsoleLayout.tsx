@@ -153,7 +153,7 @@ export function ConsoleSettingsCard({
 }
 
 function ConsoleLayoutBody({ children }: PropsWithChildren) {
-  const { preferences } = useConsolePreferences();
+  const { preferences, rememberWorkspace } = useConsolePreferences();
   const [apiBase, setApiBase] = useState(
     window.localStorage.getItem(API_BASE_KEY) ?? DEFAULT_API_BASE,
   );
@@ -216,6 +216,10 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
     }
     window.localStorage.setItem(WORKSPACE_KEY, workspacePath);
   }, [queryWorkspacePath, workspacePath]);
+
+  useEffect(() => {
+    rememberWorkspace(workspacePath);
+  }, [rememberWorkspace, workspacePath]);
 
   useEffect(() => {
     if (!explicitConfigQuery.current && !configTouched.current) {

@@ -47,6 +47,13 @@ hive finish <run-id>
 Install `mellona-hive[console]` first and add `hive console serve` beside that loop when you want the live
 observe-and-steer view from the beginning.
 
+Inside the console, the safe-first path is:
+
+- `Settings` to confirm API base and workspace path
+- `Projects` to read Program Doctor and startup context
+- `Home` to understand the recommended next action
+- `Inbox` and `Runs` once there is real work or operator input to inspect
+
 Pi is the managed companion path:
 
 ```bash

@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
+import { CONSOLE_PREFERENCES_KEY } from "../preferences";
 
 interface MockRoute {
   method?: string;
@@ -330,6 +331,97 @@ describe("Observe Console smoke", () => {
       expect(screen.getByRole("link", { name: "del_openclaw_live" })).toBeInTheDocument();
     });
     expect(screen.getByText("Live")).toBeInTheDocument();
+  });
+
+  it("surfaces safe-first onboarding, workspace switching, and plain-language doctor guidance", async () => {
+    window.localStorage.setItem(CONSOLE_PREFERENCES_KEY, JSON.stringify({
+      version: 1,
+      theme: "clay",
+      density: "comfortable",
+      defaultPage: "home",
+      recentWorkspaces: ["/tmp/release-demo", "/tmp/existing-repo"],
+      runs: {
+        filters: { projectId: "", driver: "", health: "", campaignId: "" },
+        hiddenColumns: [],
+        pinnedPanels: [],
+        savedViews: [],
+      },
+    }));
+
+    installFetchMock([
+      {
+        pathname: "/home",
+        response: jsonResponse({
+          ok: true,
+          home: {
+            workspace: "/tmp/hive-demo",
+            active_runs: [],
+            evaluating_runs: [],
+            inbox: [],
+            blocked_projects: [],
+            campaigns: [],
+            recent_events: [],
+            recent_accepts: [],
+            recommended_next: {
+              task: {
+                id: "task_demo_1",
+                title: "Inspect the demo doctor output",
+                project_id: "demo",
+              },
+              reasons: ["first guided task", "safe way to learn the command center"],
+            },
+          },
+        }),
+      },
+      {
+        pathname: "/projects",
+        response: jsonResponse({
+          ok: true,
+          projects: [
+            { id: "demo", title: "Demo Project", status: "active", priority: 1, owner: "codex" },
+          ],
+        }),
+      },
+      {
+        pathname: "/projects/demo/doctor",
+        response: jsonResponse({
+          ok: true,
+          doctor: {
+            status: "blocked_autonomous_promotion",
+            issues: [{ code: "missing_required_evaluator", message: "Add at least one evaluator." }],
+          },
+        }),
+      },
+      {
+        pathname: "/projects/demo/context",
+        response: jsonResponse({
+          ok: true,
+          project: { id: "demo" },
+          rendered: "Demo context preview",
+          context: {},
+        }),
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderConsole(["/"]);
+
+    await screen.findByRole("heading", { name: "Getting Started with Agent Hive" });
+    expect(screen.getByText("Inspect first. Mutate later.")).toBeInTheDocument();
+    expect(screen.getByText("Choose the shortest honest path")).toBeInTheDocument();
+    expect(screen.getAllByText(/hive onboard demo --title "Demo project"/)).toHaveLength(2);
+    expect(screen.getByText("Inspect the demo doctor output")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Recent Workspaces" });
+    await user.click(screen.getByRole("button", { name: /\/tmp\/release-demo/i }));
+    expect(screen.getAllByDisplayValue("/tmp/release-demo")).toHaveLength(2);
+    expect(screen.getByText("What to open first")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Projects" }));
+    await screen.findByRole("heading", { name: "Projects" });
+    expect(screen.getByText("Program Doctor is blocking promotion")).toBeInTheDocument();
+    expect(screen.getByText("Demo context preview")).toBeInTheDocument();
   });
 
   it("persists saved runs views across remounts and reapplies them", async () => {

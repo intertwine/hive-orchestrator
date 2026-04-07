@@ -43,6 +43,24 @@ hive --version
 hive doctor
 ```
 
+## Console-First First Action
+
+If you want the shortest truthful path from install to a useful first click:
+
+1. Create or adopt a workspace:
+   `hive onboard demo --title "Demo project"`
+   or
+   `hive adopt app --title "App"`
+2. Start the console:
+   `hive console serve`
+3. Open the command center and start with the safe surfaces:
+   `Settings` to confirm API base and workspace path
+   `Projects` to read Program Doctor and startup context
+   `Inbox` and `Runs` only after real work or approvals exist
+
+The productized first-contact path is deliberately inspect-first. You should not have to read
+maintainer docs before you can safely understand what Hive is about to do.
+
 > **CLI-only install:** For headless servers, CI, or minimal setups, `uv tool install mellona-hive`
 > gives you the base CLI without the console web UI dependencies.
 
@@ -178,6 +196,13 @@ hive console serve
 ```
 
 Open `http://127.0.0.1:8787/console/` to see your workspace in the operator console.
+
+Safe first clicks once it opens:
+
+- `Settings` to confirm the workspace path and operator-local defaults
+- `Projects` to read Program Doctor before you launch autonomous work
+- `Home` to see the recommended next task and guided demo path
+- `Inbox` and `Runs` once real work or approvals exist
 
 That path is covered in the full [Quickstart](./QUICKSTART.md). `hive onboard` is the recommended fresh-workspace
 bootstrap. `hive init` only creates the substrate layout. `hive onboard` bootstraps the workspace, detects the local

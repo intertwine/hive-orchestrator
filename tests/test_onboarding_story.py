@@ -59,6 +59,8 @@ def test_demo_project_uses_the_checked_in_three_step_onboarding_chain(tmp_path):
 def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     """The main docs should keep the installed-user and maintainer paths distinct."""
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    start_here = (REPO_ROOT / "docs" / "START_HERE.md").read_text(encoding="utf-8")
+    operator_flows = (REPO_ROOT / "docs" / "OPERATOR_FLOWS.md").read_text(encoding="utf-8")
     quickstart = (REPO_ROOT / "docs" / "QUICKSTART.md").read_text(encoding="utf-8")
     demo_agency = (REPO_ROOT / "projects" / "demo" / "AGENCY.md").read_text(encoding="utf-8")
 
@@ -87,6 +89,17 @@ def test_onboarding_docs_keep_everyday_user_flow_task_specific():
     assert "docs/recipes/pi-harness.md" in readme
     assert "docs/recipes/openclaw-harness.md" in readme
     assert "docs/recipes/hermes-harness.md" in readme
+
+    assert "## Console-First First Action" in start_here
+    assert "Settings` to confirm API base and workspace path" in start_here
+    assert "Projects` to read Program Doctor and startup context" in start_here
+    assert "Safe first clicks once it opens" in start_here
+    assert "Home` to see the recommended next task and guided demo path" in start_here
+
+    assert "Inside the console, the safe-first path is:" in operator_flows
+    assert "`Settings` to confirm API base and workspace path" in operator_flows
+    assert "`Projects` to read Program Doctor and startup context" in operator_flows
+    assert "`Home` to understand the recommended next action" in operator_flows
 
     assert "Use a fresh directory for this walkthrough." in quickstart
     assert "If you are maintaining Hive itself" in quickstart

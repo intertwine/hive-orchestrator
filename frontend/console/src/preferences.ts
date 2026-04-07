@@ -6,6 +6,7 @@ export const CONSOLE_THEMES = ["clay", "ledger"] as const;
 export const CONSOLE_DENSITIES = ["comfortable", "compact"] as const;
 export const CONSOLE_PAGES = CONSOLE_PAGE_IDS;
 export const MAX_SAVED_RUNS_VIEWS = 50;
+export const MAX_RECENT_WORKSPACES = 8;
 
 export type ConsoleTheme = (typeof CONSOLE_THEMES)[number];
 export type ConsoleDensity = (typeof CONSOLE_DENSITIES)[number];
@@ -37,6 +38,7 @@ export interface ConsolePreferences {
   theme: ConsoleTheme;
   density: ConsoleDensity;
   defaultPage: ConsolePage;
+  recentWorkspaces: string[];
   runs: RunsPreferences;
 }
 
@@ -52,6 +54,7 @@ export const DEFAULT_CONSOLE_PREFERENCES: ConsolePreferences = {
   theme: "clay",
   density: "comfortable",
   defaultPage: "home",
+  recentWorkspaces: [],
   runs: {
     filters: DEFAULT_RUNS_FILTERS,
     hiddenColumns: [],
@@ -138,6 +141,10 @@ export function normalizeConsolePreferences(value: unknown): ConsolePreferences 
     theme: normalizeConsoleTheme(value.theme),
     density: normalizeConsoleDensity(value.density),
     defaultPage: normalizeConsolePage(value.defaultPage),
+    recentWorkspaces: readStringArray(value.recentWorkspaces)
+      .map((workspace) => workspace.trim())
+      .filter(Boolean)
+      .slice(0, MAX_RECENT_WORKSPACES),
     runs: {
       filters: normalizeRunsFilters(runs.filters),
       hiddenColumns: readStringArray(runs.hiddenColumns),
@@ -212,6 +219,31 @@ export function deleteSavedRunsView(preferences: ConsolePreferences, viewId: str
       ...preferences.runs,
       savedViews: preferences.runs.savedViews.filter((view) => view.id !== viewId),
     },
+  };
+}
+
+export function rememberRecentWorkspace(
+  preferences: ConsolePreferences,
+  workspacePath: string,
+): ConsolePreferences {
+  const trimmedWorkspace = workspacePath.trim();
+  if (!trimmedWorkspace) {
+    return preferences;
+  }
+
+  const existing = preferences.recentWorkspaces.filter(
+    (workspace) => workspace !== trimmedWorkspace,
+  );
+  const nextRecentWorkspaces = [trimmedWorkspace, ...existing].slice(0, MAX_RECENT_WORKSPACES);
+  const isUnchanged = nextRecentWorkspaces.length === preferences.recentWorkspaces.length
+    && nextRecentWorkspaces.every((workspace, index) => workspace === preferences.recentWorkspaces[index]);
+  if (isUnchanged) {
+    return preferences;
+  }
+
+  return {
+    ...preferences,
+    recentWorkspaces: nextRecentWorkspaces,
   };
 }
 

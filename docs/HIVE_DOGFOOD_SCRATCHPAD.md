@@ -46,3 +46,19 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 
 - Project bootstrap via `hive project create` gave us the right canonical home quickly.
 - Canonical tasks and parent relationships are still a much better substrate than ad hoc markdown checklists.
+
+## 2026-04-07
+
+### Current blockers and friction
+
+- `hive task release` after `hive task update <id> --status done` moved a completed task back to `ready`, which made the canonical task state temporarily lie until we manually re-marked it `done`. The release flow for completed tasks is too footgun-prone.
+- A delegated implementation worker ended up using the shared maintainer checkout instead of an isolated worktree, switched branches underneath the active thread, and dirtied shared `.hive` task/projection state before any code changes were made.
+- Normal Hive commands still emit append-only `.hive/events/<date>.jsonl` noise into maintainer branches, which is easy to mistake for intentional reviewable work during PR prep.
+
+### Improvement ideas
+
+- Make `hive task release` status-aware:
+  if a task is already `done`, release the lease metadata without demoting the task back to `ready`.
+- Add an explicit `hive task complete <id>` or `hive task close-from-merge <id>` path that clears the claim and preserves `done` in one command.
+- Ensure delegated/worker runs always use isolated worktrees or fail loudly before they can switch the shared checkout branch.
+- Add a maintainer mode or config that keeps `.hive/events/*.jsonl` out of normal PR branches unless the operator explicitly asks to record or stage them.

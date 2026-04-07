@@ -5,7 +5,7 @@ acceptance:
 - Frontend action surfaces map to shared backend execution semantics rather than page-local
   bespoke handlers.
 - Every action can expose explanation/provenance for why it is available.
-claimed_until: '2026-04-07T03:24:26.079879Z'
+claimed_until: '2026-04-07T07:32:07.531707Z'
 created_at: '2026-04-06T15:45:00.975599Z'
 edges: {}
 id: task_01KNHQFZ1FE415P7TX42WRYKJD
@@ -22,9 +22,9 @@ relevant_files:
 - src/hive/console/api.py
 - src/hive/console/state.py
 source: {}
-status: claimed
+status: review
 title: Implement the shared action registry, action execution APIs, and command palette
-updated_at: '2026-04-07T01:54:26.079886Z'
+updated_at: '2026-04-07T07:11:29.974754Z'
 ---
 
 ## Summary

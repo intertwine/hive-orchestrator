@@ -20,10 +20,10 @@ relevant_files:
 - src/hive/console/api.py
 - src/hive/search.py
 source: {}
-status: review
+status: done
 title: Upgrade search to explainable unified provenance with previews and open-in-context
   flows
-updated_at: '2026-04-07T06:40:43Z'
+updated_at: '2026-04-07T07:02:28Z'
 ---
 
 ## Summary
@@ -35,3 +35,4 @@ Search should show why a result matched and let operators open the right context
 ## History
 - 2026-04-06T15:47:43.724753Z bootstrap created.
 - 2026-04-07T06:40:43Z draft PR #197 opened for search provenance and preview flows.
+- 2026-04-07T06:47:30Z merged via PR #197 (merge commit dbd796c).

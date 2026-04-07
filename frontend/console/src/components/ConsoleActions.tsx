@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import type { JsonRecord } from "../api/client";
 import { preserveConsoleSearch } from "./ConsoleLink";
 import {
   CONSOLE_PAGE_DEFINITIONS,
@@ -36,6 +37,190 @@ export interface ConsoleActionDescriptor {
   availabilityReason: string;
   availabilitySource: string;
   perform: () => Promise<void> | void;
+}
+
+export interface ConsoleActionRecord {
+  id: string;
+  title: string;
+  buttonLabel?: string;
+  description: string;
+  group: string;
+  tone?: ConsoleActionTone;
+  visible?: boolean;
+  keywords?: string[];
+  shortcut?: string;
+  href?: string;
+  actionId?: string;
+  operation: "execute" | "navigate";
+  enabled: boolean;
+  availabilityReason: string;
+  availabilitySource: string;
+  runId?: string;
+  approvalId?: string;
+  inputMode?: "none" | "note" | "reason_note" | "reroute";
+  successMessage?: string;
+  failureMessage?: string;
+}
+
+interface ConsoleActionRunner {
+  actor?: string;
+  busy?: boolean;
+  busyReason?: string;
+  client: {
+    executeAction: (payload: {
+      action_id: string;
+      run_id?: string;
+      approval_id?: string;
+      actor?: string;
+      reason?: string;
+      target?: JsonRecord;
+      budget_delta?: JsonRecord;
+      note?: string;
+    }) => Promise<JsonRecord>;
+  };
+  locationSearch: string;
+  navigate: (href: string) => void;
+  note?: string;
+  reason?: string;
+  requestRefresh?: () => void;
+  rerouteDriver?: string;
+  setActionError?: (value: string | null) => void;
+  setActionMessage?: (value: string | null) => void;
+  setPendingAction?: (value: string | null) => void;
+  clearNote?: () => void;
+  clearReason?: () => void;
+}
+
+function readString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function readKeywords(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+    : [];
+}
+
+export function normalizeConsoleActionRecord(value: Record<string, unknown>): ConsoleActionRecord {
+  return {
+    id: readString(value.id, readString(value.action_id, "action")),
+    title: readString(value.title, "Action"),
+    buttonLabel: readString(value.button_label) || undefined,
+    description: readString(value.description, "Console action"),
+    group: readString(value.group, "Actions"),
+    tone: (readString(value.tone, "secondary") as ConsoleActionTone),
+    visible: typeof value.visible === "boolean" ? value.visible : true,
+    keywords: readKeywords(value.keywords),
+    shortcut: readString(value.shortcut) || undefined,
+    href: readString(value.href) || undefined,
+    actionId: readString(value.action_id) || undefined,
+    operation: readString(value.operation, "execute") === "navigate" ? "navigate" : "execute",
+    enabled: typeof value.enabled === "boolean" ? value.enabled : true,
+    availabilityReason: readString(value.availability_reason, "Available from the command center."),
+    availabilitySource: readString(value.availability_source, "console action registry"),
+    runId: readString(value.run_id) || undefined,
+    approvalId: readString(value.approval_id) || undefined,
+    inputMode: (readString(value.input_mode, "none") as ConsoleActionRecord["inputMode"]),
+    successMessage: readString(value.success_message) || undefined,
+    failureMessage: readString(value.failure_message) || undefined,
+  };
+}
+
+async function performConsoleActionRecord(
+  action: ConsoleActionRecord,
+  runner: ConsoleActionRunner,
+) {
+  if (!action.enabled || runner.busy) {
+    return;
+  }
+  if (action.operation === "navigate" && action.href) {
+    startTransition(() => {
+      runner.navigate(preserveConsoleSearch(action.href ?? "/home", runner.locationSearch));
+    });
+    return;
+  }
+  if (action.operation !== "execute" || !action.actionId) {
+    return;
+  }
+
+  runner.setPendingAction?.(action.id);
+  runner.setActionError?.(null);
+  runner.setActionMessage?.(null);
+
+  try {
+    const payload: {
+      action_id: string;
+      run_id?: string;
+      approval_id?: string;
+      actor?: string;
+      reason?: string;
+      target?: JsonRecord;
+      note?: string;
+    } = {
+      action_id: action.actionId,
+      run_id: action.runId,
+      approval_id: action.approvalId,
+      actor: runner.actor ?? "console-operator",
+    };
+    const trimmedReason = runner.reason?.trim();
+    const trimmedNote = runner.note?.trim();
+    if (action.inputMode === "reason_note" || action.inputMode === "reroute") {
+      if (trimmedReason) {
+        payload.reason = trimmedReason;
+      }
+      if (trimmedNote) {
+        payload.note = trimmedNote;
+      }
+    } else if (action.inputMode === "note" && trimmedNote) {
+      payload.note = trimmedNote;
+    }
+    if (action.inputMode === "reroute" && runner.rerouteDriver?.trim()) {
+      payload.target = { driver: runner.rerouteDriver.trim() };
+    }
+
+    await runner.client.executeAction(payload);
+    runner.requestRefresh?.();
+    runner.clearReason?.();
+    runner.clearNote?.();
+    if (action.successMessage) {
+      runner.setActionMessage?.(action.successMessage);
+    }
+  } catch (caught) {
+    runner.setActionError?.(
+      caught instanceof Error
+        ? caught.message
+        : (action.failureMessage ?? "Unable to execute console action."),
+    );
+  } finally {
+    runner.setPendingAction?.(null);
+  }
+}
+
+export function createConsoleActionDescriptor(
+  action: ConsoleActionRecord,
+  runner: ConsoleActionRunner,
+): ConsoleActionDescriptor {
+  const enabled = action.enabled && !runner.busy;
+  return {
+    id: action.id,
+    title: action.title,
+    buttonLabel: action.buttonLabel,
+    description: action.description,
+    group: action.group,
+    tone: action.tone,
+    visible: action.visible,
+    keywords: action.keywords,
+    shortcut: action.shortcut,
+    href: action.href,
+    enabled,
+    availabilityReason: enabled
+      ? action.availabilityReason
+      : runner.busy
+        ? (runner.busyReason ?? "Another operator action is already in flight.")
+        : action.availabilityReason,
+    availabilitySource: action.availabilitySource,
+    perform: () => performConsoleActionRecord(action, runner),
+  };
 }
 
 interface ConsoleActionsContextValue {

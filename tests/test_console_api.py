@@ -201,6 +201,7 @@ class TestObserveConsoleApi:
         assert inbox.status_code == 200
         assert any(item["kind"] == "run-review" for item in inbox.json()["items"])
         assert any(item["kind"] == "run-input" for item in inbox.json()["items"])
+        assert any(item.get("actions") for item in inbox.json()["items"])
         assert runs.status_code == 200
         assert len(runs.json()["runs"]) == 1
         assert runs.json()["runs"][0]["driver"] == "codex"
@@ -216,6 +217,10 @@ class TestObserveConsoleApi:
         assert "context_entries" in detail.json()["detail"]
         assert "handoff_manifest" in detail.json()["detail"]["inspector"]
         assert "reroute_bundle" in detail.json()["detail"]["inspector"]
+        assert any(
+            action.get("action_id") == "run.cancel"
+            for action in detail.json()["detail"]["actions"]
+        )
 
     def test_attention_notifications_and_activity_endpoints(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)
@@ -751,6 +756,34 @@ class TestObserveConsoleApi:
         assert response.json()["approval"]["status"] == "rejected"
         assert approvals.status_code == 200
         assert approvals.json()["approvals"][0]["status"] == "rejected"
+
+    def test_execute_console_action_endpoint_rejects_unknown_action_id(
+        self, temp_hive_dir, capsys
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/actions/execute",
+            params={"path": temp_hive_dir},
+            json={"action_id": "run.teleport", "actor": "operator"},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Unknown console action: run.teleport"
 
     def test_runs_endpoint_accepts_canonical_and_legacy_claude_filters(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)

@@ -1,10 +1,12 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { createConsoleClient } from "../api/client";
 import {
   ConsoleActionButton,
   type ConsoleActionDescriptor,
+  createConsoleActionDescriptor,
+  normalizeConsoleActionRecord,
   useRegisterConsoleActions,
 } from "../components/ConsoleActions";
 import { useConsoleEventBus } from "../components/ConsoleEventBus";
@@ -106,6 +108,8 @@ function runActionSuccessMessage(actionId: string, runId: string, approvalId?: s
 
 export function RunDetailPage() {
   const { runId = "" } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { apiBase, workspacePath } = useConsoleConfig();
   const client = useMemo(
     () => createConsoleClient(apiBase, workspacePath),
@@ -258,8 +262,10 @@ export function RunDetailPage() {
   const selectedTimelineEvent = timeline.length
     ? (timeline[Math.min(timelineIndex, timeline.length - 1)] as Record<string, unknown>)
     : null;
+  const actionBusy = pendingAction !== null;
+  const busyReason = "Another operator action is already in flight.";
 
-  const runControlActions = useMemo<ConsoleActionDescriptor[]>(() => {
+  const fallbackRunControlActions = useMemo<ConsoleActionDescriptor[]>(() => {
     if (!supportsRunControls) {
       return [];
     }
@@ -422,7 +428,46 @@ export function RunDetailPage() {
     supportsRunControls,
   ]);
 
-  const approvalActions = useMemo<ConsoleActionDescriptor[]>(() => {
+  const runControlActions = useMemo<ConsoleActionDescriptor[]>(() => {
+    const backendActions = Array.isArray(detail.actions)
+      ? detail.actions
+        .map((entry) => normalizeConsoleActionRecord(entry as Record<string, unknown>))
+        .map((action) =>
+          createConsoleActionDescriptor(action, {
+            actor: "console-operator",
+            busy: actionBusy,
+            busyReason,
+            client,
+            locationSearch: location.search,
+            navigate,
+            note,
+            reason,
+            requestRefresh,
+            rerouteDriver,
+            setActionError,
+            setActionMessage,
+            setPendingAction,
+            clearNote: () => setNote(""),
+            clearReason: () => setReason(""),
+          }),
+        )
+      : [];
+    return backendActions.length ? backendActions : fallbackRunControlActions;
+  }, [
+    actionBusy,
+    busyReason,
+    client,
+    detail.actions,
+    fallbackRunControlActions,
+    location.search,
+    navigate,
+    note,
+    reason,
+    requestRefresh,
+    rerouteDriver,
+  ]);
+
+  const fallbackApprovalActions = useMemo<ConsoleActionDescriptor[]>(() => {
     if (!data?.detail || pendingApprovals.length === 0) {
       return [];
     }
@@ -489,6 +534,43 @@ export function RunDetailPage() {
       ] satisfies ConsoleActionDescriptor[];
     });
   }, [client, data?.detail, note, pendingAction, pendingApprovals, requestRefresh, runId]);
+
+  const approvalActions = useMemo<ConsoleActionDescriptor[]>(() => {
+    const backendActions = pendingApprovals.flatMap((item) => {
+      const approval = item as Record<string, unknown>;
+      return Array.isArray(approval.actions)
+        ? approval.actions
+          .map((entry) => normalizeConsoleActionRecord(entry as Record<string, unknown>))
+          .map((action) =>
+            createConsoleActionDescriptor(action, {
+              actor: "console-operator",
+              busy: actionBusy,
+              busyReason,
+              client,
+              locationSearch: location.search,
+              navigate,
+              note,
+              requestRefresh,
+              setActionError,
+              setActionMessage,
+              setPendingAction,
+              clearNote: () => setNote(""),
+            }),
+          )
+        : [];
+    });
+    return backendActions.length ? backendActions : fallbackApprovalActions;
+  }, [
+    actionBusy,
+    busyReason,
+    client,
+    fallbackApprovalActions,
+    location.search,
+    navigate,
+    note,
+    pendingApprovals,
+    requestRefresh,
+  ]);
 
   const pageActions = useMemo(
     () => [...runControlActions, ...approvalActions],

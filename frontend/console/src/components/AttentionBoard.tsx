@@ -12,6 +12,8 @@ import {
 import {
   ConsoleActionButton,
   type ConsoleActionDescriptor,
+  createConsoleActionDescriptor,
+  normalizeConsoleActionRecord,
   useRegisterConsoleActions,
 } from "./ConsoleActions";
 import { ConsoleLink, preserveConsoleSearch } from "./ConsoleLink";
@@ -270,6 +272,50 @@ export function AttentionBoard({
     });
   }
 
+  const normalizedItemActions = useMemo(
+    () =>
+      visibleItems.map((item) => ({
+        itemId: item.id,
+        actions: item.actions.map((entry) => normalizeConsoleActionRecord(entry)),
+      })),
+    [visibleItems],
+  );
+
+  const registryActionIdsByItem = useMemo(() => {
+    return new Map(
+      normalizedItemActions.map(({ itemId, actions }) => [
+        itemId,
+        new Set(actions.map((action) => action.id)),
+      ]),
+    );
+  }, [normalizedItemActions]);
+
+  const registryActions = useMemo<ConsoleActionDescriptor[]>(() => {
+    return normalizedItemActions.flatMap(({ actions }) =>
+      actions.map((action) =>
+        createConsoleActionDescriptor(action, {
+          actor: "console-operator",
+          busy: pendingAction !== null,
+          busyReason: "Another operator action is already in flight.",
+          client,
+          locationSearch: location.search,
+          navigate,
+          requestRefresh,
+          setActionError,
+          setActionMessage,
+          setPendingAction,
+        }),
+      ),
+    );
+  }, [
+    client,
+    location.search,
+    navigate,
+    normalizedItemActions,
+    pendingAction,
+    requestRefresh,
+  ]);
+
   const pageActions = useMemo<ConsoleActionDescriptor[]>(() => {
     const actions: ConsoleActionDescriptor[] = [];
     if (selectedItems.length) {
@@ -326,8 +372,11 @@ export function AttentionBoard({
       );
     }
 
+    actions.push(...registryActions);
+
     for (const item of visibleItems) {
-      if (item.deepLink) {
+      const itemRegistryActionIds = registryActionIdsByItem.get(item.id) ?? new Set<string>();
+      if (item.deepLink && !itemRegistryActionIds.has(`attention.open:${item.id}`)) {
         actions.push({
           id: `attention.open:${item.id}`,
           title: `Open ${item.title}`,
@@ -342,6 +391,9 @@ export function AttentionBoard({
       }
       if (item.approvalId && item.runId) {
         for (const actionId of ["approval.approve", "approval.reject"] as const) {
+          if (itemRegistryActionIds.has(`${actionId}:${item.id}`)) {
+            continue;
+          }
           actions.push({
             id: `${actionId}:${item.id}`,
             title: `${actionId === "approval.approve" ? "Approve" : "Reject"} ${item.title}`,
@@ -367,6 +419,8 @@ export function AttentionBoard({
     mode,
     navigate,
     pendingAction,
+    registryActionIdsByItem,
+    registryActions,
     requestRefresh,
     selectedItems,
     visibleItems,
@@ -629,9 +683,16 @@ export function AttentionBoard({
                         <div className="action-grid">
                           {pageActions
                             .filter(
-                              (action) =>
-                                action.id === `approval.approve:${item.id}`
-                                || action.id === `approval.reject:${item.id}`,
+                              (action) => {
+                                const itemRegistryActionIds = registryActionIdsByItem.get(item.id);
+                                if (itemRegistryActionIds) {
+                                  return itemRegistryActionIds.has(action.id);
+                                }
+                                return (
+                                  action.id === `approval.approve:${item.id}`
+                                  || action.id === `approval.reject:${item.id}`
+                                );
+                              },
                             )
                             .map((action) => (
                               <ConsoleActionButton action={action} key={action.id} />

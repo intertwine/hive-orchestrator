@@ -220,4 +220,6 @@ node_modules/
 frontend/console/*.tsbuildinfo
 frontend/console/vite.config.js
 frontend/console/vite.config.d.ts
+frontend/console/playwright-report/
+frontend/console/test-results/
 marketing/

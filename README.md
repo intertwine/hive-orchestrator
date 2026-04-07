@@ -3,9 +3,9 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/ci.yml?branch=main&label=CI)](https://github.com/intertwine/hive-orchestrator/actions/workflows/ci.yml)
 [![Hive Projection Sync](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/projection-sync.yml?branch=main&label=Projection%20Sync)](https://github.com/intertwine/hive-orchestrator/actions/workflows/projection-sync.yml)
 
-![Agent Hive observe-and-steer console](images/launch/console-home.png)
+![Agent Hive command center](images/launch/console-home.png)
 
-Agent Hive is a repo-native control plane for autonomous work. In v2.4, that means you can keep existing worker flows like Codex, Claude Code, and local/manual execution while also adding native companion paths for Pi, OpenClaw, and Hermes.
+Agent Hive is a repo-native control plane for autonomous work. In v2.5, that means you can keep existing worker flows like Codex, Claude Code, and local/manual execution while operating them through a browser-first command center and, if you want, a thin desktop beta shell.
 
 **Keep your agent. Add a control plane.**
 
@@ -16,11 +16,11 @@ If you are already using coding agents and feeling the limits of isolated sessio
 - one inspectable substrate instead of hidden agent state
 - one place to steer Pi, OpenClaw, Hermes, Codex, Claude Code, local execution, and manual handoffs
 
-The center of gravity in this repository is the Hive v2 substrate. v2.3 established the truthful operator surface; v2.4 extends it into native Pi, OpenClaw, and Hermes companion flows.
+The center of gravity in this repository is the Hive v2 substrate. v2.3 established the truthful operator surface; v2.4 extends it into native Pi, OpenClaw, and Hermes companion flows; v2.5 turns that foundation into the first command-center release.
 
 ## Why It Feels Different
 
-- The console is not a toy dashboard. It is a real observe-and-steer command center with active runs, inbox items, campaign reasoning, retrieval traces, and run detail in one place.
+- The console is not a toy dashboard. The browser command center is a real operator surface with active runs, inbox items, notifications, campaign reasoning, retrieval traces, and run detail in one place.
 - Hive does not replace your worker harness. It sits above it, so you can keep using Pi, OpenClaw, Hermes, Codex, Claude Code, local execution, or manual loops.
 - Native companion paths are real now: Pi can `open` or `attach`, OpenClaw can attach a live gateway `sessionKey`, and Hermes can attach or import trajectories without bulk-importing private memory.
 - Agents do not decide when they are done. `PROGRAM.md` evaluators and promotion policy do.
@@ -198,7 +198,7 @@ When you want the live operator view instead of the raw CLI, install `mellona-hi
 hive console serve
 ```
 
-That starts the observe-and-steer console. From there you can watch active runs, review inbox items, inspect context,
+That starts the browser command center. From there you can watch active runs, review inbox items, inspect context,
 see acceptance rationale, and steer runs without editing Markdown by hand.
 
 When you are defining new work instead of just taking ready work, stay in the CLI:

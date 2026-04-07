@@ -53,7 +53,10 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     function handleStorage(event: StorageEvent) {
-      if (event.storageArea !== window.localStorage || event.key !== CONSOLE_PREFERENCES_KEY) {
+      if (event.key !== CONSOLE_PREFERENCES_KEY) {
+        return;
+      }
+      if (event.storageArea !== null && event.storageArea !== window.localStorage) {
         return;
       }
       setPreferences(loadConsolePreferences());

@@ -54,6 +54,7 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - `hive task release` after `hive task update <id> --status done` moved a completed task back to `ready`, which made the canonical task state temporarily lie until we manually re-marked it `done`. The release flow for completed tasks is too footgun-prone.
 - A delegated implementation worker ended up using the shared maintainer checkout instead of an isolated worktree, switched branches underneath the active thread, and dirtied shared `.hive` task/projection state before any code changes were made.
 - Normal Hive commands still emit append-only `.hive/events/<date>.jsonl` noise into maintainer branches, which is easy to mistake for intentional reviewable work during PR prep.
+- GitHub-managed Claude review did not reliably produce a review artifact for an active console PR, so the maintainer flow had to fall back to `claude -p "/review <pr>"` locally and then manually summarize the findings back onto the PR.
 
 ### Improvement ideas
 
@@ -62,3 +63,4 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Add an explicit `hive task complete <id>` or `hive task close-from-merge <id>` path that clears the claim and preserves `done` in one command.
 - Ensure delegated/worker runs always use isolated worktrees or fail loudly before they can switch the shared checkout branch.
 - Add a maintainer mode or config that keeps `.hive/events/*.jsonl` out of normal PR branches unless the operator explicitly asks to record or stage them.
+- Make GitHub-managed Claude review status more observable from Hive/maintainer surfaces, and add a first-class “fallback to local review” breadcrumb so reviewers do not have to infer whether an `eyes` reaction means “pending,” “stuck,” or “done elsewhere.”

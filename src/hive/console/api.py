@@ -88,6 +88,19 @@ class ApprovalResolutionInput(BaseModel):
     note: str | None = None
 
 
+class ConsoleActionExecuteInput(BaseModel):
+    """Generic action-execution body for the console command palette and shared buttons."""
+
+    action_id: str
+    run_id: str | None = None
+    approval_id: str | None = None
+    actor: str | None = None
+    reason: str | None = None
+    target: dict | None = None
+    budget_delta: dict | None = None
+    note: str | None = None
+
+
 def _workspace_root(path: str | None = None) -> Path:
     configured = path or os.getenv("HIVE_BASE_PATH") or os.getcwd()
     return Path(configured).resolve()
@@ -110,6 +123,71 @@ def _console_asset_root() -> Path | None:
 def _encode_sse(event: str, payload: dict) -> str:
     """Render one SSE record."""
     return f"event: {event}\ndata: {json.dumps(payload, sort_keys=True)}\n\n"
+
+
+def _execute_steering_request(
+    root: Path, run_id: str, request: SteeringRequest, actor: str | None
+) -> dict:
+    try:
+        payload = steer_run(root, run_id, request, actor=actor)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    sync_workspace(root)
+    return payload
+
+
+def _execute_console_action(root: Path, request: ConsoleActionExecuteInput) -> dict:
+    action_id = request.action_id
+    run_action_map = {
+        "run.pause": "pause",
+        "run.resume": "resume",
+        "run.note": "note",
+        "run.cancel": "cancel",
+        "run.reroute": "reroute",
+    }
+    approval_action_map = {
+        "approval.approve": "approve",
+        "approval.reject": "reject",
+    }
+
+    if action_id in run_action_map:
+        if not request.run_id:
+            raise HTTPException(status_code=400, detail="run_id is required for run actions.")
+        payload = _execute_steering_request(
+            root,
+            request.run_id,
+            SteeringRequest(
+                action=run_action_map[action_id],
+                reason=request.reason,
+                target=request.target,
+                budget_delta=request.budget_delta,
+                note=request.note,
+            ),
+            actor=request.actor,
+        )
+        return {"ok": True, "action_id": action_id, **payload}
+
+    if action_id in approval_action_map:
+        if not request.run_id or not request.approval_id:
+            raise HTTPException(
+                status_code=400,
+                detail="run_id and approval_id are required for approval actions.",
+            )
+        payload = _execute_steering_request(
+            root,
+            request.run_id,
+            SteeringRequest(
+                action=approval_action_map[action_id],
+                target={"approval_id": request.approval_id},
+                note=request.note,
+            ),
+            actor=request.actor or "operator",
+        )
+        return {"ok": True, "action_id": action_id, **payload}
+
+    raise HTTPException(status_code=400, detail=f"Unknown console action: {action_id}")
 
 
 @app.get("/")
@@ -308,23 +386,16 @@ def approve_run_approval(
     """Approve one pending run approval request from the trusted local console."""
     root = _workspace_root(path)
     sync_workspace(root)
-    try:
-        payload = steer_run(
-            root,
-            run_id,
-            SteeringRequest(
-                action="approve",
-                target={"approval_id": approval_id},
-                note=request.note,
-            ),
-            actor=request.actor or "operator",
-        )
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    sync_workspace(root)
-    return {"ok": True, **payload}
+    return _execute_console_action(
+        root,
+        ConsoleActionExecuteInput(
+            action_id="approval.approve",
+            run_id=run_id,
+            approval_id=approval_id,
+            actor=request.actor,
+            note=request.note,
+        ),
+    )
 
 
 @app.post("/runs/{run_id}/approvals/{approval_id}/reject")
@@ -337,23 +408,16 @@ def reject_run_approval(
     """Reject one pending run approval request from the trusted local console."""
     root = _workspace_root(path)
     sync_workspace(root)
-    try:
-        payload = steer_run(
-            root,
-            run_id,
-            SteeringRequest(
-                action="reject",
-                target={"approval_id": approval_id},
-                note=request.note,
-            ),
-            actor=request.actor or "operator",
-        )
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    sync_workspace(root)
-    return {"ok": True, **payload}
+    return _execute_console_action(
+        root,
+        ConsoleActionExecuteInput(
+            action_id="approval.reject",
+            run_id=run_id,
+            approval_id=approval_id,
+            actor=request.actor,
+            note=request.note,
+        ),
+    )
 
 
 @app.post("/runs/{run_id}/steer")
@@ -363,25 +427,29 @@ def run_steer(
     """Apply a typed steering action to a run."""
     root = _workspace_root(path)
     sync_workspace(root)
-    try:
-        payload = steer_run(
-            root,
-            run_id,
-            SteeringRequest(
-                action=request.action,
-                reason=request.reason,
-                target=request.target,
-                budget_delta=request.budget_delta,
-                note=request.note,
-            ),
-            actor=request.actor,
-        )
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    sync_workspace(root)
+    payload = _execute_steering_request(
+        root,
+        run_id,
+        SteeringRequest(
+            action=request.action,
+            reason=request.reason,
+            target=request.target,
+            budget_delta=request.budget_delta,
+            note=request.note,
+        ),
+        actor=request.actor,
+    )
     return {"ok": True, **payload}
+
+
+@app.post("/actions/execute")
+def execute_console_action(
+    request: ConsoleActionExecuteInput, path: str | None = Query(default=None)
+) -> dict:
+    """Execute a typed console action through the shared action registry contract."""
+    root = _workspace_root(path)
+    sync_workspace(root)
+    return _execute_console_action(root, request)
 
 
 @app.get("/projects")

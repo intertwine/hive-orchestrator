@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -555,6 +555,74 @@ describe("Observe Console smoke", () => {
     expect(screen.getByText("Note from OpenClaw attached session")).toBeInTheDocument();
   });
 
+  it("executes inbox approval actions through the shared action endpoint", async () => {
+    const item = {
+      kind: "approval-request",
+      title: "Approve deploy step",
+      reason: "Driver requested approval before deployment.",
+      project_id: "gamma",
+      run_id: "run_gamma_codex_2",
+      approval_id: "approval_gamma_1",
+    };
+    const items = [item];
+    const fetchMock = installFetchMock([
+      {
+        pathname: "/inbox",
+        response: () =>
+          jsonResponse({
+            ok: true,
+            items,
+          }),
+      },
+      {
+        method: "POST",
+        pathname: "/actions/execute",
+        response: (_url, init) => {
+          const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+          items.splice(0, items.length);
+          return jsonResponse({
+            ok: true,
+            action_id: payload.action_id,
+            approval: {
+              approval_id: payload.approval_id,
+              status: payload.action_id === "approval.approve" ? "approved" : "rejected",
+            },
+          });
+        },
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderConsole(["/inbox"]);
+
+    await screen.findByRole("heading", { name: "Inbox" });
+    const approvalCard = screen.getByText("Approve deploy step").closest("article");
+    expect(approvalCard).not.toBeNull();
+    expect(
+      within(approvalCard as HTMLElement).getByRole("link", { name: "Open run" }),
+    ).toHaveAttribute("href", "/runs/run_gamma_codex_2");
+
+    await user.click(within(approvalCard as HTMLElement).getByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText("Approved approval_gamma_1.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("The inbox is clear.")).toBeInTheDocument();
+    });
+
+    const postBodies = fetchMock.mock.calls
+      .filter(([, init]) => (init?.method ?? "GET").toUpperCase() === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+
+    expect(postBodies).toEqual([
+      {
+        action_id: "approval.approve",
+        approval_id: "approval_gamma_1",
+        actor: "console-operator",
+        run_id: "run_gamma_codex_2",
+      },
+    ]);
+  });
+
   it("loads project doctor and search routes through the live app shell", async () => {
     installFetchMock([
       {
@@ -758,10 +826,10 @@ describe("Observe Console smoke", () => {
     const timeline: Array<Record<string, unknown>> = [];
     const runId = "run_gamma_local_1";
     const eventTypeByAction: Record<string, string> = {
-      pause: "steering.pause",
-      note: "steering.note",
-      cancel: "steering.cancel",
-      reroute: "steering.rerouted",
+      "run.pause": "steering.pause",
+      "run.note": "steering.note",
+      "run.cancel": "steering.cancel",
+      "run.reroute": "steering.rerouted",
     };
 
     const fetchMock = installFetchMock([
@@ -836,10 +904,10 @@ describe("Observe Console smoke", () => {
       },
       {
         method: "POST",
-        pathname: `/runs/${runId}/steer`,
+        pathname: "/actions/execute",
         response: (_url, init) => {
           const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-          const eventType = eventTypeByAction[String(payload.action)];
+          const eventType = eventTypeByAction[String(payload.action_id)];
           const event = {
             event_id: `event_${steeringHistory.length + 1}`,
             type: eventType,
@@ -865,22 +933,26 @@ describe("Observe Console smoke", () => {
     const reasonBox = screen.getByRole("textbox", { name: "Reason" });
 
     async function triggerAction(action: string, reason: string, actionId: string) {
-      await user.clear(reasonBox);
-      await user.type(reasonBox, reason);
+      fireEvent.change(reasonBox, { target: { value: reason } });
       await user.click(screen.getByRole("button", { name: action }));
-      expect(await screen.findByText(`Sent ${actionId} for ${runId}.`)).toBeInTheDocument();
-      expect(await within(steeringPanel as HTMLElement).findByText(eventTypeByAction[actionId])).toBeInTheDocument();
-      expect(await within(timelinePanel as HTMLElement).findByText(eventTypeByAction[actionId])).toBeInTheDocument();
+      expect(
+        await screen.findByText(`Sent ${actionId.split(".").at(-1)} for ${runId}.`),
+      ).toBeInTheDocument();
+      expect(
+        await within(steeringPanel as HTMLElement).findByText(eventTypeByAction[actionId]),
+      ).toBeInTheDocument();
+      expect(
+        await within(timelinePanel as HTMLElement).findByText(eventTypeByAction[actionId]),
+      ).toBeInTheDocument();
     }
 
-    await triggerAction("Pause", "Need a pause before rerouting.", "pause");
-    await triggerAction("Add Note", "Leave a note for the next turn.", "note");
-    await triggerAction("Cancel", "Stop this run before reassigning it.", "cancel");
+    await triggerAction("Pause", "Need a pause before rerouting.", "run.pause");
+    await triggerAction("Add Note", "Leave a note for the next turn.", "run.note");
+    await triggerAction("Cancel", "Stop this run before reassigning it.", "run.cancel");
 
     const noteBox = screen.getByRole("textbox", { name: "Note" });
-    await user.clear(reasonBox);
-    await user.type(reasonBox, "Switch this run to Codex.");
-    await user.type(noteBox, "Need stronger repo-wide reasoning.");
+    fireEvent.change(reasonBox, { target: { value: "Switch this run to Codex." } });
+    fireEvent.change(noteBox, { target: { value: "Need stronger repo-wide reasoning." } });
     await user.selectOptions(screen.getByRole("combobox", { name: "Reroute to" }), "codex");
     await user.click(screen.getByRole("button", { name: "Reroute" }));
 
@@ -894,25 +966,29 @@ describe("Observe Console smoke", () => {
 
     expect(postBodies).toEqual([
       {
-        action: "pause",
+        action_id: "run.pause",
         actor: "console-operator",
         reason: "Need a pause before rerouting.",
+        run_id: runId,
       },
       {
-        action: "note",
+        action_id: "run.note",
         actor: "console-operator",
         reason: "Leave a note for the next turn.",
+        run_id: runId,
       },
       {
-        action: "cancel",
+        action_id: "run.cancel",
         actor: "console-operator",
         reason: "Stop this run before reassigning it.",
+        run_id: runId,
       },
       {
-        action: "reroute",
+        action_id: "run.reroute",
         actor: "console-operator",
         reason: "Switch this run to Codex.",
         note: "Need stronger repo-wide reasoning.",
+        run_id: runId,
         target: { driver: "codex" },
       },
     ]);
@@ -1010,18 +1086,21 @@ describe("Observe Console smoke", () => {
       },
       {
         method: "POST",
-        pathname: `/runs/${runId}/approvals/approval_1/approve`,
-        response: () => {
-          approvals[0] = { ...approvals[0], status: "approved" };
-          return jsonResponse({ ok: true, approval: { approval_id: "approval_1", status: "approved" } });
-        },
-      },
-      {
-        method: "POST",
-        pathname: `/runs/${runId}/approvals/approval_2/reject`,
-        response: () => {
-          approvals[1] = { ...approvals[1], status: "rejected" };
-          return jsonResponse({ ok: true, approval: { approval_id: "approval_2", status: "rejected" } });
+        pathname: "/actions/execute",
+        response: (_url, init) => {
+          const payload = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+          const approvalId = String(payload.approval_id);
+          const resolution =
+            payload.action_id === "approval.approve" ? "approved" : "rejected";
+          const approvalIndex = approvals.findIndex(
+            (approval) => approval.approval_id === approvalId,
+          );
+          approvals[approvalIndex] = { ...approvals[approvalIndex], status: resolution };
+          return jsonResponse({
+            ok: true,
+            action_id: payload.action_id,
+            approval: { approval_id: approvalId, status: resolution },
+          });
         },
       },
     ]);
@@ -1058,21 +1137,22 @@ describe("Observe Console smoke", () => {
       expect(screen.queryByText("Reject rm -rf /tmp/demo")).not.toBeInTheDocument();
     });
 
-    const approvalCalls = fetchMock.mock.calls.filter(([input, init]) => {
-      const url = new URL(
-        typeof input === "string" ? input : input instanceof URL ? input : input.url,
-      );
-      return url.pathname.startsWith(`/runs/${runId}/approvals/`)
-        && (init?.method ?? "GET").toUpperCase() === "POST";
-    });
-    expect(approvalCalls.map(([input]) => {
-      const url = new URL(
-        typeof input === "string" ? input : input instanceof URL ? input : input.url,
-      );
-      return url.pathname;
-    })).toEqual([
-      `/runs/${runId}/approvals/approval_1/approve`,
-      `/runs/${runId}/approvals/approval_2/reject`,
+    const approvalCalls = fetchMock.mock.calls
+      .filter(([, init]) => (init?.method ?? "GET").toUpperCase() === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+    expect(approvalCalls).toEqual([
+      {
+        action_id: "approval.approve",
+        approval_id: "approval_1",
+        actor: "console-operator",
+        run_id: runId,
+      },
+      {
+        action_id: "approval.reject",
+        approval_id: "approval_2",
+        actor: "console-operator",
+        run_id: runId,
+      },
     ]);
   });
 

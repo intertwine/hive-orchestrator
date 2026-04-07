@@ -19,9 +19,9 @@ relevant_files:
 - src/hive/console
 - docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_DESKTOP_SHELL_DECISION.md
 source: {}
-status: ready
+status: done
 title: Bootstrap the Tauri 2 desktop shell beta around the shared command-center frontend
-updated_at: '2026-04-06T15:49:36.770569Z'
+updated_at: '2026-04-07T09:10:34.969110Z'
 ---
 
 ## Summary

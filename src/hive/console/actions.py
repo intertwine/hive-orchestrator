@@ -5,8 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from fastapi import HTTPException
-
 from src.hive.drivers import SteeringRequest
 from src.hive.runs.engine import steer_run
 from src.hive.workspace import sync_workspace
@@ -14,6 +12,15 @@ from src.hive.workspace import sync_workspace
 
 _RUN_TERMINAL_STATUSES = {"accepted", "cancelled", "failed", "rejected"}
 _REROUTE_BLOCKED_STATUSES = {"accepted", "cancelled", "failed"}
+
+
+class ConsoleActionError(Exception):
+    """Execution error that API adapters can translate into transport errors."""
+
+    def __init__(self, status_code: int, detail: str) -> None:
+        super().__init__(detail)
+        self.status_code = status_code
+        self.detail = detail
 
 
 def _read_request_field(request: Any, field: str) -> Any:
@@ -378,9 +385,9 @@ def _execute_steering_request(
     try:
         payload = steer_run(root, run_id, request, actor=actor)
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise ConsoleActionError(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise ConsoleActionError(status_code=400, detail=str(exc)) from exc
     sync_workspace(root)
     return payload
 
@@ -403,7 +410,10 @@ def execute_console_action(root: Path, request: Any) -> dict[str, Any]:
     if action_id in run_action_map:
         run_id = str(_read_request_field(request, "run_id") or "")
         if not run_id:
-            raise HTTPException(status_code=400, detail="run_id is required for run actions.")
+            raise ConsoleActionError(
+                status_code=400,
+                detail="run_id is required for run actions.",
+            )
         payload = _execute_steering_request(
             root,
             run_id,
@@ -422,7 +432,7 @@ def execute_console_action(root: Path, request: Any) -> dict[str, Any]:
         run_id = str(_read_request_field(request, "run_id") or "")
         approval_id = str(_read_request_field(request, "approval_id") or "")
         if not run_id or not approval_id:
-            raise HTTPException(
+            raise ConsoleActionError(
                 status_code=400,
                 detail="run_id and approval_id are required for approval actions.",
             )
@@ -439,4 +449,7 @@ def execute_console_action(root: Path, request: Any) -> dict[str, Any]:
         )
         return {"ok": True, "action_id": action_id, **payload}
 
-    raise HTTPException(status_code=400, detail=f"Unknown console action: {action_id}")
+    raise ConsoleActionError(
+        status_code=400,
+        detail=f"Unknown console action: {action_id}",
+    )

@@ -15,7 +15,10 @@ from pydantic import BaseModel
 
 from src.hive.common import isoformat_z
 from src.hive import __version__
-from src.hive.console.actions import execute_console_action as execute_registered_console_action
+from src.hive.console.actions import (
+    ConsoleActionError,
+    execute_console_action as execute_registered_console_action,
+)
 from src.hive.console.state import (
     build_activity_feed,
     build_home_view,
@@ -144,6 +147,13 @@ def _execute_steering_request(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     sync_workspace(root)
     return payload
+
+
+def _execute_registered_action(root: Path, request: ConsoleActionExecuteInput) -> dict:
+    try:
+        return execute_registered_console_action(root, request)
+    except ConsoleActionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
 @app.get("/")
@@ -394,7 +404,7 @@ def approve_run_approval(
 ) -> dict:
     """Approve one pending run approval request from the trusted local console."""
     root = _workspace_root(path)
-    return execute_registered_console_action(
+    return _execute_registered_action(
         root,
         ConsoleActionExecuteInput(
             action_id="approval.approve",
@@ -416,7 +426,7 @@ def reject_run_approval(
 ) -> dict:
     """Reject one pending run approval request from the trusted local console."""
     root = _workspace_root(path)
-    return execute_registered_console_action(
+    return _execute_registered_action(
         root,
         ConsoleActionExecuteInput(
             action_id="approval.reject",
@@ -456,7 +466,7 @@ def execute_console_action(
 ) -> dict:
     """Execute a typed console action through the shared action registry contract."""
     root = _workspace_root(path)
-    return execute_registered_console_action(root, request)
+    return _execute_registered_action(root, request)
 
 
 @app.get("/projects")

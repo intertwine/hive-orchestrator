@@ -90,8 +90,10 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - `uv run hive work <task-id> --owner Codex --json` finally succeeded cleanly end to end on `hive-v25`, which is a real improvement over the earlier program-policy failures, but the next bootstrap steps still feel too manual in a fresh run worktree.
 - Fresh Hive worktrees still require maintainers to remember `uv sync --extra dev` before `make check`; otherwise the first repo-wide gate fails immediately on missing tools like `pylint`, even when the task itself is unrelated to Python packaging.
 - Fresh frontend worktrees also need an explicit `pnpm install` before desktop-shell helper flows work. In this slice, an initial `pnpm tauri add ...` failed with `Volta error: Could not locate executable tauri in your project.` until dependencies were installed manually.
+- `hive finish` rejected a shipped, merged, green-on-main slice because the program wall-clock budget counted total elapsed review and CI wait time after implementation completed. Both required evaluators passed, but the run still landed in `rejected`, which forced a manual task-state closeout.
 
 ### Improvement ideas
 
 - Teach `hive work` or `hive context startup` to emit a small post-claim bootstrap checklist keyed to the project surface, for example reminding maintainers when a fresh worktree still needs `uv sync --extra dev` or frontend dependency install steps.
 - Add a first-class workspace bootstrap command for mixed Python plus frontend projects so a new Hive run worktree can become validation-ready in one intentional step instead of through remembered tribal knowledge.
+- Separate “active implementation wall time” from “elapsed time waiting on review/CI” in promotion budgets, or add an explicit maintainer override path when a run is already merged and post-merge CI is green.

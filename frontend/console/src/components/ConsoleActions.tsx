@@ -246,6 +246,7 @@ export function useRegisterConsoleActions(actions: ConsoleActionDescriptor[]) {
   const { setPageActions } = useConsoleActions();
 
   useEffect(() => {
+    // Callers should memoize their action arrays; page registration updates shell-level state.
     setPageActions(actions);
     return () => {
       setPageActions([]);

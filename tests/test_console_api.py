@@ -573,7 +573,7 @@ class TestObserveConsoleApi:
         assert detail.json()["detail"]["steering_history"]
         assert detail.json()["detail"]["steering_history"][-1]["type"] == "steering.note_added"
 
-    def test_execute_console_action_endpoint_resolves_pending_approval(
+    def test_execute_console_action_endpoint_resolves_pending_approval_with_reason(
         self, temp_hive_dir, capsys
     ):
         init_git_repo(temp_hive_dir)
@@ -607,20 +607,24 @@ class TestObserveConsoleApi:
             "/actions/execute",
             params={"path": temp_hive_dir},
             json={
-                "action_id": "approval.approve",
+                "action_id": "approval.reject",
                 "run_id": run.id,
                 "approval_id": approval["approval_id"],
                 "actor": "operator",
+                "reason": "Rejected because the command is outside this slice.",
             },
         )
         approvals = client.get(f"/runs/{run.id}/approvals", params={"path": temp_hive_dir})
 
         assert response.status_code == 200
-        assert response.json()["action_id"] == "approval.approve"
+        assert response.json()["action_id"] == "approval.reject"
+        assert response.json()["request"]["reason"] == (
+            "Rejected because the command is outside this slice."
+        )
         assert response.json()["approval"]["approval_id"] == approval["approval_id"]
-        assert response.json()["approval"]["status"] == "approved"
+        assert response.json()["approval"]["status"] == "rejected"
         assert approvals.status_code == 200
-        assert approvals.json()["approvals"][0]["status"] == "approved"
+        assert approvals.json()["approvals"][0]["status"] == "rejected"
 
     def test_runs_endpoint_accepts_canonical_and_legacy_claude_filters(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)

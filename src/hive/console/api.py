@@ -85,6 +85,7 @@ class ApprovalResolutionInput(BaseModel):
     """
 
     actor: str | None = None
+    reason: str | None = None
     note: str | None = None
 
 
@@ -180,6 +181,7 @@ def _execute_console_action(root: Path, request: ConsoleActionExecuteInput) -> d
             request.run_id,
             SteeringRequest(
                 action=approval_action_map[action_id],
+                reason=request.reason,
                 target={"approval_id": request.approval_id},
                 note=request.note,
             ),
@@ -385,7 +387,6 @@ def approve_run_approval(
 ) -> dict:
     """Approve one pending run approval request from the trusted local console."""
     root = _workspace_root(path)
-    sync_workspace(root)
     return _execute_console_action(
         root,
         ConsoleActionExecuteInput(
@@ -393,6 +394,7 @@ def approve_run_approval(
             run_id=run_id,
             approval_id=approval_id,
             actor=request.actor,
+            reason=request.reason,
             note=request.note,
         ),
     )
@@ -407,7 +409,6 @@ def reject_run_approval(
 ) -> dict:
     """Reject one pending run approval request from the trusted local console."""
     root = _workspace_root(path)
-    sync_workspace(root)
     return _execute_console_action(
         root,
         ConsoleActionExecuteInput(
@@ -415,6 +416,7 @@ def reject_run_approval(
             run_id=run_id,
             approval_id=approval_id,
             actor=request.actor,
+            reason=request.reason,
             note=request.note,
         ),
     )
@@ -448,7 +450,6 @@ def execute_console_action(
 ) -> dict:
     """Execute a typed console action through the shared action registry contract."""
     root = _workspace_root(path)
-    sync_workspace(root)
     return _execute_console_action(root, request)
 
 

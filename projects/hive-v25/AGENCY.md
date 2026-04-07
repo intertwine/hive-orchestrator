@@ -33,7 +33,7 @@ Use this document for human context, links, architecture notes, and handoff deta
 | task_01KNHQBQ773EB9RJSX7AGK1EH0 | done | 1 |  | Bootstrap the v2.5 project, policy, and canonical task tree |
 | task_01KNHQEYG1721BBK9JS5EVZP03 | done | 1 | codex | Build the Clay-aligned command-center design system and token library |
 | task_01KNHQAX8SBVVSJKRE2FERDPG7 | proposed | 1 |  | Deliver RFC 2.5 Command Center as a browser-first product release |
-| task_01KNHQFZ1FE415P7TX42WRYKJD | claimed | 1 | codex | Implement the shared action registry, action execution APIs, and command palette |
+| task_01KNHQFZ1FE415P7TX42WRYKJD | review | 1 | codex | Implement the shared action registry, action execution APIs, and command palette |
 | task_01KNHQGDQN66GEZ5M3HDAS0WC0 | archived | 1 |  | Implement the shared action registry, action execution APIs, and command palette |
 | task_01KNHQK443Q889CY875N9QB70Z | archived | 1 |  | Implement the shared action registry, action execution APIs, and command palette |
 | task_01KNHQM9P6HGZ50D2GSMTA49RS | archived | 1 |  | Implement the shared action registry, action execution APIs, and command palette |

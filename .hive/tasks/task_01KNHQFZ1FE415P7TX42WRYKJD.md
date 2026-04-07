@@ -22,9 +22,9 @@ relevant_files:
 - src/hive/console/api.py
 - src/hive/console/state.py
 source: {}
-status: claimed
+status: review
 title: Implement the shared action registry, action execution APIs, and command palette
-updated_at: '2026-04-07T07:02:07.531714Z'
+updated_at: '2026-04-07T07:11:29.974754Z'
 ---
 
 ## Summary

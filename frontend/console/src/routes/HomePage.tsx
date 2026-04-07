@@ -75,16 +75,16 @@ function ChooseYourPathCard() {
       <h3>Choose the shortest honest path</h3>
       <ul className="reason-list">
         <li>
-          <strong>Fresh workspace</strong>: `hive onboard demo --title "Demo project"` creates a
-          safe first project and task chain.
+          <strong>Fresh workspace</strong>: <code>hive onboard demo --title "Demo project"</code>{" "}
+          creates a safe first project and task chain.
         </li>
         <li>
-          <strong>Existing repo</strong>: `hive adopt app --title "App"` brings Hive into code you
-          already own.
+          <strong>Existing repo</strong>: <code>hive adopt app --title "App"</code> brings Hive
+          into code you already own.
         </li>
         <li>
-          <strong>Native harnesses</strong>: run `hive integrate doctor` first, then confirm the
-          adapter truth in Integrations.
+          <strong>Native harnesses</strong>: run <code>hive integrate doctor</code> first, then
+          confirm the adapter truth in Integrations.
         </li>
       </ul>
       <pre className="inline-json">{`mkdir my-hive

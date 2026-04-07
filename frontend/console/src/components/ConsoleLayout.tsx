@@ -220,27 +220,23 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const trimmedWorkspacePath = workspacePath.trim();
-    if (
-      rememberedInitialWorkspace.current
-      || configTouched.current
-      || queryWorkspacePath !== null
-      || !trimmedWorkspacePath
-    ) {
+    const shouldRememberInitialWorkspace = (
+      !rememberedInitialWorkspace.current
+      && !configTouched.current
+      && queryWorkspacePath === null
+      && !!trimmedWorkspacePath
+    );
+    const shouldRememberQueryWorkspace = (
+      !configTouched.current
+      && queryWorkspacePath !== null
+      && queryWorkspacePath === trimmedWorkspacePath
+      && !!trimmedWorkspacePath
+    );
+    if (!shouldRememberInitialWorkspace && !shouldRememberQueryWorkspace) {
       return;
     }
-    rememberedInitialWorkspace.current = true;
-    rememberWorkspace(trimmedWorkspacePath);
-  }, [queryWorkspacePath, rememberWorkspace, workspacePath]);
-
-  useEffect(() => {
-    const trimmedWorkspacePath = workspacePath.trim();
-    if (
-      configTouched.current
-      || queryWorkspacePath === null
-      || queryWorkspacePath !== trimmedWorkspacePath
-      || !trimmedWorkspacePath
-    ) {
-      return;
+    if (shouldRememberInitialWorkspace) {
+      rememberedInitialWorkspace.current = true;
     }
     rememberWorkspace(trimmedWorkspacePath);
   }, [queryWorkspacePath, rememberWorkspace, workspacePath]);

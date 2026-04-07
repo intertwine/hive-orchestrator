@@ -224,4 +224,24 @@ describe("ConsoleLayout query-param behavior", () => {
       recentWorkspaces: ["/tmp/persisted-workspace"],
     });
   });
+
+  it("remembers explicit deep-link workspace paths as recent console workspaces", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/settings?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+        ]}
+      >
+        <ConsoleLayout>
+          <div>child</div>
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem(CONSOLE_PREFERENCES_KEY) ?? "{}")).toMatchObject({
+        recentWorkspaces: ["/tmp/demo-workspace"],
+      });
+    });
+  });
 });

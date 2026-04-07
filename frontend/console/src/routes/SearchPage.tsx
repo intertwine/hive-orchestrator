@@ -55,8 +55,8 @@ export function SearchPage() {
               </div>
               <p>{String(result.summary ?? result.snippet ?? "No summary available.")}</p>
               <ul className="reason-list">
-                {(((result.why as string[] | undefined) ?? (result.matches as string[] | undefined)) ?? []).map((reason) => (
-                  <li key={reason}>{reason}</li>
+                {(((result.why as string[] | undefined) ?? (result.matches as string[] | undefined)) ?? []).map((reason, index) => (
+                  <li key={`reason-${index}`}>{reason}</li>
                 ))}
               </ul>
             </article>

@@ -84,7 +84,7 @@ export function ProjectsPage() {
         : Promise.resolve({ ok: true, project: {}, rendered: "", context: {} }),
     15000,
   );
-  const guidance = doctorGuidance(doctor.data);
+  const guidance = doctor.loading ? null : doctorGuidance(doctor.data);
 
   return (
     <div className="page-grid">
@@ -139,7 +139,7 @@ export function ProjectsPage() {
       <Panel eyebrow="Safe next move" title="Doctor Guidance">
         {doctor.loading ? <p>Waiting for Doctor guidance…</p> : null}
         {doctor.error ? <p className="error-copy">{doctor.error}</p> : null}
-        {!doctor.loading && !doctor.error ? (
+        {!doctor.loading && !doctor.error && guidance ? (
           <div className="stack">
             <div className="hero-card">
               <p className="hero-card__eyebrow">Plain-language summary</p>

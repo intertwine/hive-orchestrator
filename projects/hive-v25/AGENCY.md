@@ -41,7 +41,7 @@ Use this document for human context, links, architecture notes, and handoff deta
 | task_01KNHQD1FSKPPQGN4PXVCM6HCD | proposed | 1 |  | M2: Operator workflows, review ergonomics, and adoption polish |
 | task_01KNHQKPDZVGABQCEVT9S0VR95 | done | 1 | codex | Overhaul inbox triage, bulk actions, snooze, and the notifications center |
 | task_01KNHQQD92MKY1163YSGFHG0WX | ready | 1 |  | Pass accessibility and responsiveness hardening for the primary v2.5 surfaces |
-| task_01KNHQMEZWBXKK8CVJ5AJ48HNK | claimed | 1 | codex | Rebuild run detail with review rails, compare-runs, and explain surfaces |
+| task_01KNHQMEZWBXKK8CVJ5AJ48HNK | review | 1 | codex | Rebuild run detail with review rails, compare-runs, and explain surfaces |
 | task_01KNHQFPPS275AERJPMX8ERTZN | done | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
 | task_01KNHQFZ0JQ689T9HWY0PGC28M | archived | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
 | task_01KNHQHEEM0QEC8YK2KH63H58W | archived | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |

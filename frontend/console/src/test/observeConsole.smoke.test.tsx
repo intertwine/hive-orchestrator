@@ -892,9 +892,8 @@ describe("Observe Console smoke", () => {
     expect(steeringPanel).not.toBeNull();
     expect(timelinePanel).not.toBeNull();
 
-    const reasonBox = await screen.findByRole("textbox", { name: "Reason" });
-
     async function triggerAction(action: string, reason: string, actionId: string) {
+      const reasonBox = await screen.findByRole("textbox", { name: "Reason" });
       fireEvent.change(reasonBox, { target: { value: reason } });
       await user.click(screen.getByRole("button", { name: action }));
       expect(
@@ -912,6 +911,7 @@ describe("Observe Console smoke", () => {
     await triggerAction("Add Note", "Leave a note for the next turn.", "run.note");
     await triggerAction("Cancel", "Stop this run before reassigning it.", "run.cancel");
 
+    const reasonBox = await screen.findByRole("textbox", { name: "Reason" });
     const noteBox = await screen.findByRole("textbox", { name: "Note" });
     fireEvent.change(reasonBox, { target: { value: "Switch this run to Codex." } });
     fireEvent.change(noteBox, { target: { value: "Need stronger repo-wide reasoning." } });

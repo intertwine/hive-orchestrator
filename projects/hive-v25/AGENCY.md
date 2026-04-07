@@ -60,5 +60,5 @@ Use this document for human context, links, architecture notes, and handoff deta
 
 | Run | Status | Task |
 |---|---|---|
-| run_01KNKM26A7M2QGS9014JB3TSH1 | rejected | task_01KNHQS6FZW0PECASBK1NW0HWA |
+| No runs | - | - |
 <!-- hive:end recent-runs -->

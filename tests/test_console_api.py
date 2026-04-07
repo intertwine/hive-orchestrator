@@ -305,6 +305,43 @@ class TestObserveConsoleApi:
             for item in activity.json()["items"]
         )
 
+    def test_run_compare_endpoint_returns_latest_accepted_baseline(self, temp_hive_dir, capsys):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        baseline_task = create_task(
+            temp_hive_dir, "demo", "Accepted baseline", status="ready", priority=1
+        )
+        review_task = create_task(
+            temp_hive_dir, "demo", "Review candidate", status="ready", priority=1
+        )
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        baseline_run = start_run(temp_hive_dir, baseline_task.id, driver_name="local")
+        eval_run(temp_hive_dir, baseline_run.id)
+        accept_run(temp_hive_dir, baseline_run.id)
+        review_run = start_run(temp_hive_dir, review_task.id, driver_name="codex")
+        eval_run(temp_hive_dir, review_run.id)
+
+        client = TestClient(app)
+        compare = client.get(f"/runs/{review_run.id}/compare", params={"path": temp_hive_dir})
+
+        assert compare.status_code == 200
+        payload = compare.json()["comparison"]
+        assert payload["current"]["run_id"] == review_run.id
+        assert payload["baseline"]["run_id"] == baseline_run.id
+        assert payload["summary"]["has_baseline"] is True
+        assert payload["baseline"]["title"] == "Accepted baseline"
+
     def test_events_stream_emits_snapshot_and_heartbeat_frames(
         self, temp_hive_dir, capsys
     ):

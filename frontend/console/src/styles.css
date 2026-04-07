@@ -405,6 +405,15 @@ select:focus-visible {
   grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
 }
 
+.run-detail-layout {
+  align-items: start;
+}
+
+.run-detail-layout__main,
+.run-detail-layout__rail {
+  align-content: start;
+}
+
 .panel {
   position: relative;
   display: flex;
@@ -819,6 +828,19 @@ select:focus-visible {
   gap: var(--space-3);
 }
 
+.run-detail__metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.run-detail__overview-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.95fr);
+  align-items: start;
+}
+
+.run-detail__artifact-tabs {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
 .primary-button,
 .secondary-button,
 .danger-button {
@@ -852,6 +874,13 @@ select:focus-visible {
   color: var(--color-ink);
 }
 
+.secondary-button--active {
+  background: rgba(1, 64, 133, 0.12);
+  border-color: rgba(1, 64, 133, 0.26);
+  color: var(--color-blueberry-ink);
+  box-shadow: inset 0 0 0 1px rgba(1, 64, 133, 0.08);
+}
+
 .secondary-button--danger,
 .danger-button {
   border-color: rgba(208, 90, 59, 0.24);
@@ -880,6 +909,37 @@ select:focus-visible {
   font-family: var(--font-mono);
   font-size: 0.82rem;
   line-height: 1.5;
+}
+
+.detail-disclosure {
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  border: 1px dashed var(--color-border-dashed);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.92), rgba(244, 236, 223, 0.86));
+}
+
+.detail-disclosure summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-blueberry-ink);
+}
+
+.detail-disclosure[open] summary {
+  margin-bottom: var(--space-3);
+}
+
+.detail-disclosure .inline-json {
+  margin-top: 0;
+}
+
+.run-detail-layout__rail > .panel:first-child {
+  position: sticky;
+  top: calc(var(--space-4) + 4.75rem);
+  z-index: 10;
 }
 
 .error-copy {
@@ -1074,6 +1134,10 @@ select:focus-visible {
   }
 
   .top-nav {
+    position: static;
+  }
+
+  .run-detail-layout__rail > .panel:first-child {
     position: static;
   }
 }

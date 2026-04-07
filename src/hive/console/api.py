@@ -129,6 +129,7 @@ def _encode_sse(event: str, payload: dict) -> str:
 def _execute_steering_request(
     root: Path, run_id: str, request: SteeringRequest, actor: str | None
 ) -> dict:
+    sync_workspace(root)
     try:
         payload = steer_run(root, run_id, request, actor=actor)
     except FileNotFoundError as exc:
@@ -428,7 +429,6 @@ def run_steer(
 ) -> dict:
     """Apply a typed steering action to a run."""
     root = _workspace_root(path)
-    sync_workspace(root)
     payload = _execute_steering_request(
         root,
         run_id,

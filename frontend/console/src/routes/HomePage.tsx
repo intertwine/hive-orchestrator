@@ -1,23 +1,157 @@
 import { createConsoleClient } from "../api/client";
 import { ConsoleLink } from "../components/ConsoleLink";
+import { useConsoleConfig } from "../components/ConsoleLayout";
 import { KeyValueGrid } from "../components/KeyValueGrid";
 import { Panel } from "../components/Panel";
 import { RunCard } from "../components/RunCard";
 import { StatusPill } from "../components/StatusPill";
-import { useConsoleConfig } from "../components/ConsoleLayout";
 import { useConsoleQuery } from "../hooks/useConsoleQuery";
 
-function GettingStarted({ recommended }: {
+function RecommendedTaskCard({
+  recommended,
+  mode = "active",
+}: {
   recommended: { task?: Record<string, unknown>; reasons?: string[] } | null;
+  mode?: "active" | "getting-started";
 }) {
-  const projectId = recommended?.task
-    ? String(recommended.task.project_id ?? "demo")
-    : "demo";
+  return (
+    <div className="hero-card">
+      <p className="hero-card__eyebrow">Recommended next move</p>
+      {recommended?.task ? (
+        <>
+          <h3>{String(recommended.task.title ?? recommended.task.id ?? "Next task")}</h3>
+          <p className="hero-card__subtle">
+            {String(recommended.task.project_id ?? "unknown project")}
+          </p>
+          <ul className="reason-list">
+            {(recommended.reasons ?? []).map((reason, index) => (
+              <li key={`reason-${index}`}>{reason}</li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <>
+          <h3>No recommendation yet</h3>
+          <p className="hero-card__subtle">
+            {mode === "getting-started"
+              ? "Start in Projects to read Program Doctor, then return here once Hive has enough context to rank the next safe action."
+              : "No recommendation is available right now. Check Inbox, Runs, or Projects for work that still needs operator attention."}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SafeFirstChecklist({ workspacePath }: { workspacePath: string }) {
+  return (
+    <div className="hero-card">
+      <p className="hero-card__eyebrow">Safe first actions</p>
+      <h3>Inspect first. Mutate later.</h3>
+      <ul className="reason-list">
+        <li>
+          <strong>Settings</strong>:{" "}
+          {workspacePath.trim()
+            ? `currently pointed at ${workspacePath.trim()}`
+            : "pick an API base and workspace path before expecting the console to tell the truth"}
+        </li>
+        <li>
+          <strong>Projects</strong>: read Program Doctor and startup context before you launch
+          autonomous work.
+        </li>
+        <li>
+          <strong>Inbox</strong>: inspect approvals, escalations, and blocked sessions without
+          mutating the workspace.
+        </li>
+        <li>
+          <strong>Runs</strong>: watch live work, freshness, and steering history once work exists.
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function ChooseYourPathCard() {
+  return (
+    <div className="hero-card">
+      <p className="hero-card__eyebrow">First-contact success</p>
+      <h3>Choose the shortest honest path</h3>
+      <ul className="reason-list">
+        <li>
+          <strong>Fresh workspace</strong>: <code>hive onboard demo --title "Demo project"</code>{" "}
+          creates a safe first project and task chain.
+        </li>
+        <li>
+          <strong>Existing repo</strong>: <code>hive adopt app --title "App"</code> brings Hive
+          into code you already own.
+        </li>
+        <li>
+          <strong>Native harnesses</strong>: run <code>hive integrate doctor</code> first, then
+          confirm the adapter truth in Integrations.
+        </li>
+      </ul>
+      <pre className="inline-json">{`mkdir my-hive
+cd my-hive
+git init
+hive onboard demo --title "Demo project"
+hive console serve`}</pre>
+    </div>
+  );
+}
+
+function BuiltInHelpCard() {
+  return (
+    <div className="hero-card">
+      <p className="hero-card__eyebrow">Built-in help</p>
+      <h3>Safe clicks inside the command center</h3>
+      <p className="hero-card__subtle">
+        Start with the read-mostly surfaces, then move toward steering only when Hive asks for
+        operator judgment.
+      </p>
+      <ul className="reason-list">
+        <li>
+          <ConsoleLink to="/settings" className="getting-started__link">Open Settings</ConsoleLink>{" "}
+          keeps connection and operator-local display truth in one place.
+        </li>
+        <li>
+          <ConsoleLink to="/projects" className="getting-started__link">Open Projects</ConsoleLink>{" "}
+          shows Program Doctor output and startup context.
+        </li>
+        <li>
+          <ConsoleLink to="/inbox" className="getting-started__link">Open Inbox</ConsoleLink>{" "}
+          is where approvals and exceptions should feel explicit.
+        </li>
+        <li>
+          <ConsoleLink to="/runs" className="getting-started__link">Open Runs</ConsoleLink>{" "}
+          becomes the live review surface once work is in motion.
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function GettingStarted({
+  recommended,
+  workspacePath,
+}: {
+  recommended: { task?: Record<string, unknown>; reasons?: string[] } | null;
+  workspacePath: string;
+}) {
+  const projectId = recommended?.task ? String(recommended.task.project_id ?? "demo") : "demo";
 
   return (
     <div className="page-grid getting-started">
       <Panel eyebrow="Welcome" title="Getting Started with Agent Hive">
         <div className="stack">
+          <KeyValueGrid
+            values={[
+              { label: "Workspace", value: workspacePath.trim() || "Choose one in Settings" },
+              { label: "Safe first page", value: "Projects" },
+              { label: "Demo path", value: "hive onboard demo" },
+              { label: "Observe first", value: "Inbox / Runs / Activity" },
+            ]}
+          />
+
           <div className="hero-card">
             <h3>What is this?</h3>
             <p>
@@ -47,34 +181,27 @@ function GettingStarted({ recommended }: {
             </p>
           </div>
 
+          <SafeFirstChecklist workspacePath={workspacePath} />
+          <BuiltInHelpCard />
+          <ChooseYourPathCard />
+
           <div className="hero-card">
-            <h3>Quick start from your terminal</h3>
+            <p className="hero-card__eyebrow">Quick start from your terminal</p>
+            <h3>Move from install to first action</h3>
             <pre className="inline-json">{`hive next --project-id ${projectId}
 hive work --owner <your-name>
 # make changes inside the run worktree
 hive finish <run-id>`}</pre>
           </div>
 
-          {recommended?.task ? (
-            <div className="hero-card">
-              <p className="hero-card__eyebrow">Recommended first task</p>
-              <h3>{String(recommended.task.title ?? recommended.task.id ?? "Next task")}</h3>
-              <p className="hero-card__subtle">
-                {String(recommended.task.project_id ?? "unknown project")}
-              </p>
-              <ul className="reason-list">
-                {(recommended.reasons ?? []).map((reason, index) => (
-                  <li key={`reason-${index}`}>{reason}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          <RecommendedTaskCard recommended={recommended} mode="getting-started" />
 
           <p className="hero-card__subtle">
-            Explore the <ConsoleLink to="/projects" className="getting-started__link">Projects</ConsoleLink> page
-            to see your tasks and governance policy, or check the{" "}
-            <ConsoleLink to="/inbox" className="getting-started__link">Inbox</ConsoleLink> for
-            items that need your attention.
+            Explore the{" "}
+            <ConsoleLink to="/projects" className="getting-started__link">Projects page</ConsoleLink>{" "}
+            page to see your tasks and governance policy, or check the{" "}
+            <ConsoleLink to="/inbox" className="getting-started__link">Inbox page</ConsoleLink>{" "}
+            surface for items that need your attention.
           </p>
         </div>
       </Panel>
@@ -110,7 +237,7 @@ export function HomePage() {
     inbox.length > 0 || blocked.length > 0 || campaigns.length > 0;
 
   if (!loading && !error && !hasActivity) {
-    return <GettingStarted recommended={recommended} />;
+    return <GettingStarted recommended={recommended} workspacePath={workspacePath} />;
   }
 
   return (
@@ -122,7 +249,7 @@ export function HomePage() {
           <div className="stack">
             <KeyValueGrid
               values={[
-                { label: "Workspace", value: String(home.workspace ?? "—") },
+                { label: "Workspace", value: workspacePath.trim() || String(home.workspace ?? "—") },
                 { label: "Active runs", value: activeRuns.length },
                 { label: "Awaiting review", value: evaluatingRuns.length },
                 { label: "Inbox items", value: inbox.length },
@@ -130,23 +257,8 @@ export function HomePage() {
               ]}
             />
 
-            <div className="hero-card">
-              <p className="hero-card__eyebrow">Why this next?</p>
-              {recommended?.task ? (
-                <>
-                  <h3>{String(recommended.task.title ?? recommended.task.id ?? "Next task")}</h3>
-                  <p className="hero-card__subtle">
-                    {String(recommended.task.project_id ?? "unknown project")}
-                  </p>
-                  <ul className="reason-list">
-                    {(recommended.reasons ?? []).map((reason) => (
-                      <li key={reason}>{reason}</li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <p>No recommendation available right now.</p>
-              )}
+            <div className="card-grid">
+              <RecommendedTaskCard recommended={recommended} />
             </div>
           </div>
         ) : null}

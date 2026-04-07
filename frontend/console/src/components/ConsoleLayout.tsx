@@ -153,7 +153,7 @@ export function ConsoleSettingsCard({
 }
 
 function ConsoleLayoutBody({ children }: PropsWithChildren) {
-  const { preferences } = useConsolePreferences();
+  const { preferences, rememberWorkspace } = useConsolePreferences();
   const [apiBase, setApiBase] = useState(
     window.localStorage.getItem(API_BASE_KEY) ?? DEFAULT_API_BASE,
   );
@@ -170,6 +170,7 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
   const previousQueryApiBase = useRef(queryApiBase);
   const previousQueryWorkspacePath = useRef(queryWorkspacePath);
   const activePage = describeConsolePath(location.pathname);
+  const rememberedInitialWorkspace = useRef(false);
 
   useEffect(() => {
     explicitConfigQuery.current = explicitConfigQuery.current
@@ -216,6 +217,29 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
     }
     window.localStorage.setItem(WORKSPACE_KEY, workspacePath);
   }, [queryWorkspacePath, workspacePath]);
+
+  useEffect(() => {
+    const trimmedWorkspacePath = workspacePath.trim();
+    const shouldRememberInitialWorkspace = (
+      !rememberedInitialWorkspace.current
+      && !configTouched.current
+      && queryWorkspacePath === null
+      && !!trimmedWorkspacePath
+    );
+    const shouldRememberQueryWorkspace = (
+      !configTouched.current
+      && queryWorkspacePath !== null
+      && queryWorkspacePath === trimmedWorkspacePath
+      && !!trimmedWorkspacePath
+    );
+    if (!shouldRememberInitialWorkspace && !shouldRememberQueryWorkspace) {
+      return;
+    }
+    if (shouldRememberInitialWorkspace) {
+      rememberedInitialWorkspace.current = true;
+    }
+    rememberWorkspace(trimmedWorkspacePath);
+  }, [queryWorkspacePath, rememberWorkspace, workspacePath]);
 
   useEffect(() => {
     if (!explicitConfigQuery.current && !configTouched.current) {

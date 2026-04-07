@@ -1,10 +1,11 @@
-import { createContext, type PropsWithChildren, useContext, useEffect, useRef, useState } from "react";
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import {
   CONSOLE_PREFERENCES_KEY,
   DEFAULT_RUNS_FILTERS,
   deleteSavedRunsView,
   loadConsolePreferences,
+  rememberRecentWorkspace,
   saveConsolePreferences,
   type ConsoleDensity,
   type ConsolePage,
@@ -23,6 +24,7 @@ interface ConsolePreferencesContextValue {
   saveRunsView: (name: string, filters: RunsFiltersPreference) => void;
   deleteRunsView: (viewId: string) => void;
   resetRunsFilters: () => void;
+  rememberWorkspace: (workspacePath: string) => void;
 }
 
 const ConsolePreferencesContext = createContext<ConsolePreferencesContextValue | null>(null);
@@ -95,6 +97,10 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
     setRunsFilters({ ...DEFAULT_RUNS_FILTERS });
   }
 
+  const rememberWorkspace = useCallback((workspacePath: string) => {
+    setPreferences((current) => rememberRecentWorkspace(current, workspacePath));
+  }, []);
+
   return (
     <ConsolePreferencesContext.Provider
       value={{
@@ -106,6 +112,7 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
         saveRunsView,
         deleteRunsView,
         resetRunsFilters,
+        rememberWorkspace,
       }}
     >
       {children}

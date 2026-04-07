@@ -27,9 +27,9 @@ Use this document for human context, links, architecture notes, and handoff deta
 |---|---|---:|---|---|
 | task_01KNHQFZ3JMPSZ0QKYSP0HT99F | done | 1 |  | Add preferences, saved views, and operator-local state persistence |
 | task_01KNHQGWQKZXDNEWHWVZ6QS89H | archived | 1 |  | Add preferences, saved views, and operator-local state persistence |
-| task_01KNHQFZ4GMPSP19APVZZYB1N5 | claimed | 1 | codex | Add real-time event, notification, and freshness primitives for the browser console |
+| task_01KNHQFZ4GMPSP19APVZZYB1N5 | done | 1 |  | Add real-time event, notification, and freshness primitives for the browser console |
 | task_01KNHQHTYKXVTJXR7SGZGWMNJ9 | archived | 1 |  | Add real-time event, notification, and freshness primitives for the browser console |
-| task_01KNHQP3P6SXH8MZB706YYVKQD | ready | 1 |  | Add startup wizard, workspace chooser, help surfaces, and safe-first onboarding |
+| task_01KNHQP3P6SXH8MZB706YYVKQD | claimed | 1 | codex | Add startup wizard, workspace chooser, help surfaces, and safe-first onboarding |
 | task_01KNHQBQ773EB9RJSX7AGK1EH0 | done | 1 |  | Bootstrap the v2.5 project, policy, and canonical task tree |
 | task_01KNHQEYG1721BBK9JS5EVZP03 | done | 1 | codex | Build the Clay-aligned command-center design system and token library |
 | task_01KNHQAX8SBVVSJKRE2FERDPG7 | proposed | 1 |  | Deliver RFC 2.5 Command Center as a browser-first product release |

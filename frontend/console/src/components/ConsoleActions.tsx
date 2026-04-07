@@ -101,6 +101,19 @@ function readKeywords(value: unknown): string[] {
     : [];
 }
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = target.tagName.toLowerCase();
+  return (
+    target.isContentEditable ||
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select"
+  );
+}
+
 export function normalizeConsoleActionRecord(value: Record<string, unknown>): ConsoleActionRecord {
   return {
     id: readString(value.id, readString(value.action_id, "action")),
@@ -452,6 +465,7 @@ export function ConsoleActionsProvider({ children }: PropsWithChildren) {
       description: page.description,
       group: page.navGroup === "primary" ? "Navigate" : "Utilities",
       keywords: [page.id, page.label.toLowerCase()],
+      shortcut: page.id === "settings" ? "?" : undefined,
       navGroup: page.navGroup,
       href: page.path,
       enabled: true,
@@ -477,6 +491,21 @@ export function ConsoleActionsProvider({ children }: PropsWithChildren) {
         setPaletteOpen((current) => !current);
         return;
       }
+      if (
+        !paletteOpen &&
+        event.key === "?" &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !isTypingTarget(event.target)
+      ) {
+        event.preventDefault();
+        setPaletteOpen(false);
+        startTransition(() => {
+          navigate(preserveConsoleSearch("/settings", location.search));
+        });
+        return;
+      }
       if (event.key === "Escape") {
         setPaletteOpen(false);
       }
@@ -486,7 +515,7 @@ export function ConsoleActionsProvider({ children }: PropsWithChildren) {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [location.search, navigate, paletteOpen]);
 
   const value = useMemo(() => ({
     actions,

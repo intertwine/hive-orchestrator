@@ -66,6 +66,15 @@ export interface AttentionPreferences {
   triageByItemId: Record<string, AttentionTriagePreference>;
 }
 
+export interface NotificationPreferences {
+  showActionable: boolean;
+  showInformational: boolean;
+}
+
+export interface KeyboardPreferences {
+  showShortcutBadges: boolean;
+}
+
 export interface ConsolePreferences {
   version: 1;
   theme: ConsoleTheme;
@@ -74,6 +83,8 @@ export interface ConsolePreferences {
   recentWorkspaces: string[];
   runs: RunsPreferences;
   attention: AttentionPreferences;
+  notifications: NotificationPreferences;
+  keyboard: KeyboardPreferences;
 }
 
 export const DEFAULT_RUNS_FILTERS: RunsFiltersPreference = {
@@ -108,6 +119,13 @@ export const DEFAULT_CONSOLE_PREFERENCES: ConsolePreferences = {
     filters: DEFAULT_ATTENTION_FILTERS,
     savedViews: [],
     triageByItemId: {},
+  },
+  notifications: {
+    showActionable: true,
+    showInformational: true,
+  },
+  keyboard: {
+    showShortcutBadges: true,
   },
 };
 
@@ -264,6 +282,8 @@ export function normalizeConsolePreferences(value: unknown): ConsolePreferences 
       ),
     )
     : {};
+  const notifications = isRecord(value.notifications) ? value.notifications : {};
+  const keyboard = isRecord(value.keyboard) ? value.keyboard : {};
 
   return {
     version: 1,
@@ -284,6 +304,22 @@ export function normalizeConsolePreferences(value: unknown): ConsolePreferences 
       filters: normalizeAttentionFilters(attention.filters),
       savedViews: attentionSavedViews,
       triageByItemId,
+    },
+    notifications: {
+      showActionable: readBoolean(
+        notifications.showActionable,
+        DEFAULT_CONSOLE_PREFERENCES.notifications.showActionable,
+      ),
+      showInformational: readBoolean(
+        notifications.showInformational,
+        DEFAULT_CONSOLE_PREFERENCES.notifications.showInformational,
+      ),
+    },
+    keyboard: {
+      showShortcutBadges: readBoolean(
+        keyboard.showShortcutBadges,
+        DEFAULT_CONSOLE_PREFERENCES.keyboard.showShortcutBadges,
+      ),
     },
   };
 }

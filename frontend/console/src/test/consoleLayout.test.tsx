@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -313,5 +313,59 @@ describe("ConsoleLayout query-param behavior", () => {
     await user.type(pauseSearch, "pause");
     expect(screen.getByRole("button", { name: /Pause demo run/i })).toBeDisabled();
     expect(screen.getByText(/Unavailable because the demo run is already paused\./i)).toBeInTheDocument();
+  });
+
+  it("hides the hero shortcut badge when operators turn shortcut badges off", async () => {
+    window.localStorage.setItem(
+      CONSOLE_PREFERENCES_KEY,
+      JSON.stringify({
+        version: 1,
+        theme: "clay",
+        density: "comfortable",
+        defaultPage: "home",
+        notifications: {
+          showActionable: true,
+          showInformational: true,
+        },
+        keyboard: {
+          showShortcutBadges: false,
+        },
+        runs: {
+          filters: {
+            projectId: "",
+            driver: "",
+            health: "",
+            campaignId: "",
+          },
+          hiddenColumns: [],
+          pinnedPanels: [],
+          savedViews: [],
+        },
+        attention: {
+          filters: {
+            severity: "",
+            kind: "",
+            projectId: "",
+            assignee: "",
+            disposition: "",
+            query: "",
+          },
+          savedViews: [],
+          triageByItemId: {},
+        },
+        recentWorkspaces: [],
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <ConsoleLayout>
+          <div>child</div>
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    const paletteButton = screen.getByRole("button", { name: /Open Command Palette/i });
+    expect(within(paletteButton).queryByText("Ctrl/Cmd+K")).not.toBeInTheDocument();
   });
 });

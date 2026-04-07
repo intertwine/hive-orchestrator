@@ -29,6 +29,11 @@ describe("console preferences", () => {
     expect(preferences.theme).toBe("clay");
     expect(preferences.density).toBe("comfortable");
     expect(preferences.defaultPage).toBe("home");
+    expect(preferences.notifications).toEqual({
+      showActionable: true,
+      showInformational: true,
+    });
+    expect(preferences.keyboard.showShortcutBadges).toBe(true);
     expect(preferences.runs.filters).toEqual(DEFAULT_RUNS_FILTERS);
   });
 
@@ -37,6 +42,12 @@ describe("console preferences", () => {
       theme: "ledger",
       density: "compact",
       defaultPage: "runs",
+      notifications: {
+        showInformational: false,
+      },
+      keyboard: {
+        showShortcutBadges: false,
+      },
       runs: {
         filters: {
           projectId: "gamma",
@@ -50,6 +61,11 @@ describe("console preferences", () => {
     expect(preferences.theme).toBe("ledger");
     expect(preferences.density).toBe("compact");
     expect(preferences.defaultPage).toBe("runs");
+    expect(preferences.notifications).toEqual({
+      showActionable: true,
+      showInformational: false,
+    });
+    expect(preferences.keyboard.showShortcutBadges).toBe(false);
     expect(preferences.recentWorkspaces).toEqual([]);
     expect(preferences.runs.filters).toEqual({
       projectId: "gamma",

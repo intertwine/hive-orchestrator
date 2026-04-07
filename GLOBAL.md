@@ -40,6 +40,6 @@ hive sync projections --json
 | Cross-Repository Improvement: Social Compliance Generator | cross-repo-social-compliance | active | 1 | 2 | 0 | 0 |
 | Hive MCP Server | hive-mcp | completed | 1 | 0 | 0 | 0 |
 | Hive v2.4 Ecosystem Integrations | hive-v24 | active | 2 | 0 | 0 | 0 |
-| Hive v2.5 Command Center | hive-v25 | active | 1 | 9 | 0 | 0 |
+| Hive v2.5 Command Center | hive-v25 | active | 1 | 7 | 0 | 0 |
 | OpenCode Plugin for Agent Hive | opencode-plugin | active | 1 | 31 | 0 | 0 |
 <!-- hive:end projects -->

@@ -78,10 +78,12 @@ function ConsoleShell({
   activePage,
   children,
   density,
+  showShortcutBadges,
   theme,
 }: PropsWithChildren<{
   activePage: ReturnType<typeof describeConsolePath>;
   density: string;
+  showShortcutBadges: boolean;
   theme: string;
 }>) {
   const {
@@ -114,7 +116,9 @@ function ConsoleShell({
           <div className="hero-command-actions">
             <button className="secondary-button" onClick={openPalette} type="button">
               Open Command Palette
-              <span className="hero-command-actions__shortcut">Ctrl/Cmd+K</span>
+              {showShortcutBadges ? (
+                <span className="hero-command-actions__shortcut">Ctrl/Cmd+K</span>
+              ) : null}
             </button>
           </div>
         </div>
@@ -364,6 +368,7 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
           <ConsoleShell
             activePage={activePage}
             density={preferences.density}
+            showShortcutBadges={preferences.keyboard.showShortcutBadges}
             theme={preferences.theme}
           >
             {children}

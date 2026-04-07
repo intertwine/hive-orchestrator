@@ -5,14 +5,14 @@ acceptance:
 - Activity gives a compact recent-changes feed that complements but does not duplicate
   the inbox.
 - Keyboard users can discover and use shortcuts without relying on external docs.
-claimed_until: null
+claimed_until: '2026-04-07T07:57:35.678450Z'
 created_at: '2026-04-06T15:48:37.636453Z'
 edges: {}
 id: task_01KNHQPJM4RKGESMF9YV2H3RM6
 kind: task
 labels:
 - settings
-owner: null
+owner: codex
 parent_id: task_01KNHQD1FSKPPQGN4PXVCM6HCD
 priority: 2
 project_id: hive-v25
@@ -21,9 +21,9 @@ relevant_files:
 - frontend/console/src/components
 - src/hive/console/api.py
 source: {}
-status: ready
+status: review
 title: Add settings, activity, and keyboard-shortcut help surfaces
-updated_at: '2026-04-06T15:48:37.636460Z'
+updated_at: '2026-04-07T07:40:07.862558Z'
 ---
 
 ## Summary

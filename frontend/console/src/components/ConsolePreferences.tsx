@@ -1,4 +1,13 @@
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  type PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   CONSOLE_PREFERENCES_KEY,
@@ -27,6 +36,9 @@ interface ConsolePreferencesContextValue {
   setDensity: (density: ConsoleDensity) => void;
   setTheme: (theme: ConsoleTheme) => void;
   setDefaultPage: (page: ConsolePage) => void;
+  setShowActionableNotifications: (value: boolean) => void;
+  setShowInformationalNotifications: (value: boolean) => void;
+  setShowShortcutBadges: (value: boolean) => void;
   setRunsFilters: (filters: RunsFiltersPreference) => void;
   saveRunsView: (name: string, filters: RunsFiltersPreference) => void;
   deleteRunsView: (viewId: string) => void;
@@ -95,6 +107,36 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
 
   function setDefaultPage(defaultPage: ConsolePage) {
     setPreferences((current) => ({ ...current, defaultPage }));
+  }
+
+  function setShowActionableNotifications(showActionable: boolean) {
+    setPreferences((current) => ({
+      ...current,
+      notifications: {
+        ...current.notifications,
+        showActionable,
+      },
+    }));
+  }
+
+  function setShowInformationalNotifications(showInformational: boolean) {
+    setPreferences((current) => ({
+      ...current,
+      notifications: {
+        ...current.notifications,
+        showInformational,
+      },
+    }));
+  }
+
+  function setShowShortcutBadges(showShortcutBadges: boolean) {
+    setPreferences((current) => ({
+      ...current,
+      keyboard: {
+        ...current.keyboard,
+        showShortcutBadges,
+      },
+    }));
   }
 
   function setRunsFilters(filters: RunsFiltersPreference) {
@@ -178,27 +220,41 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
     setPreferences((current) => rememberRecentWorkspace(current, workspacePath));
   }, []);
 
+  const value = useMemo(() => ({
+    preferences,
+    setDensity,
+    setTheme,
+    setDefaultPage,
+    setShowActionableNotifications,
+    setShowInformationalNotifications,
+    setShowShortcutBadges,
+    setRunsFilters,
+    saveRunsView,
+    deleteRunsView,
+    resetRunsFilters,
+    setAttentionFilters: setAttentionFiltersValue,
+    saveAttentionView,
+    deleteAttentionView,
+    resetAttentionFilters,
+    updateAttentionItem,
+    clearAttentionItem,
+    clearAttentionDisposition,
+    rememberWorkspace,
+  }), [
+    preferences,
+    rememberWorkspace,
+    setAttentionFiltersValue,
+    setDefaultPage,
+    setDensity,
+    setRunsFilters,
+    setShowActionableNotifications,
+    setShowInformationalNotifications,
+    setShowShortcutBadges,
+    setTheme,
+  ]);
+
   return (
-    <ConsolePreferencesContext.Provider
-      value={{
-        preferences,
-        setDensity,
-        setTheme,
-        setDefaultPage,
-        setRunsFilters,
-        saveRunsView,
-        deleteRunsView,
-        resetRunsFilters,
-        setAttentionFilters: setAttentionFiltersValue,
-        saveAttentionView,
-        deleteAttentionView,
-        resetAttentionFilters,
-        updateAttentionItem,
-        clearAttentionItem,
-        clearAttentionDisposition,
-        rememberWorkspace,
-      }}
-    >
+    <ConsolePreferencesContext.Provider value={value}>
       {children}
     </ConsolePreferencesContext.Provider>
   );

@@ -991,17 +991,30 @@ describe("Observe Console smoke", () => {
         "/runs?apiBase=http://127.0.0.1:8787&workspace=/tmp/hive-demo",
       ),
     );
+    expect(screen.getByText("Keyboard shortcut help")).toBeInTheDocument();
+    expect(screen.getByLabelText("Show informational notifications")).toBeChecked();
+
+    await user.click(screen.getByLabelText("Show informational notifications"));
+    expect(screen.getByLabelText("Show informational notifications")).not.toBeChecked();
 
     await user.click(screen.getByRole("link", { name: "Notifications" }));
     await screen.findByRole("heading", { name: "Notifications" });
     expect(await screen.findByText("Review the shell route contract")).toBeInTheDocument();
-    expect(await screen.findByText("Accepted shell routing foundation")).toBeInTheDocument();
+    expect(screen.queryByText("Accepted shell routing foundation")).not.toBeInTheDocument();
     expect(screen.getByText("Actionable: 1 • Informational: 1")).toBeInTheDocument();
+    expect(screen.getByText(/Filtered by local preferences/i)).toBeInTheDocument();
+    expect(screen.getByText(/Hidden items: 1/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole("link", { name: "Activity" }));
     await screen.findByRole("heading", { name: "Activity" });
     expect(await screen.findByText("Canonical /home route published.")).toBeInTheDocument();
     expect(await screen.findByText("Accepted Publish the shell route contract")).toBeInTheDocument();
+    expect(screen.getByText("Events: 1 • Accepted runs: 1")).toBeInTheDocument();
+    expect(screen.getByText("Hive v2.5 • 2 items")).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "?" });
+    await screen.findByRole("heading", { name: "Settings" });
+    expect(screen.getByText("Keyboard shortcut help")).toBeInTheDocument();
 
     await user.click(screen.getByRole("link", { name: "Integrations" }));
     await screen.findByRole("heading", { name: "Integrations" });

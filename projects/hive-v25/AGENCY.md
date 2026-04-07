@@ -33,7 +33,7 @@ Use this document for human context, links, architecture notes, and handoff deta
 | task_01KNHQBQ773EB9RJSX7AGK1EH0 | done | 1 |  | Bootstrap the v2.5 project, policy, and canonical task tree |
 | task_01KNHQEYG1721BBK9JS5EVZP03 | done | 1 | codex | Build the Clay-aligned command-center design system and token library |
 | task_01KNHQAX8SBVVSJKRE2FERDPG7 | proposed | 1 |  | Deliver RFC 2.5 Command Center as a browser-first product release |
-| task_01KNHQFZ1FE415P7TX42WRYKJD | review | 1 | codex | Implement the shared action registry, action execution APIs, and command palette |
+| task_01KNHQFZ1FE415P7TX42WRYKJD | done | 1 | codex | Implement the shared action registry, action execution APIs, and command palette |
 | task_01KNHQGDQN66GEZ5M3HDAS0WC0 | archived | 1 |  | Implement the shared action registry, action execution APIs, and command palette |
 | task_01KNHQK443Q889CY875N9QB70Z | archived | 1 |  | Implement the shared action registry, action execution APIs, and command palette |
 | task_01KNHQM9P6HGZ50D2GSMTA49RS | archived | 1 |  | Implement the shared action registry, action execution APIs, and command palette |
@@ -45,10 +45,10 @@ Use this document for human context, links, architecture notes, and handoff deta
 | task_01KNHQFPPS275AERJPMX8ERTZN | done | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
 | task_01KNHQFZ0JQ689T9HWY0PGC28M | archived | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
 | task_01KNHQHEEM0QEC8YK2KH63H58W | archived | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |
-| task_01KNHQJX5VKQE4DGZK4KPHBY4C | claimed | 1 | codex | Strengthen the console validation harness with component, E2E, and accessibility gates |
+| task_01KNHQJX5VKQE4DGZK4KPHBY4C | done | 1 | codex | Strengthen the console validation harness with component, E2E, and accessibility gates |
 | task_01KNHQMXZC3D86Z2JNPR29SQ81 | done | 1 | codex | Upgrade search to explainable unified provenance with previews and open-in-context flows |
 | task_01KNHQS6FZW0PECASBK1NW0HWA | ready | 2 |  | Add daemon lifecycle, tray, native notifications, and desktop deep-link handling |
-| task_01KNHQPJM4RKGESMF9YV2H3RM6 | ready | 2 |  | Add settings, activity, and keyboard-shortcut help surfaces |
+| task_01KNHQPJM4RKGESMF9YV2H3RM6 | review | 2 | codex | Add settings, activity, and keyboard-shortcut help surfaces |
 | task_01KNHQRCC2ED8B89SGNJ6C6GCX | ready | 2 |  | Bootstrap the Tauri 2 desktop shell beta around the shared command-center frontend |
 | task_01KNHQT4PK1BMNDQK8Z4BS9DBG | ready | 2 |  | Document desktop packaging, permissions, update path, and operator expectations |
 | task_01KNHQE7RS8JDFC221XF3N5QGV | proposed | 2 |  | M3: Tauri desktop beta and launch polish |

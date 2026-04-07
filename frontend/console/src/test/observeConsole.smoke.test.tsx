@@ -423,8 +423,8 @@ describe("Observe Console smoke", () => {
 
     await user.click(screen.getByRole("link", { name: "Projects" }));
     await screen.findByRole("heading", { name: "Projects" });
-    expect(screen.getByText("Program Doctor is blocking promotion")).toBeInTheDocument();
-    expect(screen.getByText("Demo context preview")).toBeInTheDocument();
+    expect(await screen.findByText("Program Doctor is blocking promotion")).toBeInTheDocument();
+    expect(await screen.findByText("Demo context preview")).toBeInTheDocument();
   });
 
   it("persists saved runs views across remounts and reapplies them", async () => {

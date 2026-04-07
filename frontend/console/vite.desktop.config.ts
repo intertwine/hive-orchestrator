@@ -1,7 +1,7 @@
 import { createConsoleViteConfig } from "./vite.shared";
 
 export default createConsoleViteConfig({
-  base: "/console/",
-  outDir: "../../src/hive/resources/console",
-  port: 4174,
+  base: "/",
+  outDir: "dist-desktop",
+  port: 4175,
 });

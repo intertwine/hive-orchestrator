@@ -199,9 +199,9 @@ hive finish <run-id>`}</pre>
           <p className="hero-card__subtle">
             Explore the{" "}
             <ConsoleLink to="/projects" className="getting-started__link">Projects page</ConsoleLink>{" "}
-            page to see your tasks and governance policy, or check the{" "}
+            to see your tasks and governance policy, or check the{" "}
             <ConsoleLink to="/inbox" className="getting-started__link">Inbox page</ConsoleLink>{" "}
-            surface for items that need your attention.
+            for items that need your attention.
           </p>
         </div>
       </Panel>

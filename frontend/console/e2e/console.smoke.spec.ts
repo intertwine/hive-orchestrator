@@ -43,7 +43,7 @@ test.beforeEach(async ({ page }) => {
 test("preserves deep-link query params while navigating notifications, activity, and integrations", async ({
   page,
 }) => {
-  await fulfillJsonRoute(page, "/inbox", {
+  await fulfillJsonRoute(page, "/notifications", {
     ok: true,
     items: [
       {
@@ -54,39 +54,62 @@ test("preserves deep-link query params while navigating notifications, activity,
         run_id: "run_gamma_local_1",
         approval_id: "approval_1",
       },
+      {
+        kind: "accepted-run",
+        title: "Accepted shell routing foundation",
+        reason: "Shell routing landed on codex.",
+        project_id: "beta",
+        run_id: "run_beta_codex_1",
+        severity: "info",
+        severity_label: "Info",
+        decision_type: "informational",
+        decision_label: "Informational",
+        group_key: "info:informational",
+        group_label: "Info · Informational",
+        notification_tier: "informational",
+        source: "run",
+        bulk_actions: ["dismiss", "snooze", "assign"],
+        deep_link: "/runs/run_beta_codex_1",
+        project_label: "Beta",
+        run_label: "Beta codex pass",
+        why_visible: "Accepted runs stay visible as informational notifications.",
+        ignore_impact: "Ignoring this only hides it locally.",
+      },
     ],
-  });
-  await fulfillJsonRoute(page, "/home", {
-    ok: true,
-    home: {
-      workspace: WORKSPACE,
-      active_runs: [],
-      evaluating_runs: [],
-      inbox: [],
-      blocked_projects: [],
-      campaigns: [],
-      recent_events: [
-        {
-          event_id: "event_1",
-          type: "steering.rerouted",
-          ts: "2026-03-17T05:30:00Z",
-          payload: {
-            message: "Rerouted Gamma to Codex.",
-            run_id: "run_gamma_local_1",
-          },
-        },
-      ],
-      recent_accepts: [
-        {
-          id: "run_beta_codex_1",
-          project_id: "beta",
-          driver: "codex",
-          status: "accepted",
-          metadata_json: { task_title: "Beta codex pass" },
-        },
-      ],
-      recommended_next: null,
+    summary: {
+      total: 2,
+      by_severity: { critical: 1, info: 1 },
+      by_decision_type: { approval: 1, informational: 1 },
+      by_notification_tier: { actionable: 1, informational: 1 },
     },
+  });
+  await fulfillJsonRoute(page, "/activity", {
+    ok: true,
+    items: [
+      {
+        id: "activity_event_1",
+        kind: "event",
+        title: "Rerouted Gamma to Codex.",
+        summary: "Operator rerouted the run to Codex.",
+        occurred_at: "2026-03-17T05:30:00Z",
+        project_id: "gamma",
+        project_label: "Gamma",
+        run_id: "run_gamma_local_1",
+        deep_link: "/runs/run_gamma_local_1",
+      },
+      {
+        id: "activity_accept_1",
+        kind: "accepted-run",
+        title: "Accepted Beta codex pass",
+        summary: "Beta codex pass was accepted on codex.",
+        occurred_at: "2026-03-17T05:10:00Z",
+        project_id: "beta",
+        project_label: "Beta",
+        run_id: "run_beta_codex_1",
+        deep_link: "/runs/run_beta_codex_1",
+      },
+    ],
+    summary: { total: 2 },
   });
   await fulfillJsonRoute(page, "/integrations", {
     ok: true,
@@ -117,11 +140,12 @@ test("preserves deep-link query params while navigating notifications, activity,
 
   await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
   await expect(page.getByText("Approve Gamma reroute")).toBeVisible();
+  await expect(page.getByText("Accepted shell routing foundation")).toBeVisible();
 
   await page.getByRole("link", { name: "Activity" }).click();
   await expect(page).toHaveURL(new RegExp(`${encodeURIComponent(WORKSPACE)}`));
-  await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
-  await expect(page.getByText("steering.rerouted")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
+  await expect(page.getByText("Rerouted Gamma to Codex.")).toBeVisible();
 
   await page.getByRole("link", { name: "Integrations" }).click();
   await expect(page).toHaveURL(new RegExp(`${encodeURIComponent(WORKSPACE)}`));

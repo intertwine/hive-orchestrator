@@ -2,14 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   CONSOLE_PREFERENCES_KEY,
+  DEFAULT_ATTENTION_FILTERS,
   DEFAULT_RUNS_FILTERS,
   MAX_RECENT_WORKSPACES,
+  MAX_SAVED_ATTENTION_VIEWS,
   MAX_SAVED_RUNS_VIEWS,
+  deleteSavedAttentionView,
   deleteSavedRunsView,
   loadConsolePreferences,
   normalizeConsolePreferences,
   rememberRecentWorkspace,
   saveConsolePreferences,
+  setAttentionFilters,
+  updateAttentionTriage,
+  upsertSavedAttentionView,
   upsertSavedRunsView,
 } from "../preferences";
 
@@ -52,6 +58,7 @@ describe("console preferences", () => {
     });
     expect(preferences.runs.hiddenColumns).toEqual(["campaign"]);
     expect(preferences.runs.pinnedPanels).toEqual(["filters"]);
+    expect(preferences.attention.filters).toEqual(DEFAULT_ATTENTION_FILTERS);
   });
 
   it("saves, updates, and deletes saved views by name", () => {
@@ -89,6 +96,90 @@ describe("console preferences", () => {
     expect(preferences.runs.savedViews).toHaveLength(MAX_SAVED_RUNS_VIEWS);
     expect(preferences.runs.savedViews[0]?.name).toBe("View 5");
     expect(preferences.runs.savedViews.at(-1)?.name).toBe("View 54");
+  });
+
+  it("normalizes attention filters, saved views, and triage state", () => {
+    const preferences = normalizeConsolePreferences({
+      attention: {
+        filters: {
+          severity: "critical",
+          decisionType: "approval",
+          showSnoozed: true,
+        },
+        savedViews: [
+          {
+            name: "Critical approvals",
+            filters: {
+              severity: "critical",
+              decisionType: "approval",
+              tier: "actionable",
+            },
+          },
+        ],
+        triageByItemId: {
+          attention_1: {
+            disposition: "dismissed",
+            assignee: "me",
+            snoozedUntil: "2026-04-07T12:00:00Z",
+            updatedAt: "2026-04-07T11:00:00Z",
+          },
+          broken: {
+            disposition: "unknown",
+          },
+        },
+      },
+    });
+
+    expect(preferences.attention.filters).toEqual({
+      ...DEFAULT_ATTENTION_FILTERS,
+      severity: "critical",
+      decisionType: "approval",
+      showSnoozed: true,
+    });
+    expect(preferences.attention.savedViews).toHaveLength(1);
+    expect(preferences.attention.savedViews[0]?.name).toBe("Critical approvals");
+    expect(preferences.attention.triageByItemId).toEqual({
+      attention_1: {
+        disposition: "dismissed",
+        assignee: "me",
+        snoozedUntil: "2026-04-07T12:00:00Z",
+        updatedAt: "2026-04-07T11:00:00Z",
+      },
+    });
+  });
+
+  it("saves, caps, and deletes attention views while persisting triage state", () => {
+    let preferences = loadConsolePreferences({ getItem: () => null });
+
+    preferences = setAttentionFilters(preferences, {
+      ...DEFAULT_ATTENTION_FILTERS,
+      severity: "high",
+      source: "delegate",
+    });
+    preferences = updateAttentionTriage(preferences, "attention_1", {
+      disposition: "resolved",
+      assignee: "release-captain",
+      snoozedUntil: "2026-04-07T12:00:00Z",
+    });
+
+    for (let index = 0; index < MAX_SAVED_ATTENTION_VIEWS + 4; index += 1) {
+      preferences = upsertSavedAttentionView(
+        preferences,
+        `Attention ${index}`,
+        { ...DEFAULT_ATTENTION_FILTERS, severity: index % 2 === 0 ? "high" : "critical" },
+      );
+    }
+
+    expect(preferences.attention.filters.source).toBe("delegate");
+    expect(preferences.attention.triageByItemId.attention_1?.disposition).toBe("resolved");
+    expect(preferences.attention.savedViews).toHaveLength(MAX_SAVED_ATTENTION_VIEWS);
+    expect(preferences.attention.savedViews[0]?.name).toBe("Attention 4");
+
+    const deleted = deleteSavedAttentionView(
+      preferences,
+      preferences.attention.savedViews[0]!.id,
+    );
+    expect(deleted.attention.savedViews).toHaveLength(MAX_SAVED_ATTENTION_VIEWS - 1);
   });
 
   it("keeps a unique, capped recent-workspace list", () => {

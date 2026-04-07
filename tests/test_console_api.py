@@ -26,6 +26,7 @@ from src.hive.runs.engine import accept_run, eval_run, start_run
 from src.hive.runtime.approvals import request_approval
 from src.hive.runtime.capabilities import CapabilitySnapshot, capability_surface
 from src.hive.scheduler.query import ready_tasks
+from src.hive.store.events import emit_event
 from src.hive.store.task_files import create_task
 from src.hive.trajectory.schema import trajectory_event
 from src.hive.trajectory.writer import append_trajectory_event
@@ -215,6 +216,94 @@ class TestObserveConsoleApi:
         assert "context_entries" in detail.json()["detail"]
         assert "handoff_manifest" in detail.json()["detail"]["inspector"]
         assert "reroute_bundle" in detail.json()["detail"]["inspector"]
+
+    def test_attention_notifications_and_activity_endpoints(self, temp_hive_dir, capsys):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        review_task = create_task(
+            temp_hive_dir, "demo", "Review-ready slice", status="ready", priority=1
+        )
+        accepted_task = create_task(
+            temp_hive_dir, "demo", "Accepted slice", status="ready", priority=2
+        )
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        review_run = start_run(temp_hive_dir, review_task.id, driver_name="codex")
+        eval_run(temp_hive_dir, review_run.id)
+        accepted_run = start_run(temp_hive_dir, accepted_task.id, driver_name="local")
+        eval_run(temp_hive_dir, accepted_run.id)
+        accept_run(temp_hive_dir, accepted_run.id)
+        emit_event(
+            temp_hive_dir,
+            actor="hive",
+            entity_type="run",
+            entity_id=accepted_run.id,
+            event_type="run.note_added",
+            source="tests.console",
+            run_id=accepted_run.id,
+            project_id="demo",
+            payload={
+                "message": "Canonical /home route published.",
+                "summary": "Stable browser deep link shipped.",
+                "run_id": accepted_run.id,
+                "project_id": "demo",
+            },
+        )
+
+        client = TestClient(app)
+        status = client.get("/status", params={"path": temp_hive_dir})
+        inbox = client.get("/inbox", params={"path": temp_hive_dir})
+        notifications = client.get("/notifications", params={"path": temp_hive_dir})
+        activity = client.get("/activity", params={"path": temp_hive_dir})
+
+        assert status.status_code == 200
+        assert "attention_summary" in status.json()
+        assert status.json()["notifications"] >= 2
+        assert status.json()["activity"] >= 2
+
+        assert inbox.status_code == 200
+        assert inbox.json()["summary"]["total"] == len(inbox.json()["items"])
+        review_item = next(
+            item for item in inbox.json()["items"] if item["kind"] == "run-review"
+        )
+        assert review_item["severity"] == "critical"
+        assert review_item["decision_type"] == "review"
+        assert review_item["why_visible"]
+        assert review_item["ignore_impact"]
+        assert review_item["deep_link"] == f"/runs/{review_run.id}"
+
+        assert notifications.status_code == 200
+        assert notifications.json()["summary"]["by_notification_tier"]["actionable"] >= 1
+        assert notifications.json()["summary"]["by_notification_tier"]["informational"] >= 1
+        assert any(
+            item["title"] == "Canonical /home route published."
+            and item["notification_tier"] == "informational"
+            for item in notifications.json()["items"]
+        )
+        assert any(
+            item["title"].startswith("Accepted ")
+            and item["notification_tier"] == "informational"
+            for item in notifications.json()["items"]
+        )
+
+        assert activity.status_code == 200
+        assert activity.json()["summary"]["total"] >= 2
+        assert activity.json()["items"][0]["title"] == "Canonical /home route published."
+        assert any(
+            item["title"].startswith("Accepted ")
+            and item["deep_link"] == f"/runs/{accepted_run.id}"
+            for item in activity.json()["items"]
+        )
 
     def test_events_stream_emits_snapshot_and_heartbeat_frames(
         self, temp_hive_dir, capsys

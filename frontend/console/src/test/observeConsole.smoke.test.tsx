@@ -566,7 +566,7 @@ describe("Observe Console smoke", () => {
 
     await user.click(within(approvalCard as HTMLElement).getByRole("button", { name: "Approve" }));
 
-    expect(await screen.findByText("Approved approval_gamma_1.")).toBeInTheDocument();
+    expect(await screen.findByText("Approved Approve deploy step.")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText("The inbox is clear.")).toBeInTheDocument();
     });
@@ -583,6 +583,95 @@ describe("Observe Console smoke", () => {
         run_id: "run_gamma_codex_2",
       },
     ]);
+  });
+
+  it("groups inbox attention, supports filters, and snoozes items in bulk", async () => {
+    installFetchMock([
+      {
+        pathname: "/inbox",
+        response: jsonResponse({
+          ok: true,
+          items: [
+            {
+              id: "approval-request::run_gamma_local_1::approval_gamma_1",
+              kind: "approval-request",
+              title: "Approve Gamma reroute",
+              reason: "Driver needs operator approval.",
+              severity: "critical",
+              severity_label: "Critical",
+              decision_type: "approval",
+              decision_label: "Approval",
+              group_key: "critical:approval",
+              group_label: "Critical · Approval",
+              notification_tier: "actionable",
+              source: "approval",
+              bulk_actions: ["resolve", "dismiss", "snooze", "assign"],
+              deep_link: "/runs/run_gamma_local_1",
+              project_id: "gamma",
+              project_label: "Gamma",
+              run_id: "run_gamma_local_1",
+              run_label: "Gamma launch page",
+              approval_id: "approval_gamma_1",
+              why_visible: "Gamma launch page is waiting on an explicit operator approval.",
+              ignore_impact: "Ignoring this keeps the run blocked.",
+            },
+            {
+              id: "run-blocked::run_gamma_local_2",
+              kind: "run-blocked",
+              title: "Blocked Gamma polish",
+              reason: "Driver hit a release packaging blocker.",
+              severity: "high",
+              severity_label: "High",
+              decision_type: "failure",
+              decision_label: "Failure",
+              group_key: "high:failure",
+              group_label: "High · Failure",
+              notification_tier: "actionable",
+              source: "run",
+              bulk_actions: ["resolve", "dismiss", "snooze", "assign"],
+              deep_link: "/runs/run_gamma_local_2",
+              project_id: "gamma",
+              project_label: "Gamma",
+              run_id: "run_gamma_local_2",
+              run_label: "Gamma polish pass",
+              why_visible: "The run surfaced a failure-level alert.",
+              ignore_impact: "Ignoring this can leave the run stalled.",
+            },
+          ],
+          summary: {
+            total: 2,
+            by_severity: { critical: 1, high: 1 },
+            by_decision_type: { approval: 1, failure: 1 },
+            by_notification_tier: { actionable: 2 },
+          },
+        }),
+      },
+    ]);
+
+    const user = userEvent.setup();
+    renderConsole(["/inbox"]);
+
+    await screen.findByRole("heading", { name: "Inbox" });
+    expect(screen.getByRole("heading", { name: "Critical · Approval" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "High · Failure" })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Severity" }), "high");
+    expect(screen.getByText("Blocked Gamma polish")).toBeInTheDocument();
+    expect(screen.queryByText("Approve Gamma reroute")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Reset filters" }));
+    expect(await screen.findByText("Approve Gamma reroute")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Select Approve Gamma reroute" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select Blocked Gamma polish" }));
+    await user.click(screen.getByRole("button", { name: "Snooze selected" }));
+
+    expect(await screen.findByText(/Snoozed 2 attention item\(s\) until/)).toBeInTheDocument();
+    expect(screen.getByText("The inbox is clear.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Show snoozed" }));
+    expect(await screen.findByText("Approve Gamma reroute")).toBeInTheDocument();
+    expect(screen.getByText("Blocked Gamma polish")).toBeInTheDocument();
   });
 
   it("loads project doctor and search routes through the live app shell", async () => {
@@ -675,7 +764,7 @@ describe("Observe Console smoke", () => {
   it("exposes the full v2.5 shell surfaces with stable deep-link navigation", async () => {
     installFetchMock([
       {
-        pathname: "/inbox",
+        pathname: "/notifications",
         response: jsonResponse({
           ok: true,
           items: [
@@ -687,39 +776,65 @@ describe("Observe Console smoke", () => {
               run_id: "run_shell_contract",
               approval_id: "approval_shell_contract",
             },
+            {
+              kind: "accepted-run",
+              title: "Accepted shell routing foundation",
+              reason: "Shell routing landed on codex.",
+              project_id: "hive-v25",
+              run_id: "run_shell_contract",
+              severity: "info",
+              severity_label: "Info",
+              decision_type: "informational",
+              decision_label: "Informational",
+              group_key: "info:informational",
+              group_label: "Info · Informational",
+              notification_tier: "informational",
+              source: "run",
+              bulk_actions: ["dismiss", "snooze", "assign"],
+              deep_link: "/runs/run_shell_contract",
+              project_label: "Hive v2.5",
+              run_label: "Publish the shell route contract",
+              why_visible: "Accepted runs stay visible as informational notifications.",
+              ignore_impact: "Ignoring this only hides it locally.",
+            },
           ],
+          summary: {
+            total: 2,
+            by_severity: { critical: 1, info: 1 },
+            by_decision_type: { approval: 1, informational: 1 },
+            by_notification_tier: { actionable: 1, informational: 1 },
+          },
         }),
       },
       {
-        pathname: "/home",
+        pathname: "/activity",
         response: jsonResponse({
           ok: true,
-          home: {
-            workspace: "/tmp/hive-demo",
-            active_runs: [],
-            evaluating_runs: [],
-            inbox: [],
-            blocked_projects: [],
-            campaigns: [],
-            recent_events: [
-              {
-                event_id: "event_shell_1",
-                type: "routing.updated",
-                ts: "2026-04-06T21:00:00Z",
-                payload: { message: "Canonical /home route published." },
-              },
-            ],
-            recent_accepts: [
-              makeRun(
-                "run_shell_contract",
-                "hive-v25",
-                "codex",
-                "healthy",
-                "Publish the shell route contract",
-              ),
-            ],
-            recommended_next: null,
-          },
+          items: [
+            {
+              id: "activity_event_shell",
+              kind: "event",
+              title: "Canonical /home route published.",
+              summary: "Stable browser deep link shipped.",
+              occurred_at: "2026-04-06T21:00:00Z",
+              project_id: "hive-v25",
+              project_label: "Hive v2.5",
+              run_id: "run_shell_contract",
+              deep_link: "/runs/run_shell_contract",
+            },
+            {
+              id: "activity_accept_shell",
+              kind: "accepted-run",
+              title: "Accepted Publish the shell route contract",
+              summary: "Publish the shell route contract was accepted on codex.",
+              occurred_at: "2026-04-06T20:30:00Z",
+              project_id: "hive-v25",
+              project_label: "Hive v2.5",
+              run_id: "run_shell_contract",
+              deep_link: "/runs/run_shell_contract",
+            },
+          ],
+          summary: { total: 2 },
         }),
       },
       {
@@ -771,11 +886,13 @@ describe("Observe Console smoke", () => {
     await user.click(screen.getByRole("link", { name: "Notifications" }));
     await screen.findByRole("heading", { name: "Notifications" });
     expect(await screen.findByText("Review the shell route contract")).toBeInTheDocument();
+    expect(await screen.findByText("Accepted shell routing foundation")).toBeInTheDocument();
+    expect(screen.getByText("Actionable: 1 • Informational: 1")).toBeInTheDocument();
 
     await user.click(screen.getByRole("link", { name: "Activity" }));
     await screen.findByRole("heading", { name: "Activity" });
     expect(await screen.findByText("Canonical /home route published.")).toBeInTheDocument();
-    expect(await screen.findByText("Publish the shell route contract")).toBeInTheDocument();
+    expect(await screen.findByText("Accepted Publish the shell route contract")).toBeInTheDocument();
 
     await user.click(screen.getByRole("link", { name: "Integrations" }));
     await screen.findByRole("heading", { name: "Integrations" });

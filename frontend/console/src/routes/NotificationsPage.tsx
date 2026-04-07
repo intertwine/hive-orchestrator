@@ -1,88 +1,63 @@
+import { useMemo } from "react";
+
 import { createConsoleClient } from "../api/client";
-import { ConsoleLink } from "../components/ConsoleLink";
+import { AttentionBoard } from "../components/AttentionBoard";
 import { Panel } from "../components/Panel";
-import { StatusPill } from "../components/StatusPill";
 import { useConsoleConfig } from "../components/ConsoleLayout";
 import { useConsoleQuery } from "../hooks/useConsoleQuery";
 
 export function NotificationsPage() {
   const { apiBase, workspacePath } = useConsoleConfig();
-  const client = createConsoleClient(apiBase, workspacePath);
+  const client = useMemo(
+    () => createConsoleClient(apiBase, workspacePath),
+    [apiBase, workspacePath],
+  );
   const { data, loading, error } = useConsoleQuery(
     `notifications:${apiBase}:${workspacePath}`,
-    () => client.getInbox(),
+    () => client.getNotifications(),
     3000,
   );
   const items = Array.isArray(data?.items) ? data.items : [];
+  const summary = (data?.summary ?? {}) as Record<string, unknown>;
+  const byTier = (summary.by_notification_tier ?? {}) as Record<string, number>;
+  const bySeverity = (summary.by_severity ?? {}) as Record<string, number>;
 
   return (
     <div className="page-grid">
-      <Panel eyebrow="Attention routing" title="Notifications">
-        {loading ? <p>Loading Notifications…</p> : null}
-        {error ? <p className="error-copy">{error}</p> : null}
-        <div className="stack">
-          <article className="hero-card">
-            <p className="hero-card__eyebrow">Shared event contract</p>
-            <h3>Inbox-worthy signals already have a dedicated surface.</h3>
-            <p className="hero-card__subtle">
-              This route is the stable home for operator notifications now, while the richer
-              notification center and preference model land in the next slice.
-            </p>
-          </article>
-          {items.length ? (
-            items.map((item) => {
-              const entry = item as Record<string, unknown>;
-              const notificationKey = [
-                String(entry.kind ?? ""),
-                String(entry.run_id ?? ""),
-                String(entry.approval_id ?? ""),
-                String(entry.title ?? ""),
-              ].join(":");
-              return (
-                <article className="list-card" key={notificationKey}>
-                  <div className="list-card__header">
-                    <h3>{String(entry.title ?? entry.kind ?? "Notification")}</h3>
-                    <StatusPill tone={String(entry.kind ?? "info")}>
-                      {String(entry.kind ?? "signal")}
-                    </StatusPill>
-                  </div>
-                  <p>{String(entry.reason ?? "Needs operator attention.")}</p>
-                  <p className="list-card__meta">
-                    Project: {String(entry.project_id ?? "—")}
-                    {entry.run_id ? ` • Run: ${String(entry.run_id)}` : ""}
-                  </p>
-                  {entry.run_id ? (
-                    <p className="list-card__meta">
-                      <ConsoleLink to={`/runs/${String(entry.run_id)}`}>Open run</ConsoleLink>
-                    </p>
-                  ) : null}
-                </article>
-              );
-            })
-          ) : (
-            <p>No notifications are queued right now.</p>
-          )}
-        </div>
-      </Panel>
+      <AttentionBoard
+        eyebrow="Persistent signals"
+        title="Notifications"
+        loading={loading}
+        error={error}
+        items={items}
+        mode="notifications"
+        emptyMessage="No notifications are queued right now."
+      />
 
-      <Panel eyebrow="Why this exists" title="Routing Promise">
+      <Panel eyebrow="Center of gravity" title="Notification mix">
         <div className="stack">
           <article className="list-card">
             <div className="list-card__header">
-              <h3>Stable shell surface</h3>
+              <h3>Tier summary</h3>
             </div>
+            <p className="list-card__meta">
+              Actionable: {byTier.actionable ?? 0} • Informational: {byTier.informational ?? 0}
+            </p>
             <p>
-              Notifications now have a first-class route in the app shell, so browser links and
-              future desktop deep links can land on the same operator surface.
+              Actionable items are inbox-worthy. Informational items stay visible here so operators
+              can review important portfolio events without polluting the decision queue.
             </p>
           </article>
           <article className="list-card">
             <div className="list-card__header">
-              <h3>Next slice</h3>
+              <h3>Severity mix</h3>
             </div>
+            <p className="list-card__meta">
+              Critical: {bySeverity.critical ?? 0} • High: {bySeverity.high ?? 0} • Medium: {bySeverity.medium ?? 0} • Low: {bySeverity.low ?? 0} • Info: {bySeverity.info ?? 0}
+            </p>
             <p>
-              Bulk triage, snooze, richer grouping, and provenance/explanation affordances belong
-              to the dedicated notifications and inbox overhaul task.
+              This summary makes it easy to tell whether the current queue is dominated by
+              high-stakes approvals, stalled failures, or lower-stakes context.
             </p>
           </article>
         </div>

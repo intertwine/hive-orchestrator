@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 import json
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from src.hive.runs.engine import refresh_run_driver_state
 from src.hive.scheduler.query import dependency_summary
 from src.hive.store.campaigns import list_campaigns
 from src.hive.store.events import load_events
+from src.hive.store.projects import discover_projects
 from src.hive.trajectory.writer import load_trajectory
 
 
@@ -600,13 +602,261 @@ def _delegate_inbox_items(base_path: Path, run: dict[str, Any]) -> list[dict[str
     return items
 
 
+SEVERITY_RANK = {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 3,
+    "info": 4,
+}
+
+DECISION_LABELS = {
+    "approval": "Approval",
+    "review": "Review",
+    "input": "Input",
+    "failure": "Failure",
+    "blocker": "Blocker",
+    "delegate": "Delegate",
+    "informational": "Informational",
+}
+
+
+def _project_titles(base_path: Path) -> dict[str, str]:
+    return {
+        project.id: str(project.title or project.slug or project.id)
+        for project in discover_projects(base_path)
+    }
+
+
+def _run_title(run: dict[str, Any]) -> str:
+    metadata = run.get("metadata_json") or {}
+    if isinstance(metadata, dict):
+        title = str(metadata.get("task_title") or "").strip()
+        if title:
+            return title
+    return str(run.get("id") or "Run")
+
+
+def _attention_decision_type(kind: str) -> str:
+    if kind in {"approval-request", "delegate-approval"}:
+        return "approval"
+    if kind in {"run-review", "delegate-blocked"}:
+        return "review"
+    if kind == "run-input":
+        return "input"
+    if kind in {"run-escalated", "run-failed", "run-blocked", "delegate-error"}:
+        return "failure"
+    if kind == "project-blocked":
+        return "blocker"
+    if kind == "delegate-note":
+        return "delegate"
+    return "informational"
+
+
+def _attention_severity(kind: str, priority: int) -> str:
+    if kind in {"approval-request", "run-review", "delegate-approval"}:
+        return "critical"
+    if kind in {"run-escalated", "run-failed", "run-blocked", "delegate-error"}:
+        return "high"
+    if kind in {"run-input", "delegate-blocked", "project-blocked"}:
+        return "medium"
+    if kind == "delegate-note":
+        return "low"
+    if priority <= 0:
+        return "critical"
+    if priority == 1:
+        return "high"
+    if priority == 2:
+        return "medium"
+    return "info"
+
+
+def _attention_explanation(kind: str, *, run_label: str, project_label: str) -> str:
+    if kind == "approval-request":
+        return f"{run_label} is waiting on an explicit operator approval before it can continue."
+    if kind == "run-review":
+        return f"{run_label} finished evaluation and needs a promotion decision."
+    if kind == "run-input":
+        return f"{run_label} is staged and waiting for a live operator input or attach decision."
+    if kind in {"run-escalated", "run-failed", "run-blocked"}:
+        return f"{run_label} surfaced a run-level exception that needs operator attention."
+    if kind == "project-blocked":
+        return f"{project_label} is effectively blocked by unresolved dependencies."
+    if kind == "delegate-blocked":
+        return f"{run_label} represents an attached delegate session that explicitly asked for review."
+    if kind == "delegate-note":
+        return f"{run_label} emitted a delegate note marked as inbox-worthy."
+    if kind == "delegate-approval":
+        return f"{run_label} surfaced an approval request from an attached delegate harness."
+    if kind == "delegate-error":
+        return f"{run_label} emitted an attached delegate error that could affect delivery."
+    return f"{run_label} surfaced an operator notification."
+
+
+def _attention_ignore_impact(kind: str, *, run_label: str, project_label: str) -> str:
+    if kind in {"approval-request", "delegate-approval"}:
+        return f"Ignoring this leaves {run_label} blocked until someone approves or rejects it."
+    if kind == "run-review":
+        return f"Ignoring this delays promotion or rejection for {run_label}."
+    if kind == "run-input":
+        return f"Ignoring this leaves {run_label} waiting in a staged state."
+    if kind in {"run-escalated", "run-failed", "run-blocked", "delegate-error"}:
+        return f"Ignoring this risks leaving {run_label} in an unhealthy or stalled state."
+    if kind == "project-blocked":
+        return f"Ignoring this leaves {project_label} blocked and can hide downstream delivery risk."
+    if kind == "delegate-note":
+        return f"Ignoring this may hide context the delegate session considered important."
+    if kind == "delegate-blocked":
+        return f"Ignoring this keeps the delegate session waiting without a human review path."
+    return "Ignoring this removes it from view but does not change canonical Hive state."
+
+
+def _attention_available_actions(kind: str) -> list[str]:
+    actions = ["dismiss", "snooze", "assign"]
+    if kind in {
+        "approval-request",
+        "run-review",
+        "run-input",
+        "run-escalated",
+        "run-failed",
+        "run-blocked",
+        "project-blocked",
+        "delegate-blocked",
+        "delegate-error",
+    }:
+        return ["resolve", *actions]
+    return actions
+
+
+def _attention_deep_link(kind: str, *, run_id: str | None, project_id: str | None) -> str | None:
+    if run_id:
+        return f"/runs/{run_id}"
+    if kind == "project-blocked" and project_id:
+        return f"/projects/{project_id}"
+    return None
+
+
+def _attention_item(
+    *,
+    kind: str,
+    priority: int,
+    title: str,
+    reason: str,
+    project_id: str | None = None,
+    project_label: str | None = None,
+    run_id: str | None = None,
+    run_label: str | None = None,
+    approval_id: str | None = None,
+    delegate_session_id: str | None = None,
+    native_session_ref: str | None = None,
+    occurred_at: str | None = None,
+    source: str = "workspace",
+    notification_tier: str = "actionable",
+) -> dict[str, Any]:
+    severity = _attention_severity(kind, priority)
+    decision_type = _attention_decision_type(kind)
+    decision_label = DECISION_LABELS.get(decision_type, decision_type.replace("-", " ").title())
+    normalized_run_label = str(run_label or run_id or "This run")
+    normalized_project_label = str(project_label or project_id or "This project")
+    identifier_parts = [
+        kind,
+        run_id or "",
+        approval_id or "",
+        delegate_session_id or "",
+        native_session_ref or "",
+        occurred_at or "",
+        title,
+    ]
+    item_id = "::".join(part for part in identifier_parts if part)
+    return {
+        "id": item_id,
+        "kind": kind,
+        "priority": priority,
+        "severity": severity,
+        "severity_rank": SEVERITY_RANK[severity],
+        "severity_label": severity.title(),
+        "decision_type": decision_type,
+        "decision_label": decision_label,
+        "group_key": f"{severity}:{decision_type}",
+        "group_label": f"{severity.title()} · {decision_label}",
+        "title": title,
+        "summary": reason,
+        "reason": reason,
+        "why_visible": _attention_explanation(
+            kind,
+            run_label=normalized_run_label,
+            project_label=normalized_project_label,
+        ),
+        "ignore_impact": _attention_ignore_impact(
+            kind,
+            run_label=normalized_run_label,
+            project_label=normalized_project_label,
+        ),
+        "notification_tier": notification_tier,
+        "source": source,
+        "status": "pending",
+        "bulk_actions": _attention_available_actions(kind),
+        "deep_link": _attention_deep_link(kind, run_id=run_id, project_id=project_id),
+        "occurred_at": occurred_at,
+        "project_id": project_id,
+        "project_label": normalized_project_label,
+        "run_id": run_id,
+        "run_label": normalized_run_label if run_id else None,
+        "approval_id": approval_id,
+        "delegate_session_id": delegate_session_id,
+        "native_session_ref": native_session_ref,
+    }
+
+
+def _sort_attention_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ordered = sorted(items, key=lambda item: str(item.get("title") or ""))
+    ordered = sorted(ordered, key=lambda item: str(item.get("occurred_at") or ""), reverse=True)
+    return sorted(
+        ordered,
+        key=lambda item: (
+            int(item.get("severity_rank", item.get("priority", 99))),
+            not bool(item.get("occurred_at")),
+        ),
+    )
+
+
+def summarize_attention_items(items: list[dict[str, Any]]) -> dict[str, Any]:
+    severity_counts = Counter(str(item.get("severity") or "info") for item in items)
+    decision_counts = Counter(str(item.get("decision_type") or "informational") for item in items)
+    tier_counts = Counter(str(item.get("notification_tier") or "actionable") for item in items)
+    return {
+        "total": len(items),
+        "by_severity": dict(sorted(severity_counts.items(), key=lambda entry: SEVERITY_RANK.get(entry[0], 99))),
+        "by_decision_type": dict(sorted(decision_counts.items())),
+        "by_notification_tier": dict(sorted(tier_counts.items())),
+    }
+
+
 def build_inbox(base_path: Path) -> list[dict]:
     """Return typed attention items for the operator inbox."""
+    project_titles = _project_titles(base_path)
     items: list[dict] = []
     for run in list_runs(base_path):
         if run.get("entry_kind") == "delegate_session":
-            items.extend(_delegate_inbox_items(base_path, run))
+            for item in _delegate_inbox_items(base_path, run):
+                items.append(
+                    _attention_item(
+                        kind=str(item.get("kind") or "delegate-note"),
+                        priority=int(item.get("priority") or 0),
+                        title=str(item.get("title") or "Delegate attention item"),
+                        reason=str(item.get("reason") or "Attached delegate session needs attention."),
+                        project_id=str(item.get("project_id") or "") or None,
+                        project_label=project_titles.get(str(item.get("project_id") or "")),
+                        run_id=str(item.get("run_id") or "") or None,
+                        run_label=str(item.get("title") or item.get("run_id") or "Delegate session"),
+                        delegate_session_id=str(item.get("delegate_session_id") or "") or None,
+                        native_session_ref=str(item.get("native_session_ref") or "") or None,
+                        source="delegate",
+                    )
+                )
             continue
+        run_label = _run_title(run)
+        project_id = str(run.get("project_id") or "") or None
         approvals = [
             approval
             for approval in list_approvals(base_path, run["id"])
@@ -614,69 +864,199 @@ def build_inbox(base_path: Path) -> list[dict]:
         ]
         for approval in approvals:
             items.append(
-                {
-                    "kind": "approval-request",
-                    "priority": 0,
-                    "run_id": run["id"],
-                    "project_id": run.get("project_id"),
-                    "approval_id": approval.get("approval_id"),
-                    "title": str(
-                        approval.get("title") or f"Approval needed for {run['id']}"
-                    ),
-                    "reason": str(
-                        approval.get("summary") or "Driver requested approval."
-                    ),
-                }
+                _attention_item(
+                    kind="approval-request",
+                    priority=0,
+                    run_id=str(run["id"]),
+                    run_label=run_label,
+                    project_id=project_id,
+                    project_label=project_titles.get(project_id or ""),
+                    approval_id=str(approval.get("approval_id") or "") or None,
+                    title=str(approval.get("title") or f"Approve next step for {run_label}"),
+                    reason=str(approval.get("summary") or "Driver requested approval."),
+                    occurred_at=str(approval.get("requested_at") or approval.get("created_at") or ""),
+                    source="approval",
+                )
             )
         status = str(run.get("status", ""))
         if status == "awaiting_review":
             items.append(
-                {
-                    "kind": "run-review",
-                    "priority": 0,
-                    "run_id": run["id"],
-                    "project_id": run.get("project_id"),
-                    "title": f"Review run {run['id']}",
-                    "reason": "Evaluator results are ready and a promotion decision is pending.",
-                }
+                _attention_item(
+                    kind="run-review",
+                    priority=0,
+                    run_id=str(run["id"]),
+                    run_label=run_label,
+                    project_id=project_id,
+                    project_label=project_titles.get(project_id or ""),
+                    title=f"Review {run_label}",
+                    reason="Evaluator results are ready and a promotion decision is pending.",
+                    occurred_at=str(run.get("updated_at") or run.get("started_at") or ""),
+                    source="run",
+                )
             )
         elif status == "awaiting_input":
             items.append(
-                {
-                    "kind": "run-input",
-                    "priority": 1,
-                    "run_id": run["id"],
-                    "project_id": run.get("project_id"),
-                    "title": f"Attach driver for {run['id']}",
-                    "reason": (
+                _attention_item(
+                    kind="run-input",
+                    priority=1,
+                    run_id=str(run["id"]),
+                    run_label=run_label,
+                    project_id=project_id,
+                    project_label=project_titles.get(project_id or ""),
+                    title=f"Attach live driver for {run_label}",
+                    reason=(
                         f"Driver {run.get('driver', 'unknown')} staged the run and is waiting."
                     ),
-                }
+                    occurred_at=str(run.get("updated_at") or run.get("started_at") or ""),
+                    source="run",
+                )
             )
         elif status in {"escalated", "failed", "blocked"}:
             items.append(
-                {
-                    "kind": f"run-{status}",
-                    "priority": 1,
-                    "run_id": run["id"],
-                    "project_id": run.get("project_id"),
-                    "title": f"{status.title()} run {run['id']}",
-                    "reason": run.get("exit_reason") or f"Run status is {status}.",
-                }
+                _attention_item(
+                    kind=f"run-{status}",
+                    priority=1,
+                    run_id=str(run["id"]),
+                    run_label=run_label,
+                    project_id=project_id,
+                    project_label=project_titles.get(project_id or ""),
+                    title=f"{status.title()} {run_label}",
+                    reason=str(run.get("exit_reason") or f"Run status is {status}."),
+                    occurred_at=str(run.get("updated_at") or run.get("finished_at") or run.get("started_at") or ""),
+                    source="run",
+                )
             )
     for project in dependency_summary(base_path).get("projects", []):
         if project.get("effectively_blocked"):
             items.append(
-                {
-                    "kind": "project-blocked",
-                    "priority": 2,
-                    "project_id": project["project_id"],
-                    "title": f"Blocked project {project['project_id']}",
-                    "reason": "; ".join(project.get("blocking_reasons", [])),
-                }
+                _attention_item(
+                    kind="project-blocked",
+                    priority=2,
+                    project_id=str(project["project_id"]),
+                    project_label=project_titles.get(str(project["project_id"]), str(project["project_id"])),
+                    title=f"Blocked {project_titles.get(str(project['project_id']), str(project['project_id']))}",
+                    reason="; ".join(project.get("blocking_reasons", [])),
+                    source="project",
+                )
             )
-    items.sort(key=lambda item: (item["priority"], item["title"]))
-    return items
+    return _sort_attention_items(items)
+
+
+def build_notifications(base_path: Path) -> dict[str, Any]:
+    """Return a persistent notification-center payload backed by the same event model."""
+    inbox_items = build_inbox(base_path)
+    notifications: list[dict[str, Any]] = [
+        {**item, "notification_tier": "actionable"} for item in inbox_items
+    ]
+    project_titles = _project_titles(base_path)
+    recent_events = portfolio_status(base_path).get("recent_events", [])
+    for event in recent_events:
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        run_id = str(event.get("run_id") or payload.get("run_id") or "") or None
+        project_id = str(event.get("project_id") or payload.get("project_id") or "") or None
+        notifications.append(
+            _attention_item(
+                kind="event-notification",
+                priority=3,
+                title=str(payload.get("message") or event.get("type") or "Workspace event"),
+                reason=str(
+                    payload.get("summary")
+                    or payload.get("message")
+                    or "Recent manager event recorded."
+                ),
+                project_id=project_id,
+                project_label=project_titles.get(project_id or "", project_id or "Project"),
+                run_id=run_id,
+                run_label=run_id or "Workspace event",
+                occurred_at=str(event.get("ts") or event.get("occurred_at") or ""),
+                source="event",
+                notification_tier="informational",
+            )
+        )
+    for run in [run for run in list_runs(base_path) if run.get("status") == "accepted"][:6]:
+        project_id = str(run.get("project_id") or "") or None
+        run_label = _run_title(run)
+        notifications.append(
+            _attention_item(
+                kind="accepted-run",
+                priority=3,
+                title=f"Accepted {run_label}",
+                reason=f"{run_label} was accepted on driver {run.get('driver', 'unknown')}.",
+                project_id=project_id,
+                project_label=project_titles.get(project_id or "", project_id or "Project"),
+                run_id=str(run.get("id") or "") or None,
+                run_label=run_label,
+                occurred_at=str(run.get("finished_at") or run.get("updated_at") or run.get("started_at") or ""),
+                source="run",
+                notification_tier="informational",
+            )
+        )
+    deduped: dict[str, dict[str, Any]] = {}
+    for item in notifications:
+        deduped[str(item["id"])] = item
+    items = _sort_attention_items(list(deduped.values()))
+    return {
+        "items": items,
+        "summary": summarize_attention_items(items),
+    }
+
+
+def build_activity_feed(base_path: Path) -> dict[str, Any]:
+    """Return a compact recent-activity feed for the command center."""
+    items: list[dict[str, Any]] = []
+    project_titles = _project_titles(base_path)
+    for event in portfolio_status(base_path).get("recent_events", []):
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        run_id = str(event.get("run_id") or payload.get("run_id") or "") or None
+        project_id = str(event.get("project_id") or payload.get("project_id") or "") or None
+        items.append(
+            {
+                "id": f"activity::{event.get('event_id') or event.get('id')}",
+                "kind": "event",
+                "title": str(payload.get("message") or event.get("type") or "Workspace event"),
+                "summary": str(
+                    payload.get("summary")
+                    or payload.get("message")
+                    or "Recent workspace activity was recorded."
+                ),
+                "occurred_at": str(event.get("ts") or event.get("occurred_at") or ""),
+                "source": "event",
+                "run_id": run_id,
+                "project_id": project_id,
+                "project_label": project_titles.get(project_id or "", project_id or "Project"),
+                "deep_link": _attention_deep_link("event-notification", run_id=run_id, project_id=project_id),
+            }
+        )
+    for run in [run for run in list_runs(base_path) if run.get("status") == "accepted"][:8]:
+        project_id = str(run.get("project_id") or "") or None
+        run_label = _run_title(run)
+        items.append(
+            {
+                "id": f"activity::accepted::{run.get('id')}",
+                "kind": "accepted-run",
+                "title": f"Accepted {run_label}",
+                "summary": f"{run_label} was accepted on driver {run.get('driver', 'unknown')}.",
+                "occurred_at": str(run.get("finished_at") or run.get("updated_at") or run.get("started_at") or ""),
+                "source": "run",
+                "run_id": str(run.get("id") or "") or None,
+                "project_id": project_id,
+                "project_label": project_titles.get(project_id or "", project_id or "Project"),
+                "deep_link": _attention_deep_link(
+                    "accepted-run",
+                    run_id=str(run.get("id") or "") or None,
+                    project_id=project_id,
+                ),
+            }
+        )
+    items.sort(key=lambda item: str(item.get("id") or ""))
+    items.sort(key=lambda item: str(item.get("occurred_at") or ""), reverse=True)
+    items.sort(key=lambda item: not bool(item.get("occurred_at")))
+    return {
+        "items": items[:20],
+        "summary": {
+            "total": len(items[:20]),
+        },
+    }
 
 
 def build_home_view(base_path: Path) -> dict:

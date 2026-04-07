@@ -55,8 +55,8 @@ def test_console_frontend_scaffold_exposes_the_primary_routes():
     assert "Observe Console" in readme or "observe console" in readme.lower()
 
 
-def test_console_desktop_bootstrap_stays_a_thin_wrapper():
-    """The desktop beta should reuse the shared console frontend instead of forking it."""
+def test_console_desktop_shell_keeps_browser_parity_while_adding_desktop_beta_hooks():
+    """The desktop beta should stay browser-first while layering in explicit OS affordances."""
     package_json = json.loads(
         (REPO_ROOT / "frontend" / "console" / "package.json").read_text(encoding="utf-8")
     )
@@ -92,6 +92,8 @@ def test_console_desktop_bootstrap_stays_a_thin_wrapper():
     assert (
         package_json["scripts"]["tauri:check"] == "tauri build --debug --no-bundle"
     )
+    assert package_json["dependencies"]["@tauri-apps/api"] == "2.10.1"
+    assert package_json["dependencies"]["@tauri-apps/plugin-notification"] == "2.3.3"
     assert package_json["devDependencies"]["@tauri-apps/cli"] == "2.10.1"
     assert tauri_config["productName"] == "Agent Hive Command Center"
     assert tauri_config["identifier"] == "com.intertwine.agent-hive"
@@ -100,9 +102,14 @@ def test_console_desktop_bootstrap_stays_a_thin_wrapper():
     assert tauri_config["build"]["beforeDevCommand"] == "pnpm run desktop:dev"
     assert tauri_config["build"]["beforeBuildCommand"] == "pnpm run desktop:build"
     assert tauri_config["app"]["security"]["capabilities"] == ["default"]
-    assert capability["permissions"] == ["core:default"]
+    assert tauri_config["plugins"]["deep-link"]["desktop"]["schemes"] == ["agent-hive"]
+    assert capability["permissions"] == ["core:default", "notification:default"]
     assert (REPO_ROOT / "frontend" / "console" / "vite.desktop.config.ts").exists()
     assert (REPO_ROOT / "frontend" / "console" / "vite.shared.ts").exists()
+    assert (
+        REPO_ROOT / "frontend" / "console" / "src" / "components" / "DesktopShellBridge.tsx"
+    ).exists()
+    assert (REPO_ROOT / "frontend" / "console" / "src" / "desktopShell.ts").exists()
     assert "pnpm run tauri:dev" in readme
     assert "same React app" in readme
     assert "http://127.0.0.1:8787" in readme

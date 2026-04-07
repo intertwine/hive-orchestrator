@@ -14,6 +14,7 @@ import {
   ConsoleActionsProvider,
   useConsoleActions,
 } from "./ConsoleActions";
+import { DesktopShellBridge } from "./DesktopShellBridge";
 import { ConsolePreferencesProvider, useConsolePreferences } from "./ConsolePreferences";
 import { ConsoleEventBusProvider, FreshnessIndicator } from "./ConsoleEventBus";
 import { ConsoleNavLink, preserveConsoleSearch } from "./ConsoleLink";
@@ -375,6 +376,7 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
       }}
     >
       <ConsoleEventBusProvider apiBase={apiBase} workspacePath={workspacePath}>
+        <DesktopShellBridge />
         <ConsoleActionsProvider>
           <ConsoleShell
             activePage={activePage}

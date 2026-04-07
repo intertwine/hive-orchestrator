@@ -27,6 +27,7 @@ paths:
 commands:
   allow:
     - make check
+    - make console-check
   deny:
     - rm -rf /
     - terraform apply
@@ -34,11 +35,15 @@ evaluators:
   - id: make-check
     command: make check
     required: true
+  - id: console-check
+    command: make console-check
+    required: true
 promotion:
   allow_unsafe_without_evaluators: false
   allow_accept_without_changes: false
   requires_all:
     - make-check
+    - console-check
   review_required_when_paths_match:
     - frontend/console/**
     - src/hive/console/**
@@ -60,6 +65,8 @@ Define the autonomous work contract for this project.
 - Treat the public v2.4.0 release cut as the gating precondition before claiming substantive v2.5 implementation tasks.
 - Use the Clay design language as visual direction, but adapt it to a dense operator console with truthful states and accessible contrast.
 - `make check` is the baseline required evaluator for governed v2.5 runs, and it must stay truthful.
+- Browser-console changes must also pass `make console-check`, which now carries the component,
+  accessibility, and real-browser validation path for this release line.
 - Changes to browser console UI, console APIs, or packaged console assets must still stop for human
   review until richer frontend-specific evaluator coverage lands.
 - Keep `commands.allow` intentionally narrow for now: auto-allow the required evaluator, and widen

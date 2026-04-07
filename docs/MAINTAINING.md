@@ -25,6 +25,7 @@ That gives you:
 ## Daily Commands
 
 ```bash
+make console-check
 make check
 make test
 make lint
@@ -35,6 +36,7 @@ make release-check
 Useful local commands:
 
 - `make console` opens the packaged observe-and-steer console from this checkout
+- `make console-check` runs the console unit, accessibility, and real-browser validation path used by v2.5 console work
 - `make workspace-status` shows branch, worktrees, PR state, Hive doctor output, worker processes, and untracked `.hive/events`
 - `make session PROJECT=demo` writes a startup bundle into the project directory
 - `make verify-claude` checks the optional GitHub App setup against the current workspace
@@ -70,6 +72,7 @@ If you are iterating on the React console itself:
 ```bash
 cd frontend/console
 pnpm install
+pnpm exec playwright install chromium
 pnpm dev
 ```
 

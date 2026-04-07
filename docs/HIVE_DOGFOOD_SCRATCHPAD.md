@@ -55,6 +55,7 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - A delegated implementation worker ended up using the shared maintainer checkout instead of an isolated worktree, switched branches underneath the active thread, and dirtied shared `.hive` task/projection state before any code changes were made.
 - Normal Hive commands still emit append-only `.hive/events/<date>.jsonl` noise into maintainer branches, which is easy to mistake for intentional reviewable work during PR prep.
 - GitHub-managed Claude review did not reliably produce a review artifact for an active console PR, so the maintainer flow had to fall back to `claude -p "/review <pr>"` locally and then manually summarize the findings back onto the PR.
+- Reconciliatory Hive commands like `hive task update ... --status done` plus `hive sync projections` immediately dirty `GLOBAL.md`, project rollups, and task files in the current checkout. That is correct canonically, but it means a freshly green local `main` stops being clean again before the maintainer has even branched for the next slice.
 
 ### Improvement ideas
 
@@ -64,3 +65,4 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Ensure delegated/worker runs always use isolated worktrees or fail loudly before they can switch the shared checkout branch.
 - Add a maintainer mode or config that keeps `.hive/events/*.jsonl` out of normal PR branches unless the operator explicitly asks to record or stage them.
 - Make GitHub-managed Claude review status more observable from Hive/maintainer surfaces, and add a first-class “fallback to local review” breadcrumb so reviewers do not have to infer whether an `eyes` reaction means “pending,” “stuck,” or “done elsewhere.”
+- Add a cleaner “post-merge reconcile” flow that can update canonical task/project state without surprising maintainers in `main`, for example by steering those writes into the current feature branch or by offering an explicit staged projection refresh step.

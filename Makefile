@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help install install-dev install-tool install-pipx run console dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor workspace-status sync-projections migrate-v2 session clean test lint format sync verify-claude check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install release-check dev-quickstart quickstart
+.PHONY: help install install-dev install-tool install-pipx run console dashboard ready ready-json deps deps-json hive hive-init hive-doctor doctor workspace-status sync-projections migrate-v2 session clean test lint format sync verify-claude console-check check build bump-version publish-test publish brew-formula brew-check release-homebrew brew-install release-check dev-quickstart quickstart
 
 BUMP ?= patch
 RELEASE_PYTHON_VERSION ?= 3.11
@@ -46,6 +46,7 @@ help:
 	@echo "  make lint           Run code linting (pylint)"
 	@echo "  make format         Format code with black"
 	@echo "  make test           Run tests (if available)"
+	@echo "  make console-check  Run console unit, accessibility, and browser validation"
 	@echo "  make check          Run lint + tests"
 	@echo "  make build          Build wheel and sdist"
 	@echo "  make release-check  Build, validate, and smoke-test release artifacts"
@@ -213,6 +214,11 @@ format:
 test:
 	@echo "🧪 Running tests..."
 	uv run pytest tests/ -v
+
+console-check:
+	@echo "🧪 Running console unit, accessibility, and browser checks..."
+	@echo "   First browser run may need: pnpm --dir frontend/console exec playwright install chromium"
+	pnpm --dir frontend/console run check
 
 check: lint test
 	@echo "✅ Lint and tests passed!"

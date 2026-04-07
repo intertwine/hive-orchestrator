@@ -22,6 +22,8 @@ export function NotificationsPage() {
   const items = Array.isArray(data?.items) ? data.items : [];
   const visibleItems = items.filter((item) => {
     const entry = item as Record<string, unknown>;
+    // Older signals may omit a tier; default them to actionable so high-signal items remain visible
+    // unless the operator explicitly hides actionable notifications.
     const tier = String(entry.notification_tier ?? "actionable");
     if (tier === "informational" && !preferences.notifications.showInformational) {
       return false;

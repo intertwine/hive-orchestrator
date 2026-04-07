@@ -37,7 +37,10 @@ export function ActivityPage() {
       return counts;
     }, {});
   }, [items]);
-  const busiestProject = Object.entries(byProject).sort((left, right) => right[1] - left[1])[0];
+  const busiestProject = useMemo(
+    () => Object.entries(byProject).sort((left, right) => right[1] - left[1])[0],
+    [byProject],
+  );
 
   return (
     <div className="page-grid">

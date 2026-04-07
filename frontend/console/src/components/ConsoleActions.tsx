@@ -492,6 +492,7 @@ export function ConsoleActionsProvider({ children }: PropsWithChildren) {
         return;
       }
       if (
+        !paletteOpen &&
         event.key === "?" &&
         !event.metaKey &&
         !event.ctrlKey &&
@@ -514,7 +515,7 @@ export function ConsoleActionsProvider({ children }: PropsWithChildren) {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [location.search, navigate]);
+  }, [location.search, navigate, paletteOpen]);
 
   const value = useMemo(() => ({
     actions,

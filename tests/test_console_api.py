@@ -817,6 +817,15 @@ class TestObserveConsoleApi:
             "/search",
             params={"path": temp_hive_dir, "query": "Demo project", "scope": ["api", "project"]},
         )
+        filtered_search = client.get(
+            "/search",
+            params={
+                "path": temp_hive_dir,
+                "query": "Launch week",
+                "source": "campaign",
+                "project_id": "demo",
+            },
+        )
         console = client.get("/console/")
 
         assert projects.status_code == 200
@@ -834,6 +843,11 @@ class TestObserveConsoleApi:
         assert "lane_quotas" in campaign.json()["campaign"]
         assert search.status_code == 200
         assert search.json()["results"]
+        assert filtered_search.status_code == 200
+        assert filtered_search.json()["results"]
+        assert all(item["source"] == "campaign" for item in filtered_search.json()["results"])
+        assert filtered_search.json()["results"][0]["deep_link"] == f"/campaigns/{campaign_id}"
+        assert filtered_search.json()["results"][0]["open_label"] == "Open campaign"
         assert console.status_code == 200
         assert "index-" in console.text
 

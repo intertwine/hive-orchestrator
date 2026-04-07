@@ -4,14 +4,14 @@ acceptance:
   and reasons for match.
 - Projections are deduped or clearly explained rather than flooding the result list.
 - Users can open results in the relevant page/context rather than reading raw IDs.
-claimed_until: null
+claimed_until: '2026-04-07T06:45:29.376865Z'
 created_at: '2026-04-06T15:47:43.724753Z'
 edges: {}
 id: task_01KNHQMXZC3D86Z2JNPR29SQ81
 kind: task
 labels:
 - search
-owner: null
+owner: codex
 parent_id: task_01KNHQD1FSKPPQGN4PXVCM6HCD
 priority: 1
 project_id: hive-v25
@@ -20,10 +20,10 @@ relevant_files:
 - src/hive/console/api.py
 - src/hive/search.py
 source: {}
-status: ready
+status: review
 title: Upgrade search to explainable unified provenance with previews and open-in-context
   flows
-updated_at: '2026-04-06T15:47:43.724767Z'
+updated_at: '2026-04-07T06:40:43Z'
 ---
 
 ## Summary
@@ -34,3 +34,4 @@ Search should show why a result matched and let operators open the right context
 
 ## History
 - 2026-04-06T15:47:43.724753Z bootstrap created.
+- 2026-04-07T06:40:43Z draft PR #197 opened for search provenance and preview flows.

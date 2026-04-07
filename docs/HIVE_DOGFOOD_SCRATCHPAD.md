@@ -58,6 +58,7 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Reconciliatory Hive commands like `hive task update ... --status done` plus `hive sync projections` immediately dirty `GLOBAL.md`, project rollups, and task files in the current checkout. That is correct canonically, but it means a freshly green local `main` stops being clean again before the maintainer has even branched for the next slice.
 - In this environment, non-interactive frontend validation left lingering worker processes and produced misleading hangs. The same Vitest and Playwright commands were reliable once run through a TTY-backed exec session, so maintainers currently have to know an implementation detail of the host tooling to trust the results.
 - The unified exec process cap became user-visible during a normal review and validation loop. Once the thread hit the limit, the repeated warnings made it harder to tell whether the current run was healthy, and there is no obvious maintainer affordance for pruning stale sessions from inside the work loop.
+- Console accessibility verification still lacks a first-class narrow entry point. To validate just the search a11y surface, we had to drop below the normal maintainer scripts and invoke `pnpm --dir frontend/console exec vitest run src/test/consoleAccessibility.test.tsx` directly.
 
 ### Improvement ideas
 
@@ -70,3 +71,4 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Add a cleaner “post-merge reconcile” flow that can update canonical task/project state without surprising maintainers in `main`, for example by steering those writes into the current feature branch or by offering an explicit staged projection refresh step.
 - Either make non-interactive frontend test execution robust in the default maintainer environment, or teach Hive/maintainer helpers to prefer TTY-backed validation automatically for commands known to spawn persistent workers.
 - Add a way to inspect and prune stale exec sessions from the maintainer workflow so hitting the session cap does not interrupt long-lived implementation threads.
+- Add dedicated console test scripts for accessibility-only and route-scoped validation so maintainers do not need to remember raw Vitest invocation details for focused review loops.

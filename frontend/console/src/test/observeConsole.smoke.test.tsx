@@ -780,17 +780,29 @@ describe("Observe Console smoke", () => {
       },
       {
         pathname: "/search",
-        response: jsonResponse({
-          ok: true,
-          results: [
-            {
-              kind: "task",
-              title: "Program Doctor hardening",
-              summary: "Tighten evaluator guardrails.",
-              why: ["canonical task record", "matched title terms: program, doctor"],
-            },
-          ],
-        }),
+        response: (url) => {
+          expect(url.searchParams.get("query")).toBe("program doctor");
+          return jsonResponse({
+            ok: true,
+            results: [
+              {
+                id: "task_program_doctor",
+                kind: "task",
+                source: "task",
+                source_label: "Tasks",
+                title: "Program Doctor hardening",
+                summary: "Tighten evaluator guardrails.",
+                preview: "Program Doctor requires at least one required evaluator before promotion.",
+                why: ["canonical task record", "matched title terms: program, doctor"],
+                project_label: "Alpha Project",
+                project_id: "alpha",
+                path: ".hive/tasks/task_program_doctor.md",
+                deep_link: "/projects/alpha",
+                open_label: "Open project context",
+              },
+            ],
+          });
+        },
       },
     ]);
 
@@ -811,8 +823,15 @@ describe("Observe Console smoke", () => {
     await user.click(screen.getByRole("link", { name: "Search" }));
     await screen.findByRole("heading", { name: "Search" });
     await user.click(screen.getByRole("button", { name: "Search" }));
-    expect(await screen.findByText("Program Doctor hardening")).toBeInTheDocument();
-    expect(screen.getByText("canonical task record")).toBeInTheDocument();
+    expect(await screen.findAllByText("Program Doctor hardening")).toHaveLength(2);
+    expect(screen.getAllByText("canonical task record")).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Open project context" })).toHaveAttribute(
+      "href",
+      "/projects/alpha?query=program+doctor",
+    );
+    expect(
+      screen.getByText("Program Doctor requires at least one required evaluator before promotion."),
+    ).toBeInTheDocument();
   });
 
   it("exposes the full v2.5 shell surfaces with stable deep-link navigation", async () => {

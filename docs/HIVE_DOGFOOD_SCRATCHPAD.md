@@ -91,9 +91,14 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Fresh Hive worktrees still require maintainers to remember `uv sync --extra dev` before `make check`; otherwise the first repo-wide gate fails immediately on missing tools like `pylint`, even when the task itself is unrelated to Python packaging.
 - Fresh frontend worktrees also need an explicit `pnpm install` before desktop-shell helper flows work. In this slice, an initial `pnpm tauri add ...` failed with `Volta error: Could not locate executable tauri in your project.` until dependencies were installed manually.
 - `hive finish` rejected a shipped, merged, green-on-main slice because the program wall-clock budget counted total elapsed review and CI wait time after implementation completed. Both required evaluators passed, but the run still landed in `rejected`, which forced a manual task-state closeout.
+- The recovery path after that rejection was also brittle: a follow-up `hive sync projections --json` and the first retried `hive finish` both surfaced the temporary cache-refresh error even though the workspace was effectively idle, while the task file had already been partially mutated to `done`.
+- The same `hive finish` wall-clock rejection happened again on the desktop-docs task after PR #205 merged and merge commit `4744646` passed `main` CI run `24082531263`, which confirms the bug is systemic rather than a one-off edge case.
+- `hive task update ... --status done` can report a temporary cache-refresh failure even when the task file was already rewritten on disk. In this session the desktop-docs task did become `done`, but the CLI still returned an error and suggested a retry, leaving the operator unsure whether another write would be safe.
 
 ### Improvement ideas
 
 - Teach `hive work` or `hive context startup` to emit a small post-claim bootstrap checklist keyed to the project surface, for example reminding maintainers when a fresh worktree still needs `uv sync --extra dev` or frontend dependency install steps.
 - Add a first-class workspace bootstrap command for mixed Python plus frontend projects so a new Hive run worktree can become validation-ready in one intentional step instead of through remembered tribal knowledge.
 - Separate “active implementation wall time” from “elapsed time waiting on review/CI” in promotion budgets, or add an explicit maintainer override path when a run is already merged and post-merge CI is green.
+- Make projection refresh locking and retry behavior more explicit and idempotent during `finish`, including better reporting about what is holding the refresh lock and a safe automatic retry once the workspace is idle.
+- Make task/project projection refresh transactional and more observable. If a write succeeds but derived-state rebuild fails, the CLI should say that explicitly and offer a safe resume/retry path instead of returning a generic error after partially succeeding.

@@ -50,7 +50,7 @@ Use this document for human context, links, architecture notes, and handoff deta
 | task_01KNHQS6FZW0PECASBK1NW0HWA | done | 2 |  | Add daemon lifecycle, tray, native notifications, and desktop deep-link handling |
 | task_01KNHQPJM4RKGESMF9YV2H3RM6 | done | 2 | codex | Add settings, activity, and keyboard-shortcut help surfaces |
 | task_01KNHQRCC2ED8B89SGNJ6C6GCX | done | 2 |  | Bootstrap the Tauri 2 desktop shell beta around the shared command-center frontend |
-| task_01KNHQT4PK1BMNDQK8Z4BS9DBG | ready | 2 |  | Document desktop packaging, permissions, update path, and operator expectations |
+| task_01KNHQT4PK1BMNDQK8Z4BS9DBG | done | 2 |  | Document desktop packaging, permissions, update path, and operator expectations |
 | task_01KNHQE7RS8JDFC221XF3N5QGV | proposed | 2 |  | M3: Tauri desktop beta and launch polish |
 | task_01KNHQTZ7WVABJPAWSCY2RD1X5 | ready | 2 |  | Refresh demo collateral, screenshots, and launch proof for the v2.5 Command Center |
 <!-- hive:end task-rollup -->
@@ -60,5 +60,5 @@ Use this document for human context, links, architecture notes, and handoff deta
 
 | Run | Status | Task |
 |---|---|---|
-| No runs | - | - |
+| run_01KNKPYV4ZWAAN84TSWC1D3F86 | rejected | task_01KNHQT4PK1BMNDQK8Z4BS9DBG |
 <!-- hive:end recent-runs -->

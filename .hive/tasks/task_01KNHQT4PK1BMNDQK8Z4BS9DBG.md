@@ -19,9 +19,9 @@ relevant_files:
 - README.md
 - frontend/console/README.md
 source: {}
-status: ready
+status: done
 title: Document desktop packaging, permissions, update path, and operator expectations
-updated_at: '2026-04-06T15:50:34.451769Z'
+updated_at: '2026-04-07T13:04:47.892741Z'
 ---
 
 ## Summary
@@ -31,4 +31,4 @@ Make the desktop beta understandable and supportable without confusing it for a 
 - Imported or created by Hive 2.0.
 
 ## History
-- 2026-04-06T15:50:34.451762Z bootstrap created.
+2026-04-07T13:03:16Z desktop docs landed via PR #205; merge commit 4744646 passed main CI run 24082531263. hive finish auto-rejected only because wall-clock budget counted review and CI wait time.

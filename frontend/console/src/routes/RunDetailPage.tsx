@@ -502,9 +502,9 @@ export function RunDetailPage() {
       const approval = item as Record<string, unknown>;
       const approvalId = String(approval.approval_id ?? "approval");
       const approvalTitle = String(approval.title ?? approvalId);
-        const availabilityReason = pendingAction === null
-          ? `Available because ${approvalTitle} is still pending.`
-          : "Another operator action is already in flight.";
+      const availabilityReason = pendingAction === null
+        ? `Available because ${approvalTitle} is still pending.`
+        : "Another operator action is already in flight.";
       return [
         {
           id: `approval.approve:${approvalId}`,

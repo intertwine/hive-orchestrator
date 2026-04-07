@@ -18,6 +18,7 @@ from src.hive import __version__
 from src.hive.console.actions import (
     ConsoleActionError,
     execute_console_action as execute_registered_console_action,
+    execute_console_steering_request,
 )
 from src.hive.console.state import (
     build_activity_feed,
@@ -35,7 +36,6 @@ from src.hive.context_bundle import build_context_bundle
 from src.hive.drivers import SteeringRequest
 from src.hive.program.doctor import doctor_program
 from src.hive.runtime.approvals import list_approvals
-from src.hive.runs.engine import steer_run
 from src.hive.search import search_console_workspace
 from src.hive.store.campaigns import list_campaigns
 from src.hive.store.events import load_events
@@ -133,20 +133,6 @@ def _console_asset_root() -> Path | None:
 def _encode_sse(event: str, payload: dict) -> str:
     """Render one SSE record."""
     return f"event: {event}\ndata: {json.dumps(payload, sort_keys=True)}\n\n"
-
-
-def _execute_steering_request(
-    root: Path, run_id: str, request: SteeringRequest, actor: str | None
-) -> dict:
-    sync_workspace(root)
-    try:
-        payload = steer_run(root, run_id, request, actor=actor)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    sync_workspace(root)
-    return payload
 
 
 def _execute_registered_action(root: Path, request: ConsoleActionExecuteInput) -> dict:
@@ -445,18 +431,21 @@ def run_steer(
 ) -> dict:
     """Apply a typed steering action to a run."""
     root = _workspace_root(path)
-    payload = _execute_steering_request(
-        root,
-        run_id,
-        SteeringRequest(
-            action=request.action,
-            reason=request.reason,
-            target=request.target,
-            budget_delta=request.budget_delta,
-            note=request.note,
-        ),
-        actor=request.actor,
-    )
+    try:
+        payload = execute_console_steering_request(
+            root,
+            run_id,
+            SteeringRequest(
+                action=request.action,
+                reason=request.reason,
+                target=request.target,
+                budget_delta=request.budget_delta,
+                note=request.note,
+            ),
+            actor=request.actor,
+        )
+    except ConsoleActionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     return {"ok": True, **payload}
 
 

@@ -378,7 +378,7 @@ def build_attention_actions(item: Mapping[str, Any]) -> list[dict[str, Any]]:
     return actions
 
 
-def _execute_steering_request(
+def execute_console_steering_request(
     root: Path, run_id: str, request: SteeringRequest, actor: str | None
 ) -> dict[str, Any]:
     sync_workspace(root)
@@ -414,7 +414,7 @@ def execute_console_action(root: Path, request: Any) -> dict[str, Any]:
                 status_code=400,
                 detail="run_id is required for run actions.",
             )
-        payload = _execute_steering_request(
+        payload = execute_console_steering_request(
             root,
             run_id,
             SteeringRequest(
@@ -436,7 +436,7 @@ def execute_console_action(root: Path, request: Any) -> dict[str, Any]:
                 status_code=400,
                 detail="run_id and approval_id are required for approval actions.",
             )
-        payload = _execute_steering_request(
+        payload = execute_console_steering_request(
             root,
             run_id,
             SteeringRequest(

@@ -500,17 +500,21 @@ export function RunDetailPage() {
         <div className="stack">
           {supportsRunControls ? (
             <>
-              <label className="console-field">
+              <label className="console-field" htmlFor="run-steer-reason">
                 <span>Reason</span>
                 <input
+                  aria-label="Reason"
+                  id="run-steer-reason"
                   placeholder="Why are you steering this run?"
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
                 />
               </label>
-              <label className="console-field">
+              <label className="console-field" htmlFor="run-steer-note">
                 <span>Note</span>
                 <input
+                  aria-label="Note"
+                  id="run-steer-note"
                   placeholder="Optional note to add to the audit trail"
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
@@ -530,9 +534,11 @@ export function RunDetailPage() {
               </div>
               {canReroute ? (
                 <form className="filters" onSubmit={handleReroute}>
-                  <label className="console-field">
+                  <label className="console-field" htmlFor="run-steer-reroute-driver">
                     <span>Reroute to</span>
                     <select
+                      aria-label="Reroute to"
+                      id="run-steer-reroute-driver"
                       value={rerouteDriver}
                       onChange={(event) => setRerouteDriver(event.target.value)}
                     >

@@ -83,6 +83,23 @@ Ship **desktop beta**:
 - update check path
 - workspace picker
 
+## Current beta implementation snapshot
+
+As implemented in the current v2.5 draft:
+
+- the thin Tauri shell, safe daemon lifecycle, tray actions, native notifications, and desktop deep links are in place
+- the desktop shell remains explicitly beta and browser-first parity remains the product stance
+- the current permission surface is intentionally narrow: `core:default` and `notification:default`
+- the deep-link scheme is `agent-hive`
+
+Still not wired in the implemented beta:
+
+- native updater or in-app update check
+- native workspace picker
+- startup-at-login behavior
+
+So the current operator docs should describe desktop updates as manual source rebuilds and workspace selection as the shared in-app API/workspace controls, not as a finished native desktop management experience.
+
 ### v2.6
 Stabilize desktop:
 

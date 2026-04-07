@@ -53,6 +53,22 @@ stays available for power users and agent integrations.
 > **CLI-only install:** If you do not need the console, `uv tool install mellona-hive` gives you
 > the base CLI without the web UI dependencies.
 
+## Desktop Beta From Source
+
+Hive v2.5 also includes a thin Tauri desktop shell around the same command center. It is a
+desktop beta, not a separate product line, and the browser console remains the primary
+supported path.
+
+Important truth today:
+
+- the normal `mellona-hive[console]` install gives you the CLI and browser console, not a native desktop app
+- the desktop shell is currently a source-build path from this repository
+- tray actions, native notifications, and `agent-hive://` deep links are implemented
+- native update checks and a packaged updater are not wired yet
+
+If you want the desktop beta details, build path, permissions, and current limits, read
+[docs/DESKTOP_BETA.md](docs/DESKTOP_BETA.md).
+
 ## Start Here
 
 There are four clean ways into Hive:

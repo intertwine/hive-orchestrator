@@ -61,6 +61,22 @@ If you want the shortest truthful path from install to a useful first click:
 The productized first-contact path is deliberately inspect-first. You should not have to read
 maintainer docs before you can safely understand what Hive is about to do.
 
+## Desktop Beta From Source
+
+Hive v2.5 also includes a thin Tauri desktop shell around the same command center. It is a
+desktop beta, not a separate product line, and the browser console remains the primary
+supported path.
+
+Important truth today:
+
+- the normal `mellona-hive[console]` install gives you the CLI and browser console, not a native desktop app
+- the desktop shell is currently a source-build path from this repository
+- tray actions, native notifications, and `agent-hive://` deep links are implemented
+- native update checks and a packaged updater are not wired yet
+
+If you want the desktop beta details, build path, permissions, and current limits, read
+[Command Center Desktop Beta](./DESKTOP_BETA.md).
+
 > **CLI-only install:** For headless servers, CI, or minimal setups, `uv tool install mellona-hive`
 > gives you the base CLI without the console web UI dependencies.
 

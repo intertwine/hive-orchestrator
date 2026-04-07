@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from importlib.resources import files
 import json
 import os
@@ -285,12 +286,21 @@ def _within_time_window(occurred_at: str, time_window: str | None, now: datetime
     if delta is None:
         return True
     if not occurred_at:
-        return False
+        return True
     try:
         observed = datetime.fromisoformat(occurred_at.replace("Z", "+00:00"))
     except ValueError:
         return False
     return observed >= (now - delta)
+
+
+@lru_cache(maxsize=1)
+def _refresh_run_driver_state():
+    # Import lazily once so console search can enrich runs without recreating the
+    # search <-> run inspection import cycle on every result.
+    from src.hive.runs.engine import refresh_run_driver_state
+
+    return refresh_run_driver_state
 
 
 def _packaged_docs_root():
@@ -1074,9 +1084,7 @@ def _console_result_metadata(
 
     if kind == "run_summary" and metadata.get("run_id"):
         try:
-            from src.hive.runs.engine import refresh_run_driver_state
-
-            run = refresh_run_driver_state(root, str(metadata["run_id"]))
+            run = _refresh_run_driver_state()(root, str(metadata["run_id"]))
             metadata.setdefault("driver", run.get("driver"))
             metadata.setdefault("status", run.get("status"))
             metadata.setdefault("health", run.get("health"))
@@ -1138,6 +1146,7 @@ def _console_result_metadata(
 
 
 def _matches_source_filter(kind: str, source: str | None) -> bool:
+    """Map a user-facing source filter onto the internal search kinds it covers."""
     if not source:
         return True
     return kind in SOURCE_FILTER_KINDS.get(source, set())
@@ -1193,7 +1202,7 @@ def search_console_workspace(
             continue
         if not _within_time_window(str(console_item["occurred_at"]), time_window, now):
             continue
-        key = str(console_item["id"])
+        key = f"{console_item['source']}:{console_item['id']}"
         existing = seen.get(key)
         if existing is not None:
             existing["dedupe_count"] = int(existing.get("dedupe_count") or 1) + 1

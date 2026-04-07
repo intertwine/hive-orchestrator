@@ -55,8 +55,29 @@ export function SearchPage() {
     () => createConsoleClient(apiBase, workspacePath),
     [apiBase, workspacePath],
   );
+  const searchRequestKey = useMemo(
+    () =>
+      JSON.stringify({
+        apiBase,
+        workspacePath,
+        query: submitted.query,
+        projectId: submitted.projectId,
+        source: submitted.source,
+        harness: submitted.harness,
+        timeWindow: submitted.timeWindow,
+      }),
+    [
+      apiBase,
+      workspacePath,
+      submitted.harness,
+      submitted.projectId,
+      submitted.query,
+      submitted.source,
+      submitted.timeWindow,
+    ],
+  );
   const { data, loading, error } = useConsoleQuery(
-    `search:${apiBase}:${workspacePath}:${submitted.query}:${submitted.projectId}:${submitted.source}:${submitted.harness}:${submitted.timeWindow}`,
+    `search:${searchRequestKey}`,
     () =>
       client.search(submitted.query, {
         harness: submitted.harness || undefined,
@@ -66,7 +87,10 @@ export function SearchPage() {
       }),
     0,
   );
-  const results = Array.isArray(data?.results) ? (data.results as SearchResultRecord[]) : [];
+  const results = useMemo(
+    () => (Array.isArray(data?.results) ? (data.results as SearchResultRecord[]) : []),
+    [data?.results],
+  );
   const selectedResult = results.find((result) => resultId(result) === selectedResultId) ?? results[0] ?? null;
 
   useEffect(() => {

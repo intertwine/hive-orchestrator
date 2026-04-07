@@ -1,10 +1,11 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { createConsoleClient } from "../api/client";
 import { ConsoleLink } from "../components/ConsoleLink";
 import { KeyValueGrid } from "../components/KeyValueGrid";
 import { Panel } from "../components/Panel";
+import { StateNotice } from "../components/StateNotice";
 import { StatusPill } from "../components/StatusPill";
 import { useConsoleConfig } from "../components/ConsoleLayout";
 import { useConsoleQuery } from "../hooks/useConsoleQuery";
@@ -51,6 +52,8 @@ export function SearchPage() {
   const submitted = useMemo(() => submittedStateFromParams(searchParams), [searchParams]);
   const [draft, setDraft] = useState<SearchDraftState>(submitted);
   const [selectedResultId, setSelectedResultId] = useState("");
+  const pendingPreviewFocusId = useRef<string | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
   const client = useMemo(
     () => createConsoleClient(apiBase, workspacePath),
     [apiBase, workspacePath],
@@ -108,6 +111,39 @@ export function SearchPage() {
         : resultId(results[0] as SearchResultRecord);
     });
   }, [results]);
+
+  useEffect(() => {
+    if (!selectedResult || pendingPreviewFocusId.current !== selectedResultId) {
+      return;
+    }
+    pendingPreviewFocusId.current = null;
+    if (window.innerWidth > 1024) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      previewRef.current?.focus();
+      previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [selectedResult, selectedResultId]);
+
+  function focusPreviewOnNarrowScreens() {
+    if (window.innerWidth > 1024) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      previewRef.current?.focus();
+      previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function selectResult(identifier: string) {
+    if (identifier === selectedResultId) {
+      focusPreviewOnNarrowScreens();
+      return;
+    }
+    pendingPreviewFocusId.current = identifier;
+    setSelectedResultId(identifier);
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -213,130 +249,172 @@ export function SearchPage() {
             sessions. Match reasons stay visible so operators can trust why a result surfaced.
           </p>
 
-          {loading ? <p>Searching…</p> : null}
-          {error ? <p className="error-copy">{error}</p> : null}
-          <div className="stack">
-            {results.length ? (
-              results.map((result) => {
-                const identifier = resultId(result);
-                const summary = readString(
-                  result.summary,
-                  readString(result.snippet, "No preview available."),
-                );
-                const reasonList = Array.isArray(result.why) ? (result.why as string[]) : [];
-                const occurredAt = readString(result.occurred_at);
-                const harness = readString(result.harness);
-                const projectLabel = readString(result.project_label);
-                const dedupeNote = readString(result.dedupe_note);
-                return (
-                  <button
-                    className={`list-card list-card--button${selectedResultId === identifier ? " list-card--selected" : ""}`}
-                    key={identifier}
-                    type="button"
-                    onClick={() => setSelectedResultId(identifier)}
-                  >
-                    <div className="list-card__header">
-                      <div>
-                        <p className="hero-card__eyebrow">
-                          {readString(result.source_label, readString(result.kind, "Result"))}
-                        </p>
-                        <h3>{readString(result.title, "Result")}</h3>
+          {loading ? (
+            <StateNotice
+              detail="Hive is searching tasks, runs, docs, memory, and delegate traces for the submitted query."
+              title="Searching"
+            />
+          ) : error ? (
+            <StateNotice
+              detail={`Verify the API base and workspace path in Settings, then retry once search is reachable again. (${error})`}
+              title="Unable to search"
+              tone="error"
+            />
+          ) : (
+            <div className="stack">
+              {results.length ? (
+                results.map((result) => {
+                  const identifier = resultId(result);
+                  const summary = readString(
+                    result.summary,
+                    readString(result.snippet, "No preview available."),
+                  );
+                  const reasonList = Array.isArray(result.why) ? (result.why as string[]) : [];
+                  const occurredAt = readString(result.occurred_at);
+                  const harness = readString(result.harness);
+                  const projectLabel = readString(result.project_label);
+                  const dedupeNote = readString(result.dedupe_note);
+                  return (
+                    <button
+                      aria-controls="search-preview-panel"
+                      aria-pressed={selectedResultId === identifier}
+                      className={`list-card list-card--button${selectedResultId === identifier ? " list-card--selected" : ""}`}
+                      key={identifier}
+                      type="button"
+                      onClick={() => selectResult(identifier)}
+                    >
+                      <div className="list-card__header">
+                        <div>
+                          <p className="hero-card__eyebrow">
+                            {readString(result.source_label, readString(result.kind, "Result"))}
+                          </p>
+                          <h3>{readString(result.title, "Result")}</h3>
+                        </div>
+                        <StatusPill tone={readString(result.status, readString(result.kind, "info"))}>
+                          {readString(result.source_label, readString(result.kind, "result"))}
+                        </StatusPill>
                       </div>
-                      <StatusPill tone={readString(result.status, readString(result.kind, "info"))}>
-                        {readString(result.source_label, readString(result.kind, "result"))}
-                      </StatusPill>
-                    </div>
-                    <p>{summary}</p>
-                    <p className="list-card__meta">
-                      {[projectLabel, harness, occurredAt].filter((value) => value).join(" • ") || "Preview available in the side rail."}
-                    </p>
-                    {reasonList.length ? (
-                      <ul className="reason-list">
-                        {reasonList.slice(0, 2).map((reason) => (
-                          <li key={`${identifier}:${reason}`}>{reason}</li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    {dedupeNote ? <p className="list-card__meta">{dedupeNote}</p> : null}
-                  </button>
-                );
-              })
-            ) : (
-              <p>No search results yet.</p>
-            )}
-          </div>
+                      <p>{summary}</p>
+                      <p className="list-card__meta">
+                        {[projectLabel, harness, occurredAt].filter((value) => value).join(" • ") || "Preview available in the side rail."}
+                      </p>
+                      {reasonList.length ? (
+                        <ul className="reason-list">
+                          {reasonList.slice(0, 2).map((reason) => (
+                            <li key={`${identifier}:${reason}`}>{reason}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {dedupeNote ? <p className="list-card__meta">{dedupeNote}</p> : null}
+                    </button>
+                  );
+                })
+              ) : (
+                <StateNotice
+                  detail="Refine the query or broaden the filters if you expected a result from another source, harness, or time window."
+                  title="No search results yet"
+                />
+              )}
+            </div>
+          )}
         </div>
       </Panel>
 
       <Panel eyebrow="Preview and provenance" title="Result context">
-        {selectedResult ? (
-          <div className="stack">
-            <article className="hero-card">
-              <p className="hero-card__eyebrow">
-                {readString(selectedResult.source_label, readString(selectedResult.kind, "Result"))}
-              </p>
-              <h3>{readString(selectedResult.title, "Result")}</h3>
-              <p className="hero-card__subtle">
-                {readString(
-                  selectedResult.summary,
-                  readString(selectedResult.snippet, "No preview available."),
-                )}
-              </p>
-              {readString(selectedResult.deep_link) ? (
-                <div className="hero-command-actions">
-                  <ConsoleLink className="primary-button" to={readString(selectedResult.deep_link)}>
-                    {openLabel(selectedResult)}
-                  </ConsoleLink>
-                </div>
-              ) : (
-                <p className="list-card__meta">
-                  This result is already in its richest context here in Search.
-                </p>
-              )}
-            </article>
-
-            <KeyValueGrid
-              values={[
-                { label: "Source", value: readString(selectedResult.source_label, "Result") },
-                {
-                  label: "Project",
-                  value: readString(selectedResult.project_label, "Workspace"),
-                },
-                { label: "Harness", value: readString(selectedResult.harness, "—") },
-                { label: "Occurred", value: readString(selectedResult.occurred_at, "—") },
-                { label: "Path", value: readString(selectedResult.path, "—") },
-              ]}
+        <div
+          className={selectedResult ? "stack search-preview" : undefined}
+          id="search-preview-panel"
+          ref={previewRef}
+          tabIndex={selectedResult ? -1 : undefined}
+        >
+          {loading ? (
+            <StateNotice
+              detail="The preview rail will fill in as soon as the search results arrive."
+              title="Waiting for search results"
             />
-
-            <article className="list-card">
-              <div className="list-card__header">
-                <h3>Why this matched</h3>
-              </div>
-              <ul className="reason-list">
-                {(Array.isArray(selectedResult.why) ? (selectedResult.why as string[]) : []).map((reason) => (
-                  <li key={`why:${reason}`}>{reason}</li>
-                ))}
-              </ul>
-              {readString(selectedResult.dedupe_note) ? (
-                <p className="list-card__meta">{readString(selectedResult.dedupe_note)}</p>
-              ) : null}
-            </article>
-
-            <article className="list-card">
-              <div className="list-card__header">
-                <h3>Preview</h3>
-              </div>
-              <pre className="inline-json">
-                {readString(
-                  selectedResult.preview,
-                  readString(selectedResult.snippet, "No preview available."),
+          ) : error ? (
+            <StateNotice
+              detail="Result preview is unavailable until the search request succeeds."
+              title="Preview unavailable"
+              tone="error"
+            />
+          ) : selectedResult ? (
+            <>
+              <article className="hero-card">
+                <p className="hero-card__eyebrow">
+                  {readString(selectedResult.source_label, readString(selectedResult.kind, "Result"))}
+                </p>
+                <h3>{readString(selectedResult.title, "Result")}</h3>
+                <p className="hero-card__subtle">
+                  {readString(
+                    selectedResult.summary,
+                    readString(selectedResult.snippet, "No preview available."),
+                  )}
+                </p>
+                {readString(selectedResult.deep_link) ? (
+                  <div className="hero-command-actions">
+                    <ConsoleLink className="primary-button" to={readString(selectedResult.deep_link)}>
+                      {openLabel(selectedResult)}
+                    </ConsoleLink>
+                  </div>
+                ) : (
+                  <p className="list-card__meta">
+                    This result is already in its richest context here in Search.
+                  </p>
                 )}
-              </pre>
-            </article>
-          </div>
-        ) : (
-          <p>Select a result to inspect its preview and context.</p>
-        )}
+              </article>
+
+              <KeyValueGrid
+                values={[
+                  { label: "Source", value: readString(selectedResult.source_label, "Result") },
+                  {
+                    label: "Project",
+                    value: readString(selectedResult.project_label, "Workspace"),
+                  },
+                  { label: "Harness", value: readString(selectedResult.harness, "—") },
+                  { label: "Occurred", value: readString(selectedResult.occurred_at, "—") },
+                  { label: "Path", value: readString(selectedResult.path, "—") },
+                ]}
+              />
+
+              <article className="list-card">
+                <div className="list-card__header">
+                  <h3>Why this matched</h3>
+                </div>
+                <ul className="reason-list">
+                  {(Array.isArray(selectedResult.why) ? (selectedResult.why as string[]) : []).map((reason) => (
+                    <li key={`why:${reason}`}>{reason}</li>
+                  ))}
+                </ul>
+                {readString(selectedResult.dedupe_note) ? (
+                  <p className="list-card__meta">{readString(selectedResult.dedupe_note)}</p>
+                ) : null}
+              </article>
+
+              <article className="list-card">
+                <div className="list-card__header">
+                  <h3>Preview</h3>
+                </div>
+                <pre className="inline-json">
+                  {readString(
+                    selectedResult.preview,
+                    readString(selectedResult.snippet, "No preview available."),
+                  )}
+                </pre>
+              </article>
+            </>
+          ) : results.length ? (
+            <StateNotice
+              detail="Pick a result from the left-hand column to inspect its preview, provenance, and deep link."
+              title="Select a result to inspect"
+            />
+          ) : (
+            <StateNotice
+              detail="Run a search or broaden the filters to produce a preview with provenance here."
+              title="No preview results yet"
+            />
+          )}
+        </div>
       </Panel>
     </div>
   );

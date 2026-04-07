@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import type { JsonRecord } from "../api/client";
@@ -18,6 +18,7 @@ import {
 } from "./ConsoleActions";
 import { ConsoleLink, preserveConsoleSearch } from "./ConsoleLink";
 import { Panel } from "./Panel";
+import { StateNotice } from "./StateNotice";
 import { StatusPill } from "./StatusPill";
 import { useConsoleConfig } from "./ConsoleLayout";
 import { useConsoleEventBus } from "./ConsoleEventBus";
@@ -97,6 +98,8 @@ export function AttentionBoard({
   const [assignTarget, setAssignTarget] = useState("me");
   const [snoozeSeconds, setSnoozeSeconds] = useState("3600");
   const [viewName, setViewName] = useState("");
+  const actionErrorRef = useRef<HTMLParagraphElement | null>(null);
+  const actionMessageRef = useRef<HTMLParagraphElement | null>(null);
 
   const attentionFilters = preferences.attention.filters;
   const effectiveFilters = useMemo(() => (
@@ -428,10 +431,49 @@ export function AttentionBoard({
 
   useRegisterConsoleActions(pageActions);
 
+  useEffect(() => {
+    if (!actionMessage) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      actionMessageRef.current?.focus();
+    });
+  }, [actionMessage]);
+
+  useEffect(() => {
+    if (!actionError) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      actionErrorRef.current?.focus();
+    });
+  }, [actionError]);
+
+  if (loading) {
+    return (
+      <Panel eyebrow={eyebrow} title={title}>
+        <StateNotice
+          detail={`Hive is fetching the latest ${mode === "inbox" ? "operator queue" : "notification stream"} for this workspace.`}
+          title={`Loading ${title}`}
+        />
+      </Panel>
+    );
+  }
+
+  if (error) {
+    return (
+      <Panel eyebrow={eyebrow} title={title}>
+        <StateNotice
+          detail={`Verify the API base and workspace path in Settings, then retry once the Hive daemon is reachable again. (${error})`}
+          title={`Unable to load ${title}`}
+          tone="error"
+        />
+      </Panel>
+    );
+  }
+
   return (
     <Panel eyebrow={eyebrow} title={title}>
-      {loading ? <p>{`Loading ${title}…`}</p> : null}
-      {error ? <p className="error-copy">{error}</p> : null}
       <div className="stack">
         <div className="saved-views">
           <div className="saved-views__header">
@@ -481,6 +523,7 @@ export function AttentionBoard({
                   </div>
                   <div className="saved-view-card__actions">
                     <button
+                      aria-label={`${activeView?.id === view.id ? "Active view" : "Apply view"} ${view.name}`}
                       className="secondary-button"
                       type="button"
                       onClick={() => setAttentionFilters(view.filters)}
@@ -488,6 +531,7 @@ export function AttentionBoard({
                       {activeView?.id === view.id ? "Active" : "Apply"}
                     </button>
                     <button
+                      aria-label={`Delete view ${view.name}`}
                       className="danger-button"
                       type="button"
                       onClick={() => deleteAttentionView(view.id)}
@@ -744,10 +788,37 @@ export function AttentionBoard({
             </section>
           ))
         ) : (
-          <p>{emptyMessage}</p>
+          <StateNotice
+            detail={
+              mode === "inbox"
+                ? `${emptyMessage} Check Notifications for lower-signal context or Runs for live work.`
+                : `${emptyMessage} Adjust local notification preferences in Settings or wait for the next event refresh.`
+            }
+            title={`${title} is clear`}
+          />
         )}
-        {actionMessage ? <p>{actionMessage}</p> : null}
-        {actionError ? <p className="error-copy">{actionError}</p> : null}
+        {actionMessage ? (
+          <p
+            aria-live="polite"
+            className="attention-board__status-copy"
+            ref={actionMessageRef}
+            role="status"
+            tabIndex={-1}
+          >
+            {actionMessage}
+          </p>
+        ) : null}
+        {actionError ? (
+          <p
+            aria-live="assertive"
+            className="attention-board__status-copy error-copy"
+            ref={actionErrorRef}
+            role="alert"
+            tabIndex={-1}
+          >
+            {actionError}
+          </p>
+        ) : null}
       </div>
     </Panel>
   );

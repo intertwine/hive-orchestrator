@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { createConsoleClient } from "../api/client";
@@ -13,6 +13,7 @@ import { useConsoleEventBus } from "../components/ConsoleEventBus";
 import { ConsoleLink } from "../components/ConsoleLink";
 import { KeyValueGrid } from "../components/KeyValueGrid";
 import { Panel } from "../components/Panel";
+import { StateNotice } from "../components/StateNotice";
 import { StatusPill } from "../components/StatusPill";
 import { useConsoleConfig } from "../components/ConsoleLayout";
 import { useConsoleQuery } from "../hooks/useConsoleQuery";
@@ -588,6 +589,86 @@ export function RunDetailPage() {
     await rerouteAction.perform();
   }
 
+  function focusArtifactTab(index: number) {
+    const tab = artifactTabs[index];
+    if (!tab) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      document.getElementById(`artifact-tab-${tab.id}`)?.focus();
+    });
+  }
+
+  function handleArtifactTabKeyDown(
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = (index + 1) % artifactTabs.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = (index - 1 + artifactTabs.length) % artifactTabs.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = artifactTabs.length - 1;
+    }
+    if (nextIndex === null) {
+      return;
+    }
+    event.preventDefault();
+    setArtifactTab(artifactTabs[nextIndex]?.id ?? artifactTabs[0].id);
+    focusArtifactTab(nextIndex);
+  }
+
+  if (loading) {
+    return (
+      <div className="page-grid page-grid--detail run-detail-layout">
+        <div className="stack run-detail-layout__main">
+          <Panel eyebrow="Run review" title={runId || "Run detail"}>
+            <StateNotice
+              detail="Hive is loading the run summary, artifact previews, compare view, and operator controls for this record."
+              title="Loading Run Detail"
+            />
+          </Panel>
+        </div>
+        <div className="stack run-detail-layout__rail">
+          <Panel eyebrow="Sticky review rail" title="Operator actions">
+            <StateNotice
+              detail="Run controls will appear here as soon as Hive has loaded the current capability snapshot and approval state."
+              title="Waiting for operator controls"
+            />
+          </Panel>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page-grid page-grid--detail run-detail-layout">
+        <div className="stack run-detail-layout__main">
+          <Panel eyebrow="Run review" title={runId || "Run detail"}>
+            <StateNotice
+              detail={`Verify the API base and workspace path in Settings, then retry once the daemon is reachable again. (${error})`}
+              title="Unable to load Run Detail"
+              tone="error"
+            />
+          </Panel>
+        </div>
+        <div className="stack run-detail-layout__rail">
+          <Panel eyebrow="Sticky review rail" title="Operator actions">
+            <StateNotice
+              detail="Operator controls stay hidden until the run detail request succeeds."
+              title="Operator controls unavailable"
+              tone="error"
+            />
+          </Panel>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-grid page-grid--detail run-detail-layout">
       <div className="stack run-detail-layout__main">
@@ -599,110 +680,125 @@ export function RunDetailPage() {
               ?? runId,
           )}
         >
-          {loading ? <p>Loading Run Detail…</p> : null}
-          {error ? <p className="error-copy">{error}</p> : null}
-          {!loading && !error ? (
-            <div className="stack">
-              <div className="list-card__header">
-                <div>
-                  <p className="hero-card__eyebrow">Current run</p>
-                  <h3>{runId}</h3>
-                </div>
-                <StatusPill tone={String(run.status ?? "unknown")}>
-                  {String(run.status ?? "unknown")}
-                </StatusPill>
+          <div className="stack">
+            <div className="list-card__header">
+              <div>
+                <p className="hero-card__eyebrow">Current run</p>
+                <h3>{runId}</h3>
               </div>
-              <KeyValueGrid
-                values={[
-                  { label: "Project", value: String(run.project_id ?? "—") },
-                  { label: "Driver", value: String(run.driver ?? "—") },
-                  { label: "Health", value: String(run.health ?? "—") },
-                  { label: "Campaign", value: String(run.campaign_id ?? "—") },
-                  { label: "Started", value: String(run.started_at ?? "—") },
-                  { label: "Finished", value: String(run.finished_at ?? "—") },
-                ]}
-              />
-              <div className="card-grid run-detail__metrics">
-                <article className="list-card">
-                  <p className="hero-card__eyebrow">Promotion</p>
-                  <h3>{String(promotion.decision ?? "pending")}</h3>
-                  <p className="list-card__meta">
-                    {((promotion.reasons as string[] | undefined) ?? []).length} rationale point(s)
-                  </p>
-                </article>
-                <article className="list-card">
-                  <p className="hero-card__eyebrow">Evaluators</p>
-                  <h3>{evaluations.length}</h3>
-                  <p className="list-card__meta">
-                    {Object.entries((compareCurrent.evaluation_summary as Record<string, unknown> | undefined)?.by_status ?? {})
-                      .map(([status, count]) => `${status}: ${count}`)
-                      .join(" • ") || "No evaluator summary recorded."}
-                  </p>
-                </article>
-                <article className="list-card">
-                  <p className="hero-card__eyebrow">Changed paths</p>
-                  <h3>{changedPaths.length}</h3>
-                  <p className="list-card__meta">
-                    {currentOnlyPaths.length} unique vs baseline • {sharedPaths.length} shared
-                  </p>
-                </article>
-              </div>
-              <div className="card-grid run-detail__overview-grid">
-                <article className="hero-card">
-                  <p className="hero-card__eyebrow">Acceptance rationale</p>
-                  <h3>{String(promotion.decision ?? "pending")}</h3>
-                  <ul className="reason-list">
-                    {((promotion.reasons as string[] | undefined) ?? []).length ? (
-                      ((promotion.reasons as string[] | undefined) ?? []).map((item) => (
-                        <li key={item}>{item}</li>
-                      ))
-                    ) : (
-                      <li>No acceptance rationale has been recorded yet.</li>
-                    )}
-                  </ul>
-                </article>
-                <article className="list-card">
-                  <div className="list-card__header">
-                    <h3>Changed-file summary</h3>
-                    <span className="list-card__meta">{changedPaths.length} paths</span>
-                  </div>
-                  <ul className="reason-list">
-                    {changedPaths.length ? (
-                      changedPaths.slice(0, 8).map((path) => <li key={path}>{path}</li>)
-                    ) : (
-                      <li>No changed files were recorded for this run.</li>
-                    )}
-                  </ul>
-                </article>
-              </div>
+              <StatusPill tone={String(run.status ?? "unknown")}>
+                {String(run.status ?? "unknown")}
+              </StatusPill>
             </div>
-          ) : null}
+            <KeyValueGrid
+              values={[
+                { label: "Project", value: String(run.project_id ?? "—") },
+                { label: "Driver", value: String(run.driver ?? "—") },
+                { label: "Health", value: String(run.health ?? "—") },
+                { label: "Campaign", value: String(run.campaign_id ?? "—") },
+                { label: "Started", value: String(run.started_at ?? "—") },
+                { label: "Finished", value: String(run.finished_at ?? "—") },
+              ]}
+            />
+            <div className="card-grid run-detail__metrics">
+              <article className="list-card">
+                <p className="hero-card__eyebrow">Promotion</p>
+                <h3>{String(promotion.decision ?? "pending")}</h3>
+                <p className="list-card__meta">
+                  {((promotion.reasons as string[] | undefined) ?? []).length} rationale point(s)
+                </p>
+              </article>
+              <article className="list-card">
+                <p className="hero-card__eyebrow">Evaluators</p>
+                <h3>{evaluations.length}</h3>
+                <p className="list-card__meta">
+                  {Object.entries((compareCurrent.evaluation_summary as Record<string, unknown> | undefined)?.by_status ?? {})
+                    .map(([status, count]) => `${status}: ${count}`)
+                    .join(" • ") || "No evaluator summary recorded."}
+                </p>
+              </article>
+              <article className="list-card">
+                <p className="hero-card__eyebrow">Changed paths</p>
+                <h3>{changedPaths.length}</h3>
+                <p className="list-card__meta">
+                  {currentOnlyPaths.length} unique vs baseline • {sharedPaths.length} shared
+                </p>
+              </article>
+            </div>
+            <div className="card-grid run-detail__overview-grid">
+              <article className="hero-card">
+                <p className="hero-card__eyebrow">Acceptance rationale</p>
+                <h3>{String(promotion.decision ?? "pending")}</h3>
+                <ul className="reason-list">
+                  {((promotion.reasons as string[] | undefined) ?? []).length ? (
+                    ((promotion.reasons as string[] | undefined) ?? []).map((item) => (
+                      <li key={item}>{item}</li>
+                    ))
+                  ) : (
+                    <li>No acceptance rationale has been recorded yet.</li>
+                  )}
+                </ul>
+              </article>
+              <article className="list-card">
+                <div className="list-card__header">
+                  <h3>Changed-file summary</h3>
+                  <span className="list-card__meta">{changedPaths.length} paths</span>
+                </div>
+                <ul className="reason-list">
+                  {changedPaths.length ? (
+                    changedPaths.slice(0, 8).map((path) => <li key={path}>{path}</li>)
+                  ) : (
+                    <li>No changed files were recorded for this run.</li>
+                  )}
+                </ul>
+              </article>
+            </div>
+          </div>
         </Panel>
 
         <Panel eyebrow="Review artifacts" title="Artifact tabs">
           <div className="stack">
-            <div className="action-grid run-detail__artifact-tabs" role="tablist" aria-label="Artifact tabs">
-              {artifactTabs.map((tab) => (
+            <div
+              aria-label="Artifact tabs"
+              aria-orientation="horizontal"
+              className="action-grid run-detail__artifact-tabs"
+              role="tablist"
+            >
+              {artifactTabs.map((tab, index) => (
                 <button
+                  aria-controls={`artifact-panel-${tab.id}`}
                   aria-selected={activeArtifact.id === tab.id}
                   className={`secondary-button${activeArtifact.id === tab.id ? " secondary-button--active" : ""}`}
+                  id={`artifact-tab-${tab.id}`}
                   key={tab.id}
                   role="tab"
+                  tabIndex={activeArtifact.id === tab.id ? 0 : -1}
                   type="button"
                   onClick={() => setArtifactTab(tab.id)}
+                  onKeyDown={(event) => handleArtifactTabKeyDown(event, index)}
                 >
                   {tab.label}
                 </button>
               ))}
             </div>
-            <article className="list-card">
-              <div className="list-card__header">
-                <h3>{activeArtifact.label}</h3>
+            {artifactTabs.map((tab) => (
+              <div
+                aria-labelledby={`artifact-tab-${tab.id}`}
+                className="list-card"
+                hidden={activeArtifact.id !== tab.id}
+                id={`artifact-panel-${tab.id}`}
+                key={tab.id}
+                role="tabpanel"
+                tabIndex={activeArtifact.id === tab.id ? 0 : -1}
+              >
+                <div className="list-card__header">
+                  <h3>{tab.label}</h3>
+                </div>
+                <pre className="inline-json">
+                  {tab.content.trim() ? tab.content : tab.empty}
+                </pre>
               </div>
-              <pre className="inline-json">
-                {activeArtifact.content.trim() ? activeArtifact.content : activeArtifact.empty}
-              </pre>
-            </article>
+            ))}
           </div>
         </Panel>
 
@@ -1004,8 +1100,8 @@ export function RunDetailPage() {
             ) : (
               <p className="list-card__meta">No pending approvals for this run.</p>
             )}
-            {actionMessage ? <p>{actionMessage}</p> : null}
-            {actionError ? <p className="error-copy">{actionError}</p> : null}
+            {actionMessage ? <p aria-live="polite" role="status">{actionMessage}</p> : null}
+            {actionError ? <p aria-live="assertive" className="error-copy" role="alert">{actionError}</p> : null}
           </div>
         </Panel>
 

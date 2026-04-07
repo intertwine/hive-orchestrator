@@ -5,6 +5,7 @@ import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ConsoleActionButton,
   type ConsoleActionDescriptor,
   useRegisterConsoleActions,
 } from "../components/ConsoleActions";
@@ -282,6 +283,25 @@ describe("ConsoleLayout query-param behavior", () => {
     });
   });
 
+  it("offers a skip link before the repeated shell chrome", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <ConsoleLayout>
+          <div>child</div>
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    const skipLink = screen.getByRole("link", { name: "Skip to main content" });
+    expect(skipLink).toHaveAttribute("href", "#console-main");
+    expect(screen.getByRole("main")).toHaveAttribute("id", "console-main");
+
+    await user.tab();
+    expect(skipLink).toHaveFocus();
+  });
+
   it("opens the shared command palette and surfaces route-local action provenance", async () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
@@ -313,6 +333,56 @@ describe("ConsoleLayout query-param behavior", () => {
     await user.type(pauseSearch, "pause");
     expect(screen.getByRole("button", { name: /Pause demo run/i })).toBeDisabled();
     expect(screen.getByText(/Unavailable because the demo run is already paused\./i)).toBeInTheDocument();
+  });
+
+  it("restores focus to the opener and hides the shell from assistive tech while the palette is open", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <ConsoleLayout>
+          <PaletteActionRegistrar onAction={() => undefined} />
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    const openPaletteButton = screen.getByRole("button", { name: /Open Command Palette/i });
+    await user.click(openPaletteButton);
+
+    expect(await screen.findByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "Search actions" })).toHaveFocus();
+    });
+    expect(document.querySelector(".console-shell")).toHaveAttribute("aria-hidden", "true");
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+    });
+
+    expect(openPaletteButton).toHaveFocus();
+    expect(document.querySelector(".console-shell")).not.toHaveAttribute("aria-hidden");
+  });
+
+  it("renders disabled action reasons inline for non-focusable controls", () => {
+    render(
+      <ConsoleActionButton
+        action={{
+          id: "run.pause-demo",
+          title: "Pause demo run",
+          description: "Pause the demo run.",
+          group: "Page actions",
+          enabled: false,
+          availabilityReason: "Unavailable because the demo run is already paused.",
+          availabilitySource: "test harness",
+          keywords: ["pause", "demo"],
+          perform: () => undefined,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Pause demo run" })).toBeDisabled();
+    expect(screen.getByText("Unavailable because the demo run is already paused.")).toBeInTheDocument();
   });
 
   it("hides the hero shortcut badge when operators turn shortcut badges off", async () => {

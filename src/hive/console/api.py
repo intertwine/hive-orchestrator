@@ -193,6 +193,9 @@ def events_stream(
     def generate():
         last_marker: str | None = None
         while True:
+            # The current console is a localhost/operator surface, so a simple
+            # blocking generator is acceptable for now even though it ties up
+            # one worker thread per connected SSE client.
             events = load_events(root)
             if run_id:
                 events = [event for event in events if event.get("run_id") == run_id]

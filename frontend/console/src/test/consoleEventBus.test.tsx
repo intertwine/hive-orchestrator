@@ -42,6 +42,13 @@ class MockEventSource {
     }
   }
 
+  emitRaw(type: string, data: string) {
+    const event = new MessageEvent(type, { data });
+    for (const listener of this.listeners.get(type) ?? []) {
+      listener(event);
+    }
+  }
+
   fail() {
     this.onerror?.(new Event("error"));
   }
@@ -106,5 +113,25 @@ describe("ConsoleEventBus", () => {
       MockEventSource.instances[0]?.fail();
     });
     expect(screen.getByText("Stream offline · stale 16s ago")).toBeInTheDocument();
+  });
+
+  it("ignores malformed stream frames", async () => {
+    render(
+      <ConsoleEventBusProvider
+        apiBase="http://127.0.0.1:8787"
+        workspacePath="/tmp/hive-demo"
+      >
+        <SyncProbe />
+      </ConsoleEventBusProvider>,
+    );
+
+    await act(async () => {});
+
+    act(() => {
+      MockEventSource.instances[0]?.emitRaw("heartbeat", "{not-json");
+      MockEventSource.instances[0]?.emitRaw("snapshot", "{still-bad");
+    });
+
+    expect(screen.getByText("Stream offline · synced just now")).toBeInTheDocument();
   });
 });

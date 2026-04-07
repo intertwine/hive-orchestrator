@@ -13,7 +13,6 @@ export type ConsoleFreshnessTone = "idle" | "live" | "synced" | "stale";
 interface ConsoleEventBusValue {
   connected: boolean;
   eventVersion: number;
-  lastEventAt: number | null;
   lastHeartbeatAt: number | null;
   lastSyncAt: number | null;
   supportsStreaming: boolean;
@@ -24,7 +23,6 @@ interface ConsoleEventBusValue {
 const ConsoleEventBusContext = createContext<ConsoleEventBusValue>({
   connected: false,
   eventVersion: 0,
-  lastEventAt: null,
   lastHeartbeatAt: null,
   lastSyncAt: null,
   supportsStreaming: false,
@@ -77,6 +75,14 @@ function snapshotTimestamp(payload: unknown): number | null {
     return null;
   }
   return parseTimestamp((lastEvent as Record<string, unknown>).ts);
+}
+
+function parseEventPayload(data: string | null | undefined): Record<string, unknown> | null {
+  try {
+    return JSON.parse(data ?? "{}") as Record<string, unknown>;
+  } catch {
+    return null;
+  }
 }
 
 function describeFreshness(
@@ -136,7 +142,6 @@ export function ConsoleEventBusProvider({
     () => typeof window.EventSource === "function",
   );
   const [eventVersion, setEventVersion] = useState(0);
-  const [lastEventAt, setLastEventAt] = useState<number | null>(null);
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
 
@@ -176,17 +181,22 @@ export function ConsoleEventBusProvider({
     };
 
     const handleHeartbeat = (event: MessageEvent) => {
-      const payload = JSON.parse(event.data ?? "{}") as Record<string, unknown>;
+      const payload = parseEventPayload(event.data);
+      if (payload === null) {
+        return;
+      }
       const timestamp = snapshotTimestamp(payload) ?? Date.now();
       setConnected(true);
       setLastHeartbeatAt(timestamp);
     };
 
     const handleSnapshot = (event: MessageEvent) => {
-      const payload = JSON.parse(event.data ?? "{}") as Record<string, unknown>;
+      const payload = parseEventPayload(event.data);
+      if (payload === null) {
+        return;
+      }
       const timestamp = snapshotTimestamp(payload) ?? Date.now();
       setConnected(true);
-      setLastEventAt(timestamp);
       setLastHeartbeatAt(timestamp);
       setEventVersion((value) => value + 1);
     };
@@ -205,7 +215,6 @@ export function ConsoleEventBusProvider({
     return {
       connected,
       eventVersion,
-      lastEventAt,
       lastHeartbeatAt,
       lastSyncAt,
       supportsStreaming,
@@ -215,7 +224,6 @@ export function ConsoleEventBusProvider({
   }, [
     connected,
     eventVersion,
-    lastEventAt,
     lastHeartbeatAt,
     lastSyncAt,
     supportsStreaming,

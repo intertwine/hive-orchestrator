@@ -450,11 +450,14 @@ export function AttentionBoard({
   }, [actionError]);
 
   if (loading) {
+    const loadingTitle = mode === "inbox"
+      ? "Refreshing operator queue"
+      : "Refreshing notification stream";
     return (
       <Panel eyebrow={eyebrow} title={title}>
         <StateNotice
           detail={`Hive is fetching the latest ${mode === "inbox" ? "operator queue" : "notification stream"} for this workspace.`}
-          title={`Loading ${title}`}
+          title={loadingTitle}
         />
       </Panel>
     );

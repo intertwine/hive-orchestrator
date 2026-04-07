@@ -68,6 +68,11 @@ API_DOC_FILES = (
     ),
     ("api", "V2_4_STATUS", "docs/V2_4_STATUS.md"),
     ("api", "V2_5_STATUS", "docs/V2_5_STATUS.md"),
+    (
+        "api",
+        "V2_5_RELEASE_WALKTHROUGH",
+        "docs/V2_5_RELEASE_WALKTHROUGH.md",
+    ),
     ("api", "HIVE_V2_4_RFC", "docs/hive-v2.4-rfc/HIVE_V2_4_RFC.md"),
     (
         "api",

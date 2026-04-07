@@ -8,7 +8,7 @@ import { Panel } from "../components/Panel";
 
 export function SettingsPage() {
   const { apiBase, setWorkspacePath, workspacePath } = useConsoleConfig();
-  const { preferences } = useConsolePreferences();
+  const { preferences, rememberWorkspace } = useConsolePreferences();
   const location = useLocation();
   const recentWorkspaces = preferences.recentWorkspaces;
 
@@ -38,7 +38,10 @@ export function SettingsPage() {
                   aria-current={candidate === workspacePath ? "true" : undefined}
                   className={`list-card list-card--button${candidate === workspacePath ? " list-card--selected" : ""}`}
                   key={candidate}
-                  onClick={() => setWorkspacePath(candidate)}
+                  onClick={() => {
+                    setWorkspacePath(candidate);
+                    rememberWorkspace(candidate);
+                  }}
                   type="button"
                 >
                   <div className="list-card__header">
@@ -55,7 +58,9 @@ export function SettingsPage() {
             </div>
           ) : (
             <p className="console-settings__note">
-              Open at least one workspace and it will appear here for one-click switching.
+              {workspacePath
+                ? "Switch to another workspace once and it will appear here for one-click return."
+                : "Open at least one workspace and it will appear here for one-click switching."}
             </p>
           )}
           <div className="hero-card">

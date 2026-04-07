@@ -20,16 +20,17 @@ relevant_files:
 - frontend/console/src/test
 - docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md
 source: {}
-status: ready
+status: done
 title: Pass accessibility and responsiveness hardening for the primary v2.5 surfaces
-updated_at: '2026-04-06T15:49:04.930722Z'
+updated_at: '2026-04-07T08:41:28.521064Z'
 ---
 
 ## Summary
-Treat keyboard navigation, focus order, labels, contrast, and responsive behavior as release gates.
+Accessibility and responsiveness hardening shipped in PR #201.
 
 ## Notes
 - Imported or created by Hive 2.0.
 
 ## History
 - 2026-04-06T15:49:04.930715Z bootstrap created.
+- 2026-04-07: Merged PR #201 and verified push CI run 24072344710 on main.

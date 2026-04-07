@@ -1580,9 +1580,9 @@ describe("Observe Console smoke", () => {
     renderConsole([`/runs/${runId}`]);
 
     await screen.findByRole("heading", { name: runId });
-    const runtimePanel = screen
-      .getByRole("heading", { name: "Capability and Sandbox" })
-      .closest("section");
+    const runtimePanel = (
+      await screen.findByRole("heading", { name: "Capability and Sandbox" })
+    ).closest("section");
     expect(runtimePanel).not.toBeNull();
     await expectKeyValue(runtimePanel as HTMLElement, "Harness", "openclaw");
     await expectKeyValue(runtimePanel as HTMLElement, "Integration level", "attach");

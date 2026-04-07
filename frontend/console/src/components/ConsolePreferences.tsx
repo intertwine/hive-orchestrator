@@ -53,7 +53,12 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     function handleStorage(event: StorageEvent) {
-      if (event.storageArea !== window.localStorage || event.key !== CONSOLE_PREFERENCES_KEY) {
+      if (event.key !== CONSOLE_PREFERENCES_KEY) {
+        return;
+      }
+      // JSDOM and some synthetic storage events omit storageArea entirely, so accept null
+      // here as long as the event targets the console preferences key.
+      if (event.storageArea !== null && event.storageArea !== window.localStorage) {
         return;
       }
       setPreferences(loadConsolePreferences());

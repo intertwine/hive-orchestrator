@@ -1,8 +1,13 @@
+import { useMemo } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  type ConsoleActionDescriptor,
+  useRegisterConsoleActions,
+} from "../components/ConsoleActions";
 import { ConsoleLayout } from "../components/ConsoleLayout";
 import { CONSOLE_PREFERENCES_KEY } from "../preferences";
 
@@ -19,6 +24,40 @@ function DeepLinkOverrideButton() {
       Open external deep link
     </button>
   );
+}
+
+function PaletteActionRegistrar({ onAction }: { onAction: () => void }) {
+  const actions = useMemo<ConsoleActionDescriptor[]>(
+    () => [
+      {
+        id: "review.approve-demo",
+        title: "Approve demo approval",
+        description: "Approve the demo review request from the shared palette.",
+        group: "Page actions",
+        enabled: true,
+        availabilityReason: "Available because the demo request is still pending review.",
+        availabilitySource: "test harness",
+        keywords: ["approve", "demo"],
+        perform: onAction,
+      },
+      {
+        id: "run.pause-demo",
+        title: "Pause demo run",
+        description: "Pause the demo run.",
+        group: "Page actions",
+        enabled: false,
+        availabilityReason: "Unavailable because the demo run is already paused.",
+        availabilitySource: "test harness",
+        keywords: ["pause", "demo"],
+        perform: () => undefined,
+      },
+    ],
+    [onAction],
+  );
+
+  useRegisterConsoleActions(actions);
+
+  return <div>child</div>;
 }
 
 describe("ConsoleLayout query-param behavior", () => {
@@ -93,7 +132,6 @@ describe("ConsoleLayout query-param behavior", () => {
     expect(JSON.parse(window.localStorage.getItem(CONSOLE_PREFERENCES_KEY) ?? "{}")).toMatchObject({
       theme: "ledger",
     });
-
   });
 
   it("syncs operator preferences when another tab updates the same storage key", async () => {
@@ -128,7 +166,6 @@ describe("ConsoleLayout query-param behavior", () => {
       window.dispatchEvent(new StorageEvent("storage", {
         key: CONSOLE_PREFERENCES_KEY,
         newValue: JSON.stringify(nextPreferences),
-        storageArea: window.localStorage,
       }));
     });
 
@@ -243,5 +280,38 @@ describe("ConsoleLayout query-param behavior", () => {
         recentWorkspaces: ["/tmp/demo-workspace"],
       });
     });
+  });
+
+  it("opens the shared command palette and surfaces route-local action provenance", async () => {
+    const user = userEvent.setup();
+    const onAction = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <ConsoleLayout>
+          <PaletteActionRegistrar onAction={onAction} />
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: "k" });
+    expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+
+    const searchBox = screen.getByRole("textbox", { name: "Search actions" });
+    await user.type(searchBox, "approve");
+    expect(screen.getByRole("button", { name: /Approve demo approval/i })).toBeInTheDocument();
+    expect(screen.getByText(/test harness/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Approve demo approval/i }));
+    expect(onAction).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(window, { metaKey: true, key: "k" });
+    const pauseSearch = screen.getByRole("textbox", { name: "Search actions" });
+    await user.type(pauseSearch, "pause");
+    expect(screen.getByRole("button", { name: /Pause demo run/i })).toBeDisabled();
+    expect(screen.getByText(/Unavailable because the demo run is already paused\./i)).toBeInTheDocument();
   });
 });

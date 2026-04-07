@@ -2,6 +2,11 @@ import { type FormEvent, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { createConsoleClient } from "../api/client";
+import {
+  ConsoleActionButton,
+  type ConsoleActionDescriptor,
+  useRegisterConsoleActions,
+} from "../components/ConsoleActions";
 import { useConsoleEventBus } from "../components/ConsoleEventBus";
 import { KeyValueGrid } from "../components/KeyValueGrid";
 import { Panel } from "../components/Panel";
@@ -65,6 +70,18 @@ function liveSteerUnavailableMessage(
   }
   return null;
 }
+
+function runActionSuccessMessage(actionId: string, runId: string, approvalId?: string): string {
+  if (actionId === "approval.approve") {
+    return `Approved ${approvalId ?? "approval"} for ${runId}.`;
+  }
+  if (actionId === "approval.reject") {
+    return `Rejected ${approvalId ?? "approval"} for ${runId}.`;
+  }
+  const label = actionId.split(".").at(-1) ?? actionId;
+  return `Sent ${label} for ${runId}.`;
+}
+
 export function RunDetailPage() {
   const { runId = "" } = useParams();
   const { apiBase, workspacePath } = useConsoleConfig();
@@ -101,10 +118,17 @@ export function RunDetailPage() {
   const skillEntries = Array.isArray(inspector.skill_entries) ? inspector.skill_entries : [];
   const searchHits = Array.isArray(inspector.search_hits) ? inspector.search_hits : [];
   const outputs = Array.isArray(inspector.outputs) ? inspector.outputs : [];
-  const approvals = Array.isArray(detail.approvals) ? detail.approvals : [];
-  const pendingApprovals = approvals.filter((item) => {
-    return (item as Record<string, unknown>).status === "pending";
-  });
+  const approvals = useMemo(
+    () => (Array.isArray(detail.approvals) ? detail.approvals : []),
+    [detail.approvals],
+  );
+  const pendingApprovals = useMemo(
+    () =>
+      approvals.filter((item) => {
+        return (item as Record<string, unknown>).status === "pending";
+      }),
+    [approvals],
+  );
   const capabilitySnapshot = (
     detail.capability_snapshot ?? inspector.capability_snapshot ?? {}
   ) as Record<string, unknown>;
@@ -129,78 +153,266 @@ export function RunDetailPage() {
   const runHealth = String(run.health ?? "");
   const launchMode = String(effective.launch_mode ?? "");
   const sessionPersistence = String(effective.session_persistence ?? "none");
-  const supportsRunControls = detailKind === "run";
-  const canLiveSteer = supportsRunControls && launchMode !== "" && launchMode !== "staged" && sessionPersistence !== "none";
-  const liveSteerMessage = canLiveSteer
-    ? null
-    : liveSteerUnavailableMessage(launchMode, sessionPersistence);
+  const supportsRunControls = Boolean(data?.detail) && detailKind === "run";
+  const canLiveSteer =
+    supportsRunControls
+    && launchMode !== ""
+    && launchMode !== "staged"
+    && sessionPersistence !== "none";
+  const liveSteerMessage = supportsRunControls && !canLiveSteer
+    ? liveSteerUnavailableMessage(launchMode, sessionPersistence)
+    : null;
   const canPause = canLiveSteer && runHealth !== "paused";
   const canResume = canLiveSteer && runHealth === "paused";
   const canAnnotate = canLiveSteer;
   const canCancel = supportsRunControls && !["accepted", "cancelled", "failed", "rejected"].includes(runStatus);
   const canReroute = supportsRunControls && !["accepted", "cancelled", "failed"].includes(runStatus);
 
-  async function handleAction(
-    action: string,
-    payload?: { note?: string; target?: Record<string, unknown> },
-  ) {
-    setPendingAction(action);
-    setActionError(null);
-    setActionMessage(null);
-    try {
-      await client.steerRun(runId, {
-        action,
-        reason: reason.trim() || undefined,
-        note: payload?.note ?? (note.trim() || undefined),
-        target: payload?.target,
-        actor: "console-operator",
-      });
-      setActionMessage(`Sent ${action} for ${runId}.`);
-      setReason("");
-      setNote("");
-      requestRefresh();
-    } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : `Unable to ${action} run.`);
-    } finally {
-      setPendingAction(null);
+  const runControlActions = useMemo<ConsoleActionDescriptor[]>(() => {
+    if (!supportsRunControls) {
+      return [];
     }
-  }
 
-  async function handleApproval(approvalId: string, resolution: "approve" | "reject") {
-    setPendingAction(`${resolution}:${approvalId}`);
-    setActionError(null);
-    setActionMessage(null);
-    try {
-      if (resolution === "approve") {
-        await client.approveRunApproval(runId, approvalId, {
+    async function performRunAction(
+      actionId: string,
+      options?: {
+        note?: string;
+        reason?: string;
+        target?: Record<string, unknown>;
+        pendingKey?: string;
+        failureMessage?: string;
+      },
+    ) {
+      const pendingKey = options?.pendingKey ?? actionId;
+      setPendingAction(pendingKey);
+      setActionError(null);
+      setActionMessage(null);
+      try {
+        await client.executeAction({
+          action_id: actionId,
+          run_id: runId,
           actor: "console-operator",
-          note: note.trim() || undefined,
+          reason: options?.reason,
+          note: options?.note,
+          target: options?.target,
         });
-      } else {
-        await client.rejectRunApproval(runId, approvalId, {
-          actor: "console-operator",
-          note: note.trim() || undefined,
-        });
+        setActionMessage(runActionSuccessMessage(actionId, runId));
+        setReason("");
+        setNote("");
+        requestRefresh();
+      } catch (caught) {
+        setActionError(
+          caught instanceof Error
+            ? caught.message
+            : (options?.failureMessage ?? "Unable to execute console action."),
+        );
+      } finally {
+        setPendingAction(null);
       }
-      setActionMessage(
-        `${resolution === "approve" ? "Approved" : "Rejected"} ${approvalId} for ${runId}.`,
-      );
-      setNote("");
-      requestRefresh();
-    } catch (caught) {
-      setActionError(
-        caught instanceof Error ? caught.message : `Unable to ${resolution} approval.`,
-      );
-    } finally {
-      setPendingAction(null);
     }
-  }
+
+    return [
+      {
+        id: `run.pause:${runId}`,
+        title: "Pause",
+        description: "Pause a live attached run without losing the current execution context.",
+        group: "Run controls",
+        tone: "primary",
+        visible: canPause,
+        enabled: canPause && pendingAction === null,
+        availabilityReason: canPause
+          ? "Available because the run is live, steerable, and not already paused."
+          : liveSteerMessage ?? "Pause is unavailable because the run is already paused.",
+        availabilitySource: "run capability snapshot",
+        keywords: ["pause", runStatus, runHealth],
+        perform: () =>
+          performRunAction("run.pause", {
+            reason: reason.trim() || undefined,
+            note: note.trim() || undefined,
+            failureMessage: "Unable to pause run.",
+          }),
+      },
+      {
+        id: `run.resume:${runId}`,
+        title: "Resume",
+        description: "Resume a paused live run from the command center.",
+        group: "Run controls",
+        visible: canResume,
+        enabled: canResume && pendingAction === null,
+        availabilityReason: canResume
+          ? "Available because the run is live and currently paused."
+          : liveSteerMessage ?? "Resume is unavailable because the run is not paused.",
+        availabilitySource: "run capability snapshot",
+        keywords: ["resume", runStatus, runHealth],
+        perform: () =>
+          performRunAction("run.resume", {
+            reason: reason.trim() || undefined,
+            note: note.trim() || undefined,
+            failureMessage: "Unable to resume run.",
+          }),
+      },
+      {
+        id: `run.note:${runId}`,
+        title: "Add Note",
+        description: "Append an operator note to the live run audit trail.",
+        group: "Run controls",
+        visible: canAnnotate,
+        enabled: canAnnotate && pendingAction === null,
+        availabilityReason: canAnnotate
+          ? "Available because the run supports live annotations."
+          : liveSteerMessage ?? "Notes are unavailable for this run.",
+        availabilitySource: "run capability snapshot",
+        keywords: ["note", "annotate", runStatus, runHealth],
+        perform: () =>
+          performRunAction("run.note", {
+            reason: reason.trim() || undefined,
+            note: note.trim() || undefined,
+            failureMessage: "Unable to add note.",
+          }),
+      },
+      {
+        id: `run.cancel:${runId}`,
+        title: "Cancel",
+        description: "Cancel the run from Hive's side and record the operator intent.",
+        group: "Run controls",
+        tone: "danger",
+        visible: canCancel,
+        enabled: canCancel && pendingAction === null,
+        availabilityReason: canCancel
+          ? "Available because the run is not yet terminal."
+          : "Cancel is unavailable for accepted, cancelled, failed, or rejected runs.",
+        availabilitySource: "run status",
+        keywords: ["cancel", runStatus, runHealth],
+        perform: () =>
+          performRunAction("run.cancel", {
+            reason: reason.trim() || undefined,
+            note: note.trim() || undefined,
+            failureMessage: "Unable to cancel run.",
+          }),
+      },
+      {
+        id: `run.reroute:${runId}`,
+        title: "Reroute",
+        description: `Reroute this run to ${rerouteDriver}.`,
+        group: "Run controls",
+        tone: "primary",
+        visible: canReroute,
+        enabled: canReroute && pendingAction === null,
+        availabilityReason: canReroute
+          ? "Available because the run can still move to a different driver."
+          : "Reroute is unavailable for accepted, cancelled, or failed runs.",
+        availabilitySource: "run status",
+        keywords: ["reroute", rerouteDriver, runStatus, runHealth],
+        perform: () =>
+          performRunAction("run.reroute", {
+            reason: reason.trim() || undefined,
+            note: note.trim() || undefined,
+            target: { driver: rerouteDriver },
+            failureMessage: "Unable to reroute run.",
+          }),
+      },
+    ];
+  }, [
+    canAnnotate,
+    canCancel,
+    canPause,
+    canResume,
+    canReroute,
+    client,
+    liveSteerMessage,
+    note,
+    pendingAction,
+    reason,
+    requestRefresh,
+    rerouteDriver,
+    runHealth,
+    runId,
+    runStatus,
+    supportsRunControls,
+  ]);
+
+  const approvalActions = useMemo<ConsoleActionDescriptor[]>(() => {
+    if (!data?.detail || pendingApprovals.length === 0) {
+      return [];
+    }
+
+    async function performApprovalAction(actionId: "approval.approve" | "approval.reject", approvalId: string) {
+      setPendingAction(`${actionId}:${approvalId}`);
+      setActionError(null);
+      setActionMessage(null);
+      try {
+        await client.executeAction({
+          action_id: actionId,
+          run_id: runId,
+          approval_id: approvalId,
+          actor: "console-operator",
+          note: note.trim() || undefined,
+        });
+        setActionMessage(runActionSuccessMessage(actionId, runId, approvalId));
+        setNote("");
+        requestRefresh();
+      } catch (caught) {
+        setActionError(
+          caught instanceof Error
+            ? caught.message
+            : `Unable to ${actionId === "approval.approve" ? "approve" : "reject"} approval.`,
+        );
+      } finally {
+        setPendingAction(null);
+      }
+    }
+
+    return pendingApprovals.flatMap((item) => {
+      const approval = item as Record<string, unknown>;
+      const approvalId = String(approval.approval_id ?? "approval");
+      const approvalTitle = String(approval.title ?? approvalId);
+      const availabilityReason = pendingAction === null
+        ? `Available because ${approvalTitle} is still pending.`
+        : "Another operator action is already in flight.";
+      return [
+        {
+          id: `approval.approve:${approvalId}`,
+          title: `Approve ${approvalTitle}`,
+          buttonLabel: "Approve",
+          description: String(approval.summary ?? "Approve this pending request."),
+          group: "Approvals",
+          tone: "primary",
+          enabled: pendingAction === null,
+          availabilityReason,
+          availabilitySource: "pending approval request",
+          keywords: ["approve", approvalId, approvalTitle],
+          perform: () => performApprovalAction("approval.approve", approvalId),
+        },
+        {
+          id: `approval.reject:${approvalId}`,
+          title: `Reject ${approvalTitle}`,
+          buttonLabel: "Reject",
+          description: String(approval.summary ?? "Reject this pending request."),
+          group: "Approvals",
+          enabled: pendingAction === null,
+          availabilityReason,
+          availabilitySource: "pending approval request",
+          keywords: ["reject", approvalId, approvalTitle],
+          perform: () => performApprovalAction("approval.reject", approvalId),
+        },
+      ] satisfies ConsoleActionDescriptor[];
+    });
+  }, [client, data?.detail, note, pendingAction, pendingApprovals, requestRefresh, runId]);
+
+  const pageActions = useMemo(
+    () => [...runControlActions, ...approvalActions],
+    [approvalActions, runControlActions],
+  );
+
+  useRegisterConsoleActions(pageActions);
 
   async function handleReroute(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await handleAction("reroute", {
-      target: { driver: rerouteDriver },
-    });
+    const rerouteAction = runControlActions.find((action) => action.id === `run.reroute:${runId}`);
+    if (!rerouteAction) {
+      return;
+    }
+    await rerouteAction.perform();
   }
 
   return (
@@ -305,46 +517,16 @@ export function RunDetailPage() {
                 />
               </label>
               <div className="action-grid">
-                {canPause ? (
-                  <button
-                    className="primary-button"
-                    type="button"
-                    disabled={pendingAction !== null}
-                    onClick={() => handleAction("pause")}
-                  >
-                    Pause
-                  </button>
-                ) : null}
-                {canResume ? (
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={pendingAction !== null}
-                    onClick={() => handleAction("resume")}
-                  >
-                    Resume
-                  </button>
-                ) : null}
-                {canAnnotate ? (
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={pendingAction !== null}
-                    onClick={() => handleAction("note")}
-                  >
-                    Add Note
-                  </button>
-                ) : null}
-                {canCancel ? (
-                  <button
-                    className="danger-button"
-                    type="button"
-                    disabled={pendingAction !== null}
-                    onClick={() => handleAction("cancel")}
-                  >
-                    Cancel
-                  </button>
-                ) : null}
+                {runControlActions
+                  .filter(
+                    (action) =>
+                      action.group === "Run controls"
+                      && action.visible !== false
+                      && action.id !== `run.reroute:${runId}`,
+                  )
+                  .map((action) => (
+                    <ConsoleActionButton action={action} key={action.id} />
+                  ))}
               </div>
               {canReroute ? (
                 <form className="filters" onSubmit={handleReroute}>
@@ -361,21 +543,15 @@ export function RunDetailPage() {
                     </select>
                   </label>
                   <div className="filters__actions">
-                    <button
-                      className="primary-button"
-                      type="submit"
-                      disabled={pendingAction !== null}
-                    >
-                      Reroute
-                    </button>
+                    {runControlActions
+                      .filter((action) => action.id === `run.reroute:${runId}`)
+                      .map((action) => (
+                        <ConsoleActionButton action={action} key={action.id} />
+                      ))}
                   </div>
                 </form>
               ) : null}
-              {liveSteerMessage ? (
-                <p className="list-card__meta">
-                  {liveSteerMessage}
-                </p>
-              ) : null}
+              {liveSteerMessage ? <p className="list-card__meta">{liveSteerMessage}</p> : null}
             </>
           ) : (
             <p className="list-card__meta">
@@ -406,22 +582,11 @@ export function RunDetailPage() {
                   <p>{String(approval.summary ?? "Driver requested approval.")}</p>
                   <pre className="inline-json">{jsonPreview(approval.payload)}</pre>
                   <div className="action-grid">
-                    <button
-                      className="primary-button"
-                      type="button"
-                      disabled={pendingAction !== null}
-                      onClick={() => handleApproval(approvalId, "approve")}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      disabled={pendingAction !== null}
-                      onClick={() => handleApproval(approvalId, "reject")}
-                    >
-                      Reject
-                    </button>
+                    {approvalActions
+                      .filter((action) => action.id === `approval.approve:${approvalId}` || action.id === `approval.reject:${approvalId}`)
+                      .map((action) => (
+                        <ConsoleActionButton action={action} key={action.id} />
+                      ))}
                   </div>
                 </article>
               );

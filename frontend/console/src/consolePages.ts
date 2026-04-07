@@ -74,13 +74,6 @@ export const CONSOLE_PAGE_DEFINITIONS: readonly ConsolePageDefinition[] = CONSOL
   }),
 );
 
-export const PRIMARY_CONSOLE_PAGES = CONSOLE_PAGE_DEFINITIONS.filter(
-  (page) => page.navGroup === "primary",
-);
-export const SECONDARY_CONSOLE_PAGES = CONSOLE_PAGE_DEFINITIONS.filter(
-  (page) => page.navGroup === "secondary",
-);
-
 export function consolePathForPage(page: ConsolePage): string {
   return CONSOLE_PAGE_PATHS[page];
 }

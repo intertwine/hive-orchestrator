@@ -168,6 +168,29 @@ export function createConsoleClient(apiBase: string, workspacePath: string) {
       });
     },
 
+    executeAction(payload: {
+      action_id: string;
+      run_id?: string;
+      approval_id?: string;
+      actor?: string;
+      reason?: string;
+      target?: JsonRecord;
+      budget_delta?: JsonRecord;
+      note?: string;
+    }) {
+      const url = withPath(new URL(`${root}/actions/execute`), workspacePath);
+      return fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Console request failed: ${response.status} ${response.statusText}`);
+        }
+        return (await response.json()) as JsonRecord;
+      });
+    },
+
     steerRun(
       runId: string,
       payload: {

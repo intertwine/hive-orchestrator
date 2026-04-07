@@ -23,6 +23,7 @@ from src.hive.integrations.models import (
 )
 from src.hive.integrations.openclaw import persist_delegate_session
 from src.hive.runs.engine import accept_run, eval_run, start_run
+from src.hive.runtime.approvals import request_approval
 from src.hive.runtime.capabilities import CapabilitySnapshot, capability_surface
 from src.hive.scheduler.query import ready_tasks
 from src.hive.store.task_files import create_task
@@ -531,6 +532,99 @@ class TestObserveConsoleApi:
         )
         assert detail.status_code == 200
         assert detail.json()["detail"]["steering_history"][-1]["type"] == "steering.note_added"
+
+    def test_execute_console_action_endpoint_records_typed_steering_history(
+        self, temp_hive_dir, capsys
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="local")
+
+        client = TestClient(app)
+        response = client.post(
+            "/actions/execute",
+            params={"path": temp_hive_dir},
+            json={
+                "action_id": "run.note",
+                "run_id": run.id,
+                "note": "Please keep this slice narrow.",
+                "actor": "operator",
+            },
+        )
+        detail = client.get(f"/runs/{run.id}", params={"path": temp_hive_dir})
+
+        assert response.status_code == 200
+        assert response.json()["action_id"] == "run.note"
+        assert response.json()["run"]["id"] == run.id
+        assert detail.status_code == 200
+        assert detail.json()["detail"]["steering_history"]
+        assert detail.json()["detail"]["steering_history"][-1]["type"] == "steering.note_added"
+
+    def test_execute_console_action_endpoint_resolves_pending_approval_with_reason(
+        self, temp_hive_dir, capsys
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        task_id = ready_tasks(temp_hive_dir, project_id="demo")[0]["id"]
+        run = start_run(temp_hive_dir, task_id, driver_name="local")
+        approval = request_approval(
+            temp_hive_dir,
+            run.id,
+            kind="command",
+            title="Approve git status",
+            summary="Local driver wants to inspect the repo status.",
+            requested_by="driver:local",
+            payload={"command": "git status"},
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/actions/execute",
+            params={"path": temp_hive_dir},
+            json={
+                "action_id": "approval.reject",
+                "run_id": run.id,
+                "approval_id": approval["approval_id"],
+                "actor": "operator",
+                "reason": "Rejected because the command is outside this slice.",
+            },
+        )
+        approvals = client.get(f"/runs/{run.id}/approvals", params={"path": temp_hive_dir})
+
+        assert response.status_code == 200
+        assert response.json()["action_id"] == "approval.reject"
+        assert response.json()["request"]["reason"] == (
+            "Rejected because the command is outside this slice."
+        )
+        assert response.json()["approval"]["approval_id"] == approval["approval_id"]
+        assert response.json()["approval"]["status"] == "rejected"
+        assert approvals.status_code == 200
+        assert approvals.json()["approvals"][0]["status"] == "rejected"
 
     def test_runs_endpoint_accepts_canonical_and_legacy_claude_filters(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)

@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -162,8 +163,11 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
   const navigate = useNavigate();
   const explicitConfigQuery = useRef(false);
   const configTouched = useRef(false);
-  const queryApiBase = new URLSearchParams(location.search).get("apiBase");
-  const queryWorkspacePath = new URLSearchParams(location.search).get("workspace");
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const queryApiBase = searchParams.get("apiBase");
+  const queryWorkspacePath = searchParams.get("workspace");
+  const previousQueryApiBase = useRef(queryApiBase);
+  const previousQueryWorkspacePath = useRef(queryWorkspacePath);
   const activePage = describeConsolePath(location.pathname);
 
   useEffect(() => {
@@ -173,19 +177,27 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
   }, [queryApiBase, queryWorkspacePath]);
 
   useEffect(() => {
-    if (configTouched.current) {
+    const queryChanged = previousQueryApiBase.current !== queryApiBase;
+    previousQueryApiBase.current = queryApiBase;
+    if (queryApiBase === null || queryApiBase === apiBase) {
       return;
     }
-    if (queryApiBase !== null && queryApiBase !== apiBase) {
+    if (!configTouched.current || queryChanged) {
+      // Fresh explicit deep links should retake control even after local edits.
+      configTouched.current = false;
       setApiBase(queryApiBase);
     }
   }, [apiBase, queryApiBase]);
 
   useEffect(() => {
-    if (configTouched.current) {
+    const queryChanged = previousQueryWorkspacePath.current !== queryWorkspacePath;
+    previousQueryWorkspacePath.current = queryWorkspacePath;
+    if (queryWorkspacePath === null || queryWorkspacePath === workspacePath) {
       return;
     }
-    if (queryWorkspacePath !== null && queryWorkspacePath !== workspacePath) {
+    if (!configTouched.current || queryChanged) {
+      // Fresh explicit deep links should retake control even after local edits.
+      configTouched.current = false;
       setWorkspacePath(queryWorkspacePath);
     }
   }, [queryWorkspacePath, workspacePath]);
@@ -209,7 +221,8 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
       return;
     }
     const timeoutId = window.setTimeout(() => {
-      const params = new URLSearchParams(location.search);
+      // Debounce typed config edits so we do not churn router state on every keystroke.
+      const params = new URLSearchParams(searchParams);
       const currentApiBase = params.get("apiBase");
       const trimmedApiBase = apiBase.trim();
       const trimmedWorkspacePath = workspacePath.trim();
@@ -241,7 +254,7 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [apiBase, location.pathname, location.search, navigate, workspacePath]);
+  }, [apiBase, location.pathname, location.search, navigate, searchParams, workspacePath]);
 
   return (
     <ConsoleConfigContext.Provider

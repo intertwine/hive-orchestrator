@@ -1,10 +1,25 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConsoleLayout } from "../components/ConsoleLayout";
 import { CONSOLE_PREFERENCES_KEY } from "../preferences";
+
+function DeepLinkOverrideButton() {
+  const navigate = useNavigate();
+
+  return (
+    <button
+      onClick={() =>
+        navigate("/settings?apiBase=http://127.0.0.1:7777&workspace=/tmp/external-workspace")
+      }
+      type="button"
+    >
+      Open external deep link
+    </button>
+  );
+}
 
 describe("ConsoleLayout query-param behavior", () => {
   beforeEach(() => {
@@ -152,5 +167,35 @@ describe("ConsoleLayout query-param behavior", () => {
     expect(screen.getByRole("link", { name: "Integrations" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Activity" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("lets a fresh explicit deep link retake control after local config edits", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/settings?apiBase=http://127.0.0.1:8787&workspace=/tmp/demo-workspace",
+        ]}
+      >
+        <ConsoleLayout>
+          <DeepLinkOverrideButton />
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    const user = userEvent.setup();
+    await user.clear(screen.getByLabelText("API base"));
+    await user.type(screen.getByLabelText("API base"), "http://127.0.0.1:9998");
+    await user.clear(screen.getByLabelText("Workspace path"));
+    await user.type(screen.getByLabelText("Workspace path"), "/tmp/operator-workspace");
+
+    expect(screen.getByDisplayValue("http://127.0.0.1:9998")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("/tmp/operator-workspace")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open external deep link" }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("http://127.0.0.1:7777")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("/tmp/external-workspace")).toBeInTheDocument();
+    });
   });
 });

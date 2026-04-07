@@ -757,6 +757,34 @@ class TestObserveConsoleApi:
         assert approvals.status_code == 200
         assert approvals.json()["approvals"][0]["status"] == "rejected"
 
+    def test_execute_console_action_endpoint_rejects_unknown_action_id(
+        self, temp_hive_dir, capsys
+    ):
+        init_git_repo(temp_hive_dir)
+        _invoke_cli_json(
+            capsys,
+            ["--path", temp_hive_dir, "--json", "quickstart", "demo", "--title", "Demo"],
+        )
+        write_safe_program(temp_hive_dir, "demo")
+        subprocess.run(["git", "add", "-A"], cwd=temp_hive_dir, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Bootstrap workspace"],
+            cwd=temp_hive_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/actions/execute",
+            params={"path": temp_hive_dir},
+            json={"action_id": "run.teleport", "actor": "operator"},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Unknown console action: run.teleport"
+
     def test_runs_endpoint_accepts_canonical_and_legacy_claude_filters(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)
         _invoke_cli_json(

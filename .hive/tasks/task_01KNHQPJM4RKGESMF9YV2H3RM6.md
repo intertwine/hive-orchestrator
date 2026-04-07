@@ -21,9 +21,9 @@ relevant_files:
 - frontend/console/src/components
 - src/hive/console/api.py
 source: {}
-status: review
+status: done
 title: Add settings, activity, and keyboard-shortcut help surfaces
-updated_at: '2026-04-07T07:40:07.862558Z'
+updated_at: '2026-04-07T07:53:06.059046Z'
 ---
 
 ## Summary

@@ -4,6 +4,7 @@ import { useConsoleConfig } from "../components/ConsoleLayout";
 import { KeyValueGrid } from "../components/KeyValueGrid";
 import { Panel } from "../components/Panel";
 import { RunCard } from "../components/RunCard";
+import { StateNotice } from "../components/StateNotice";
 import { StatusPill } from "../components/StatusPill";
 import { useConsoleQuery } from "../hooks/useConsoleQuery";
 
@@ -240,28 +241,51 @@ export function HomePage() {
     return <GettingStarted recommended={recommended} workspacePath={workspacePath} />;
   }
 
+  if (loading) {
+    return (
+      <div className="page-grid">
+        <Panel eyebrow="Portfolio overview" title="Home">
+          <StateNotice
+            detail="Hive is collecting the current workspace summary, live runs, inbox state, and recent portfolio events."
+            title="Loading Home"
+          />
+        </Panel>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page-grid">
+        <Panel eyebrow="Portfolio overview" title="Home">
+          <StateNotice
+            detail={`Verify the API base and workspace path in Settings, then retry once the daemon is reachable again. (${error})`}
+            title="Unable to load Home"
+            tone="error"
+          />
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <div className="page-grid">
       <Panel eyebrow="Portfolio overview" title="Home">
-        {loading ? <p>Loading Home…</p> : null}
-        {error ? <p className="error-copy">{error}</p> : null}
-        {!loading && !error ? (
-          <div className="stack">
-            <KeyValueGrid
-              values={[
-                { label: "Workspace", value: workspacePath.trim() || String(home.workspace ?? "—") },
-                { label: "Active runs", value: activeRuns.length },
-                { label: "Awaiting review", value: evaluatingRuns.length },
-                { label: "Inbox items", value: inbox.length },
-                { label: "Campaigns", value: campaigns.length },
-              ]}
-            />
+        <div className="stack">
+          <KeyValueGrid
+            values={[
+              { label: "Workspace", value: workspacePath.trim() || String(home.workspace ?? "—") },
+              { label: "Active runs", value: activeRuns.length },
+              { label: "Awaiting review", value: evaluatingRuns.length },
+              { label: "Inbox items", value: inbox.length },
+              { label: "Campaigns", value: campaigns.length },
+            ]}
+          />
 
-            <div className="card-grid">
-              <RecommendedTaskCard recommended={recommended} />
-            </div>
+          <div className="card-grid">
+            <RecommendedTaskCard recommended={recommended} />
           </div>
-        ) : null}
+        </div>
       </Panel>
 
       <Panel eyebrow="Live work" title="Active Runs">
@@ -269,7 +293,10 @@ export function HomePage() {
           {activeRuns.length ? (
             activeRuns.map((run) => <RunCard key={String((run as Record<string, unknown>).id)} run={run as Record<string, unknown>} />)
           ) : (
-            <p>No active runs right now.</p>
+            <StateNotice
+              detail="Start a governed run from Projects or the terminal with `hive work`, then return here to monitor it live."
+              title="No active runs right now"
+            />
           )}
         </div>
       </Panel>
@@ -292,7 +319,10 @@ export function HomePage() {
               );
             })
           ) : (
-            <p>The inbox is clear.</p>
+            <StateNotice
+              detail="Check Notifications for informational signals or Projects if you need the next safe action."
+              title="The inbox is clear"
+            />
           )}
         </div>
       </Panel>
@@ -319,7 +349,10 @@ export function HomePage() {
               );
             })
           ) : (
-            <p>No blocked projects.</p>
+            <StateNotice
+              detail="Program Doctor and campaign state are currently clear. Open Projects if you want to inspect governance anyway."
+              title="No blocked projects"
+            />
           )}
         </div>
       </Panel>
@@ -350,7 +383,10 @@ export function HomePage() {
               );
             })
           ) : (
-            <p>No campaigns exist yet.</p>
+            <StateNotice
+              detail="Create or adopt a campaign once you want Hive to drive a recurring portfolio loop."
+              title="No campaigns exist yet"
+            />
           )}
         </div>
       </Panel>
@@ -375,7 +411,10 @@ export function HomePage() {
               <RunCard key={String((run as Record<string, unknown>).id)} run={run as Record<string, unknown>} />
             ))
           ) : (
-            <p>No recent activity.</p>
+            <StateNotice
+              detail="Recent events, accepts, and steering notes will collect here as soon as work starts moving."
+              title="No recent activity"
+            />
           )}
         </div>
       </Panel>

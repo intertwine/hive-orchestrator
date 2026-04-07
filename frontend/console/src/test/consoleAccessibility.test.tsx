@@ -171,6 +171,25 @@ const ACTIVITY_ROUTE: MockRoute = {
   }),
 };
 
+const CAMPAIGNS_ROUTE: MockRoute = {
+  pathname: "/campaigns",
+  response: jsonResponse({
+    ok: true,
+    campaigns: [
+      {
+        id: "campaign_daily",
+        title: "North Star Daily Brief",
+        status: "active",
+        goal: "Keep the portfolio moving.",
+        driver: "local",
+        cadence: "daily",
+        brief_cadence: "daily",
+        lane_quotas: { exploit: 60, explore: 20, review: 10, maintenance: 10 },
+      },
+    ],
+  }),
+};
+
 const RUNS_ROUTE: MockRoute = {
   pathname: "/runs",
   response: jsonResponse({
@@ -378,6 +397,10 @@ describe("Console accessibility smoke", () => {
 
   it("keeps Settings free of automated violations", async () => {
     await expectNoViolations(["/settings"], "Settings", []);
+  });
+
+  it("keeps Campaigns free of automated violations", async () => {
+    await expectNoViolations(["/campaigns"], "Campaigns", [CAMPAIGNS_ROUTE]);
   });
 
   it("keeps Notifications free of automated violations", async () => {

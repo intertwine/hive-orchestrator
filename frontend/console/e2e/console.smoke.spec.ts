@@ -36,6 +36,14 @@ async function fulfillJsonRoute(page: Page, pathname: string, body: unknown) {
   });
 }
 
+async function expectNoHorizontalOverflow(page: Page) {
+  const overflow = await page.evaluate(() => {
+    const root = document.scrollingElement ?? document.documentElement;
+    return root.scrollWidth - window.innerWidth;
+  });
+  expect(overflow).toBeLessThanOrEqual(1);
+}
+
 test.beforeEach(async ({ page }) => {
   await configureBrowserShell(page);
 });
@@ -235,4 +243,207 @@ test("submits typed run steering from the browser and preserves the payload cont
     run_id: "run_gamma_local_1",
     target: { driver: "codex" },
   });
+});
+
+test("keeps the primary v2.5 surfaces responsive on a mobile viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await fulfillJsonRoute(page, "/home", {
+    ok: true,
+    home: {
+      workspace: WORKSPACE,
+      active_runs: [],
+      evaluating_runs: [],
+      inbox: [
+        { kind: "run-review", title: "Alpha review", reason: "Need evaluator signoff" },
+      ],
+      blocked_projects: [],
+      campaigns: [
+        {
+          id: "campaign_daily",
+          title: "North Star Daily Brief",
+          status: "active",
+          goal: "Keep the portfolio moving.",
+          driver: "local",
+          brief_cadence: "daily",
+        },
+      ],
+      recent_events: [],
+      recent_accepts: [],
+      recommended_next: {
+        task: {
+          id: "task_alpha_next",
+          title: "Investigate inbox routing",
+          project_id: "alpha",
+        },
+        reasons: ["highest priority ready task"],
+      },
+    },
+  });
+  await fulfillJsonRoute(page, "/inbox", {
+    ok: true,
+    items: [
+      {
+        kind: "approval-request",
+        title: "Approve Gamma reroute",
+        reason: "Driver needs operator approval.",
+        project_id: "gamma",
+        run_id: "run_gamma_local_1",
+        approval_id: "approval_1",
+      },
+    ],
+    summary: {
+      total: 1,
+      by_severity: { critical: 1 },
+      by_decision_type: { approval: 1 },
+      by_notification_tier: { actionable: 1 },
+    },
+  });
+  await fulfillJsonRoute(page, "/campaigns", {
+    ok: true,
+    campaigns: [
+      {
+        id: "campaign_daily",
+        title: "North Star Daily Brief",
+        status: "active",
+        goal: "Keep the portfolio moving.",
+        driver: "local",
+        cadence: "daily",
+        brief_cadence: "daily",
+        lane_quotas: { exploit: 60, explore: 20, review: 10, maintenance: 10 },
+      },
+    ],
+  });
+  await fulfillJsonRoute(page, "/search", {
+    ok: true,
+    results: [
+      {
+        id: "result_program",
+        title: "PROGRAM.md",
+        kind: "program",
+        source: "docs",
+        source_label: "Docs",
+        summary: "Policy guidance for governed runs.",
+        preview: "The program defines evaluator and promotion policy.",
+        why: ["matched title terms: program"],
+        project_id: "alpha",
+        project_label: "Alpha Project",
+        path: "projects/alpha/PROGRAM.md",
+        deep_link: "/projects/alpha",
+        open_label: "Open project",
+      },
+    ],
+  });
+  await fulfillJsonRoute(page, "/runs/run_gamma_local_1", {
+    ok: true,
+    detail: {
+      run: {
+        id: "run_gamma_local_1",
+        project_id: "gamma",
+        driver: "local",
+        status: "running",
+        health: "healthy",
+        started_at: "2026-03-17T05:20:00Z",
+        finished_at: null,
+        metadata_json: { task_title: "Gamma launch page" },
+      },
+      promotion_decision: {
+        decision: "review",
+        reasons: ["Waiting for typed operator signoff."],
+      },
+      artifact_preview: {
+        run_brief: "Implement the launch page.",
+        review_summary: "Waiting for reroute decision.",
+        review_notes: "Operator review notes stay visible here.",
+        diff: "diff --git a/src/App.tsx b/src/App.tsx",
+        stdout: "console ready",
+        stderr: "",
+      },
+      inspector: {
+        memory_entries: [],
+        skill_entries: [],
+        search_hits: [],
+        outputs: [],
+      },
+      capability_snapshot: {
+        effective: {
+          launch_mode: "local",
+          session_persistence: "session",
+          event_stream: "status",
+          approvals: [],
+          artifacts: ["runpack"],
+        },
+      },
+      sandbox_policy: {
+        backend: "podman",
+        profile: "local-safe",
+      },
+      retrieval_trace: {
+        selected_context: [],
+      },
+      approvals: [],
+      steering_history: [],
+      timeline: [],
+      evaluations: [],
+      changed_files: { touched_paths: [] },
+      context_entries: [],
+    },
+  });
+  await fulfillJsonRoute(page, "/runs/run_gamma_local_1/compare", {
+    ok: true,
+    comparison: {
+      current: {
+        run_id: "run_gamma_local_1",
+        title: "Gamma launch page",
+        driver: "local",
+        status: "review",
+        changed_paths: [],
+        evaluation_summary: { total: 0, by_status: {} },
+      },
+      baseline: {},
+      diff: {
+        current_only: [],
+        baseline_only: [],
+        shared: [],
+      },
+      summary: {
+        has_baseline: false,
+        baseline_label: "",
+        current_label: "Gamma launch page",
+      },
+    },
+  });
+
+  await page.goto(consoleUrl("/"));
+  await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
+  await expect(page.getByText("Investigate inbox routing")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  await page.goto(consoleUrl("/inbox"));
+  await expect(page.getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
+  await expect(page.getByText("Approve Gamma reroute")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  await page.goto(consoleUrl("/campaigns"));
+  await expect(page.getByRole("heading", { name: "Campaigns", exact: true })).toBeVisible();
+  await expect(page.getByText("North Star Daily Brief")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  await page.goto(consoleUrl("/search"));
+  await expect(page.getByRole("heading", { name: "Search", exact: true })).toBeVisible();
+  const searchResultButton = page.getByRole("button", { name: /Docs PROGRAM\.md Docs/ });
+  await expect(searchResultButton).toBeVisible();
+  await searchResultButton.click();
+  await expect(searchResultButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#search-preview-panel")).toBeFocused();
+  await expectNoHorizontalOverflow(page);
+
+  await page.goto(consoleUrl("/runs/run_gamma_local_1"));
+  await expect(page.getByRole("heading", { name: "run_gamma_local_1", exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Run brief" }).press("End");
+  await expect(page.getByRole("tab", { name: "stderr" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tabpanel", { name: "stderr" })).toContainText("No stderr recorded yet.");
+  await expectNoHorizontalOverflow(page);
 });

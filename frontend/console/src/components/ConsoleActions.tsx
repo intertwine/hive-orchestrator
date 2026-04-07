@@ -1,11 +1,13 @@
 import {
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PropsWithChildren,
   createContext,
   startTransition,
   useContext,
   useDeferredValue,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -112,6 +114,17 @@ function isTypingTarget(target: EventTarget | null): boolean {
     tagName === "textarea" ||
     tagName === "select"
   );
+}
+
+function focusableElements(container: HTMLElement | null): HTMLElement[] {
+  if (!container) {
+    return [];
+  }
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.hasAttribute("hidden"));
 }
 
 export function normalizeConsoleActionRecord(value: Record<string, unknown>): ConsoleActionRecord {
@@ -280,12 +293,17 @@ function CommandPalette({
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
 
   useEffect(() => {
     if (!open) {
       setQuery("");
       return;
     }
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const timeoutId = window.setTimeout(() => {
       inputRef.current?.focus();
       inputRef.current?.select();
@@ -293,6 +311,14 @@ function CommandPalette({
     return () => {
       window.clearTimeout(timeoutId);
     };
+  }, [open]);
+
+  useEffect(() => {
+    if (open || !openerRef.current) {
+      return;
+    }
+    openerRef.current.focus();
+    openerRef.current = null;
   }, [open]);
 
   const filteredActions = useMemo(() => {
@@ -346,6 +372,27 @@ function CommandPalette({
     return null;
   }
 
+  function handleDialogKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Tab") {
+      return;
+    }
+    const focusable = focusableElements(dialogRef.current);
+    if (!focusable.length) {
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   return (
     <div className="command-palette" role="presentation">
       <button
@@ -355,11 +402,20 @@ function CommandPalette({
         type="button"
       />
       <div
-        aria-label="Command palette"
+        aria-describedby={descriptionId}
+        aria-labelledby={titleId}
         aria-modal="true"
         className="command-palette__dialog"
+        onKeyDown={handleDialogKeyDown}
+        ref={dialogRef}
         role="dialog"
       >
+        <div className="command-palette__header">
+          <h2 id={titleId}>Command palette</h2>
+          <button className="secondary-button" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
         <form className="command-palette__search" onSubmit={handleSubmit}>
           <input
             aria-label="Search actions"
@@ -372,7 +428,7 @@ function CommandPalette({
             Run first match
           </button>
         </form>
-        <p className="command-palette__hint">
+        <p className="command-palette__hint" id={descriptionId}>
           Top operator actions, page controls, and deep links all share this same action model.
         </p>
         <div className="command-palette__results">
@@ -423,16 +479,27 @@ export function ConsoleActionButton({
 }: {
   action: ConsoleActionDescriptor;
 }) {
+  const availabilityId = useId();
+  const showAvailabilityReason = !action.enabled && !!action.availabilityReason;
+
   return (
-    <button
-      className={buttonClassName(action.tone)}
-      disabled={!action.enabled}
-      onClick={() => void action.perform()}
-      title={action.availabilityReason}
-      type="button"
-    >
-      {action.buttonLabel ?? action.title}
-    </button>
+    <div className="action-control">
+      <button
+        aria-describedby={showAvailabilityReason ? availabilityId : undefined}
+        className={buttonClassName(action.tone)}
+        disabled={!action.enabled}
+        onClick={() => void action.perform()}
+        title={action.availabilityReason}
+        type="button"
+      >
+        {action.buttonLabel ?? action.title}
+      </button>
+      {showAvailabilityReason ? (
+        <p className="action-control__hint" id={availabilityId}>
+          {action.availabilityReason}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

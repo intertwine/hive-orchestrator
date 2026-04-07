@@ -88,12 +88,21 @@ function ConsoleShell({
 }>) {
   const {
     openPalette,
+    paletteOpen,
     primaryNavigationActions,
     secondaryNavigationActions,
   } = useConsoleActions();
 
   return (
-    <div className="console-shell" data-density={density} data-theme={theme}>
+    <div
+      aria-hidden={paletteOpen || undefined}
+      className="console-shell"
+      data-density={density}
+      data-theme={theme}
+    >
+      <a className="skip-link" href="#console-main">
+        Skip to main content
+      </a>
       <header className="console-hero">
         <div>
           <p className="eyebrow">Agent Hive 2.5 Command Center</p>
@@ -125,7 +134,7 @@ function ConsoleShell({
         <ConsoleSettingsCard />
       </header>
 
-      <nav className="top-nav">
+      <nav aria-label="Primary navigation" className="top-nav">
         {primaryNavigationActions.map((action) => (
           <TopNavLink key={action.id} to={action.href ?? "/home"} label={action.title} />
         ))}
@@ -134,7 +143,9 @@ function ConsoleShell({
         ))}
       </nav>
 
-      <main className="console-content">{children ?? <Outlet />}</main>
+      <main className="console-content" id="console-main" tabIndex={-1}>
+        {children ?? <Outlet />}
+      </main>
     </div>
   );
 }

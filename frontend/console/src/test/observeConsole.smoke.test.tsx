@@ -658,7 +658,7 @@ describe("Observe Console smoke", () => {
 
     expect(await screen.findByText("Approved Approve deploy step.")).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText("The inbox is clear.")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Inbox is clear" })).toBeInTheDocument();
     });
 
     const postBodies = fetchMock.mock.calls
@@ -757,7 +757,7 @@ describe("Observe Console smoke", () => {
     await user.click(screen.getByRole("button", { name: "Snooze selected" }));
 
     expect(await screen.findByText(/Snoozed 2 attention item\(s\) until/)).toBeInTheDocument();
-    expect(screen.getByText("The inbox is clear.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Inbox is clear" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("checkbox", { name: "Show snoozed" }));
     expect(await screen.findByText("Approve Gamma reroute")).toBeInTheDocument();
@@ -860,6 +860,10 @@ describe("Observe Console smoke", () => {
     await screen.findByRole("heading", { name: "Search" });
     await user.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findAllByText("Program Doctor hardening")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /Program Doctor hardening/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     expect(screen.getAllByText("canonical task record")).toHaveLength(2);
     expect(screen.getByRole("link", { name: "Open project context" })).toHaveAttribute(
       "href",
@@ -1201,6 +1205,22 @@ describe("Observe Console smoke", () => {
     renderConsole([`/runs/${runId}`]);
 
     await screen.findByRole("heading", { name: runId });
+    const runBriefTab = screen.getByRole("tab", { name: "Run brief" });
+    runBriefTab.focus();
+    fireEvent.keyDown(runBriefTab, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Summary" })).toHaveAttribute("aria-selected", "true");
+    });
+    expect(screen.getByRole("tabpanel", { name: "Summary" })).toHaveTextContent(
+      "Waiting for reroute decision.",
+    );
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Summary" }), { key: "End" });
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "stderr" })).toHaveAttribute("aria-selected", "true");
+    });
+    expect(screen.getByRole("tabpanel", { name: "stderr" })).toHaveTextContent(
+      "No stderr recorded yet.",
+    );
     const steeringPanel = screen.getByRole("heading", { name: "Steering History" }).closest("section");
     const timelinePanel = screen.getByRole("heading", { name: "Timeline" }).closest("section");
     expect(steeringPanel).not.toBeNull();

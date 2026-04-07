@@ -7,6 +7,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.hive.console.actions import (
+    build_approval_actions,
+    build_attention_actions,
+    build_run_actions,
+)
 from src.hive.control import portfolio_status, recommend_next_task
 from src.hive.delegates import list_delegate_entries, load_delegate_entry
 from src.hive.drivers.registry import normalize_driver_name
@@ -764,7 +769,7 @@ def _attention_item(
         title,
     ]
     item_id = "::".join(part for part in identifier_parts if part)
-    return {
+    item = {
         "id": item_id,
         "kind": kind,
         "priority": priority,
@@ -802,6 +807,8 @@ def _attention_item(
         "delegate_session_id": delegate_session_id,
         "native_session_ref": native_session_ref,
     }
+    item["actions"] = build_attention_actions(item)
+    return item
 
 
 def _sort_attention_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1172,11 +1179,15 @@ def load_run_detail(base_path: Path, run_id: str) -> dict:
         if str(event.get("type", "")).startswith("steering.")
     ]
     promotion_decision = run.get("metadata_json", {}).get("promotion_decision")
-    approvals = list_approvals(base_path, run_id)
+    approvals = build_approval_actions(run_id, list_approvals(base_path, run_id))
     harness = str(capability_snapshot.get("driver") or run.get("driver") or "")
     governance_mode = str(capability_snapshot.get("governance_mode", "governed"))
     integration_level = str(capability_snapshot.get("integration_level", "managed"))
     adapter_family = str(capability_snapshot.get("adapter_family", "legacy_driver"))
+    launch_mode = str((capability_snapshot.get("effective") or {}).get("launch_mode") or "")
+    session_persistence = str(
+        (capability_snapshot.get("effective") or {}).get("session_persistence") or "none"
+    )
     return {
         "run": run,
         "detail_kind": "run",
@@ -1203,6 +1214,13 @@ def load_run_detail(base_path: Path, run_id: str) -> dict:
             "outputs": context_manifest.get("outputs", []),
         },
         "steering_history": steering_history,
+        "actions": build_run_actions(
+            run_id=run_id,
+            run_status=str(run.get("status") or ""),
+            run_health=str(run.get("health") or ""),
+            launch_mode=launch_mode,
+            session_persistence=session_persistence,
+        ),
         "approvals": approvals,
         "artifacts": artifacts,
         "driver_metadata": driver_metadata,

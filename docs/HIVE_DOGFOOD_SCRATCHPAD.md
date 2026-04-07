@@ -59,6 +59,7 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - In this environment, non-interactive frontend validation left lingering worker processes and produced misleading hangs. The same Vitest and Playwright commands were reliable once run through a TTY-backed exec session, so maintainers currently have to know an implementation detail of the host tooling to trust the results.
 - The unified exec process cap became user-visible during a normal review and validation loop. Once the thread hit the limit, the repeated warnings made it harder to tell whether the current run was healthy, and there is no obvious maintainer affordance for pruning stale sessions from inside the work loop.
 - Console accessibility verification still lacks a first-class narrow entry point. To validate just the search a11y surface, we had to drop below the normal maintainer scripts and invoke `pnpm --dir frontend/console exec vitest run src/test/consoleAccessibility.test.tsx` directly.
+- Focused console and driver test runs still leave `tests/fake-codex-*` directories behind in the repo checkout, so maintainers have to remember to scrub generated temp fixtures before staging or reviewing a branch.
 
 ### Improvement ideas
 
@@ -72,3 +73,4 @@ Purpose: capture friction, missing capabilities, and improvement ideas while usi
 - Either make non-interactive frontend test execution robust in the default maintainer environment, or teach Hive/maintainer helpers to prefer TTY-backed validation automatically for commands known to spawn persistent workers.
 - Add a way to inspect and prune stale exec sessions from the maintainer workflow so hitting the session cap does not interrupt long-lived implementation threads.
 - Add dedicated console test scripts for accessibility-only and route-scoped validation so maintainers do not need to remember raw Vitest invocation details for focused review loops.
+- Move fake Codex harness temp directories outside the repo checkout, or guarantee fixture teardown so focused validation does not create review noise under `tests/`.

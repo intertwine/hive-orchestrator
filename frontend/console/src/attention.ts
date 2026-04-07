@@ -28,6 +28,7 @@ export interface AttentionItem {
   approvalId: string;
   whyVisible: string;
   ignoreImpact: string;
+  actions: JsonRecord[];
 }
 
 export interface AttentionGroup {
@@ -124,6 +125,9 @@ export function normalizeAttentionItem(value: JsonRecord): AttentionItem {
     approvalId: readString(value.approval_id),
     whyVisible: readString(value.why_visible, "This item was surfaced for operator attention."),
     ignoreImpact: readString(value.ignore_impact, "Ignoring this only changes your local queue state."),
+    actions: Array.isArray(value.actions)
+      ? value.actions.filter((entry): entry is JsonRecord => Boolean(entry) && typeof entry === "object")
+      : [],
   };
 }
 

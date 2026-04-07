@@ -12,6 +12,8 @@ import {
 import {
   ConsoleActionButton,
   type ConsoleActionDescriptor,
+  createConsoleActionDescriptor,
+  normalizeConsoleActionRecord,
   useRegisterConsoleActions,
 } from "./ConsoleActions";
 import { ConsoleLink, preserveConsoleSearch } from "./ConsoleLink";
@@ -270,6 +272,27 @@ export function AttentionBoard({
     });
   }
 
+  const registryActions = useMemo<ConsoleActionDescriptor[]>(() => {
+    return visibleItems.flatMap((item) =>
+      item.actions
+        .map((entry) => normalizeConsoleActionRecord(entry))
+        .map((action) =>
+          createConsoleActionDescriptor(action, {
+            actor: "console-operator",
+            busy: pendingAction !== null,
+            busyReason: "Another operator action is already in flight.",
+            client,
+            locationSearch: location.search,
+            navigate,
+            requestRefresh,
+            setActionError,
+            setActionMessage,
+            setPendingAction,
+          }),
+        ),
+    );
+  }, [client, location.search, navigate, pendingAction, requestRefresh, visibleItems]);
+
   const pageActions = useMemo<ConsoleActionDescriptor[]>(() => {
     const actions: ConsoleActionDescriptor[] = [];
     if (selectedItems.length) {
@@ -326,6 +349,11 @@ export function AttentionBoard({
       );
     }
 
+    if (registryActions.length) {
+      actions.push(...registryActions);
+      return actions;
+    }
+
     for (const item of visibleItems) {
       if (item.deepLink) {
         actions.push({
@@ -367,6 +395,7 @@ export function AttentionBoard({
     mode,
     navigate,
     pendingAction,
+    registryActions,
     requestRefresh,
     selectedItems,
     visibleItems,
@@ -630,8 +659,12 @@ export function AttentionBoard({
                           {pageActions
                             .filter(
                               (action) =>
-                                action.id === `approval.approve:${item.id}`
-                                || action.id === `approval.reject:${item.id}`,
+                                (item.actions.length
+                                  ? item.actions
+                                    .map((entry) => normalizeConsoleActionRecord(entry).id)
+                                    .includes(action.id)
+                                  : action.id === `approval.approve:${item.id}`
+                                    || action.id === `approval.reject:${item.id}`),
                             )
                             .map((action) => (
                               <ConsoleActionButton action={action} key={action.id} />

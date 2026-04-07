@@ -201,6 +201,7 @@ class TestObserveConsoleApi:
         assert inbox.status_code == 200
         assert any(item["kind"] == "run-review" for item in inbox.json()["items"])
         assert any(item["kind"] == "run-input" for item in inbox.json()["items"])
+        assert any(item.get("actions") for item in inbox.json()["items"])
         assert runs.status_code == 200
         assert len(runs.json()["runs"]) == 1
         assert runs.json()["runs"][0]["driver"] == "codex"
@@ -216,6 +217,10 @@ class TestObserveConsoleApi:
         assert "context_entries" in detail.json()["detail"]
         assert "handoff_manifest" in detail.json()["detail"]["inspector"]
         assert "reroute_bundle" in detail.json()["detail"]["inspector"]
+        assert any(
+            action.get("action_id") == "run.cancel"
+            for action in detail.json()["detail"]["actions"]
+        )
 
     def test_attention_notifications_and_activity_endpoints(self, temp_hive_dir, capsys):
         init_git_repo(temp_hive_dir)

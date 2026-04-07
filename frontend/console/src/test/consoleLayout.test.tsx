@@ -198,4 +198,30 @@ describe("ConsoleLayout query-param behavior", () => {
       expect(screen.getByDisplayValue("/tmp/external-workspace")).toBeInTheDocument();
     });
   });
+
+  it("only remembers hydrated workspace paths instead of recording every typed edit as recent", async () => {
+    window.localStorage.setItem("hive-console-workspace", "/tmp/persisted-workspace");
+
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <ConsoleLayout>
+          <div>child</div>
+        </ConsoleLayout>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem(CONSOLE_PREFERENCES_KEY) ?? "{}")).toMatchObject({
+        recentWorkspaces: ["/tmp/persisted-workspace"],
+      });
+    });
+
+    const user = userEvent.setup();
+    await user.clear(screen.getByLabelText("Workspace path"));
+    await user.type(screen.getByLabelText("Workspace path"), "/tmp/operator-workspace");
+
+    expect(JSON.parse(window.localStorage.getItem(CONSOLE_PREFERENCES_KEY) ?? "{}")).toMatchObject({
+      recentWorkspaces: ["/tmp/persisted-workspace"],
+    });
+  });
 });

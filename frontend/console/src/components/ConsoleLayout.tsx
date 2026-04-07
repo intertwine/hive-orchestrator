@@ -170,6 +170,7 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
   const previousQueryApiBase = useRef(queryApiBase);
   const previousQueryWorkspacePath = useRef(queryWorkspacePath);
   const activePage = describeConsolePath(location.pathname);
+  const rememberedInitialWorkspace = useRef(false);
 
   useEffect(() => {
     explicitConfigQuery.current = explicitConfigQuery.current
@@ -218,8 +219,31 @@ function ConsoleLayoutBody({ children }: PropsWithChildren) {
   }, [queryWorkspacePath, workspacePath]);
 
   useEffect(() => {
-    rememberWorkspace(workspacePath);
-  }, [rememberWorkspace, workspacePath]);
+    const trimmedWorkspacePath = workspacePath.trim();
+    if (
+      rememberedInitialWorkspace.current
+      || configTouched.current
+      || queryWorkspacePath !== null
+      || !trimmedWorkspacePath
+    ) {
+      return;
+    }
+    rememberedInitialWorkspace.current = true;
+    rememberWorkspace(trimmedWorkspacePath);
+  }, [queryWorkspacePath, rememberWorkspace, workspacePath]);
+
+  useEffect(() => {
+    const trimmedWorkspacePath = workspacePath.trim();
+    if (
+      configTouched.current
+      || queryWorkspacePath === null
+      || queryWorkspacePath !== trimmedWorkspacePath
+      || !trimmedWorkspacePath
+    ) {
+      return;
+    }
+    rememberWorkspace(trimmedWorkspacePath);
+  }, [queryWorkspacePath, rememberWorkspace, workspacePath]);
 
   useEffect(() => {
     if (!explicitConfigQuery.current && !configTouched.current) {

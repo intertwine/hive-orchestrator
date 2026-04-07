@@ -1280,6 +1280,7 @@ describe("Observe Console smoke", () => {
     expect(screen.getByText("PROGRAM.md — program policy outranked general docs")).toBeInTheDocument();
     expect(screen.getByText("Accepted alpha baseline")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open baseline run" })).toBeInTheDocument();
+    expect(screen.getAllByText("Approval payload")).toHaveLength(2);
 
     const approveCard = screen.getByText("Approve git status").closest("article");
     const rejectCard = screen.getByText("Reject rm -rf /tmp/demo").closest("article");

@@ -183,7 +183,7 @@ export function RunDetailPage() {
   const comparisonQuery = useConsoleQuery(
     `run-compare:${apiBase}:${workspacePath}:${runId}:${detailKind || "pending"}`,
     async () => (detailKind === "run" ? client.getRunComparison(runId) : { ok: true, comparison: {} }),
-    detailKind === "run" ? 3000 : 0,
+    detailKind === "run" ? 10000 : 0,
   );
   const comparison = (comparisonQuery.data?.comparison ?? {}) as Record<string, unknown>;
   const compareCurrent = (comparison.current ?? {}) as Record<string, unknown>;
@@ -252,7 +252,7 @@ export function RunDetailPage() {
       setTimelineIndex(0);
       return;
     }
-    setTimelineIndex((current) => Math.min(timeline.length - 1, Math.max(current, timeline.length - 1)));
+    setTimelineIndex(timeline.length - 1);
   }, [timeline.length]);
 
   const selectedTimelineEvent = timeline.length
@@ -905,6 +905,10 @@ export function RunDetailPage() {
                       </StatusPill>
                     </div>
                     <p>{String(approval.summary ?? "Driver requested approval.")}</p>
+                    <DisclosurePreview
+                      title="Approval payload"
+                      content={jsonPreview(approval.payload)}
+                    />
                     <div className="action-grid">
                       {approvalActions
                         .filter((action) => action.id === `approval.approve:${approvalId}` || action.id === `approval.reject:${approvalId}`)

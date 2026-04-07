@@ -487,6 +487,15 @@ def load_run_comparison(base_path: Path, run_id: str) -> dict[str, Any]:
         and candidate.get("id") != run_id
         and candidate.get("entry_kind") != "delegate_session"
     ]
+    accepted_runs.sort(
+        key=lambda candidate: (
+            str(candidate.get("finished_at") or ""),
+            str(candidate.get("updated_at") or ""),
+            str(candidate.get("started_at") or ""),
+            str(candidate.get("id") or ""),
+        ),
+        reverse=True,
+    )
     baseline = _comparison_snapshot(base_path, accepted_runs[0]) if accepted_runs else None
     current_paths = set(current["changed_paths"])
     baseline_paths = set(baseline["changed_paths"]) if baseline else set()

@@ -11,8 +11,10 @@ export default defineConfig({
   webServer: {
     command: "pnpm dev -- --host 127.0.0.1 --port 4174",
     url: "http://127.0.0.1:4174/console/",
+    // Reusing an already-running dev server keeps local reruns fast, while CI
+    // still bootstraps a fresh server for hermetic browser smoke coverage.
     reuseExistingServer: !process.env.CI,
-    stdout: "ignore",
+    stdout: "pipe",
     stderr: "pipe",
   },
 });

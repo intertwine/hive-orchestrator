@@ -7,6 +7,7 @@ export const CONSOLE_DENSITIES = ["comfortable", "compact"] as const;
 export const CONSOLE_PAGES = CONSOLE_PAGE_IDS;
 export const MAX_SAVED_RUNS_VIEWS = 50;
 export const MAX_SAVED_ATTENTION_VIEWS = 30;
+export const MAX_ATTENTION_TRIAGE_ITEMS = 200;
 export const MAX_RECENT_WORKSPACES = 8;
 
 export type ConsoleTheme = (typeof CONSOLE_THEMES)[number];
@@ -218,6 +219,20 @@ function normalizeAttentionTriagePreference(value: unknown): AttentionTriagePref
   };
 }
 
+function limitAttentionTriageEntries(
+  triageByItemId: Record<string, AttentionTriagePreference>,
+): Record<string, AttentionTriagePreference> {
+  const entries = Object.entries(triageByItemId);
+  if (entries.length <= MAX_ATTENTION_TRIAGE_ITEMS) {
+    return triageByItemId;
+  }
+  return Object.fromEntries(
+    entries
+      .sort((left, right) => left[1].updatedAt.localeCompare(right[1].updatedAt))
+      .slice(-MAX_ATTENTION_TRIAGE_ITEMS),
+  );
+}
+
 export function normalizeConsolePreferences(value: unknown): ConsolePreferences {
   if (!isRecord(value)) {
     return {
@@ -241,10 +256,12 @@ export function normalizeConsolePreferences(value: unknown): ConsolePreferences 
       .slice(-MAX_SAVED_ATTENTION_VIEWS)
     : [];
   const triageByItemId = isRecord(attention.triageByItemId)
-    ? Object.fromEntries(
-      Object.entries(attention.triageByItemId)
-        .map(([itemId, entry]) => [itemId, normalizeAttentionTriagePreference(entry)] as const)
-        .filter((entry): entry is [string, AttentionTriagePreference] => entry[1] !== null),
+    ? limitAttentionTriageEntries(
+      Object.fromEntries(
+        Object.entries(attention.triageByItemId)
+          .map(([itemId, entry]) => [itemId, normalizeAttentionTriagePreference(entry)] as const)
+          .filter((entry): entry is [string, AttentionTriagePreference] => entry[1] !== null),
+      ),
     )
     : {};
 
@@ -453,14 +470,14 @@ export function updateAttentionTriage(
     ...preferences,
     attention: {
       ...preferences.attention,
-      triageByItemId: {
+      triageByItemId: limitAttentionTriageEntries({
         ...preferences.attention.triageByItemId,
         [itemId]: {
           ...current,
           ...update,
           updatedAt: new Date().toISOString(),
         },
-      },
+      }),
     },
   };
 }

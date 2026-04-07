@@ -4,6 +4,7 @@ import {
   CONSOLE_PREFERENCES_KEY,
   DEFAULT_ATTENTION_FILTERS,
   DEFAULT_RUNS_FILTERS,
+  MAX_ATTENTION_TRIAGE_ITEMS,
   MAX_RECENT_WORKSPACES,
   MAX_SAVED_ATTENTION_VIEWS,
   MAX_SAVED_RUNS_VIEWS,
@@ -180,6 +181,21 @@ describe("console preferences", () => {
       preferences.attention.savedViews[0]!.id,
     );
     expect(deleted.attention.savedViews).toHaveLength(MAX_SAVED_ATTENTION_VIEWS - 1);
+  });
+
+  it("caps persisted attention triage state to the newest entries", () => {
+    let preferences = loadConsolePreferences({ getItem: () => null });
+
+    for (let index = 0; index < MAX_ATTENTION_TRIAGE_ITEMS + 5; index += 1) {
+      preferences = updateAttentionTriage(preferences, `attention_${index}`, {
+        disposition: index % 2 === 0 ? "dismissed" : "resolved",
+      });
+    }
+
+    expect(Object.keys(preferences.attention.triageByItemId)).toHaveLength(MAX_ATTENTION_TRIAGE_ITEMS);
+    expect(preferences.attention.triageByItemId.attention_0).toBeUndefined();
+    expect(preferences.attention.triageByItemId[`attention_${MAX_ATTENTION_TRIAGE_ITEMS + 4}`]?.disposition)
+      .toBe("dismissed");
   });
 
   it("keeps a unique, capped recent-workspace list", () => {

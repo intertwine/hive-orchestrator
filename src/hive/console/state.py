@@ -820,6 +820,15 @@ def _sort_attention_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     )
 
 
+def load_attention_context(base_path: Path) -> dict[str, Any]:
+    """Load shared attention inputs once for inbox, notifications, and activity views."""
+    return {
+        "project_titles": _project_titles(base_path),
+        "recent_events": portfolio_status(base_path).get("recent_events", []),
+        "runs": list_runs(base_path),
+    }
+
+
 def summarize_attention_items(items: list[dict[str, Any]]) -> dict[str, Any]:
     severity_counts = Counter(str(item.get("severity") or "info") for item in items)
     decision_counts = Counter(str(item.get("decision_type") or "informational") for item in items)
@@ -832,11 +841,17 @@ def summarize_attention_items(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def build_inbox(base_path: Path) -> list[dict]:
+def build_inbox(
+    base_path: Path,
+    *,
+    project_titles: dict[str, str] | None = None,
+    runs: list[dict[str, Any]] | None = None,
+) -> list[dict]:
     """Return typed attention items for the operator inbox."""
-    project_titles = _project_titles(base_path)
+    project_titles = project_titles if project_titles is not None else _project_titles(base_path)
+    runs = runs if runs is not None else list_runs(base_path)
     items: list[dict] = []
-    for run in list_runs(base_path):
+    for run in runs:
         if run.get("entry_kind") == "delegate_session":
             for item in _delegate_inbox_items(base_path, run):
                 items.append(
@@ -942,14 +957,30 @@ def build_inbox(base_path: Path) -> list[dict]:
     return _sort_attention_items(items)
 
 
-def build_notifications(base_path: Path) -> dict[str, Any]:
+def build_notifications(
+    base_path: Path,
+    *,
+    inbox_items: list[dict[str, Any]] | None = None,
+    project_titles: dict[str, str] | None = None,
+    recent_events: list[dict[str, Any]] | None = None,
+    runs: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Return a persistent notification-center payload backed by the same event model."""
-    inbox_items = build_inbox(base_path)
+    project_titles = project_titles if project_titles is not None else _project_titles(base_path)
+    runs = runs if runs is not None else list_runs(base_path)
+    recent_events = (
+        recent_events
+        if recent_events is not None
+        else portfolio_status(base_path).get("recent_events", [])
+    )
+    inbox_items = (
+        inbox_items
+        if inbox_items is not None
+        else build_inbox(base_path, project_titles=project_titles, runs=runs)
+    )
     notifications: list[dict[str, Any]] = [
         {**item, "notification_tier": "actionable"} for item in inbox_items
     ]
-    project_titles = _project_titles(base_path)
-    recent_events = portfolio_status(base_path).get("recent_events", [])
     for event in recent_events:
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
         run_id = str(event.get("run_id") or payload.get("run_id") or "") or None
@@ -973,7 +1004,7 @@ def build_notifications(base_path: Path) -> dict[str, Any]:
                 notification_tier="informational",
             )
         )
-    for run in [run for run in list_runs(base_path) if run.get("status") == "accepted"][:6]:
+    for run in [run for run in runs if run.get("status") == "accepted"][:6]:
         project_id = str(run.get("project_id") or "") or None
         run_label = _run_title(run)
         notifications.append(
@@ -1001,11 +1032,23 @@ def build_notifications(base_path: Path) -> dict[str, Any]:
     }
 
 
-def build_activity_feed(base_path: Path) -> dict[str, Any]:
+def build_activity_feed(
+    base_path: Path,
+    *,
+    project_titles: dict[str, str] | None = None,
+    recent_events: list[dict[str, Any]] | None = None,
+    runs: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Return a compact recent-activity feed for the command center."""
     items: list[dict[str, Any]] = []
-    project_titles = _project_titles(base_path)
-    for event in portfolio_status(base_path).get("recent_events", []):
+    project_titles = project_titles if project_titles is not None else _project_titles(base_path)
+    recent_events = (
+        recent_events
+        if recent_events is not None
+        else portfolio_status(base_path).get("recent_events", [])
+    )
+    runs = runs if runs is not None else list_runs(base_path)
+    for event in recent_events:
         payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
         run_id = str(event.get("run_id") or payload.get("run_id") or "") or None
         project_id = str(event.get("project_id") or payload.get("project_id") or "") or None
@@ -1027,7 +1070,7 @@ def build_activity_feed(base_path: Path) -> dict[str, Any]:
                 "deep_link": _attention_deep_link("event-notification", run_id=run_id, project_id=project_id),
             }
         )
-    for run in [run for run in list_runs(base_path) if run.get("status") == "accepted"][:8]:
+    for run in [run for run in runs if run.get("status") == "accepted"][:8]:
         project_id = str(run.get("project_id") or "") or None
         run_label = _run_title(run)
         items.append(

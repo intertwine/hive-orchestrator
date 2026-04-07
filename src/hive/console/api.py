@@ -21,6 +21,7 @@ from src.hive.console.state import (
     build_inbox,
     build_notifications,
     list_runs,
+    load_attention_context,
     load_run_detail,
     summarize_attention_items,
 )
@@ -254,15 +255,33 @@ def health(path: str | None = Query(default=None)) -> dict:
 def status(path: str | None = Query(default=None)) -> dict:
     """Return lightweight workspace counts for the observe console shell."""
     root = _workspace_root(path)
-    inbox_items = build_inbox(root)
+    attention_context = load_attention_context(root)
+    inbox_items = build_inbox(
+        root,
+        project_titles=attention_context["project_titles"],
+        runs=attention_context["runs"],
+    )
+    notifications = build_notifications(
+        root,
+        inbox_items=inbox_items,
+        project_titles=attention_context["project_titles"],
+        recent_events=attention_context["recent_events"],
+        runs=attention_context["runs"],
+    )
+    activity = build_activity_feed(
+        root,
+        project_titles=attention_context["project_titles"],
+        recent_events=attention_context["recent_events"],
+        runs=attention_context["runs"],
+    )
     return {
         "ok": True,
         "workspace": str(root),
         "projects": len(discover_projects(root)),
-        "runs": len(list_runs(root)),
+        "runs": len(attention_context["runs"]),
         "inbox": len(inbox_items),
-        "notifications": len(build_notifications(root)["items"]),
-        "activity": len(build_activity_feed(root)["items"]),
+        "notifications": len(notifications["items"]),
+        "activity": len(activity["items"]),
         "attention_summary": summarize_attention_items(inbox_items),
     }
 

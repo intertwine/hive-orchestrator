@@ -19,9 +19,9 @@ relevant_files:
 - src/hive/console
 - docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md
 source: {}
-status: proposed
+status: done
 title: 'M1: Design system and shell-ready frontend foundations'
-updated_at: '2026-04-06T15:56:23.195780Z'
+updated_at: '2026-04-07T13:46:54.900568Z'
 ---
 
 ## Summary

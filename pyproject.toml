@@ -132,8 +132,10 @@ only-packages = true
 "docs/hive-v2.2-rfc/HIVE_V2_2_DRIVER_SPEC.md" = "src/hive/resources/docs/hive-v2.2-rfc/HIVE_V2_2_DRIVER_SPEC.md"
 "docs/hive-v2.2-rfc/HIVE_V2_2_ACCEPTANCE_TESTS.md" = "src/hive/resources/docs/hive-v2.2-rfc/HIVE_V2_2_ACCEPTANCE_TESTS.md"
 "docs/V2_4_STATUS.md" = "src/hive/resources/docs/V2_4_STATUS.md"
+"docs/V2_5_STATUS.md" = "src/hive/resources/docs/V2_5_STATUS.md"
 "docs/hive-v2.3-rfc" = "src/hive/resources/docs/hive-v2.3-rfc"
 "docs/hive-v2.4-rfc" = "src/hive/resources/docs/hive-v2.4-rfc"
+"docs/hive-post-v2.4-rfcs" = "src/hive/resources/docs/hive-post-v2.4-rfcs"
 "docs/recipes" = "src/hive/resources/docs/recipes"
 "src/hive/resources/console" = "src/hive/resources/console"
 
@@ -153,8 +155,10 @@ only-include = [
     "docs/hive-v2-spec",
     "docs/hive-v2.2-rfc",
     "docs/V2_4_STATUS.md",
+    "docs/V2_5_STATUS.md",
     "docs/hive-v2.3-rfc",
     "docs/hive-v2.4-rfc",
+    "docs/hive-post-v2.4-rfcs",
     "docs/recipes",
     "frontend/console",
     "src",

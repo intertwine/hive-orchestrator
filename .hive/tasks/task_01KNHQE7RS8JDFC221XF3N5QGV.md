@@ -17,9 +17,9 @@ relevant_files:
 - frontend/console
 - src/hive/console
 source: {}
-status: proposed
+status: done
 title: 'M3: Tauri desktop beta and launch polish'
-updated_at: '2026-04-06T15:44:04.377037Z'
+updated_at: '2026-04-07T13:46:58.887695Z'
 ---
 
 ## Summary

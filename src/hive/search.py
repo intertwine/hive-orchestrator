@@ -67,6 +67,7 @@ API_DOC_FILES = (
         "docs/hive-v2.3-rfc/HIVE_V2_3_ACCEPTANCE_TESTS.md",
     ),
     ("api", "V2_4_STATUS", "docs/V2_4_STATUS.md"),
+    ("api", "V2_5_STATUS", "docs/V2_5_STATUS.md"),
     ("api", "HIVE_V2_4_RFC", "docs/hive-v2.4-rfc/HIVE_V2_4_RFC.md"),
     (
         "api",
@@ -87,6 +88,26 @@ API_DOC_FILES = (
         "api",
         "HIVE_V2_4_ACCEPTANCE_TESTS",
         "docs/hive-v2.4-rfc/HIVE_V2_4_ACCEPTANCE_TESTS.md",
+    ),
+    (
+        "api",
+        "POST_V2_4_HANDOFF_TO_CODEX",
+        "docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md",
+    ),
+    (
+        "api",
+        "HIVE_V2_5_COMMAND_CENTER_RFC",
+        "docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md",
+    ),
+    (
+        "api",
+        "HIVE_V2_5_DESKTOP_SHELL_DECISION",
+        "docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_DESKTOP_SHELL_DECISION.md",
+    ),
+    (
+        "api",
+        "POST_V2_4_ACCEPTANCE_MATRIX",
+        "docs/hive-post-v2.4-rfcs/docs/POST_V2_4_ACCEPTANCE_MATRIX.md",
     ),
     ("schema", "SCHEMA", "docs/hive-v2-spec/SCHEMA.sql"),
 )

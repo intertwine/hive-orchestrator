@@ -50,22 +50,28 @@ def test_packaged_docs_include_v24_status_and_rfc_corpus():
 
 
 def test_packaged_docs_include_v25_status_and_planning_bundle():
-    """Installed search should retain the v2.5 ledger and planning corpus."""
+    """Installed search should retain the v2.5 ledger, walkthrough, and planning corpus."""
     pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
     sdist_only_include = pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["only-include"]
 
     assert "docs/V2_5_STATUS.md" in force_include
+    assert "docs/V2_5_RELEASE_WALKTHROUGH.md" in force_include
     assert "docs/hive-post-v2.4-rfcs" in force_include
     assert "docs/V2_5_STATUS.md" in sdist_only_include
+    assert "docs/V2_5_RELEASE_WALKTHROUGH.md" in sdist_only_include
     assert "docs/hive-post-v2.4-rfcs" in sdist_only_include
 
 
 def test_packaged_search_registry_indexes_v25_ledger_and_planning_bundle():
-    """Installed search should expose the active v2.5 ledger and planning docs."""
+    """Installed search should expose the active v2.5 ledger, walkthrough, and planning docs."""
     search_module = (REPO_ROOT / "src" / "hive" / "search.py").read_text(encoding="utf-8")
 
     assert '("api", "V2_5_STATUS", "docs/V2_5_STATUS.md")' in search_module
+    assert (
+        '"docs/V2_5_RELEASE_WALKTHROUGH.md"'
+        in search_module
+    )
     assert '"docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md"' in search_module
     assert (
         '"docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md"'

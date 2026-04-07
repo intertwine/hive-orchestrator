@@ -47,7 +47,8 @@ Useful local commands:
 
 Keep [docs/V2_3_STATUS.md](./V2_3_STATUS.md) as the compact ledger for the shipped v2.3 line and its scope-lock notes.
 Keep [docs/V2_4_STATUS.md](./V2_4_STATUS.md) as the compact shipped ledger for the v2.4 release line.
-For the active v2.5 draft release line, use [docs/V2_5_STATUS.md](./V2_5_STATUS.md) as the compact execution ledger and
+For the active v2.5 draft release line, use [docs/V2_5_STATUS.md](./V2_5_STATUS.md) as the compact execution ledger,
+[docs/V2_5_RELEASE_WALKTHROUGH.md](./V2_5_RELEASE_WALKTHROUGH.md) as the maintainer walkthrough and release-cut plan, and
 [docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md](./hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md) plus
 [docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md](./hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md)
 as the planning reference bundle.

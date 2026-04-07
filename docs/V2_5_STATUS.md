@@ -1,7 +1,7 @@
 # Hive v2.5 Status
 
 Status: draft release candidate
-Last updated: 2026-04-07 (the browser-first command center, desktop beta, docs, launch collateral, and acceptance-ledger work are merged on `main`; version bump/tag/publish are intentionally pending the final walkthrough and release cut)
+Last updated: 2026-04-07 (the browser-first command center, desktop beta, docs, launch collateral, and acceptance-ledger work are merged on `main`; the final walkthrough bundle is ready; version bump/tag/publish are intentionally pending walkthrough signoff and the release cut)
 Purpose: compact execution ledger for the active v2.5 draft release line
 
 This file is the maintainer-facing status ledger for v2.5.
@@ -44,6 +44,7 @@ The following items are explicitly deferred from blocking the v2.5 draft release
 | Desktop permissions, packaging guidance, and operator expectations | Landed | `docs/DESKTOP_BETA.md`, `frontend/console/README.md`, `tests/test_console_frontend_story.py` | — |
 | Launch collateral, screenshots, and demo walkthrough | Landed | `README.md`, `docs/DEMO_WALKTHROUGH.md`, `images/launch/`, `frontend/console/scripts/captureDemoAssets.mjs`, `tests/test_launch_collateral.py` | — |
 | Draft release acceptance ledger and canonical task reconciliation | Validated locally | `docs/V2_5_STATUS.md`, `projects/hive-v25/AGENCY.md`, `.hive/tasks/task_01KNHQAX8SBVVSJKRE2FERDPG7.md`, `tests/test_maintainer_surfaces.py` | — |
+| Maintainer walkthrough bundle and `v2.5.0` release-cut plan | Prepared | `docs/V2_5_RELEASE_WALKTHROUGH.md`, `docs/RELEASING.md`, `tests/test_maintainer_surfaces.py` | Walkthrough signoff before staging `v2.5.0` |
 
 ## Current Read
 
@@ -56,6 +57,7 @@ What is real now:
 - no normal operator flow should require habitual full-page refresh behavior; the real-time freshness layer and notification model are now part of the console substrate
 - the desktop shell is real and dogfoodable, but it is intentionally still described as beta in code, docs, and operator expectations
 - launch collateral, screenshots, and the browser-first demo walkthrough now match the current UI instead of the older observe-console scaffold
+- the final maintainer walkthrough and release-cut plan now live in `docs/V2_5_RELEASE_WALKTHROUGH.md`
 - the remaining release decision is not implementation completeness; it is when to stage the version bump and publish the eventual v2.5 cut after walkthrough signoff
 
 ## Release History
@@ -66,7 +68,7 @@ What is real now:
 
 ## Next Blocker
 
-No implementation blocker. Next planned work: run the final maintainer walkthrough, decide the version-bump/tag/publish plan for v2.5, and cut the release only after that walkthrough is accepted.
+No implementation blocker. Next planned work: run `docs/V2_5_RELEASE_WALKTHROUGH.md`, accept or reject the draft release candidate, and only then stage the `v2.5.0` version-bump/tag/publish flow.
 
 ## Update Rule
 

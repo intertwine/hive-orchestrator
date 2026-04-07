@@ -55,7 +55,8 @@ checks are closed:
 1. README, demo walkthrough, compare-harness, and operator docs match the shipped v2.4 ecosystem-integration story.
 2. Installed-package `hive search` is proven useful from a throwaway install, not only from a source checkout.
 
-For the active v2.5 draft release line, keep [docs/V2_5_STATUS.md](/docs/V2_5_STATUS.md) aligned with the
+For the active v2.5 draft release line, keep [docs/V2_5_STATUS.md](/docs/V2_5_STATUS.md) aligned with
+[docs/V2_5_RELEASE_WALKTHROUGH.md](/docs/V2_5_RELEASE_WALKTHROUGH.md) and the
 planning bundle in [docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md](/docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md)
 and [docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md](/docs/hive-post-v2.4-rfcs/docs/hive-v2.5-rfc/HIVE_V2_5_COMMAND_CENTER_RFC.md)
 before calling the draft release candidate ready for walkthrough or version staging.
@@ -68,7 +69,9 @@ uv lock
 ```
 
 Update [docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md) at the same time so the ledger points at validation/tag/publish as the only remaining blocker before you cut the tag. Once that prep slice lands, the repo should already read `2.4.0`; do not bump it again before tagging.
-When the eventual v2.5 release cut is staged, repeat the same pattern against [docs/V2_5_STATUS.md](/docs/V2_5_STATUS.md) instead of reopening the v2.4 ledger.
+When the eventual v2.5 release cut is staged, repeat the same pattern against [docs/V2_5_STATUS.md](/docs/V2_5_STATUS.md)
+instead of reopening the v2.4 ledger, and use [docs/V2_5_RELEASE_WALKTHROUGH.md](/docs/V2_5_RELEASE_WALKTHROUGH.md)
+as the exact walkthrough and release-cut script for `v2.5.0`.
 
 ## Cut A Release
 

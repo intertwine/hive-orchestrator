@@ -12,5 +12,6 @@ Prefer these files for current guidance:
 - `docs/MAINTAINING.md`
 - `docs/RELEASING.md`
 - `docs/V2_5_STATUS.md`
+- `docs/V2_5_RELEASE_WALKTHROUGH.md`
 - `docs/V2_4_STATUS.md`
 - `docs/V2_3_STATUS.md`

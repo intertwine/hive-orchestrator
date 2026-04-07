@@ -89,13 +89,34 @@ def test_v25_status_doc_tracks_acceptance_and_next_blocker():
     assert "| Shared action model and command palette | Landed |" in status_doc
     assert "| Real-time freshness, inbox triage, and notifications | Landed |" in status_doc
     assert "| Desktop beta shell and native affordances | Landed |" in status_doc
+    assert "| Maintainer walkthrough bundle and `v2.5.0` release-cut plan | Prepared |" in status_doc
     assert "version bump/tag/publish are intentionally pending" in status_doc
+    assert "the final maintainer walkthrough and release-cut plan now live in `docs/V2_5_RELEASE_WALKTHROUGH.md`" in status_doc
     assert "the desktop shell is real and dogfoodable, but it is intentionally still described as beta" in status_doc
     assert "## Release History" in status_doc
     assert "Draft release candidate" in status_doc
     assert "## Next Blocker" in status_doc
     assert "No implementation blocker." in status_doc
-    assert "version-bump/tag/publish plan for v2.5" in status_doc
+    assert "`docs/V2_5_RELEASE_WALKTHROUGH.md`" in status_doc
+    assert "`v2.5.0` version-bump/tag/publish flow" in status_doc
+
+
+def test_v25_release_walkthrough_doc_carries_the_final_demo_and_cut_plan():
+    """The walkthrough bundle should tell maintainers exactly how to accept or cut v2.5."""
+    walkthrough_doc = (
+        REPO_ROOT / "docs" / "V2_5_RELEASE_WALKTHROUGH.md"
+    ).read_text(encoding="utf-8")
+
+    assert "# Hive v2.5 Release Walkthrough" in walkthrough_doc
+    assert "Status: maintainer walkthrough bundle" in walkthrough_doc
+    assert "## Walkthrough Script" in walkthrough_doc
+    assert "## Release Cut Plan" in walkthrough_doc
+    assert "## Signoff Checklist" in walkthrough_doc
+    assert "`v2.5.0`" in walkthrough_doc
+    assert "make release-check" in walkthrough_doc
+    assert "make bump-version BUMP=minor" in walkthrough_doc
+    assert 'git tag "v${VERSION}"' in walkthrough_doc
+    assert 'hive search "release walkthrough" --scope api --limit 5 --json' in walkthrough_doc
 
 
 def test_v23_acceptance_doc_tracks_scope_locked_remote_sandbox_truth():
@@ -138,6 +159,7 @@ def test_release_docs_require_scope_locked_story_and_installed_search_proof():
     assert "For the shipped v2.4 launch line" in release_doc
     assert "shipped v2.4 ecosystem-integration story" in release_doc
     assert "For the active v2.5 draft release line" in release_doc
+    assert "[docs/V2_5_RELEASE_WALKTHROUGH.md](/docs/V2_5_RELEASE_WALKTHROUGH.md)" in release_doc
     assert 'hive search "runtime contract" --scope api --limit 5 --json' in release_doc
     assert (
         'hive search "sandbox doctor" --scope examples --limit 5 --json' in release_doc
@@ -161,6 +183,10 @@ def test_maintainer_docs_link_the_v24_ledger_and_bundle():
     assert "[docs/V2_4_STATUS.md](./V2_4_STATUS.md)" in maintaining
     assert "[docs/V2_5_STATUS.md](./V2_5_STATUS.md)" in maintaining
     assert (
+        "[docs/V2_5_RELEASE_WALKTHROUGH.md](./V2_5_RELEASE_WALKTHROUGH.md)"
+        in maintaining
+    )
+    assert (
         "[docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md](./hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md)"
         in maintaining
     )
@@ -170,6 +196,10 @@ def test_maintainer_docs_link_the_v24_ledger_and_bundle():
     )
     assert "[docs/V2_4_STATUS.md](/docs/V2_4_STATUS.md)" in release_doc
     assert "[docs/V2_5_STATUS.md](/docs/V2_5_STATUS.md)" in release_doc
+    assert (
+        "[docs/V2_5_RELEASE_WALKTHROUGH.md](/docs/V2_5_RELEASE_WALKTHROUGH.md)"
+        in release_doc
+    )
     assert (
         "[docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md](/docs/hive-post-v2.4-rfcs/docs/HANDOFF_TO_CODEX.md)"
         in release_doc
@@ -223,6 +253,7 @@ def test_archive_and_rfc_docs_frame_historical_material_clearly():
     assert "# Archived Docs" in archive_readme
     assert "no longer part of the primary user or maintainer path" in archive_readme
     assert "`docs/V2_5_STATUS.md`" in archive_readme
+    assert "`docs/V2_5_RELEASE_WALKTHROUGH.md`" in archive_readme
     assert "`docs/V2_4_STATUS.md`" in archive_readme
     assert "Archived note" in migration_note
     assert "Archived note" in onboarding_note

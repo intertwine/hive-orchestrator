@@ -6,6 +6,8 @@ export const CONSOLE_THEMES = ["clay", "ledger"] as const;
 export const CONSOLE_DENSITIES = ["comfortable", "compact"] as const;
 export const CONSOLE_PAGES = CONSOLE_PAGE_IDS;
 export const MAX_SAVED_RUNS_VIEWS = 50;
+export const MAX_SAVED_ATTENTION_VIEWS = 30;
+export const MAX_ATTENTION_TRIAGE_ITEMS = 200;
 export const MAX_RECENT_WORKSPACES = 8;
 
 export type ConsoleTheme = (typeof CONSOLE_THEMES)[number];
@@ -33,6 +35,37 @@ export interface RunsPreferences {
   savedViews: SavedRunsView[];
 }
 
+export interface AttentionFiltersPreference {
+  severity: string;
+  decisionType: string;
+  source: string;
+  assignee: string;
+  tier: string;
+  showSnoozed: boolean;
+}
+
+export interface SavedAttentionView {
+  id: string;
+  name: string;
+  filters: AttentionFiltersPreference;
+  createdAt: string;
+}
+
+export type AttentionDisposition = "active" | "dismissed" | "resolved";
+
+export interface AttentionTriagePreference {
+  disposition: AttentionDisposition;
+  assignee: string;
+  snoozedUntil: string | null;
+  updatedAt: string;
+}
+
+export interface AttentionPreferences {
+  filters: AttentionFiltersPreference;
+  savedViews: SavedAttentionView[];
+  triageByItemId: Record<string, AttentionTriagePreference>;
+}
+
 export interface ConsolePreferences {
   version: 1;
   theme: ConsoleTheme;
@@ -40,6 +73,7 @@ export interface ConsolePreferences {
   defaultPage: ConsolePage;
   recentWorkspaces: string[];
   runs: RunsPreferences;
+  attention: AttentionPreferences;
 }
 
 export const DEFAULT_RUNS_FILTERS: RunsFiltersPreference = {
@@ -47,6 +81,15 @@ export const DEFAULT_RUNS_FILTERS: RunsFiltersPreference = {
   driver: "",
   health: "",
   campaignId: "",
+};
+
+export const DEFAULT_ATTENTION_FILTERS: AttentionFiltersPreference = {
+  severity: "",
+  decisionType: "",
+  source: "",
+  assignee: "",
+  tier: "all",
+  showSnoozed: false,
 };
 
 export const DEFAULT_CONSOLE_PREFERENCES: ConsolePreferences = {
@@ -60,6 +103,11 @@ export const DEFAULT_CONSOLE_PREFERENCES: ConsolePreferences = {
     hiddenColumns: [],
     pinnedPanels: [],
     savedViews: [],
+  },
+  attention: {
+    filters: DEFAULT_ATTENTION_FILTERS,
+    savedViews: [],
+    triageByItemId: {},
   },
 };
 
@@ -76,6 +124,10 @@ function readStringArray(value: unknown): string[] {
     return [];
   }
   return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function readBoolean(value: unknown, fallback = false) {
+  return typeof value === "boolean" ? value : fallback;
 }
 
 export function normalizeConsoleTheme(value: unknown): ConsoleTheme {
@@ -104,6 +156,21 @@ export function normalizeRunsFilters(value: unknown): RunsFiltersPreference {
   };
 }
 
+export function normalizeAttentionFilters(value: unknown): AttentionFiltersPreference {
+  if (!isRecord(value)) {
+    return { ...DEFAULT_ATTENTION_FILTERS };
+  }
+  const tier = readString(value.tier, DEFAULT_ATTENTION_FILTERS.tier);
+  return {
+    severity: readString(value.severity),
+    decisionType: readString(value.decisionType),
+    source: readString(value.source),
+    assignee: readString(value.assignee),
+    tier: tier || DEFAULT_ATTENTION_FILTERS.tier,
+    showSnoozed: readBoolean(value.showSnoozed),
+  };
+}
+
 function normalizeSavedRunsView(value: unknown): SavedRunsView | null {
   if (!isRecord(value)) {
     return null;
@@ -118,6 +185,52 @@ function normalizeSavedRunsView(value: unknown): SavedRunsView | null {
     filters: normalizeRunsFilters(value.filters),
     createdAt: readString(value.createdAt, new Date(0).toISOString()),
   };
+}
+
+function normalizeSavedAttentionView(value: unknown): SavedAttentionView | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const name = readString(value.name).trim();
+  if (!name) {
+    return null;
+  }
+  return {
+    id: readString(value.id, `attention-view-${name.toLowerCase().replace(/\s+/g, "-")}`),
+    name,
+    filters: normalizeAttentionFilters(value.filters),
+    createdAt: readString(value.createdAt, new Date(0).toISOString()),
+  };
+}
+
+function normalizeAttentionTriagePreference(value: unknown): AttentionTriagePreference | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const disposition = readString(value.disposition, "active");
+  if (!["active", "dismissed", "resolved"].includes(disposition)) {
+    return null;
+  }
+  return {
+    disposition: disposition as AttentionDisposition,
+    assignee: readString(value.assignee),
+    snoozedUntil: readString(value.snoozedUntil) || null,
+    updatedAt: readString(value.updatedAt, new Date(0).toISOString()),
+  };
+}
+
+function limitAttentionTriageEntries(
+  triageByItemId: Record<string, AttentionTriagePreference>,
+): Record<string, AttentionTriagePreference> {
+  const entries = Object.entries(triageByItemId);
+  if (entries.length <= MAX_ATTENTION_TRIAGE_ITEMS) {
+    return triageByItemId;
+  }
+  return Object.fromEntries(
+    entries
+      .sort((left, right) => left[1].updatedAt.localeCompare(right[1].updatedAt))
+      .slice(-MAX_ATTENTION_TRIAGE_ITEMS),
+  );
 }
 
 export function normalizeConsolePreferences(value: unknown): ConsolePreferences {
@@ -135,6 +248,22 @@ export function normalizeConsolePreferences(value: unknown): ConsolePreferences 
       .filter((entry): entry is SavedRunsView => entry !== null)
       .slice(-MAX_SAVED_RUNS_VIEWS)
     : [];
+  const attention = isRecord(value.attention) ? value.attention : {};
+  const attentionSavedViews = Array.isArray(attention.savedViews)
+    ? attention.savedViews
+      .map(normalizeSavedAttentionView)
+      .filter((entry): entry is SavedAttentionView => entry !== null)
+      .slice(-MAX_SAVED_ATTENTION_VIEWS)
+    : [];
+  const triageByItemId = isRecord(attention.triageByItemId)
+    ? limitAttentionTriageEntries(
+      Object.fromEntries(
+        Object.entries(attention.triageByItemId)
+          .map(([itemId, entry]) => [itemId, normalizeAttentionTriagePreference(entry)] as const)
+          .filter((entry): entry is [string, AttentionTriagePreference] => entry[1] !== null),
+      ),
+    )
+    : {};
 
   return {
     version: 1,
@@ -150,6 +279,11 @@ export function normalizeConsolePreferences(value: unknown): ConsolePreferences 
       hiddenColumns: readStringArray(runs.hiddenColumns),
       pinnedPanels: readStringArray(runs.pinnedPanels),
       savedViews,
+    },
+    attention: {
+      filters: normalizeAttentionFilters(attention.filters),
+      savedViews: attentionSavedViews,
+      triageByItemId,
     },
   };
 }
@@ -212,12 +346,57 @@ export function upsertSavedRunsView(
   };
 }
 
+export function upsertSavedAttentionView(
+  preferences: ConsolePreferences,
+  name: string,
+  filters: AttentionFiltersPreference,
+): ConsolePreferences {
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    return preferences;
+  }
+
+  const existing = preferences.attention.savedViews.find(
+    (view) => view.name.toLowerCase() === trimmedName.toLowerCase(),
+  );
+  const nextView: SavedAttentionView = {
+    id: existing?.id ?? makeSavedViewId(),
+    name: trimmedName,
+    filters: normalizeAttentionFilters(filters),
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
+  };
+  const nextSavedViews = existing
+    ? preferences.attention.savedViews.map((view) => (view.id === existing.id ? nextView : view))
+    : [...preferences.attention.savedViews, nextView].slice(-MAX_SAVED_ATTENTION_VIEWS);
+
+  return {
+    ...preferences,
+    attention: {
+      ...preferences.attention,
+      savedViews: nextSavedViews,
+    },
+  };
+}
+
 export function deleteSavedRunsView(preferences: ConsolePreferences, viewId: string): ConsolePreferences {
   return {
     ...preferences,
     runs: {
       ...preferences.runs,
       savedViews: preferences.runs.savedViews.filter((view) => view.id !== viewId),
+    },
+  };
+}
+
+export function deleteSavedAttentionView(
+  preferences: ConsolePreferences,
+  viewId: string,
+): ConsolePreferences {
+  return {
+    ...preferences,
+    attention: {
+      ...preferences.attention,
+      savedViews: preferences.attention.savedViews.filter((view) => view.id !== viewId),
     },
   };
 }
@@ -252,4 +431,53 @@ export function sameRunsFilters(left: RunsFiltersPreference, right: RunsFiltersP
     && left.driver === right.driver
     && left.health === right.health
     && left.campaignId === right.campaignId;
+}
+
+export function sameAttentionFilters(left: AttentionFiltersPreference, right: AttentionFiltersPreference) {
+  return left.severity === right.severity
+    && left.decisionType === right.decisionType
+    && left.source === right.source
+    && left.assignee === right.assignee
+    && left.tier === right.tier
+    && left.showSnoozed === right.showSnoozed;
+}
+
+export function setAttentionFilters(
+  preferences: ConsolePreferences,
+  filters: AttentionFiltersPreference,
+): ConsolePreferences {
+  return {
+    ...preferences,
+    attention: {
+      ...preferences.attention,
+      filters: normalizeAttentionFilters(filters),
+    },
+  };
+}
+
+export function updateAttentionTriage(
+  preferences: ConsolePreferences,
+  itemId: string,
+  update: Partial<AttentionTriagePreference>,
+): ConsolePreferences {
+  const current = preferences.attention.triageByItemId[itemId] ?? {
+    disposition: "active" as AttentionDisposition,
+    assignee: "",
+    snoozedUntil: null,
+    updatedAt: new Date(0).toISOString(),
+  };
+  return {
+    ...preferences,
+    attention: {
+      ...preferences.attention,
+      triageByItemId: limitAttentionTriageEntries({
+        ...preferences.attention.triageByItemId,
+        [itemId]: {
+          ...current,
+          ...update,
+          updatedAt: new Date().toISOString(),
+        },
+      }),
+    },
+  };
 }

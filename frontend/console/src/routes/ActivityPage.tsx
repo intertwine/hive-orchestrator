@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+
 import { createConsoleClient } from "../api/client";
 import { ConsoleLink } from "../components/ConsoleLink";
 import { Panel } from "../components/Panel";
@@ -7,16 +9,18 @@ import { useConsoleQuery } from "../hooks/useConsoleQuery";
 
 export function ActivityPage() {
   const { apiBase, workspacePath } = useConsoleConfig();
-  const client = createConsoleClient(apiBase, workspacePath);
+  const client = useMemo(
+    () => createConsoleClient(apiBase, workspacePath),
+    [apiBase, workspacePath],
+  );
   const { data, loading, error } = useConsoleQuery(
     `activity:${apiBase}:${workspacePath}`,
-    () => client.getHome(),
+    () => client.getActivity(),
     3000,
   );
 
-  const home = (data?.home ?? {}) as Record<string, unknown>;
-  const recentEvents = Array.isArray(home.recent_events) ? home.recent_events : [];
-  const recentAccepts = Array.isArray(home.recent_accepts) ? home.recent_accepts : [];
+  const items = Array.isArray(data?.items) ? data.items : [];
+  const summary = (data?.summary ?? {}) as Record<string, unknown>;
 
   return (
     <div className="page-grid">
@@ -24,63 +28,53 @@ export function ActivityPage() {
         {loading ? <p>Loading Activity…</p> : null}
         {error ? <p className="error-copy">{error}</p> : null}
         <div className="stack">
-          {recentEvents.length ? (
-            recentEvents.map((item) => {
-              const event = item as Record<string, unknown>;
-              const payload = (event.payload ?? {}) as Record<string, unknown>;
-              const runId = String(payload.run_id ?? payload.runId ?? "");
+          {items.length ? (
+            items.map((item) => {
+              const entry = item as Record<string, unknown>;
+              const deepLink = String(entry.deep_link ?? "");
+              const runId = String(entry.run_id ?? "");
               return (
-                <article className="list-card" key={String(event.event_id ?? event.ts ?? event.type)}>
+                <article className="list-card" key={String(entry.id ?? entry.title ?? "activity-item")}>
                   <div className="list-card__header">
-                    <h3>{String(event.type ?? "event")}</h3>
-                    <span className="list-card__meta">{String(event.ts ?? "—")}</span>
+                    <div>
+                      <h3>{String(entry.title ?? entry.kind ?? "Workspace activity")}</h3>
+                      <p className="list-card__meta">
+                        {String(entry.project_label ?? entry.project_id ?? "Workspace")}
+                        {runId ? ` • ${runId}` : ""}
+                      </p>
+                    </div>
+                    <StatusPill tone={String(entry.kind ?? entry.source ?? "event")}>
+                      {String(entry.kind ?? entry.source ?? "event")}
+                    </StatusPill>
                   </div>
-                  <p>{String(payload.message ?? "Audit event recorded.")}</p>
-                  {runId ? (
+                  <p>{String(entry.summary ?? "Recent workspace activity was recorded.")}</p>
+                  <p className="list-card__meta">{String(entry.occurred_at ?? "—")}</p>
+                  {deepLink ? (
                     <p className="list-card__meta">
-                      <ConsoleLink to={`/runs/${runId}`}>Open run</ConsoleLink>
+                      <ConsoleLink to={deepLink}>{runId ? "Open run" : "Open details"}</ConsoleLink>
                     </p>
                   ) : null}
                 </article>
               );
             })
           ) : (
-            <p>No recent events have been recorded yet.</p>
+            <p>No recent activity has been recorded yet.</p>
           )}
         </div>
       </Panel>
 
-      <Panel eyebrow="Recent accepts" title="Promotion Feed">
+      <Panel eyebrow="Feed shape" title="Activity summary">
         <div className="stack">
-          {recentAccepts.length ? (
-            recentAccepts.map((item) => {
-              const run = item as Record<string, unknown>;
-              const metadata = (run.metadata_json ?? {}) as Record<string, unknown>;
-              return (
-                <article
-                  className="list-card"
-                  key={String(run.id ?? run.run_id ?? metadata.task_title ?? "accepted-run")}
-                >
-                  <div className="list-card__header">
-                    <h3>{String(metadata.task_title ?? run.id ?? "Accepted run")}</h3>
-                    <StatusPill tone={String(run.status ?? "accepted")}>
-                      {String(run.status ?? "accepted")}
-                    </StatusPill>
-                  </div>
-                  <p className="list-card__meta">
-                    Project: {String(run.project_id ?? "—")} • Driver: {String(run.driver ?? "—")}
-                  </p>
-                  {run.id ? (
-                    <p className="list-card__meta">
-                      <ConsoleLink to={`/runs/${String(run.id)}`}>Open run</ConsoleLink>
-                    </p>
-                  ) : null}
-                </article>
-              );
-            })
-          ) : (
-            <p>No accepted runs are visible in the recent feed yet.</p>
-          )}
+          <article className="list-card">
+            <div className="list-card__header">
+              <h3>Recent volume</h3>
+            </div>
+            <p className="list-card__meta">Items visible: {String(summary.total ?? items.length)}</p>
+            <p>
+              The activity feed stays compact and chronological so operators can reconstruct what
+              changed without wading through the heavier inbox decision surface.
+            </p>
+          </article>
         </div>
       </Panel>
     </div>

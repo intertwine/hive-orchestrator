@@ -86,6 +86,88 @@ const INBOX_ROUTE: MockRoute = {
         approval_id: "approval_1",
       },
     ],
+    summary: {
+      total: 1,
+      by_severity: { critical: 1 },
+      by_decision_type: { approval: 1 },
+      by_notification_tier: { actionable: 1 },
+    },
+  }),
+};
+
+const NOTIFICATIONS_ROUTE: MockRoute = {
+  pathname: "/notifications",
+  response: jsonResponse({
+    ok: true,
+    items: [
+      {
+        kind: "approval-request",
+        title: "Approve Gamma reroute",
+        reason: "Driver needs operator approval.",
+        project_id: "gamma",
+        run_id: "run_gamma_local_1",
+        approval_id: "approval_1",
+      },
+      {
+        kind: "accepted-run",
+        title: "Accepted shell routing foundation",
+        reason: "Shell routing landed on codex.",
+        project_id: "gamma",
+        run_id: "run_gamma_local_1",
+        severity: "info",
+        severity_label: "Info",
+        decision_type: "informational",
+        decision_label: "Informational",
+        group_key: "info:informational",
+        group_label: "Info · Informational",
+        notification_tier: "informational",
+        source: "run",
+        bulk_actions: ["dismiss", "snooze", "assign"],
+        deep_link: "/runs/run_gamma_local_1",
+        project_label: "Gamma",
+        run_label: "Gamma launch page",
+        why_visible: "Accepted runs stay visible as informational notifications.",
+        ignore_impact: "Ignoring this only hides it from the local queue.",
+      },
+    ],
+    summary: {
+      total: 2,
+      by_severity: { critical: 1, info: 1 },
+      by_decision_type: { approval: 1, informational: 1 },
+      by_notification_tier: { actionable: 1, informational: 1 },
+    },
+  }),
+};
+
+const ACTIVITY_ROUTE: MockRoute = {
+  pathname: "/activity",
+  response: jsonResponse({
+    ok: true,
+    items: [
+      {
+        id: "activity_event_1",
+        kind: "event",
+        title: "Canonical /home route published.",
+        summary: "Stable deep link shipped.",
+        occurred_at: "2026-04-06T21:00:00Z",
+        project_id: "gamma",
+        project_label: "Gamma",
+        run_id: "run_gamma_local_1",
+        deep_link: "/runs/run_gamma_local_1",
+      },
+      {
+        id: "activity_accept_1",
+        kind: "accepted-run",
+        title: "Accepted Publish the shell route contract",
+        summary: "The shell route contract was accepted on codex.",
+        occurred_at: "2026-04-06T20:30:00Z",
+        project_id: "gamma",
+        project_label: "Gamma",
+        run_id: "run_gamma_local_1",
+        deep_link: "/runs/run_gamma_local_1",
+      },
+    ],
+    summary: { total: 2 },
   }),
 };
 
@@ -291,10 +373,10 @@ describe("Console accessibility smoke", () => {
   });
 
   it("keeps Notifications free of automated violations", async () => {
-    await expectNoViolations(["/notifications"], "Notifications", [INBOX_ROUTE]);
+    await expectNoViolations(["/notifications"], "Notifications", [NOTIFICATIONS_ROUTE]);
   });
 
   it("keeps Activity free of automated violations", async () => {
-    await expectNoViolations(["/activity"], "Activity", [ACTIVE_HOME_ROUTE]);
+    await expectNoViolations(["/activity"], "Activity", [ACTIVITY_ROUTE]);
   });
 });

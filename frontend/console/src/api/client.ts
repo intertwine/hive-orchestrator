@@ -8,6 +8,19 @@ export interface ConsoleHomePayload {
 export interface ConsoleInboxPayload {
   ok: boolean;
   items: JsonRecord[];
+  summary?: JsonRecord;
+}
+
+export interface ConsoleNotificationsPayload {
+  ok: boolean;
+  items: JsonRecord[];
+  summary?: JsonRecord;
+}
+
+export interface ConsoleActivityPayload {
+  ok: boolean;
+  items: JsonRecord[];
+  summary?: JsonRecord;
 }
 
 export interface ConsoleRunsPayload {
@@ -96,6 +109,18 @@ export function createConsoleClient(apiBase: string, workspacePath: string) {
 
     getInbox() {
       return fetchJson<ConsoleInboxPayload>(withPath(new URL(`${root}/inbox`), workspacePath));
+    },
+
+    getNotifications() {
+      return fetchJson<ConsoleNotificationsPayload>(
+        withPath(new URL(`${root}/notifications`), workspacePath),
+      );
+    },
+
+    getActivity() {
+      return fetchJson<ConsoleActivityPayload>(
+        withPath(new URL(`${root}/activity`), workspacePath),
+      );
     },
 
     getRuns(filters?: {

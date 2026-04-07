@@ -2,7 +2,9 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 
 import {
   CONSOLE_PREFERENCES_KEY,
+  DEFAULT_ATTENTION_FILTERS,
   DEFAULT_RUNS_FILTERS,
+  deleteSavedAttentionView,
   deleteSavedRunsView,
   loadConsolePreferences,
   rememberRecentWorkspace,
@@ -11,7 +13,12 @@ import {
   type ConsolePage,
   type ConsolePreferences,
   type ConsoleTheme,
+  type AttentionFiltersPreference,
+  type AttentionTriagePreference,
   type RunsFiltersPreference,
+  setAttentionFilters,
+  updateAttentionTriage,
+  upsertSavedAttentionView,
   upsertSavedRunsView,
 } from "../preferences";
 
@@ -24,6 +31,16 @@ interface ConsolePreferencesContextValue {
   saveRunsView: (name: string, filters: RunsFiltersPreference) => void;
   deleteRunsView: (viewId: string) => void;
   resetRunsFilters: () => void;
+  setAttentionFilters: (filters: AttentionFiltersPreference) => void;
+  saveAttentionView: (name: string, filters: AttentionFiltersPreference) => void;
+  deleteAttentionView: (viewId: string) => void;
+  resetAttentionFilters: () => void;
+  updateAttentionItem: (
+    itemId: string,
+    update: Partial<AttentionTriagePreference>,
+  ) => void;
+  clearAttentionItem: (itemId: string) => void;
+  clearAttentionDisposition: (disposition: AttentionTriagePreference["disposition"]) => void;
   rememberWorkspace: (workspacePath: string) => void;
 }
 
@@ -102,6 +119,61 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
     setRunsFilters({ ...DEFAULT_RUNS_FILTERS });
   }
 
+  function setAttentionFiltersValue(filters: AttentionFiltersPreference) {
+    setPreferences((current) => setAttentionFilters(current, filters));
+  }
+
+  function saveAttentionView(name: string, filters: AttentionFiltersPreference) {
+    setPreferences((current) => upsertSavedAttentionView(current, name, filters));
+  }
+
+  function deleteAttentionView(viewId: string) {
+    setPreferences((current) => deleteSavedAttentionView(current, viewId));
+  }
+
+  function resetAttentionFilters() {
+    setAttentionFiltersValue({ ...DEFAULT_ATTENTION_FILTERS });
+  }
+
+  function updateAttentionItem(itemId: string, update: Partial<AttentionTriagePreference>) {
+    setPreferences((current) => updateAttentionTriage(current, itemId, update));
+  }
+
+  function clearAttentionItem(itemId: string) {
+    setPreferences((current) => {
+      if (!current.attention.triageByItemId[itemId]) {
+        return current;
+      }
+      const nextTriage = { ...current.attention.triageByItemId };
+      delete nextTriage[itemId];
+      return {
+        ...current,
+        attention: {
+          ...current.attention,
+          triageByItemId: nextTriage,
+        },
+      };
+    });
+  }
+
+  function clearAttentionDisposition(disposition: AttentionTriagePreference["disposition"]) {
+    setPreferences((current) => {
+      const nextEntries = Object.entries(current.attention.triageByItemId).filter(
+        ([, entry]) => entry.disposition !== disposition,
+      );
+      if (nextEntries.length === Object.keys(current.attention.triageByItemId).length) {
+        return current;
+      }
+      return {
+        ...current,
+        attention: {
+          ...current.attention,
+          triageByItemId: Object.fromEntries(nextEntries),
+        },
+      };
+    });
+  }
+
   const rememberWorkspace = useCallback((workspacePath: string) => {
     setPreferences((current) => rememberRecentWorkspace(current, workspacePath));
   }, []);
@@ -117,6 +189,13 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
         saveRunsView,
         deleteRunsView,
         resetRunsFilters,
+        setAttentionFilters: setAttentionFiltersValue,
+        saveAttentionView,
+        deleteAttentionView,
+        resetAttentionFilters,
+        updateAttentionItem,
+        clearAttentionItem,
+        clearAttentionDisposition,
         rememberWorkspace,
       }}
     >

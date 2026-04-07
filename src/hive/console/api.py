@@ -16,10 +16,14 @@ from pydantic import BaseModel
 from src.hive.common import isoformat_z
 from src.hive import __version__
 from src.hive.console.state import (
+    build_activity_feed,
     build_home_view,
     build_inbox,
+    build_notifications,
     list_runs,
+    load_attention_context,
     load_run_detail,
+    summarize_attention_items,
 )
 from src.hive.control import campaign_status
 from src.hive.context_bundle import build_context_bundle
@@ -251,12 +255,34 @@ def health(path: str | None = Query(default=None)) -> dict:
 def status(path: str | None = Query(default=None)) -> dict:
     """Return lightweight workspace counts for the observe console shell."""
     root = _workspace_root(path)
+    attention_context = load_attention_context(root)
+    inbox_items = build_inbox(
+        root,
+        project_titles=attention_context["project_titles"],
+        runs=attention_context["runs"],
+    )
+    notifications = build_notifications(
+        root,
+        inbox_items=inbox_items,
+        project_titles=attention_context["project_titles"],
+        recent_events=attention_context["recent_events"],
+        runs=attention_context["runs"],
+    )
+    activity = build_activity_feed(
+        root,
+        project_titles=attention_context["project_titles"],
+        recent_events=attention_context["recent_events"],
+        runs=attention_context["runs"],
+    )
     return {
         "ok": True,
         "workspace": str(root),
         "projects": len(discover_projects(root)),
-        "runs": len(list_runs(root)),
-        "inbox": len(build_inbox(root)),
+        "runs": len(attention_context["runs"]),
+        "inbox": len(inbox_items),
+        "notifications": len(notifications["items"]),
+        "activity": len(activity["items"]),
+        "attention_summary": summarize_attention_items(inbox_items),
     }
 
 
@@ -329,7 +355,26 @@ def inbox(path: str | None = Query(default=None)) -> dict:
     """Return typed attention items for the operator inbox."""
     root = _workspace_root(path)
     sync_workspace(root)
-    return {"ok": True, "items": build_inbox(root)}
+    items = build_inbox(root)
+    return {"ok": True, "items": items, "summary": summarize_attention_items(items)}
+
+
+@app.get("/notifications")
+def notifications(path: str | None = Query(default=None)) -> dict:
+    """Return the persistent notification-center payload."""
+    root = _workspace_root(path)
+    sync_workspace(root)
+    payload = build_notifications(root)
+    return {"ok": True, **payload}
+
+
+@app.get("/activity")
+def activity(path: str | None = Query(default=None)) -> dict:
+    """Return the compact recent-activity feed."""
+    root = _workspace_root(path)
+    sync_workspace(root)
+    payload = build_activity_feed(root)
+    return {"ok": True, **payload}
 
 
 @app.get("/runs")

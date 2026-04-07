@@ -21,6 +21,23 @@ export function ActivityPage() {
 
   const items = Array.isArray(data?.items) ? data.items : [];
   const summary = (data?.summary ?? {}) as Record<string, unknown>;
+  const byKind = useMemo(() => {
+    return items.reduce<Record<string, number>>((counts, item) => {
+      const entry = item as Record<string, unknown>;
+      const kind = String(entry.kind ?? entry.source ?? "event");
+      counts[kind] = (counts[kind] ?? 0) + 1;
+      return counts;
+    }, {});
+  }, [items]);
+  const byProject = useMemo(() => {
+    return items.reduce<Record<string, number>>((counts, item) => {
+      const entry = item as Record<string, unknown>;
+      const project = String(entry.project_label ?? entry.project_id ?? "Workspace");
+      counts[project] = (counts[project] ?? 0) + 1;
+      return counts;
+    }, {});
+  }, [items]);
+  const busiestProject = Object.entries(byProject).sort((left, right) => right[1] - left[1])[0];
 
   return (
     <div className="page-grid">
@@ -73,6 +90,31 @@ export function ActivityPage() {
             <p>
               The activity feed stays compact and chronological so operators can reconstruct what
               changed without wading through the heavier inbox decision surface.
+            </p>
+          </article>
+          <article className="list-card">
+            <div className="list-card__header">
+              <h3>Event mix</h3>
+            </div>
+            <p className="list-card__meta">
+              Events: {byKind.event ?? 0} • Accepted runs: {byKind["accepted-run"] ?? 0}
+            </p>
+            <p>
+              Activity is intentionally lighter than Notifications: it answers “what moved?” while
+              Inbox and Notifications stay focused on decisions and persistent signals.
+            </p>
+          </article>
+          <article className="list-card">
+            <div className="list-card__header">
+              <h3>Where movement is concentrated</h3>
+            </div>
+            <p className="list-card__meta">
+              {busiestProject ? `${busiestProject[0]} • ${busiestProject[1]} items` : "Workspace-wide"}
+            </p>
+            <p>
+              Use <ConsoleLink to="/notifications">Notifications</ConsoleLink> for persistent
+              signals and <ConsoleLink to="/inbox">Inbox</ConsoleLink> for approvals, exceptions,
+              and actions that still need an operator decision.
             </p>
           </article>
         </div>

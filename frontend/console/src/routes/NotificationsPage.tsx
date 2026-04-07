@@ -2,12 +2,14 @@ import { useMemo } from "react";
 
 import { createConsoleClient } from "../api/client";
 import { AttentionBoard } from "../components/AttentionBoard";
+import { useConsolePreferences } from "../components/ConsolePreferences";
 import { Panel } from "../components/Panel";
 import { useConsoleConfig } from "../components/ConsoleLayout";
 import { useConsoleQuery } from "../hooks/useConsoleQuery";
 
 export function NotificationsPage() {
   const { apiBase, workspacePath } = useConsoleConfig();
+  const { preferences } = useConsolePreferences();
   const client = useMemo(
     () => createConsoleClient(apiBase, workspacePath),
     [apiBase, workspacePath],
@@ -18,6 +20,18 @@ export function NotificationsPage() {
     3000,
   );
   const items = Array.isArray(data?.items) ? data.items : [];
+  const visibleItems = items.filter((item) => {
+    const entry = item as Record<string, unknown>;
+    const tier = String(entry.notification_tier ?? "actionable");
+    if (tier === "informational" && !preferences.notifications.showInformational) {
+      return false;
+    }
+    if (tier === "actionable" && !preferences.notifications.showActionable) {
+      return false;
+    }
+    return true;
+  });
+  const filteredCount = items.length - visibleItems.length;
   const summary = (data?.summary ?? {}) as Record<string, unknown>;
   const byTier = (summary.by_notification_tier ?? {}) as Record<string, number>;
   const bySeverity = (summary.by_severity ?? {}) as Record<string, number>;
@@ -29,13 +43,27 @@ export function NotificationsPage() {
         title="Notifications"
         loading={loading}
         error={error}
-        items={items}
+        items={visibleItems}
         mode="notifications"
         emptyMessage="No notifications are queued right now."
       />
 
       <Panel eyebrow="Center of gravity" title="Notification mix">
         <div className="stack">
+          {filteredCount ? (
+            <article className="list-card">
+              <div className="list-card__header">
+                <h3>Filtered by local preferences</h3>
+              </div>
+              <p className="list-card__meta">
+                Hidden items: {filteredCount} • Actionable visible: {preferences.notifications.showActionable ? "yes" : "no"} • Informational visible: {preferences.notifications.showInformational ? "yes" : "no"}
+              </p>
+              <p>
+                Notification visibility is operator-local. Toggling tiers in Settings trims this
+                surface without mutating canonical inbox or run state.
+              </p>
+            </article>
+          ) : null}
           <article className="list-card">
             <div className="list-card__header">
               <h3>Tier summary</h3>

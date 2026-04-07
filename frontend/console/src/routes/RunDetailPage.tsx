@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { createConsoleClient } from "../api/client";
@@ -8,6 +8,7 @@ import {
   useRegisterConsoleActions,
 } from "../components/ConsoleActions";
 import { useConsoleEventBus } from "../components/ConsoleEventBus";
+import { ConsoleLink } from "../components/ConsoleLink";
 import { KeyValueGrid } from "../components/KeyValueGrid";
 import { Panel } from "../components/Panel";
 import { StatusPill } from "../components/StatusPill";
@@ -44,6 +45,27 @@ function jsonPreview(value: unknown): string {
       : "";
   }
   return String(value);
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((entry) => String(entry)).filter((entry) => entry.trim().length > 0)
+    : [];
+}
+
+function DisclosurePreview({
+  title,
+  content,
+}: {
+  title: string;
+  content: string | null | undefined;
+}) {
+  return (
+    <details className="detail-disclosure">
+      <summary>{title}</summary>
+      <pre className="inline-json">{content?.trim() ? content : "No content recorded yet."}</pre>
+    </details>
+  );
 }
 
 function liveSteerUnavailableMessage(
@@ -96,6 +118,8 @@ export function RunDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [artifactTab, setArtifactTab] = useState("run_brief");
+  const [timelineIndex, setTimelineIndex] = useState(0);
   const { data, loading, error } = useConsoleQuery(
     `run:${apiBase}:${workspacePath}:${runId}`,
     () => client.getRunDetail(runId),
@@ -107,6 +131,8 @@ export function RunDetailPage() {
   const run = (detail.run ?? {}) as Record<string, unknown>;
   const promotion = (detail.promotion_decision ?? {}) as Record<string, unknown>;
   const artifactPreview = (detail.artifact_preview ?? {}) as Record<string, unknown>;
+  const evalResults = (detail.eval_results ?? {}) as Record<string, unknown>;
+  const finalState = (detail.final_state ?? {}) as Record<string, unknown>;
   const inspector = (detail.inspector ?? {}) as Record<string, unknown>;
   const contextManifest = (detail.context_manifest ?? {}) as Record<string, unknown>;
   const steeringHistory = Array.isArray(detail.steering_history) ? detail.steering_history : [];
@@ -154,6 +180,59 @@ export function RunDetailPage() {
   const launchMode = String(effective.launch_mode ?? "");
   const sessionPersistence = String(effective.session_persistence ?? "none");
   const supportsRunControls = Boolean(data?.detail) && detailKind === "run";
+  const comparisonQuery = useConsoleQuery(
+    `run-compare:${apiBase}:${workspacePath}:${runId}:${detailKind || "pending"}`,
+    async () => (detailKind === "run" ? client.getRunComparison(runId) : { ok: true, comparison: {} }),
+    detailKind === "run" ? 3000 : 0,
+  );
+  const comparison = (comparisonQuery.data?.comparison ?? {}) as Record<string, unknown>;
+  const compareCurrent = (comparison.current ?? {}) as Record<string, unknown>;
+  const compareBaseline = (comparison.baseline ?? {}) as Record<string, unknown>;
+  const compareDiff = (comparison.diff ?? {}) as Record<string, unknown>;
+  const compareSummary = (comparison.summary ?? {}) as Record<string, unknown>;
+  const changedPaths = readStringArray((changedFiles as Record<string, unknown>).touched_paths);
+  const currentOnlyPaths = readStringArray(compareDiff.current_only);
+  const baselineOnlyPaths = readStringArray(compareDiff.baseline_only);
+  const sharedPaths = readStringArray(compareDiff.shared);
+  const artifactTabs = [
+    {
+      id: "run_brief",
+      label: "Run brief",
+      content: String(artifactPreview.run_brief ?? ""),
+      empty: "No run brief recorded yet.",
+    },
+    {
+      id: "review_summary",
+      label: "Summary",
+      content: String(artifactPreview.review_summary ?? ""),
+      empty: "No review summary recorded yet.",
+    },
+    {
+      id: "review_notes",
+      label: "Review notes",
+      content: String(artifactPreview.review_notes ?? ""),
+      empty: "No review notes recorded yet.",
+    },
+    {
+      id: "diff",
+      label: "Patch diff",
+      content: String(artifactPreview.diff ?? ""),
+      empty: "No patch diff recorded yet.",
+    },
+    {
+      id: "stdout",
+      label: "stdout",
+      content: String(artifactPreview.stdout ?? ""),
+      empty: "No stdout recorded yet.",
+    },
+    {
+      id: "stderr",
+      label: "stderr",
+      content: String(artifactPreview.stderr ?? ""),
+      empty: "No stderr recorded yet.",
+    },
+  ] as const;
+  const activeArtifact = artifactTabs.find((tab) => tab.id === artifactTab) ?? artifactTabs[0];
   const canLiveSteer =
     supportsRunControls
     && launchMode !== ""
@@ -167,6 +246,18 @@ export function RunDetailPage() {
   const canAnnotate = canLiveSteer;
   const canCancel = supportsRunControls && !["accepted", "cancelled", "failed", "rejected"].includes(runStatus);
   const canReroute = supportsRunControls && !["accepted", "cancelled", "failed"].includes(runStatus);
+
+  useEffect(() => {
+    if (!timeline.length) {
+      setTimelineIndex(0);
+      return;
+    }
+    setTimelineIndex((current) => Math.min(timeline.length - 1, Math.max(current, timeline.length - 1)));
+  }, [timeline.length]);
+
+  const selectedTimelineEvent = timeline.length
+    ? (timeline[Math.min(timelineIndex, timeline.length - 1)] as Record<string, unknown>)
+    : null;
 
   const runControlActions = useMemo<ConsoleActionDescriptor[]>(() => {
     if (!supportsRunControls) {
@@ -416,407 +507,490 @@ export function RunDetailPage() {
   }
 
   return (
-    <div className="page-grid page-grid--detail">
-      <Panel eyebrow="Run detail" title={runId}>
-        {loading ? <p>Loading Run Detail…</p> : null}
-        {error ? <p className="error-copy">{error}</p> : null}
-        {!loading && !error ? (
-          <div className="stack">
-            <div className="list-card__header">
-              <h3>
-                {String(
-                  (run.metadata_json as Record<string, unknown> | undefined)?.task_title ??
-                    run.task_id ??
-                    "Run",
-                )}
-              </h3>
-              <StatusPill tone={String(run.status ?? "unknown")}>
-                {String(run.status ?? "unknown")}
-              </StatusPill>
+    <div className="page-grid page-grid--detail run-detail-layout">
+      <div className="stack run-detail-layout__main">
+        <Panel
+          eyebrow="Run review"
+          title={String(
+            (run.metadata_json as Record<string, unknown> | undefined)?.task_title
+              ?? run.task_id
+              ?? runId,
+          )}
+        >
+          {loading ? <p>Loading Run Detail…</p> : null}
+          {error ? <p className="error-copy">{error}</p> : null}
+          {!loading && !error ? (
+            <div className="stack">
+              <div className="list-card__header">
+                <div>
+                  <p className="hero-card__eyebrow">Current run</p>
+                  <h3>{runId}</h3>
+                </div>
+                <StatusPill tone={String(run.status ?? "unknown")}>
+                  {String(run.status ?? "unknown")}
+                </StatusPill>
+              </div>
+              <KeyValueGrid
+                values={[
+                  { label: "Project", value: String(run.project_id ?? "—") },
+                  { label: "Driver", value: String(run.driver ?? "—") },
+                  { label: "Health", value: String(run.health ?? "—") },
+                  { label: "Campaign", value: String(run.campaign_id ?? "—") },
+                  { label: "Started", value: String(run.started_at ?? "—") },
+                  { label: "Finished", value: String(run.finished_at ?? "—") },
+                ]}
+              />
+              <div className="card-grid run-detail__metrics">
+                <article className="list-card">
+                  <p className="hero-card__eyebrow">Promotion</p>
+                  <h3>{String(promotion.decision ?? "pending")}</h3>
+                  <p className="list-card__meta">
+                    {((promotion.reasons as string[] | undefined) ?? []).length} rationale point(s)
+                  </p>
+                </article>
+                <article className="list-card">
+                  <p className="hero-card__eyebrow">Evaluators</p>
+                  <h3>{evaluations.length}</h3>
+                  <p className="list-card__meta">
+                    {Object.entries((compareCurrent.evaluation_summary as Record<string, unknown> | undefined)?.by_status ?? {})
+                      .map(([status, count]) => `${status}: ${count}`)
+                      .join(" • ") || "No evaluator summary recorded."}
+                  </p>
+                </article>
+                <article className="list-card">
+                  <p className="hero-card__eyebrow">Changed paths</p>
+                  <h3>{changedPaths.length}</h3>
+                  <p className="list-card__meta">
+                    {currentOnlyPaths.length} unique vs baseline • {sharedPaths.length} shared
+                  </p>
+                </article>
+              </div>
+              <div className="card-grid run-detail__overview-grid">
+                <article className="hero-card">
+                  <p className="hero-card__eyebrow">Acceptance rationale</p>
+                  <h3>{String(promotion.decision ?? "pending")}</h3>
+                  <ul className="reason-list">
+                    {((promotion.reasons as string[] | undefined) ?? []).length ? (
+                      ((promotion.reasons as string[] | undefined) ?? []).map((item) => (
+                        <li key={item}>{item}</li>
+                      ))
+                    ) : (
+                      <li>No acceptance rationale has been recorded yet.</li>
+                    )}
+                  </ul>
+                </article>
+                <article className="list-card">
+                  <div className="list-card__header">
+                    <h3>Changed-file summary</h3>
+                    <span className="list-card__meta">{changedPaths.length} paths</span>
+                  </div>
+                  <ul className="reason-list">
+                    {changedPaths.length ? (
+                      changedPaths.slice(0, 8).map((path) => <li key={path}>{path}</li>)
+                    ) : (
+                      <li>No changed files were recorded for this run.</li>
+                    )}
+                  </ul>
+                </article>
+              </div>
             </div>
-            <KeyValueGrid
-              values={[
-                { label: "Project", value: String(run.project_id ?? "—") },
-                { label: "Driver", value: String(run.driver ?? "—") },
-                { label: "Health", value: String(run.health ?? "—") },
-                { label: "Campaign", value: String(run.campaign_id ?? "—") },
-                { label: "Started", value: String(run.started_at ?? "—") },
-                { label: "Finished", value: String(run.finished_at ?? "—") },
-              ]}
-            />
-            <article className="hero-card">
-              <p className="hero-card__eyebrow">Promotion decision</p>
-              <h3>{String(promotion.decision ?? "pending")}</h3>
-              <ul className="reason-list">
-                {((promotion.reasons as string[] | undefined) ?? []).map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
+          ) : null}
+        </Panel>
+
+        <Panel eyebrow="Review artifacts" title="Artifact tabs">
+          <div className="stack">
+            <div className="action-grid run-detail__artifact-tabs" role="tablist" aria-label="Artifact tabs">
+              {artifactTabs.map((tab) => (
+                <button
+                  aria-selected={activeArtifact.id === tab.id}
+                  className={`secondary-button${activeArtifact.id === tab.id ? " secondary-button--active" : ""}`}
+                  key={tab.id}
+                  role="tab"
+                  type="button"
+                  onClick={() => setArtifactTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <article className="list-card">
+              <div className="list-card__header">
+                <h3>{activeArtifact.label}</h3>
+              </div>
+              <pre className="inline-json">
+                {activeArtifact.content.trim() ? activeArtifact.content : activeArtifact.empty}
+              </pre>
             </article>
           </div>
-        ) : null}
-      </Panel>
+        </Panel>
 
-      <Panel eyebrow="Runtime truth" title="Driver and Sandbox">
-        <div className="stack">
-          <KeyValueGrid
-            values={[
-              { label: "Harness", value: harness },
-              { label: "Integration level", value: integrationLevel },
-              { label: "Governance mode", value: governanceMode },
-              { label: "Adapter family", value: adapterFamily },
-              { label: "Native session", value: nativeSessionHandle },
-              { label: "Sandbox owner", value: sandboxOwner },
-              { label: "Launch mode", value: String(effective.launch_mode ?? "—") },
-              {
-                label: "Session persistence",
-                value: String(effective.session_persistence ?? "—"),
-              },
-              { label: "Event stream", value: String(effective.event_stream ?? "—") },
-              {
-                label: "Approvals",
-                value: Array.isArray(effective.approvals)
-                  ? (effective.approvals as string[]).join(", ") || "none"
-                  : "none",
-              },
-              {
-                label: "Artifacts",
-                value: Array.isArray(effective.artifacts)
-                  ? (effective.artifacts as string[]).join(", ") || "none"
-                  : "none",
-              },
-              { label: "Sandbox backend", value: String(sandboxPolicy.backend ?? "—") },
-            ]}
-          />
-          <PreviewBlock
-            title="Capability snapshot"
-            content={jsonPreview(capabilitySnapshot)}
-          />
-          <PreviewBlock title="Sandbox policy" content={jsonPreview(sandboxPolicy)} />
-        </div>
-      </Panel>
+        <Panel eyebrow="Runtime truth" title="Capability and Sandbox">
+          <div className="stack">
+            <KeyValueGrid
+              values={[
+                { label: "Harness", value: harness },
+                { label: "Integration level", value: integrationLevel },
+                { label: "Governance mode", value: governanceMode },
+                { label: "Adapter family", value: adapterFamily },
+                { label: "Native session", value: nativeSessionHandle },
+                { label: "Sandbox owner", value: sandboxOwner },
+                { label: "Launch mode", value: String(effective.launch_mode ?? "—") },
+                {
+                  label: "Session persistence",
+                  value: String(effective.session_persistence ?? "—"),
+                },
+                { label: "Event stream", value: String(effective.event_stream ?? "—") },
+                {
+                  label: "Approvals",
+                  value: Array.isArray(effective.approvals)
+                    ? (effective.approvals as string[]).join(", ") || "none"
+                    : "none",
+                },
+                {
+                  label: "Artifacts",
+                  value: Array.isArray(effective.artifacts)
+                    ? (effective.artifacts as string[]).join(", ") || "none"
+                    : "none",
+                },
+                { label: "Sandbox backend", value: String(sandboxPolicy.backend ?? "—") },
+              ]}
+            />
+            <DisclosurePreview title="Capability snapshot" content={jsonPreview(capabilitySnapshot)} />
+            <DisclosurePreview title="Sandbox policy" content={jsonPreview(sandboxPolicy)} />
+          </div>
+        </Panel>
 
-      <Panel eyebrow="Operator controls" title="Steer This Run">
-        <div className="stack">
-          {supportsRunControls ? (
-            <>
-              <label className="console-field" htmlFor="run-steer-reason">
-                <span>Reason</span>
-                <input
-                  aria-label="Reason"
-                  id="run-steer-reason"
-                  placeholder="Why are you steering this run?"
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                />
-              </label>
-              <label className="console-field" htmlFor="run-steer-note">
-                <span>Note</span>
-                <input
-                  aria-label="Note"
-                  id="run-steer-note"
-                  placeholder="Optional note to add to the audit trail"
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                />
-              </label>
-              <div className="action-grid">
-                {runControlActions
-                  .filter(
-                    (action) =>
-                      action.group === "Run controls"
-                      && action.visible !== false
-                      && action.id !== `run.reroute:${runId}`,
-                  )
-                  .map((action) => (
-                    <ConsoleActionButton action={action} key={action.id} />
-                  ))}
+        <Panel eyebrow="Context truth" title="Context and Retrieval">
+          <div className="stack">
+            <KeyValueGrid
+              values={[
+                { label: "Manifest entries", value: contextEntries.length },
+                { label: "Memory docs", value: memoryEntries.length },
+                { label: "Skills", value: skillEntries.length },
+                { label: "Search hits", value: searchHits.length },
+                { label: "Outputs", value: outputs.length },
+              ]}
+            />
+            <article className="list-card">
+              <div className="list-card__header">
+                <h3>Selected context</h3>
               </div>
-              {canReroute ? (
-                <form className="filters" onSubmit={handleReroute}>
-                  <label className="console-field" htmlFor="run-steer-reroute-driver">
-                    <span>Reroute to</span>
-                    <select
-                      aria-label="Reroute to"
-                      id="run-steer-reroute-driver"
-                      value={rerouteDriver}
-                      onChange={(event) => setRerouteDriver(event.target.value)}
-                    >
-                      <option value="local">local</option>
-                      <option value="manual">manual</option>
-                      <option value="codex">codex</option>
-                      <option value="claude">claude</option>
-                    </select>
-                  </label>
-                  <div className="filters__actions">
-                    {runControlActions
-                      .filter((action) => action.id === `run.reroute:${runId}`)
-                      .map((action) => (
-                        <ConsoleActionButton action={action} key={action.id} />
-                      ))}
-                  </div>
-                </form>
-              ) : null}
-              {liveSteerMessage ? <p className="list-card__meta">{liveSteerMessage}</p> : null}
-            </>
-          ) : (
-            <p className="list-card__meta">
-              This detail view represents an attached delegate session. Run-only pause, cancel,
-              and reroute controls stay hidden here so the console does not claim Hive owns the
-              native harness lifecycle.
-            </p>
-          )}
-          {actionMessage ? <p>{actionMessage}</p> : null}
-          {actionError ? <p className="error-copy">{actionError}</p> : null}
-        </div>
-      </Panel>
+              <ul className="reason-list">
+                {retrievalContext.length ? (
+                  retrievalContext.map((item) => {
+                    const entry = item as Record<string, unknown>;
+                    return (
+                      <li key={String(entry.chunk_id ?? entry.path ?? entry.title)}>
+                        {String(entry.title ?? entry.path ?? entry.chunk_id ?? "context chunk")}
+                        {entry.explanation ? ` — ${String(entry.explanation)}` : ""}
+                      </li>
+                    );
+                  })
+                ) : (
+                  <li>No retrieval trace has been selected for this run yet.</li>
+                )}
+              </ul>
+            </article>
+            <article className="list-card">
+              <div className="list-card__header">
+                <h3>Memory and skills</h3>
+              </div>
+              <ul className="reason-list">
+                {memoryEntries.length ? (
+                  memoryEntries.map((item) => {
+                    const entry = item as Record<string, unknown>;
+                    return <li key={String(entry.id ?? entry.source_path)}>{String(entry.source_path ?? entry.id)}</li>;
+                  })
+                ) : (
+                  <li>No project memory files were loaded.</li>
+                )}
+                {skillEntries.length ? (
+                  skillEntries.map((item) => {
+                    const entry = item as Record<string, unknown>;
+                    return <li key={String(entry.id ?? entry.source_path)}>{String(entry.source_path ?? entry.id)}</li>;
+                  })
+                ) : (
+                  <li>No repo-local skills matched this run.</li>
+                )}
+              </ul>
+            </article>
+            <article className="list-card">
+              <div className="list-card__header">
+                <h3>Search hits and outputs</h3>
+              </div>
+              <ul className="reason-list">
+                {searchHits.length ? (
+                  searchHits.map((item) => {
+                    const hit = item as Record<string, unknown>;
+                    return (
+                      <li key={String(hit.path ?? hit.title)}>
+                        {String(hit.title ?? hit.path ?? "search hit")}
+                        {Array.isArray(hit.why) && (hit.why as string[]).length
+                          ? ` — ${(hit.why as string[]).join("; ")}`
+                          : ""}
+                      </li>
+                    );
+                  })
+                ) : (
+                  <li>No search hits were bundled for this run.</li>
+                )}
+                {outputs.length ? outputs.map((item) => <li key={String(item)}>{String(item)}</li>) : null}
+              </ul>
+              <p className="list-card__meta">
+                Generated: {String(contextManifest.generated_at ?? "—")}
+              </p>
+            </article>
+            <DisclosurePreview title="Retrieval trace" content={jsonPreview(retrievalTrace)} />
+          </div>
+        </Panel>
 
-      <Panel eyebrow="Approval broker" title="Pending Approvals">
-        <div className="stack">
-          {pendingApprovals.length ? (
-            pendingApprovals.map((item) => {
-              const approval = item as Record<string, unknown>;
-              const approvalId = String(approval.approval_id ?? "approval");
-              return (
-                <article className="list-card" key={approvalId}>
+        <Panel eyebrow="Evaluator evidence" title="Acceptance and Evaluations">
+          <div className="stack">
+            {evaluations.length ? (
+              evaluations.map((item) => {
+                const evaluation = item as Record<string, unknown>;
+                return (
+                  <article
+                    className="list-card"
+                    key={String(evaluation.evaluator_id ?? evaluation.command)}
+                  >
+                    <div className="list-card__header">
+                      <h3>{String(evaluation.evaluator_id ?? "evaluator")}</h3>
+                      <StatusPill tone={String(evaluation.status ?? "unknown")}>
+                        {String(evaluation.status ?? "unknown")}
+                      </StatusPill>
+                    </div>
+                    <p>{String(evaluation.command ?? "No command recorded.")}</p>
+                  </article>
+                );
+              })
+            ) : (
+              <p>No evaluator results recorded yet.</p>
+            )}
+            <DisclosurePreview title="Evaluator result bundle" content={jsonPreview(evalResults)} />
+            <DisclosurePreview title="Final state" content={jsonPreview(finalState)} />
+          </div>
+        </Panel>
+
+        <Panel eyebrow="Typed interventions" title="Steering History">
+          <div className="stack">
+            {steeringHistory.length ? (
+              steeringHistory.map((item) => {
+                const event = item as Record<string, unknown>;
+                return (
+                  <article className="timeline__item" key={String(event.event_id ?? event.ts)}>
+                    <div className="timeline__meta">
+                      <span>{String(event.type ?? "steering event")}</span>
+                      <span>{String(event.ts ?? "—")}</span>
+                    </div>
+                    <pre className="inline-json">{JSON.stringify(event.payload ?? {}, null, 2)}</pre>
+                  </article>
+                );
+              })
+            ) : (
+              <p>No steering actions recorded for this run.</p>
+            )}
+          </div>
+        </Panel>
+
+        <Panel eyebrow="Trajectory" title="Normalized history">
+          <div className="stack">
+            <DisclosurePreview title="trajectory.jsonl" content={jsonPreview(trajectory)} />
+          </div>
+        </Panel>
+
+        <Panel eyebrow="Audit trail" title="Timeline">
+          <div className="timeline">
+            {timeline.length ? (
+              timeline.map((item) => {
+                const event = item as Record<string, unknown>;
+                return (
+                  <article className="timeline__item" key={String(event.event_id ?? event.ts)}>
+                    <div className="timeline__meta">
+                      <span>{String(event.type ?? "event")}</span>
+                      <span>{String(event.ts ?? "—")}</span>
+                    </div>
+                    <pre className="inline-json">{JSON.stringify(event.payload ?? {}, null, 2)}</pre>
+                  </article>
+                );
+              })
+            ) : (
+              <p>No timeline events yet.</p>
+            )}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="stack run-detail-layout__rail">
+        <Panel eyebrow="Sticky review rail" title="Operator actions">
+          <div className="stack">
+            {supportsRunControls ? (
+              <>
+                <label className="console-field" htmlFor="run-steer-reason">
+                  <span>Reason</span>
+                  <input
+                    aria-label="Reason"
+                    id="run-steer-reason"
+                    placeholder="Why are you steering this run?"
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                  />
+                </label>
+                <label className="console-field" htmlFor="run-steer-note">
+                  <span>Note</span>
+                  <input
+                    aria-label="Note"
+                    id="run-steer-note"
+                    placeholder="Optional note to add to the audit trail"
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                  />
+                </label>
+                <div className="action-grid">
+                  {runControlActions
+                    .filter(
+                      (action) =>
+                        action.group === "Run controls"
+                        && action.visible !== false
+                        && action.id !== `run.reroute:${runId}`,
+                    )
+                    .map((action) => (
+                      <ConsoleActionButton action={action} key={action.id} />
+                    ))}
+                </div>
+                {canReroute ? (
+                  <form className="filters" onSubmit={handleReroute}>
+                    <label className="console-field" htmlFor="run-steer-reroute-driver">
+                      <span>Reroute to</span>
+                      <select
+                        aria-label="Reroute to"
+                        id="run-steer-reroute-driver"
+                        value={rerouteDriver}
+                        onChange={(event) => setRerouteDriver(event.target.value)}
+                      >
+                        <option value="local">local</option>
+                        <option value="manual">manual</option>
+                        <option value="codex">codex</option>
+                        <option value="claude">claude</option>
+                      </select>
+                    </label>
+                    <div className="filters__actions">
+                      {runControlActions
+                        .filter((action) => action.id === `run.reroute:${runId}`)
+                        .map((action) => (
+                          <ConsoleActionButton action={action} key={action.id} />
+                        ))}
+                    </div>
+                  </form>
+                ) : null}
+                {liveSteerMessage ? <p className="list-card__meta">{liveSteerMessage}</p> : null}
+              </>
+            ) : (
+              <p className="list-card__meta">
+                This detail view represents an attached delegate session. Run-only pause, cancel,
+                and reroute controls stay hidden here so the console does not claim Hive owns the
+                native harness lifecycle.
+              </p>
+            )}
+            {pendingApprovals.length ? (
+              pendingApprovals.map((item) => {
+                const approval = item as Record<string, unknown>;
+                const approvalId = String(approval.approval_id ?? "approval");
+                return (
+                  <article className="list-card" key={approvalId}>
+                    <div className="list-card__header">
+                      <h3>{String(approval.title ?? approvalId)}</h3>
+                      <StatusPill tone={String(approval.kind ?? "approval")}>
+                        {String(approval.kind ?? "approval")}
+                      </StatusPill>
+                    </div>
+                    <p>{String(approval.summary ?? "Driver requested approval.")}</p>
+                    <div className="action-grid">
+                      {approvalActions
+                        .filter((action) => action.id === `approval.approve:${approvalId}` || action.id === `approval.reject:${approvalId}`)
+                        .map((action) => (
+                          <ConsoleActionButton action={action} key={action.id} />
+                        ))}
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <p className="list-card__meta">No pending approvals for this run.</p>
+            )}
+            {actionMessage ? <p>{actionMessage}</p> : null}
+            {actionError ? <p className="error-copy">{actionError}</p> : null}
+          </div>
+        </Panel>
+
+        <Panel eyebrow="Compare runs" title="Accepted baseline">
+          <div className="stack">
+            {Boolean(compareSummary.has_baseline) ? (
+              <>
+                <article className="list-card">
                   <div className="list-card__header">
-                    <h3>{String(approval.title ?? approvalId)}</h3>
-                    <StatusPill tone={String(approval.kind ?? "approval")}>
-                      {String(approval.kind ?? "approval")}
+                    <h3>{String(compareBaseline.title ?? compareSummary.baseline_label ?? "Accepted baseline")}</h3>
+                    <StatusPill tone={String(compareBaseline.status ?? "accepted")}>
+                      {String(compareBaseline.status ?? "accepted")}
                     </StatusPill>
                   </div>
-                  <p>{String(approval.summary ?? "Driver requested approval.")}</p>
-                  <pre className="inline-json">{jsonPreview(approval.payload)}</pre>
-                  <div className="action-grid">
-                    {approvalActions
-                      .filter((action) => action.id === `approval.approve:${approvalId}` || action.id === `approval.reject:${approvalId}`)
-                      .map((action) => (
-                        <ConsoleActionButton action={action} key={action.id} />
-                      ))}
-                  </div>
+                  <p className="list-card__meta">
+                    Driver {String(compareBaseline.driver ?? "—")} • {readStringArray(compareBaseline.changed_paths).length} changed path(s)
+                  </p>
+                  <ConsoleLink to={`/runs/${String(compareBaseline.run_id ?? "")}`}>Open baseline run</ConsoleLink>
                 </article>
-              );
-            })
-          ) : (
-            <p>No pending approvals for this run.</p>
-          )}
-        </div>
-      </Panel>
-
-      <Panel eyebrow="Context inspector" title="What Shaped This Run">
-        <div className="stack">
-          <KeyValueGrid
-            values={[
-              { label: "Manifest entries", value: contextEntries.length },
-              { label: "Memory docs", value: memoryEntries.length },
-              { label: "Skills", value: skillEntries.length },
-              { label: "Search hits", value: searchHits.length },
-              { label: "Outputs", value: outputs.length },
-            ]}
-          />
-          <article className="list-card">
-            <div className="list-card__header">
-              <h3>Memory</h3>
-            </div>
-            <ul className="reason-list">
-              {memoryEntries.length ? (
-                memoryEntries.map((item) => {
-                  const entry = item as Record<string, unknown>;
-                  return (
-                    <li key={String(entry.id ?? entry.source_path)}>
-                      {String(entry.source_path ?? entry.id)}
-                    </li>
-                  );
-                })
-              ) : (
-                <li>No project memory files were loaded.</li>
-              )}
-            </ul>
-          </article>
-          <article className="list-card">
-            <div className="list-card__header">
-              <h3>Skills</h3>
-            </div>
-            <ul className="reason-list">
-              {skillEntries.length ? (
-                skillEntries.map((item) => {
-                  const entry = item as Record<string, unknown>;
-                  return (
-                    <li key={String(entry.id ?? entry.source_path)}>
-                      {String(entry.source_path ?? entry.id)}
-                    </li>
-                  );
-                })
-              ) : (
-                <li>No repo-local skills matched this run.</li>
-              )}
-            </ul>
-          </article>
-          <article className="list-card">
-            <div className="list-card__header">
-              <h3>Search hits</h3>
-            </div>
-            <ul className="reason-list">
-              {searchHits.length ? (
-                searchHits.map((item) => {
-                  const hit = item as Record<string, unknown>;
-                  return (
-                    <li key={String(hit.path ?? hit.title)}>
-                      {String(hit.title ?? hit.path ?? "search hit")}
-                      {Array.isArray(hit.why) && (hit.why as string[]).length
-                        ? ` — ${(hit.why as string[]).join("; ")}`
-                        : ""}
-                    </li>
-                  );
-                })
-              ) : (
-                <li>No search hits were bundled for this run.</li>
-              )}
-            </ul>
-          </article>
-          <article className="list-card">
-            <div className="list-card__header">
-              <h3>Compiled outputs</h3>
-            </div>
-            <ul className="reason-list">
-              {outputs.length ? (
-                outputs.map((item) => <li key={String(item)}>{String(item)}</li>)
-              ) : (
-                <li>No compiled outputs recorded.</li>
-              )}
-            </ul>
-          </article>
-          <p className="list-card__meta">
-            Generated: {String(contextManifest.generated_at ?? "—")}
-          </p>
-        </div>
-      </Panel>
-
-      <Panel eyebrow="Retrieval inspector" title="Why This Context">
-        <div className="stack">
-          <article className="list-card">
-            <div className="list-card__header">
-              <h3>Selected context</h3>
-            </div>
-            <ul className="reason-list">
-              {retrievalContext.length ? (
-                retrievalContext.map((item) => {
-                  const entry = item as Record<string, unknown>;
-                  return (
-                    <li key={String(entry.chunk_id ?? entry.path ?? entry.title)}>
-                      {String(entry.title ?? entry.path ?? entry.chunk_id ?? "context chunk")}
-                      {entry.explanation ? ` — ${String(entry.explanation)}` : ""}
-                    </li>
-                  );
-                })
-              ) : (
-                <li>No retrieval trace has been selected for this run yet.</li>
-              )}
-            </ul>
-          </article>
-          <PreviewBlock title="Retrieval trace" content={jsonPreview(retrievalTrace)} />
-        </div>
-      </Panel>
-
-      <Panel eyebrow="Evaluator evidence" title="Review and Eval">
-        <div className="stack">
-          {evaluations.length ? (
-            evaluations.map((item) => {
-              const evaluation = item as Record<string, unknown>;
-              return (
-                <article
-                  className="list-card"
-                  key={String(evaluation.evaluator_id ?? evaluation.command)}
-                >
+                <article className="list-card">
                   <div className="list-card__header">
-                    <h3>{String(evaluation.evaluator_id ?? "evaluator")}</h3>
-                    <StatusPill tone={String(evaluation.status ?? "unknown")}>
-                      {String(evaluation.status ?? "unknown")}
-                    </StatusPill>
+                    <h3>Diff summary</h3>
                   </div>
-                  <p>{String(evaluation.command ?? "No command recorded.")}</p>
+                  <ul className="reason-list">
+                    <li>{currentOnlyPaths.length} path(s) only in the current run</li>
+                    <li>{baselineOnlyPaths.length} path(s) only in the baseline</li>
+                    <li>{sharedPaths.length} shared path(s)</li>
+                  </ul>
                 </article>
-              );
-            })
-          ) : (
-            <p>No evaluator results recorded yet.</p>
-          )}
-          <PreviewBlock title="Run brief" content={String(artifactPreview.run_brief ?? "")} />
-          <PreviewBlock title="Summary" content={String(artifactPreview.review_summary ?? "")} />
-          <PreviewBlock title="Review" content={String(artifactPreview.review_notes ?? "")} />
-        </div>
-      </Panel>
+              </>
+            ) : (
+              <p className="list-card__meta">
+                No accepted sibling run is available to compare against yet.
+              </p>
+            )}
+          </div>
+        </Panel>
 
-      <Panel eyebrow="Workspace diff" title="Diff and Changed Files">
-        <div className="stack">
-          <article className="list-card">
-            <div className="list-card__header">
-              <h3>Changed files</h3>
-            </div>
-            <pre className="inline-json">{JSON.stringify(changedFiles, null, 2)}</pre>
-          </article>
-          <PreviewBlock title="Patch diff" content={String(artifactPreview.diff ?? "")} />
-        </div>
-      </Panel>
-
-      <Panel eyebrow="Driver logs" title="Logs">
-        <div className="stack">
-          <PreviewBlock title="stdout" content={String(artifactPreview.stdout ?? "")} />
-          <PreviewBlock title="stderr" content={String(artifactPreview.stderr ?? "")} />
-        </div>
-      </Panel>
-
-      <Panel eyebrow="Typed interventions" title="Steering History">
-        <div className="stack">
-          {steeringHistory.length ? (
-            steeringHistory.map((item) => {
-              const event = item as Record<string, unknown>;
-              return (
-                <article className="timeline__item" key={String(event.event_id ?? event.ts)}>
+        <Panel eyebrow="Timeline scrubber" title="Selected event">
+          <div className="stack">
+            {selectedTimelineEvent ? (
+              <>
+                <label className="console-field" htmlFor="run-detail-timeline-scrubber">
+                  <span>Timeline position</span>
+                  <input
+                    aria-label="Timeline position"
+                    id="run-detail-timeline-scrubber"
+                    max={Math.max(timeline.length - 1, 0)}
+                    min={0}
+                    step={1}
+                    type="range"
+                    value={Math.min(timelineIndex, timeline.length - 1)}
+                    onChange={(event) => setTimelineIndex(Number(event.target.value))}
+                  />
+                </label>
+                <article className="timeline__item">
                   <div className="timeline__meta">
-                    <span>{String(event.type ?? "steering event")}</span>
-                    <span>{String(event.ts ?? "—")}</span>
+                    <span>{String(selectedTimelineEvent.type ?? "event")}</span>
+                    <span>{String(selectedTimelineEvent.ts ?? "—")}</span>
                   </div>
-                  <pre className="inline-json">{JSON.stringify(event.payload ?? {}, null, 2)}</pre>
+                  <pre className="inline-json">
+                    {JSON.stringify(selectedTimelineEvent.payload ?? {}, null, 2)}
+                  </pre>
                 </article>
-              );
-            })
-          ) : (
-            <p>No steering actions recorded for this run.</p>
-          )}
-        </div>
-      </Panel>
-
-      <Panel eyebrow="Normalized history" title="Trajectory">
-        <div className="stack">
-          {trajectory.length ? (
-            <PreviewBlock title="trajectory.jsonl" content={jsonPreview(trajectory)} />
-          ) : (
-            <p>No trajectory events recorded yet.</p>
-          )}
-        </div>
-      </Panel>
-
-      <Panel eyebrow="Audit trail" title="Timeline">
-        <div className="timeline">
-          {timeline.length ? (
-            timeline.map((item) => {
-              const event = item as Record<string, unknown>;
-              return (
-                <article className="timeline__item" key={String(event.event_id ?? event.ts)}>
-                  <div className="timeline__meta">
-                    <span>{String(event.type ?? "event")}</span>
-                    <span>{String(event.ts ?? "—")}</span>
-                  </div>
-                  <pre className="inline-json">{JSON.stringify(event.payload ?? {}, null, 2)}</pre>
-                </article>
-              );
-            })
-          ) : (
-            <p>No timeline events yet.</p>
-          )}
-        </div>
-      </Panel>
+              </>
+            ) : (
+              <p className="list-card__meta">No timeline events available for this run.</p>
+            )}
+          </div>
+        </Panel>
+      </div>
     </div>
   );
 }

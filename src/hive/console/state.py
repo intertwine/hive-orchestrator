@@ -430,6 +430,82 @@ def _artifact_preview(
     }
 
 
+def _changed_path_list(changed_files: Any) -> list[str]:
+    if isinstance(changed_files, dict):
+        touched_paths = changed_files.get("touched_paths")
+        if isinstance(touched_paths, list):
+            return sorted(str(path) for path in touched_paths if str(path).strip())
+    return []
+
+
+def _evaluation_summary(evaluations: Any) -> dict[str, Any]:
+    if not isinstance(evaluations, list):
+        return {"total": 0, "by_status": {}}
+    status_counts = Counter(
+        str(item.get("status") or "unknown")
+        for item in evaluations
+        if isinstance(item, dict)
+    )
+    return {
+        "total": len(evaluations),
+        "by_status": dict(sorted(status_counts.items())),
+    }
+
+
+def _comparison_snapshot(base_path: Path, run: dict[str, Any]) -> dict[str, Any]:
+    run_id = str(run.get("id") or "")
+    run_root = base_path / ".hive" / "runs" / run_id
+    changed_files = _load_json(run.get("workspace_changed_files_path")) or {}
+    evaluations = run.get("metadata_json", {}).get("evaluations", [])
+    return {
+        "run_id": run_id,
+        "title": _run_title(run),
+        "project_id": str(run.get("project_id") or "") or None,
+        "driver": str(run.get("driver") or ""),
+        "status": str(run.get("status") or ""),
+        "health": str(run.get("health") or ""),
+        "started_at": str(run.get("started_at") or ""),
+        "finished_at": str(run.get("finished_at") or run.get("updated_at") or ""),
+        "promotion_decision": run.get("metadata_json", {}).get("promotion_decision") or {},
+        "changed_paths": _changed_path_list(changed_files),
+        "changed_files": changed_files,
+        "evaluation_summary": _evaluation_summary(evaluations),
+        "evaluations": evaluations,
+        "artifact_preview": _artifact_preview(_artifact_paths(run_root, run), run),
+    }
+
+
+def load_run_comparison(base_path: Path, run_id: str) -> dict[str, Any]:
+    """Return a review-oriented comparison between a run and the latest accepted sibling."""
+    run = refresh_run_driver_state(base_path, run_id)
+    project_id = str(run.get("project_id") or "") or None
+    current = _comparison_snapshot(base_path, run)
+    accepted_runs = [
+        candidate
+        for candidate in list_runs(base_path, project_id=project_id)
+        if candidate.get("status") == "accepted"
+        and candidate.get("id") != run_id
+        and candidate.get("entry_kind") != "delegate_session"
+    ]
+    baseline = _comparison_snapshot(base_path, accepted_runs[0]) if accepted_runs else None
+    current_paths = set(current["changed_paths"])
+    baseline_paths = set(baseline["changed_paths"]) if baseline else set()
+    return {
+        "current": current,
+        "baseline": baseline,
+        "diff": {
+            "current_only": sorted(current_paths - baseline_paths),
+            "baseline_only": sorted(baseline_paths - current_paths),
+            "shared": sorted(current_paths & baseline_paths),
+        },
+        "summary": {
+            "has_baseline": baseline is not None,
+            "baseline_label": baseline["title"] if baseline else "No accepted baseline yet.",
+            "current_label": current["title"],
+        },
+    }
+
+
 def _delegate_inbox_note_visible(record: dict[str, Any]) -> bool:
     if bool(
         record.get("inbox_visible")

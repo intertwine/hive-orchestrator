@@ -33,6 +33,11 @@ export interface ConsoleRunDetailPayload {
   detail: JsonRecord;
 }
 
+export interface ConsoleRunComparisonPayload {
+  ok: boolean;
+  comparison: JsonRecord;
+}
+
 export interface ConsoleProjectsPayload {
   ok: boolean;
   projects: JsonRecord[];
@@ -148,6 +153,12 @@ export function createConsoleClient(apiBase: string, workspacePath: string) {
     getRunDetail(runId: string) {
       return fetchJson<ConsoleRunDetailPayload>(
         withPath(new URL(`${root}/runs/${runId}`), workspacePath),
+      );
+    },
+
+    getRunComparison(runId: string) {
+      return fetchJson<ConsoleRunComparisonPayload>(
+        withPath(new URL(`${root}/runs/${runId}/compare`), workspacePath),
       );
     },
 

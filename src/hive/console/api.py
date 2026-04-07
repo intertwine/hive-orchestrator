@@ -21,6 +21,7 @@ from src.hive.console.state import (
     build_inbox,
     build_notifications,
     list_runs,
+    load_run_comparison,
     load_attention_context,
     load_run_detail,
     summarize_attention_items,
@@ -410,6 +411,18 @@ def run_detail(run_id: str, path: str | None = Query(default=None)) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"ok": True, "detail": detail}
+
+
+@app.get("/runs/{run_id}/compare")
+def run_compare(run_id: str, path: str | None = Query(default=None)) -> dict:
+    """Return a comparison between the current run and the latest accepted sibling."""
+    root = _workspace_root(path)
+    sync_workspace(root)
+    try:
+        comparison = load_run_comparison(root, run_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"ok": True, "comparison": comparison}
 
 
 @app.get("/runs/{run_id}/approvals")

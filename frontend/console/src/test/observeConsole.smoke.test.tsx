@@ -98,6 +98,60 @@ function filterRuns(url: URL): Array<Record<string, unknown>> {
   });
 }
 
+function makeRunComparisonResponse(options?: {
+  currentRunId?: string;
+  currentTitle?: string;
+  currentDriver?: string;
+  currentStatus?: string;
+  currentChangedPaths?: string[];
+  baselineRunId?: string;
+  baselineTitle?: string;
+  baselineDriver?: string;
+  baselineStatus?: string;
+  baselineChangedPaths?: string[];
+  currentOnly?: string[];
+  baselineOnly?: string[];
+  shared?: string[];
+  hasBaseline?: boolean;
+  evaluationSummary?: Record<string, unknown>;
+}) {
+  const hasBaseline = options?.hasBaseline ?? false;
+  const baselineTitle = options?.baselineTitle ?? "Accepted baseline";
+  const currentTitle = options?.currentTitle ?? "Current run";
+  return jsonResponse({
+    ok: true,
+    comparison: {
+      current: {
+        run_id: options?.currentRunId ?? "",
+        title: currentTitle,
+        driver: options?.currentDriver ?? "codex",
+        status: options?.currentStatus ?? "review",
+        changed_paths: options?.currentChangedPaths ?? [],
+        evaluation_summary: options?.evaluationSummary ?? { total: 0, by_status: {} },
+      },
+      baseline: hasBaseline
+        ? {
+            run_id: options?.baselineRunId ?? "run_baseline_accepted",
+            title: baselineTitle,
+            driver: options?.baselineDriver ?? "codex",
+            status: options?.baselineStatus ?? "accepted",
+            changed_paths: options?.baselineChangedPaths ?? [],
+          }
+        : {},
+      diff: {
+        current_only: options?.currentOnly ?? [],
+        baseline_only: options?.baselineOnly ?? [],
+        shared: options?.shared ?? [],
+      },
+      summary: {
+        has_baseline: hasBaseline,
+        baseline_label: hasBaseline ? baselineTitle : "",
+        current_label: currentTitle,
+      },
+    },
+  });
+}
+
 async function expectKeyValue(container: HTMLElement, label: string, value: string) {
   const row = within(container).getByText(label).closest(".key-value-grid__row");
   expect(row).not.toBeNull();
@@ -982,6 +1036,16 @@ describe("Observe Console smoke", () => {
           }),
       },
       {
+        pathname: `/runs/${runId}/compare`,
+        response: makeRunComparisonResponse({
+          currentRunId: runId,
+          currentTitle: "Gamma launch page",
+          currentDriver: "local",
+          currentChangedPaths: ["src/App.tsx"],
+          evaluationSummary: { total: 1, by_status: { passed: 1 } },
+        }),
+      },
+      {
         method: "POST",
         pathname: "/actions/execute",
         response: (_url, init) => {
@@ -1164,6 +1228,21 @@ describe("Observe Console smoke", () => {
           }),
       },
       {
+        pathname: `/runs/${runId}/compare`,
+        response: makeRunComparisonResponse({
+          currentRunId: runId,
+          currentTitle: "Alpha codex slice",
+          currentChangedPaths: ["src/app.tsx"],
+          currentOnly: ["src/app.tsx"],
+          baselineRunId: "run_alpha_codex_accepted",
+          baselineTitle: "Accepted alpha baseline",
+          baselineChangedPaths: ["src/app.tsx", "README.md"],
+          baselineOnly: ["README.md"],
+          hasBaseline: true,
+          evaluationSummary: { total: 1, by_status: { passed: 1 } },
+        }),
+      },
+      {
         method: "POST",
         pathname: "/actions/execute",
         response: (_url, init) => {
@@ -1192,12 +1271,15 @@ describe("Observe Console smoke", () => {
     expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add Note" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: runId })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Capability snapshot" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Sandbox policy" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Retrieval trace" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Capability and Sandbox" })).toBeInTheDocument();
+    expect(screen.getByText("Capability snapshot")).toBeInTheDocument();
+    expect(screen.getByText("Sandbox policy")).toBeInTheDocument();
+    expect(screen.getByText("Retrieval trace")).toBeInTheDocument();
     expect(screen.getByText("Approve git status")).toBeInTheDocument();
     expect(screen.getByText("Reject rm -rf /tmp/demo")).toBeInTheDocument();
     expect(screen.getByText("PROGRAM.md — program policy outranked general docs")).toBeInTheDocument();
+    expect(screen.getByText("Accepted alpha baseline")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open baseline run" })).toBeInTheDocument();
 
     const approveCard = screen.getByText("Approve git status").closest("article");
     const rejectCard = screen.getByText("Reject rm -rf /tmp/demo").closest("article");
@@ -1330,20 +1412,31 @@ describe("Observe Console smoke", () => {
           },
         }),
       },
+      {
+        pathname: `/runs/${runId}/compare`,
+        response: makeRunComparisonResponse({
+          currentRunId: runId,
+          currentTitle: "OpenClaw attached session",
+          currentDriver: "openclaw",
+          currentChangedPaths: [],
+        }),
+      },
     ]);
 
     renderConsole([`/runs/${runId}`]);
 
     await screen.findByRole("heading", { name: runId });
-    const runtimePanel = screen.getByRole("heading", { name: "Driver and Sandbox" }).closest("section");
+    const runtimePanel = screen
+      .getByRole("heading", { name: "Capability and Sandbox" })
+      .closest("section");
     expect(runtimePanel).not.toBeNull();
     await expectKeyValue(runtimePanel as HTMLElement, "Harness", "openclaw");
     await expectKeyValue(runtimePanel as HTMLElement, "Integration level", "attach");
     await expectKeyValue(runtimePanel as HTMLElement, "Governance mode", "advisory");
     await expectKeyValue(runtimePanel as HTMLElement, "Native session", "oc-session-001");
-    expect(screen.getByRole("heading", { name: "Capability snapshot" })).toBeInTheDocument();
+    expect(screen.getByText("Capability snapshot")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Steering History" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Trajectory" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Normalized history" })).toBeInTheDocument();
     expect(screen.getByText(/attached delegate session/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
   });
@@ -1380,6 +1473,14 @@ describe("Observe Console smoke", () => {
             changed_files: {},
             context_entries: [],
           },
+        }),
+      },
+      {
+        pathname: `/runs/${runId}/compare`,
+        response: makeRunComparisonResponse({
+          currentRunId: runId,
+          currentTitle: "Legacy local run",
+          currentDriver: "local",
         }),
       },
     ]);
@@ -1551,22 +1652,38 @@ describe("Observe Console smoke", () => {
           },
         }),
       },
+      {
+        pathname: `/runs/${runId}/compare`,
+        response: makeRunComparisonResponse({
+          currentRunId: runId,
+          currentTitle: "Alpha codex slice",
+          currentChangedPaths: ["src/app.tsx"],
+          currentOnly: ["src/app.tsx"],
+          baselineRunId: "run_alpha_codex_accepted",
+          baselineTitle: "Accepted alpha baseline",
+          baselineChangedPaths: ["src/app.tsx", "README.md"],
+          baselineOnly: ["README.md"],
+          hasBaseline: true,
+          evaluationSummary: { total: 1, by_status: { passed: 1 } },
+        }),
+      },
     ]);
 
     const first = renderConsole([`/runs/${runId}`]);
 
     await screen.findByRole("heading", { name: runId });
-    // The reroute event is rendered once in Steering History and once again in the Timeline panel.
-    expect(await screen.findAllByText("steering.rerouted")).toHaveLength(2);
+    // The reroute event is rendered in Steering History, Timeline, and the selected timeline event rail.
+    expect(await screen.findAllByText("steering.rerouted")).toHaveLength(3);
     expect(screen.getByText("Follow the prepared Codex run brief.")).toBeInTheDocument();
+    expect(screen.getByText("Accepted alpha baseline")).toBeInTheDocument();
 
     first.unmount();
 
     renderConsole([`/runs/${runId}`]);
 
     await screen.findByRole("heading", { name: runId });
-    // The reroute event is rendered once in Steering History and once again in the Timeline panel.
-    expect(await screen.findAllByText("steering.rerouted")).toHaveLength(2);
+    // The reroute event is rendered in Steering History, Timeline, and the selected timeline event rail.
+    expect(await screen.findAllByText("steering.rerouted")).toHaveLength(3);
     expect(screen.getByText(/Alpha launch copy/)).toBeInTheDocument();
 
     const detailCalls = fetchMock.mock.calls.filter(([input]) => {

@@ -19,9 +19,9 @@ relevant_files:
 - src/hive/console/api.py
 - src/hive/console/state.py
 source: {}
-status: claimed
+status: done
 title: Overhaul inbox triage, bulk actions, snooze, and the notifications center
-updated_at: '2026-04-07T04:50:23.218128Z'
+updated_at: '2026-04-07T05:46:11.881494Z'
 ---
 
 ## Summary
@@ -31,4 +31,4 @@ Turn the inbox into an operator-grade decision queue with explanations and bulk 
 - Imported or created by Hive 2.0.
 
 ## History
-- 2026-04-06T15:47:03.231292Z bootstrap created.
+2026-04-07T05:49:00Z merged via PR #195 (draft merge commit 4728a2b).

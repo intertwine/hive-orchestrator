@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_ref) || github.ref }}
 
@@ -56,14 +56,14 @@ jobs:
           echo "RELEASE_REF=$RELEASE_REF" >> "$GITHUB_ENV"
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           # Build releases on the oldest supported interpreter so packaging regressions
           # show up before publish instead of hiding behind a newer runtime.
           python-version: ${{ env.RELEASE_PYTHON_VERSION }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
 
       - name: Install build dependencies
         run: uv sync --extra dev
@@ -98,7 +98,7 @@ jobs:
         run: make release-check
 
       - name: Publish to PyPI via trusted publishing
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           skip-existing: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_existing || false }}
 
@@ -108,15 +108,15 @@ jobs:
 
     steps:
       - name: Checkout source repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: ${{ env.HOMEBREW_PYTHON_VERSION }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
 
       - name: Install build dependencies
         run: uv sync --extra dev
@@ -158,10 +158,10 @@ jobs:
 
     steps:
       - name: Checkout source repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           # The formula generator resolves resources against the Homebrew-managed Python
           # runtime that the tap will depend on, which is intentionally separate from the
@@ -169,7 +169,7 @@ jobs:
           python-version: ${{ env.HOMEBREW_PYTHON_VERSION }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
 
       - name: Warn if formula name already exists in Homebrew/core
         run: |
@@ -218,7 +218,7 @@ jobs:
             --output packaging/homebrew/${{ env.HOMEBREW_FORMULA_NAME }}.rb
 
       - name: Checkout tap repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           repository: ${{ vars.HOMEBREW_TAP_REPO }}
           token: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

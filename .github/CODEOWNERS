@@ -1,0 +1,3 @@
+# Require explicit review for workflow and GitHub automation changes.
+.github/workflows/** @intertwine
+.github/actions/** @intertwine

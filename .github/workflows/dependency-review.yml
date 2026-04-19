@@ -8,15 +8,46 @@ on:
       - "uv.lock"
       - "poetry.lock"
       - "requirements*.txt"
-      - ".github/workflows/**"
+      - ".github/workflows/**" # GitHub tracks Actions in the dependency graph.
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   dependency-review:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check dependency review availability
+        id: availability
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/dependency-graph/compare/${BASE_SHA}...${HEAD_SHA}"
+          status="$(curl -sS -o response.json -w '%{http_code}' \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "$api")"
+          if [ "$status" = "200" ]; then
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          message="$(jq -r '.message // empty' response.json)"
+          if [ "$status" = "403" ] || [ "$status" = "404" ]; then
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping dependency review: ${message:-Dependency graph is not enabled for this repository.}"
+            exit 0
+          fi
+
+          cat response.json
+          exit 1
+
       - name: Dependency Review
+        if: steps.availability.outputs.supported == 'true'
         uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0

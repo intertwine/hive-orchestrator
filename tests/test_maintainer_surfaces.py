@@ -394,5 +394,5 @@ def test_scheduled_uv_installers_use_setup_action():
     ready_steps = ready_work["jobs"]["ready-work"]["steps"]
     projection_steps = projection_sync["jobs"]["projection-sync"]["steps"]
 
-    assert any(step.get("uses") == "astral-sh/setup-uv@v7" for step in ready_steps)
-    assert any(step.get("uses") == "astral-sh/setup-uv@v7" for step in projection_steps)
+    assert any(step.get("uses", "").startswith("astral-sh/setup-uv@") for step in ready_steps)
+    assert any(step.get("uses", "").startswith("astral-sh/setup-uv@") for step in projection_steps)

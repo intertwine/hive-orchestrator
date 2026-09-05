@@ -78,7 +78,7 @@ When that happens:
 ## Merge Discipline
 
 "Literal green" means:
-- Local validation passed (`make check`)
+- Appropriate local validation passed: focused tests for narrow changes, affected links/examples or documentation tests for prose-only changes, and `make check` for broad Python/runtime changes or explicitly required release gates
 - Required GitHub checks passed
 - No unresolved must-fix review findings remain
 - Any requested Claude review has completed on the latest head, or has been explicitly waived

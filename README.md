@@ -1,3 +1,8 @@
+> **Archived 2026-09-06.** This repository is archived as-is at this commit and is not maintained; nothing here was fixed or verified before archiving.
+> Known at archive time: the `packaging-smoke` CI job fails because Twine rejects the metadata version `2.5`; left as-is by decision.
+> Sibling branches `codex/github-actions-hardening` and `codex/v25-inbox-notifications` were left unmerged.
+> GitHub Actions are disabled on the archived repository. See `docs/retirement/2026-09-06/` for the retirement receipt.
+
 # Agent Hive
 
 [![CI](https://img.shields.io/github/actions/workflow/status/intertwine/hive-orchestrator/ci.yml?branch=main&label=CI)](https://github.com/intertwine/hive-orchestrator/actions/workflows/ci.yml)

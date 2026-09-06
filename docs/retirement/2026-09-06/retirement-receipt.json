@@ -1,0 +1,67 @@
+{
+  "verifiedAt": "2026-09-06T12:18:34Z",
+  "repository": "hive-orchestrator",
+  "disposition": "archived untouched at 63ec47f (owner decision 2026-09-06: \"best to archive untouched with a note\")",
+  "github": {
+    "actionsPermissions": {
+      "enabled": false,
+      "sha_pinning_required": false
+    },
+    "actionsSecretNames": [
+      "ANTHROPIC_API_KEY",
+      "HOMEBREW_TAP_GITHUB_TOKEN",
+      "OPENAI_API_KEY",
+      "OPENROUTER_API_KEY"
+    ],
+    "environmentSecretNames": {
+      "copilot": [],
+      "pypi": []
+    },
+    "dependabotSecretNames": [],
+    "metadata": {
+      "defaultBranchRef": {
+        "name": "main"
+      },
+      "isArchived": false,
+      "isPrivate": false,
+      "nameWithOwner": "intertwine/hive-orchestrator"
+    },
+    "environments": [
+      "copilot",
+      "pypi"
+    ],
+    "workflows": [
+      "agent-assignment.yml",
+      "branch-hygiene.yml",
+      "ci.yml",
+      "dependency-review.yml",
+      "projection-sync.yml",
+      "release.yml"
+    ],
+    "lastRuns": "gh run list --limit 5: Hive Projection Sync (schedule) success x2, Ready Work Snapshot (schedule) success x2, CI on 63ec47f push FAILURE (job packaging-smoke)"
+  },
+  "package": {
+    "pypiName": "mellona-hive",
+    "pyprojectVersion": "2.4.0",
+    "pypiLatest": "2.4.0",
+    "publishedVia": "release.yml trusted publishing, environment pypi",
+    "action": "nothing published or yanked; left as-is"
+  },
+  "knownIssues": [
+    "packaging-smoke CI job fails: Twine rejects metadata version 2.5; left unfixed by decision",
+    "sibling branches codex/github-actions-hardening (worktree ../hive-orchestrator-codex-gha-hardening) and codex/v25-inbox-notifications (worktree ../hive-orchestrator-v25-inbox, dirty) left unmerged and untouched",
+    ".hive/worktrees/* run worktrees left in place"
+  ],
+  "localState": {
+    "directory": "/Users/bryanyoung/experiments/hive-orchestrator (not moved; worktrees depend on it)",
+    "symlinks": "CLAUDE.md -> AGENTS.md and WARP.md -> CLAUDE.md preserved"
+  },
+  "ownerFollowUp": [
+    "Four repository Actions secrets remain and were not deleted: ANTHROPIC_API_KEY, HOMEBREW_TAP_GITHUB_TOKEN, OPENAI_API_KEY, OPENROUTER_API_KEY. Rotate or delete at the owner’s discretion.",
+    "PyPI trusted-publisher binding for mellona-hive (environment pypi) remains configured on PyPI; disabling Actions and archiving makes it inert but does not remove it."
+  ],
+  "notes": [
+    "Configuration metadata only; no secret payloads, environment values, or data included.",
+    "Scheduled workflows (projection-sync, ready-work snapshot, branch-hygiene, agent-assignment) stop with Actions disabled."
+  ]
+}

@@ -1,3 +1,5 @@
+> **Retired 2026-09-06.** This repository is archived as-is and not maintained; the guidance below is historical. See `docs/retirement/2026-09-06/`.
+
 # AGENTS
 
 Hive is a v2-first repository.

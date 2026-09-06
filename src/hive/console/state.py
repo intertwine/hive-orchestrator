@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -107,6 +108,218 @@ def _load_jsonl_records(path_value: str | Path | None) -> list[dict[str, Any]]:
         if isinstance(payload, dict):
             records.append(payload)
     return records
+
+
+def _stable_attention_id(*parts: object) -> str:
+    normalized = "|".join(str(part or "").strip() for part in parts)
+    digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:12]
+    return f"attention_{digest}"
+
+
+def _attention_decision_type(kind: str) -> str:
+    normalized = kind.lower()
+    if "approval" in normalized:
+        return "approval"
+    if "review" in normalized:
+        return "review"
+    if "input" in normalized or "attach" in normalized:
+        return "setup"
+    if "blocked" in normalized or "failed" in normalized or "error" in normalized:
+        return "exception"
+    if "note" in normalized:
+        return "note"
+    if "project" in normalized:
+        return "project"
+    if "event" in normalized or "accept" in normalized:
+        return "activity"
+    return "attention"
+
+
+def _attention_source_type(kind: str) -> str:
+    normalized = kind.lower()
+    if normalized.startswith("delegate-"):
+        return "delegate"
+    if normalized.startswith("project-"):
+        return "project"
+    if normalized.endswith("event"):
+        return "event"
+    return "run"
+
+
+def _attention_notification_level(kind: str) -> str:
+    normalized = kind.lower()
+    if normalized in {"delegate-note", "workspace-event", "accepted-run-event"}:
+        return "informational"
+    return "actionable"
+
+
+def _attention_severity(kind: str, priority: int) -> str:
+    normalized = kind.lower()
+    if normalized in {"run-failed", "delegate-error"}:
+        return "critical"
+    if (
+        "approval" in normalized
+        or "review" in normalized
+        or "escalated" in normalized
+        or normalized in {"delegate-blocked", "run-blocked"}
+    ):
+        return "high"
+    if "input" in normalized or normalized == "project-blocked":
+        return "medium"
+    if priority <= 0:
+        return "high"
+    if priority == 1:
+        return "medium"
+    return "low"
+
+
+def _attention_why(kind: str, reason: str) -> str:
+    normalized = kind.lower()
+    if "approval" in normalized:
+        return f"This surfaced because a pending approval still needs an operator decision. {reason}"
+    if "review" in normalized:
+        return f"This surfaced because evaluation finished and promotion still needs review. {reason}"
+    if "blocked" in normalized or "failed" in normalized or "error" in normalized:
+        return f"This surfaced because Hive recorded an exception state that could stall work. {reason}"
+    if "input" in normalized or "attach" in normalized:
+        return f"This surfaced because the run is waiting for a follow-up action before it can continue. {reason}"
+    if normalized == "project-blocked":
+        return f"This surfaced because the project dependency graph is currently blocked. {reason}"
+    if normalized in {"workspace-event", "accepted-run-event"}:
+        return f"This surfaced because the shared workspace event stream recorded a recent update. {reason}"
+    if "note" in normalized:
+        return f"This surfaced because a delegate explicitly asked for operator attention. {reason}"
+    return reason
+
+
+def _attention_if_ignored(kind: str) -> str:
+    normalized = kind.lower()
+    if "approval" in normalized:
+        return "The run will stay blocked until someone resolves the approval request."
+    if "review" in normalized:
+        return "The candidate will stay awaiting review and the task will not promote."
+    if "blocked" in normalized or "failed" in normalized or "error" in normalized:
+        return "The underlying run or delegate session can remain stalled or unhealthy."
+    if "input" in normalized or "attach" in normalized:
+        return "The staged run will keep waiting without making progress."
+    if normalized == "project-blocked":
+        return "The blocked project will keep missing work while its dependency chain stays unresolved."
+    if normalized in {"workspace-event", "accepted-run-event"}:
+        return "Nothing immediate breaks, but you may miss a useful workspace update."
+    if "note" in normalized:
+        return "The delegate note stays unread and the attached session may keep waiting on operator context."
+    return "This item will remain in the operator queue until someone triages it."
+
+
+def _attention_deep_link(item: dict[str, Any]) -> str:
+    run_id = str(item.get("run_id") or "").strip()
+    if run_id:
+        return f"/runs/{run_id}"
+    project_id = str(item.get("project_id") or "").strip()
+    if project_id:
+        return "/projects"
+    return "/inbox"
+
+
+def _decorate_attention_item(item: dict[str, Any]) -> dict[str, Any]:
+    kind = str(item.get("kind") or "attention")
+    title = str(item.get("title") or kind.replace("-", " ").title())
+    reason = str(item.get("reason") or "Needs operator attention.")
+    priority = int(item.get("priority") or 0)
+    severity = str(item.get("severity") or _attention_severity(kind, priority))
+    decision_type = str(item.get("decision_type") or _attention_decision_type(kind))
+    source_type = str(item.get("source_type") or _attention_source_type(kind))
+    notification_level = str(
+        item.get("notification_level") or _attention_notification_level(kind)
+    )
+    item_id = str(
+        item.get("id")
+        or _stable_attention_id(
+            kind,
+            item.get("run_id"),
+            item.get("project_id"),
+            item.get("approval_id"),
+            item.get("delegate_session_id"),
+            item.get("native_session_ref"),
+            title,
+        )
+    )
+    return {
+        **item,
+        "id": item_id,
+        "kind": kind,
+        "title": title,
+        "reason": reason,
+        "severity": severity,
+        "decision_type": decision_type,
+        "source_type": source_type,
+        "notification_level": notification_level,
+        "why": str(item.get("why") or _attention_why(kind, reason)),
+        "what_happens_if_ignored": str(
+            item.get("what_happens_if_ignored") or _attention_if_ignored(kind)
+        ),
+        "deep_link": str(item.get("deep_link") or _attention_deep_link(item)),
+        "created_at": str(item.get("created_at") or ""),
+    }
+
+
+def summarize_attention_items(items: list[dict[str, Any]]) -> dict[str, Any]:
+    summary = {
+        "total": len(items),
+        "by_severity": {},
+        "by_decision_type": {},
+        "by_notification_level": {},
+        "by_source_type": {},
+    }
+    for item in items:
+        for key, summary_key in (
+            ("severity", "by_severity"),
+            ("decision_type", "by_decision_type"),
+            ("notification_level", "by_notification_level"),
+            ("source_type", "by_source_type"),
+        ):
+            value = str(item.get(key) or "").strip()
+            if not value:
+                continue
+            counts = summary[summary_key]
+            counts[value] = int(counts.get(value, 0)) + 1
+    return summary
+
+
+def _event_notification_items(base_path: Path) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for event in reversed(load_events(base_path)[-12:]):
+        payload = dict(event.get("payload") or {})
+        event_type = str(event.get("type") or event.get("event_type") or "").strip()
+        if not event_type:
+            continue
+        run_id = str(event.get("run_id") or payload.get("run_id") or "").strip()
+        project_id = str(event.get("project_id") or payload.get("project_id") or "").strip()
+        reason = str(
+            payload.get("summary")
+            or payload.get("message")
+            or payload.get("note")
+            or f"Workspace event {event_type} was recorded."
+        ).strip()
+        title = str(
+            payload.get("title")
+            or payload.get("label")
+            or event_type.replace(".", " ").replace("_", " ").title()
+        ).strip()
+        items.append(
+            _decorate_attention_item(
+                {
+                    "kind": "accepted-run-event" if "accept" in event_type else "workspace-event",
+                    "priority": 2,
+                    "run_id": run_id or None,
+                    "project_id": project_id or None,
+                    "title": title or "Workspace event",
+                    "reason": reason,
+                    "created_at": str(event.get("ts") or event.get("occurred_at") or ""),
+                }
+            )
+        )
+    return items
 
 
 def _delegate_status(manifest: dict[str, Any], final_state: dict[str, Any]) -> str:
@@ -519,6 +732,7 @@ def _delegate_inbox_items(base_path: Path, run: dict[str, Any]) -> list[dict[str
                 "native_session_ref": native_session_ref or None,
                 "title": f"{status.title()} {label}",
                 "reason": _delegate_status_reason(final_state, status),
+                "created_at": str(run.get("updated_at") or run.get("started_at") or ""),
             }
         )
 
@@ -544,6 +758,7 @@ def _delegate_inbox_items(base_path: Path, run: dict[str, Any]) -> list[dict[str
                 "native_session_ref": native_session_ref or None,
                 "title": title,
                 "reason": note,
+                "created_at": str(record.get("ts") or record.get("created_at") or ""),
             }
         )
 
@@ -574,6 +789,9 @@ def _delegate_inbox_items(base_path: Path, run: dict[str, Any]) -> list[dict[str
                     or payload.get("title")
                     or "Attached advisory session requested approval."
                 ),
+                "created_at": str(
+                    latest_approval.get("ts") or latest_approval.get("created_at") or ""
+                ),
             }
         )
 
@@ -594,6 +812,7 @@ def _delegate_inbox_items(base_path: Path, run: dict[str, Any]) -> list[dict[str
                     or payload.get("summary")
                     or "Attached advisory session emitted an error."
                 ),
+                "created_at": str(latest_error.get("ts") or latest_error.get("created_at") or ""),
             }
         )
 
@@ -626,6 +845,14 @@ def build_inbox(base_path: Path) -> list[dict]:
                     "reason": str(
                         approval.get("summary") or "Driver requested approval."
                     ),
+                    "created_at": str(
+                        approval.get("requested_at")
+                        or approval.get("created_at")
+                        or approval.get("updated_at")
+                        or run.get("updated_at")
+                        or run.get("started_at")
+                        or ""
+                    ),
                 }
             )
         status = str(run.get("status", ""))
@@ -638,6 +865,7 @@ def build_inbox(base_path: Path) -> list[dict]:
                     "project_id": run.get("project_id"),
                     "title": f"Review run {run['id']}",
                     "reason": "Evaluator results are ready and a promotion decision is pending.",
+                    "created_at": str(run.get("updated_at") or run.get("started_at") or ""),
                 }
             )
         elif status == "awaiting_input":
@@ -651,6 +879,7 @@ def build_inbox(base_path: Path) -> list[dict]:
                     "reason": (
                         f"Driver {run.get('driver', 'unknown')} staged the run and is waiting."
                     ),
+                    "created_at": str(run.get("updated_at") or run.get("started_at") or ""),
                 }
             )
         elif status in {"escalated", "failed", "blocked"}:
@@ -662,6 +891,7 @@ def build_inbox(base_path: Path) -> list[dict]:
                     "project_id": run.get("project_id"),
                     "title": f"{status.title()} run {run['id']}",
                     "reason": run.get("exit_reason") or f"Run status is {status}.",
+                    "created_at": str(run.get("updated_at") or run.get("started_at") or ""),
                 }
             )
     for project in dependency_summary(base_path).get("projects", []):
@@ -675,8 +905,36 @@ def build_inbox(base_path: Path) -> list[dict]:
                     "reason": "; ".join(project.get("blocking_reasons", [])),
                 }
             )
-    items.sort(key=lambda item: (item["priority"], item["title"]))
-    return items
+    decorated = [_decorate_attention_item(item) for item in items]
+    decorated.sort(
+        key=lambda item: (
+            int(item.get("priority") or 0),
+            str(item.get("created_at") or ""),
+            str(item.get("title") or ""),
+        ),
+        reverse=False,
+    )
+    return decorated
+
+
+def build_inbox_view(base_path: Path) -> dict[str, Any]:
+    items = build_inbox(base_path)
+    return {"items": items, "summary": summarize_attention_items(items)}
+
+
+def build_notifications_view(base_path: Path) -> dict[str, Any]:
+    actionable = build_inbox(base_path)
+    informational = _event_notification_items(base_path)
+    items = actionable + informational
+    items.sort(
+        key=lambda item: (
+            0 if str(item.get("notification_level") or "") == "actionable" else 1,
+            int(item.get("priority") or 0),
+            str(item.get("created_at") or ""),
+            str(item.get("title") or ""),
+        )
+    )
+    return {"items": items, "summary": summarize_attention_items(items)}
 
 
 def build_home_view(base_path: Path) -> dict:

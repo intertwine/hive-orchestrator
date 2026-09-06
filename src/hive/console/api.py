@@ -18,6 +18,8 @@ from src.hive import __version__
 from src.hive.console.state import (
     build_home_view,
     build_inbox,
+    build_inbox_view,
+    build_notifications_view,
     list_runs,
     load_run_detail,
 )
@@ -329,7 +331,15 @@ def inbox(path: str | None = Query(default=None)) -> dict:
     """Return typed attention items for the operator inbox."""
     root = _workspace_root(path)
     sync_workspace(root)
-    return {"ok": True, "items": build_inbox(root)}
+    return {"ok": True, **build_inbox_view(root)}
+
+
+@app.get("/notifications")
+def notifications(path: str | None = Query(default=None)) -> dict:
+    """Return persistent operator notifications derived from the shared event model."""
+    root = _workspace_root(path)
+    sync_workspace(root)
+    return {"ok": True, **build_notifications_view(root)}
 
 
 @app.get("/runs")

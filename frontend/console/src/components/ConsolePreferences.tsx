@@ -2,16 +2,22 @@ import { createContext, type PropsWithChildren, useCallback, useContext, useEffe
 
 import {
   CONSOLE_PREFERENCES_KEY,
+  DEFAULT_INBOX_FILTERS,
   DEFAULT_RUNS_FILTERS,
+  clearInboxTriageEntries,
   deleteSavedRunsView,
   loadConsolePreferences,
   rememberRecentWorkspace,
   saveConsolePreferences,
+  sameInboxFilters,
   type ConsoleDensity,
   type ConsolePage,
   type ConsolePreferences,
   type ConsoleTheme,
+  type InboxFiltersPreference,
+  type InboxTriageEntry,
   type RunsFiltersPreference,
+  upsertInboxTriageEntries,
   upsertSavedRunsView,
 } from "../preferences";
 
@@ -20,7 +26,11 @@ interface ConsolePreferencesContextValue {
   setDensity: (density: ConsoleDensity) => void;
   setTheme: (theme: ConsoleTheme) => void;
   setDefaultPage: (page: ConsolePage) => void;
+  setInboxFilters: (filters: InboxFiltersPreference) => void;
   setRunsFilters: (filters: RunsFiltersPreference) => void;
+  setInboxTriage: (itemIds: string[], entry: InboxTriageEntry) => void;
+  clearInboxTriage: (itemIds: string[]) => void;
+  resetInboxFilters: () => void;
   saveRunsView: (name: string, filters: RunsFiltersPreference) => void;
   deleteRunsView: (viewId: string) => void;
   resetRunsFilters: () => void;
@@ -80,6 +90,21 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
     setPreferences((current) => ({ ...current, defaultPage }));
   }
 
+  function setInboxFilters(filters: InboxFiltersPreference) {
+    setPreferences((current) => {
+      if (sameInboxFilters(current.inbox.filters, filters)) {
+        return current;
+      }
+      return {
+        ...current,
+        inbox: {
+          ...current.inbox,
+          filters,
+        },
+      };
+    });
+  }
+
   function setRunsFilters(filters: RunsFiltersPreference) {
     setPreferences((current) => ({
       ...current,
@@ -102,6 +127,18 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
     setRunsFilters({ ...DEFAULT_RUNS_FILTERS });
   }
 
+  function setInboxTriage(itemIds: string[], entry: InboxTriageEntry) {
+    setPreferences((current) => upsertInboxTriageEntries(current, itemIds, entry));
+  }
+
+  function clearInboxTriage(itemIds: string[]) {
+    setPreferences((current) => clearInboxTriageEntries(current, itemIds));
+  }
+
+  function resetInboxFilters() {
+    setInboxFilters({ ...DEFAULT_INBOX_FILTERS });
+  }
+
   const rememberWorkspace = useCallback((workspacePath: string) => {
     setPreferences((current) => rememberRecentWorkspace(current, workspacePath));
   }, []);
@@ -113,7 +150,11 @@ export function ConsolePreferencesProvider({ children }: PropsWithChildren) {
         setDensity,
         setTheme,
         setDefaultPage,
+        setInboxFilters,
         setRunsFilters,
+        setInboxTriage,
+        clearInboxTriage,
+        resetInboxFilters,
         saveRunsView,
         deleteRunsView,
         resetRunsFilters,

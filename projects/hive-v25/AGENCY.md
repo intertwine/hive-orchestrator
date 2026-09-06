@@ -39,7 +39,7 @@ Use this document for human context, links, architecture notes, and handoff deta
 | task_01KNHQM9P6HGZ50D2GSMTA49RS | archived | 1 |  | Implement the shared action registry, action execution APIs, and command palette |
 | task_01KNHQCCFAB4KWR88RGJX2JJTF | proposed | 1 |  | M1: Design system and shell-ready frontend foundations |
 | task_01KNHQD1FSKPPQGN4PXVCM6HCD | proposed | 1 |  | M2: Operator workflows, review ergonomics, and adoption polish |
-| task_01KNHQKPDZVGABQCEVT9S0VR95 | ready | 1 |  | Overhaul inbox triage, bulk actions, snooze, and the notifications center |
+| task_01KNHQKPDZVGABQCEVT9S0VR95 | claimed | 1 | codex | Overhaul inbox triage, bulk actions, snooze, and the notifications center |
 | task_01KNHQQD92MKY1163YSGFHG0WX | ready | 1 |  | Pass accessibility and responsiveness hardening for the primary v2.5 surfaces |
 | task_01KNHQMEZWBXKK8CVJ5AJ48HNK | ready | 1 |  | Rebuild run detail with review rails, compare-runs, and explain surfaces |
 | task_01KNHQFPPS275AERJPMX8ERTZN | done | 1 |  | Refactor the console shell, routing, and deep-link contract to the full v2.5 IA |

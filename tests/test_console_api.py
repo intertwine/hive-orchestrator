@@ -184,6 +184,7 @@ class TestObserveConsoleApi:
         health = client.get("/health", params={"path": temp_hive_dir})
         home = client.get("/home", params={"path": temp_hive_dir})
         inbox = client.get("/inbox", params={"path": temp_hive_dir})
+        notifications = client.get("/notifications", params={"path": temp_hive_dir})
         runs = client.get("/runs", params={"path": temp_hive_dir, "driver": "codex"})
         detail = client.get(f"/runs/{run.id}", params={"path": temp_hive_dir})
         status = client.get("/status", params={"path": temp_hive_dir})
@@ -200,6 +201,28 @@ class TestObserveConsoleApi:
         assert inbox.status_code == 200
         assert any(item["kind"] == "run-review" for item in inbox.json()["items"])
         assert any(item["kind"] == "run-input" for item in inbox.json()["items"])
+        assert inbox.json()["summary"]["by_severity"]
+        review_item = next(
+            item for item in inbox.json()["items"] if item["kind"] == "run-review"
+        )
+        assert review_item["id"].startswith("attention_")
+        assert review_item["severity"] == "high"
+        assert review_item["decision_type"] == "review"
+        assert review_item["source_type"] == "run"
+        assert review_item["notification_level"] == "actionable"
+        assert review_item["why"]
+        assert review_item["what_happens_if_ignored"]
+        assert review_item["deep_link"] == f"/runs/{review_item['run_id']}"
+        assert notifications.status_code == 200
+        assert notifications.json()["summary"]["by_notification_level"]
+        assert any(
+            item["notification_level"] == "actionable"
+            for item in notifications.json()["items"]
+        )
+        assert any(
+            item["notification_level"] == "informational"
+            for item in notifications.json()["items"]
+        )
         assert runs.status_code == 200
         assert len(runs.json()["runs"]) == 1
         assert runs.json()["runs"][0]["driver"] == "codex"

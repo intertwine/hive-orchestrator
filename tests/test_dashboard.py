@@ -470,6 +470,12 @@ class TestConsoleShimHelpers:
         assert timeline
         assert any(item["kind"] == "run-input" for item in inbox)
         assert any(item["kind"] == "run-review" for item in inbox)
+        review_item = next(item for item in inbox if item["kind"] == "run-review")
+        assert review_item["id"].startswith("attention_")
+        assert review_item["severity"] == "high"
+        assert review_item["decision_type"] == "review"
+        assert review_item["why"]
+        assert review_item["what_happens_if_ignored"]
         assert home["active_runs"]
         assert home["inbox"]
         assert detail["run"]["id"] == waiting_run.id

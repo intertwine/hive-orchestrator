@@ -7,6 +7,7 @@ export const CONSOLE_DENSITIES = ["comfortable", "compact"] as const;
 export const CONSOLE_PAGES = CONSOLE_PAGE_IDS;
 export const MAX_SAVED_RUNS_VIEWS = 50;
 export const MAX_RECENT_WORKSPACES = 8;
+export const MAX_INBOX_TRIAGE_ITEMS = 400;
 
 export type ConsoleTheme = (typeof CONSOLE_THEMES)[number];
 export type ConsoleDensity = (typeof CONSOLE_DENSITIES)[number];
@@ -33,6 +34,28 @@ export interface RunsPreferences {
   savedViews: SavedRunsView[];
 }
 
+export interface InboxFiltersPreference {
+  severity: string;
+  decisionType: string;
+  projectId: string;
+  sourceType: string;
+  notificationLevel: string;
+  showSnoozed: boolean;
+}
+
+export type InboxTriageStatus = "dismissed" | "resolved" | "snoozed";
+
+export interface InboxTriageEntry {
+  status: InboxTriageStatus;
+  updatedAt: string;
+  snoozedUntil?: string;
+}
+
+export interface InboxPreferences {
+  filters: InboxFiltersPreference;
+  triage: Record<string, InboxTriageEntry>;
+}
+
 export interface ConsolePreferences {
   version: 1;
   theme: ConsoleTheme;
@@ -40,6 +63,7 @@ export interface ConsolePreferences {
   defaultPage: ConsolePage;
   recentWorkspaces: string[];
   runs: RunsPreferences;
+  inbox: InboxPreferences;
 }
 
 export const DEFAULT_RUNS_FILTERS: RunsFiltersPreference = {
@@ -47,6 +71,15 @@ export const DEFAULT_RUNS_FILTERS: RunsFiltersPreference = {
   driver: "",
   health: "",
   campaignId: "",
+};
+
+export const DEFAULT_INBOX_FILTERS: InboxFiltersPreference = {
+  severity: "",
+  decisionType: "",
+  projectId: "",
+  sourceType: "",
+  notificationLevel: "",
+  showSnoozed: false,
 };
 
 export const DEFAULT_CONSOLE_PREFERENCES: ConsolePreferences = {
@@ -60,6 +93,10 @@ export const DEFAULT_CONSOLE_PREFERENCES: ConsolePreferences = {
     hiddenColumns: [],
     pinnedPanels: [],
     savedViews: [],
+  },
+  inbox: {
+    filters: DEFAULT_INBOX_FILTERS,
+    triage: {},
   },
 };
 
@@ -76,6 +113,10 @@ function readStringArray(value: unknown): string[] {
     return [];
   }
   return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function readBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
 }
 
 export function normalizeConsoleTheme(value: unknown): ConsoleTheme {
@@ -104,6 +145,50 @@ export function normalizeRunsFilters(value: unknown): RunsFiltersPreference {
   };
 }
 
+export function normalizeInboxFilters(value: unknown): InboxFiltersPreference {
+  if (!isRecord(value)) {
+    return { ...DEFAULT_INBOX_FILTERS };
+  }
+  return {
+    severity: readString(value.severity),
+    decisionType: readString(value.decisionType),
+    projectId: readString(value.projectId),
+    sourceType: readString(value.sourceType),
+    notificationLevel: readString(value.notificationLevel),
+    showSnoozed: readBoolean(value.showSnoozed),
+  };
+}
+
+function normalizeInboxTriageEntry(value: unknown): InboxTriageEntry | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const status = readString(value.status) as InboxTriageStatus;
+  if (!["dismissed", "resolved", "snoozed"].includes(status)) {
+    return null;
+  }
+  const updatedAt = readString(value.updatedAt, new Date(0).toISOString());
+  const snoozedUntil = readString(value.snoozedUntil);
+  return snoozedUntil
+    ? { status, updatedAt, snoozedUntil }
+    : { status, updatedAt };
+}
+
+function normalizeInboxTriageMap(value: unknown): Record<string, InboxTriageEntry> {
+  if (!isRecord(value)) {
+    return {};
+  }
+  const entries = Object.entries(value)
+    .map(([key, entry]) => {
+      const normalized = normalizeInboxTriageEntry(entry);
+      return normalized ? [key, normalized] : null;
+    })
+    .filter((entry): entry is [string, InboxTriageEntry] => entry !== null)
+    .sort((left, right) => left[1].updatedAt.localeCompare(right[1].updatedAt))
+    .slice(-MAX_INBOX_TRIAGE_ITEMS);
+  return Object.fromEntries(entries);
+}
+
 function normalizeSavedRunsView(value: unknown): SavedRunsView | null {
   if (!isRecord(value)) {
     return null;
@@ -125,10 +210,16 @@ export function normalizeConsolePreferences(value: unknown): ConsolePreferences 
     return {
       ...DEFAULT_CONSOLE_PREFERENCES,
       runs: { ...DEFAULT_CONSOLE_PREFERENCES.runs, filters: { ...DEFAULT_RUNS_FILTERS } },
+      inbox: {
+        ...DEFAULT_CONSOLE_PREFERENCES.inbox,
+        filters: { ...DEFAULT_INBOX_FILTERS },
+        triage: {},
+      },
     };
   }
 
   const runs = isRecord(value.runs) ? value.runs : {};
+  const inbox = isRecord(value.inbox) ? value.inbox : {};
   const savedViews = Array.isArray(runs.savedViews)
     ? runs.savedViews
       .map(normalizeSavedRunsView)
@@ -150,6 +241,10 @@ export function normalizeConsolePreferences(value: unknown): ConsolePreferences 
       hiddenColumns: readStringArray(runs.hiddenColumns),
       pinnedPanels: readStringArray(runs.pinnedPanels),
       savedViews,
+    },
+    inbox: {
+      filters: normalizeInboxFilters(inbox.filters),
+      triage: normalizeInboxTriageMap(inbox.triage),
     },
   };
 }
@@ -244,6 +339,54 @@ export function rememberRecentWorkspace(
   return {
     ...preferences,
     recentWorkspaces: nextRecentWorkspaces,
+  };
+}
+
+export function sameInboxFilters(left: InboxFiltersPreference, right: InboxFiltersPreference) {
+  return left.severity === right.severity
+    && left.decisionType === right.decisionType
+    && left.projectId === right.projectId
+    && left.sourceType === right.sourceType
+    && left.notificationLevel === right.notificationLevel
+    && left.showSnoozed === right.showSnoozed;
+}
+
+export function upsertInboxTriageEntries(
+  preferences: ConsolePreferences,
+  itemIds: string[],
+  entry: InboxTriageEntry,
+): ConsolePreferences {
+  const nextTriage = { ...preferences.inbox.triage };
+  for (const itemId of itemIds.map((value) => value.trim()).filter(Boolean)) {
+    nextTriage[itemId] = entry;
+  }
+  const capped = normalizeInboxTriageMap(nextTriage);
+  return {
+    ...preferences,
+    inbox: {
+      ...preferences.inbox,
+      triage: capped,
+    },
+  };
+}
+
+export function clearInboxTriageEntries(
+  preferences: ConsolePreferences,
+  itemIds: string[],
+): ConsolePreferences {
+  if (!itemIds.length) {
+    return preferences;
+  }
+  const nextTriage = { ...preferences.inbox.triage };
+  for (const itemId of itemIds) {
+    delete nextTriage[itemId];
+  }
+  return {
+    ...preferences,
+    inbox: {
+      ...preferences.inbox,
+      triage: nextTriage,
+    },
   };
 }
 

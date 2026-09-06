@@ -1,5 +1,11 @@
 # Agent Hive
 
+> **Unmaintained legacy software — September 6, 2026.** `mellona-hive` 2.4.1 is the
+> final release. No feature, compatibility, or security updates are promised, and new
+> issues and pull requests are not accepted. See the repository's `docs/legacy-closeout.md`
+> for the final state and how existing users should proceed. Existing releases and the MIT
+> license remain.
+
 Agent Hive is a repo-native control plane for autonomous work. In v2.4, that means you can still supervise Codex, Claude Code, and local/manual work from one place, while also adding native companion paths for Pi, OpenClaw, and Hermes.
 
 **Keep your agent. Add a control plane.**

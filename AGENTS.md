@@ -1,4 +1,4 @@
-> **Retired 2026-09-06.** This repository is archived as-is and not maintained; the guidance below is historical. See `docs/retirement/2026-09-06/`.
+> **Unmaintained legacy software (final release 2.4.1, September 6, 2026).** The guidance below is historical and is not authority to restart development, merge the unmerged branches, or publish another version. See `docs/legacy-closeout.md`.
 
 # AGENTS
 

@@ -1,7 +1,7 @@
 [project]
 name = "mellona-hive"
-version = "2.4.0"
-description = "CLI-first orchestration platform for autonomous agents with Git-backed task, run, and memory state"
+version = "2.4.1"
+description = "Unmaintained legacy CLI-first orchestration platform for autonomous agents (final release); no further updates"
 readme = { file = "docs/PYPI_README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -11,7 +11,7 @@ authors = [
 ]
 keywords = ["ai", "agents", "orchestration", "llm", "automation"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 7 - Inactive",
     "Intended Audience :: Developers",
     "Environment :: Console",
     "License :: OSI Approved :: MIT License",
@@ -102,7 +102,10 @@ hive = "hive.cli.main:main"
 hive-mcp = "hive_mcp.__main__:run"
 
 [build-system]
-requires = ["hatchling"]
+# hatchling 1.32.0+ writes Metadata-Version 2.5, which the twine 6.x/packaging 25
+# pinned in the dev extras and in the pinned pypa/gh-action-pypi-publish cannot read.
+# Cap the backend so the final closeout artifacts stay at Metadata-Version 2.4.
+requires = ["hatchling>=1.27,<1.32"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

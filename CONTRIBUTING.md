@@ -1,5 +1,10 @@
 # Contributing to Agent Hive
 
+Agent Hive is unmaintained as of September 6, 2026 (final release `mellona-hive` 2.4.1).
+New issues and pull requests are not accepted; forks remain possible under the MIT license.
+See [legacy closeout](docs/legacy-closeout.md). The instructions below are retained for
+historical reference and forks.
+
 Thanks for contributing. Hive is now a v2-first codebase, so the safest way to work here is to stay close to the CLI, the `.hive/` substrate, and the generated projection model.
 
 ## Ground Rules

@@ -378,11 +378,9 @@ def test_agent_entrypoints_remind_fresh_worktrees_to_install_dev_extras():
     assert "uv sync --extra dev" in agents_doc
     assert "uv sync --extra dev" in claude_doc
     assert "uv sync --extra dev" in skill_doc
-    assert "docs/V2_4_STATUS.md" in agents_doc
-    assert "docs/V2_4_STATUS.md" in claude_doc
+    assert "docs/V2_*_STATUS.md" in agents_doc
+    assert "docs/V2_*_STATUS.md" in claude_doc
     assert "docs/V2_4_STATUS.md" in skill_doc
-    assert "docs/V2_5_STATUS.md" in agents_doc
-    assert "docs/V2_5_STATUS.md" in claude_doc
     assert "docs/V2_5_STATUS.md" in skill_doc
 
 

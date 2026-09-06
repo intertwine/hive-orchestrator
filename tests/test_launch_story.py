@@ -22,7 +22,7 @@ def test_agent_harness_docs_use_manager_loop_by_default():
     assert "hive next --json" in claude
     assert "hive work <task-id> --owner <your-name> --json" in claude
     assert "hive finish <run-id> --json" in claude
-    assert "Repo checkout helpers are for maintainers" in claude
+    assert "Checkout-only helpers in this repo are for maintainers." in claude
 
 
 def test_historical_project_docs_frame_v2_as_the_current_model():

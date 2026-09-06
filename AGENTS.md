@@ -15,7 +15,7 @@ Read `skills/hive-essentials/SKILL.md` before doing anything else. It explains w
 - Treat `projects/*/AGENCY.md` as the narrative project document.
 - Read `projects/*/PROGRAM.md` before autonomous edits or evaluator runs.
 - If repo-local docs, skills, memory, and current git state disagree, trust current repo state and tests first, then repo-local docs and `PROGRAM.md`.
-- Keep `docs/V2_3_STATUS.md` current for the shipped v2.3 line, keep `docs/V2_4_STATUS.md` current for the shipped v2.4 line, and keep `docs/V2_5_STATUS.md` current for the active v2.5 draft release line.
+- Keep the status doc for the release line you touch current (`docs/V2_*_STATUS.md`).
 - Before substantial repo work, prefer `make workspace-status`, or check `git status --short`, `git worktree list`, `gh pr status`, and `hive doctor --json` directly.
 - In a fresh maintainer worktree, run `uv sync --extra dev` before `pytest` or `make check` so the test-only dependencies are actually installed.
 - Build startup context with `hive context startup --project <project-id> --task <task-id> --json`.
@@ -64,6 +64,8 @@ Use the lower-level `task claim` and `context startup` commands only when you ne
 - Do not skip `PROGRAM.md` when a project defines evaluator or path policy.
 - Do not let a large PR absorb unrelated fixes just because you are already in the code.
 - Do not merge because a PR is "probably fine" if review findings are still unresolved.
+
+For optional GitHub-triggered Claude automation, see `docs/INSTALL_CLAUDE_APP.md`.
 
 <!-- hive:begin compatibility -->
 ## Hive 2.0 compatibility
